@@ -43,6 +43,11 @@ This WordPress-style approach provides:
 - `/blog` - Blog listing page
 - `/blog/[slug]` - Single blog post
 - `/gallery/[slug]` - Gallery page
+- `/login` - Member login/registration
+- `/register` - Member registration (or combined with /login)
+- `/members` - Member dashboard (protected)
+- `/members/profile` - Member profile page (protected)
+- `/members/account` - Account settings (protected)
 - Other public pages as needed
 
 **Admin Routes (Protected):**
@@ -53,6 +58,9 @@ This WordPress-style approach provides:
 - `/admin/galleries` - Gallery management
 - `/admin/media` - Media library
 - `/admin/forms` - Form builder and submissions
+- `/admin/memberships` - Membership group management
+- `/admin/members` - Member user management
+- `/admin/members/[id]` - View member details and memberships
 - `/admin/settings` - Site settings (including design system: fonts and color palette)
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
@@ -70,11 +78,13 @@ Each client deployment uses:
 ```
 Supabase Project
 ├── auth.users (Supabase Auth - shared across all clients)
-│   └── user_metadata: { tenant_id: "client_abc123", role: "admin" }
+│   ├── Admin users: { tenant_id: "client_abc123", role: "admin", type: "admin" }
+│   └── Member users: { tenant_id: "client_abc123", type: "member" }
 ├── public schema
 │   └── archived_projects (registry for archived clients)
 ├── client_abc123 schema (Client 1 data)
-│   ├── posts, galleries, media, forms, settings, etc.
+│   ├── posts, galleries, media, forms, settings
+│   ├── membership_groups, members, user_memberships
 │   └── All client-specific tables
 ├── client_xyz789 schema (Client 2 data)
 │   └── Isolated data for Client 2
@@ -305,6 +315,50 @@ This architecture enables:
 - Export capabilities (CSV)
 - Notes and follow-up tracking
 
+### 5. Membership Platform
+
+A protected content system allowing members-only access to content, pages, and resources. Supports multiple membership groups/tiers with different access levels.
+
+**Membership Groups (Access Groups):**
+- Named membership tiers (e.g., "Basic", "Premium", "VIP", "Enterprise")
+- Hierarchical tier levels (numeric tier for access comparison)
+- Description and benefits for each group
+- Unlimited membership groups per client
+- Group-specific access permissions
+
+**Member Users:**
+- Separate user accounts from admin users (uses Supabase Auth)
+- Member registration and login on public site
+- Member profiles with display names
+- Membership status (active, inactive, suspended)
+- Multiple membership groups per member (many-to-many relationship)
+- Optional expiration dates per membership assignment
+
+**Content Protection:**
+- Posts, galleries, and pages can be marked as protected
+- Three access levels:
+  - `public` - Accessible to all visitors
+  - `members` - Requires any active membership
+  - `group` - Requires specific membership group
+- Content-level access control (select required membership group)
+- Protected content preview (teaser content for non-members)
+
+**Key Features:**
+- Member registration and login (separate from admin login)
+- Member dashboard/profile area
+- Content gating with automatic redirects
+- Membership management in admin
+- Member directory (optional, admin-configurable)
+- Membership expiration tracking
+- Subscription/renewal tracking (optional, for future payment integration)
+
+**Admin Management:**
+- Create and manage membership groups
+- Assign members to groups
+- View all members and their group assignments
+- Member status management (activate, suspend, remove)
+- View member activity and access history (future enhancement)
+
 ## Design System & Branding
 
 ### Custom Design Per Project
@@ -357,7 +411,27 @@ The application uses **Supabase Auth** for authentication, providing a native, i
 - **OAuth Providers**: Support for Google, GitHub, and other OAuth providers (optional)
 - **Session Management**: Automatic session management with refresh tokens
 - **JWT Tokens**: Secure JWT-based authentication
-- **Role-based Access**: Custom roles stored in user metadata (admin, editor, viewer)
+- **Role-based Access**: Custom roles stored in user metadata (admin, editor, viewer, and more)
+
+### Role Types
+
+**Admin Roles** (for CMS access):
+- `admin` - Full access to all CMS features and settings
+- `editor` - Can create and edit content, but cannot manage settings
+- `viewer` - Read-only access to CMS
+- Additional roles can be added as needed (stored in `user_metadata.role`)
+
+**Member Users** (for public site access):
+- Separate authentication from admin users
+- No CMS access
+- Access controlled via membership groups
+- Type stored in `user_metadata.type = "member"`
+- Can belong to multiple membership groups simultaneously
+
+**Distinction:**
+- **Roles**: Admin user permissions within the CMS (who can edit content)
+- **Membership Groups**: Member access levels for protected content (what content members can view)
+- Admin users are for content management; member users are for consuming protected content
 
 ### Multi-Tenant Authentication Strategy
 
@@ -393,6 +467,144 @@ Since all clients share a single Supabase project but use separate schemas, auth
 - **Automatic Refresh**: Supabase handles token refresh automatically
 - **Login Page**: `/admin/login` with Supabase Auth UI components
 - **Discreet Admin Link**: Admin link in public site footer for easy access
+
+## Membership System Architecture
+
+### Dual Authentication System
+
+The application supports two distinct user types using Supabase Auth:
+
+1. **Admin Users** - Access CMS at `/admin/*`
+   - Stored in Supabase Auth with `user_metadata.type = "admin"` (or absent)
+   - Have `user_metadata.tenant_id` and `user_metadata.role`
+   - Authenticate at `/admin/login`
+   - Manage content and site settings
+
+2. **Member Users** - Access protected content on public site
+   - Stored in Supabase Auth with `user_metadata.type = "member"`
+   - Have `user_metadata.tenant_id` (for multi-tenant isolation)
+   - Authenticate at `/login` or `/register`
+   - Profile stored in `members` table in client schema
+   - Can belong to multiple membership groups
+
+### Membership Groups vs Roles
+
+**Roles** (Admin Users):
+- Define what CMS features a user can access
+- Set in `user_metadata.role` (admin, editor, viewer, and more)
+- Examples: "Can this admin user delete posts?", "Can they edit settings?"
+
+**Membership Groups** (Member Users):
+- Define what protected content members can access
+- Stored in `membership_groups` table in client schema
+- Members assigned via `user_memberships` junction table
+- Examples: "Can this member view premium blog posts?", "Can they access VIP gallery?"
+
+### Database Schema
+
+**Membership Tables** (in each client schema):
+```sql
+-- Membership groups (e.g., "Basic", "Premium", "VIP")
+CREATE TABLE membership_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  tier INTEGER DEFAULT 0, -- For hierarchical access (0=free, 1=basic, 2=premium, etc.)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Member profiles (extends Supabase auth.users)
+CREATE TABLE members (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  display_name TEXT,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- User membership assignments (many-to-many)
+CREATE TABLE user_memberships (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  membership_group_id UUID NOT NULL REFERENCES membership_groups(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ, -- Optional expiration
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(member_id, membership_group_id)
+);
+```
+
+**Content Protection Fields** (added to existing tables):
+```sql
+-- Add to posts table
+ALTER TABLE posts ADD COLUMN access_level TEXT DEFAULT 'public' 
+  CHECK (access_level IN ('public', 'members', 'group'));
+ALTER TABLE posts ADD COLUMN required_membership_group_id UUID 
+  REFERENCES membership_groups(id) ON DELETE SET NULL;
+
+-- Add to galleries table
+ALTER TABLE galleries ADD COLUMN access_level TEXT DEFAULT 'public'
+  CHECK (access_level IN ('public', 'members', 'group'));
+ALTER TABLE galleries ADD COLUMN required_membership_group_id UUID 
+  REFERENCES membership_groups(id) ON DELETE SET NULL;
+
+-- Future: Add to custom pages table when implemented
+```
+
+### Access Control Flow
+
+**Content Access Check:**
+1. User requests protected content (post, gallery, page)
+2. Check content `access_level`:
+   - `public` → Allow access
+   - `members` → Verify user is authenticated member (any active membership)
+   - `group` → Verify user belongs to `required_membership_group_id`
+3. If access denied → Redirect to `/login` with redirect URL
+4. If member but wrong group → Show upgrade message or teaser content
+
+**Member Authentication:**
+1. Member registers/logs in at `/login`
+2. Supabase Auth creates user with `user_metadata.type = "member"`
+3. Member profile created in `members` table
+4. Member assigned to default membership group (optional)
+5. Session established for public site access
+
+### Middleware & Route Protection
+
+**Public Route Protection:**
+- Member routes (`/members/*`) require member authentication
+- Protected content routes check membership before rendering
+- Redirect unauthenticated users to `/login` with return URL
+
+**Component-Level Gating:**
+- `<ProtectedContent>` wrapper component for gated sections
+- Accepts `requiredMembershipGroup` prop
+- Shows teaser or redirect based on membership status
+
+### Integration Points
+
+1. **Content Editor**: 
+   - Access level dropdown when creating/editing posts/galleries
+   - Membership group selector when `access_level = "group"`
+   - Preview option to see member view
+
+2. **Member Dashboard**:
+   - Display current memberships
+   - Show membership expiration dates
+   - List accessible content categories
+   - Account settings
+
+3. **Admin Dashboard**:
+   - Membership statistics (total members, by group)
+   - Recent member registrations
+   - Membership activity overview
+
+4. **API Endpoints**:
+   - Member authentication endpoints
+   - Protected content endpoints with membership validation
+   - Member profile endpoints
 
 ## API Endpoints
 
@@ -518,10 +730,15 @@ website-cms/
 │   │   │   ├── galleries/     # Gallery management
 │   │   │   ├── media/         # Media library
 │   │   │   ├── forms/         # Form builder
+│   │   │   ├── memberships/   # Membership group management
+│   │   │   ├── members/       # Member user management
 │   │   │   ├── settings/      # Settings
 │   │   │   │   ├── archive/   # Archive/restore management
 │   │   │   │   └── reset/     # Reset to template
 │   │   │   └── layout.tsx     # Admin layout
+│   │   ├── (public)/          # Public website routes
+│   │   │   ├── login/         # Member login/registration
+│   │   │   ├── members/       # Member dashboard routes
 │   │   └── api/               # REST API endpoints
 │   ├── components/
 │   │   ├── ui/                # shadcn/ui base components
@@ -529,6 +746,7 @@ website-cms/
 │   │   ├── editor/            # Rich text editor
 │   │   ├── media/             # Media components
 │   │   ├── forms/             # Form components
+│   │   ├── memberships/       # Membership components
 │   │   └── public/            # Public site components (reusable library)
 │   │       ├── sections/      # Reusable page sections
 │   │       ├── pages/         # Page-level components
@@ -539,7 +757,8 @@ website-cms/
 │   │   │   ├── schema.ts      # Schema utilities
 │   │   │   ├── migrations.ts  # Migration utilities
 │   │   │   ├── archive.ts     # Archive/restore utilities
-│   │   │   └── reset.ts       # Reset utilities
+│   │   │   ├── reset.ts       # Reset utilities
+│   │   │   └── memberships.ts # Membership utilities
 │   │   ├── auth/              # Auth API integration
 │   │   ├── api/               # API utilities
 │   │   └── utils/             # Utility functions
@@ -633,6 +852,7 @@ pnpm run build
 11. **Developer-Centric Components**: Reusable component library approach, not visual page builder
 12. **CI/CD Ready**: Designed for automated deployments and scalable maintenance
 13. **Archive/Restore System**: Built-in project lifecycle management
+14. **Membership Platform**: Built-in protected content system with membership groups
 
 ## Future Enhancements
 
@@ -641,7 +861,14 @@ pnpm run build
 - Email notifications for form submissions
 - Content scheduling
 - Multi-language support
-- User roles and permissions refinement
+- **Membership System:**
+  - Payment integration for paid memberships
+  - Subscription management and renewals
+  - Member activity tracking and analytics
+  - Automated membership expiration reminders
+  - Member referral system
+  - Member directory with privacy controls
+- User roles and permissions refinement (additional admin roles)
 - Advanced design system controls (spacing, border radius, shadows)
 - Design system presets/templates for quick setup
 - Component library documentation site

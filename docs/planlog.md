@@ -111,7 +111,94 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Apply design system variables
   - [ ] Add SEO metadata handling
 
-### Phase 5: Archive & Restore System
+### Phase 5: Membership Platform
+
+**Status**: Pending - Core feature for protected content, depends on Phase 0 & 4
+
+- [ ] Create membership database schema
+  - [ ] Create migration `supabase/migrations/002_membership_schema.sql`:
+    - `membership_groups` table (name, slug, description, tier)
+    - `members` table (references auth.users, email, display_name, status)
+    - `user_memberships` junction table (member_id, membership_group_id, expires_at)
+  - [ ] Add `access_level` and `required_membership_group_id` columns to `posts` table
+  - [ ] Add `access_level` and `required_membership_group_id` columns to `galleries` table
+  - [ ] Add indexes for performance
+
+- [ ] Build membership utilities
+  - [ ] Create `src/lib/supabase/memberships.ts`:
+    - `getMembershipGroups()` - List all membership groups
+    - `getMemberMemberships()` - Get member's active memberships
+    - `checkContentAccess()` - Verify member has access to content
+    - `assignMembership()` - Assign member to group
+    - `removeMembership()` - Remove member from group
+  - [ ] Create `src/lib/auth/member-auth.ts`:
+    - `getMemberUser()` - Get authenticated member with profile
+    - `validateMemberAccess()` - Verify member authentication
+    - `hasMembership()` - Check if member has specific membership
+
+- [ ] Member authentication flow
+  - [ ] Create `src/app/(public)/login/page.tsx` (member login/registration)
+  - [ ] Create `src/app/(public)/register/page.tsx` (or combine with login)
+  - [ ] Create API route `src/app/api/auth/member/login/route.ts` (Supabase Auth for members)
+  - [ ] Create API route `src/app/api/auth/member/register/route.ts` (member registration with user_metadata.type = "member")
+  - [ ] Update middleware to handle member authentication (separate from admin)
+
+- [ ] Member routes and pages
+  - [ ] Create `src/app/(public)/members/page.tsx` (member dashboard - protected)
+  - [ ] Create `src/app/(public)/members/profile/page.tsx` (member profile page)
+  - [ ] Create `src/app/(public)/members/account/page.tsx` (account settings)
+  - [ ] Create `src/components/memberships/MemberDashboard.tsx`
+  - [ ] Create `src/components/memberships/MemberProfile.tsx`
+
+- [ ] Content protection implementation
+  - [ ] Update `src/app/(public)/blog/[slug]/page.tsx` to check access_level
+  - [ ] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level
+  - [ ] Create `src/components/public/ProtectedContent.tsx` wrapper component
+  - [ ] Create middleware/utility for checking content access before rendering
+  - [ ] Implement redirect to `/login` for unauthenticated access attempts
+  - [ ] Add teaser/preview content for non-members
+
+- [ ] Admin UI for membership management
+  - [ ] Create `src/app/admin/memberships/page.tsx` (list all membership groups)
+  - [ ] Create `src/app/admin/memberships/new/page.tsx` (create new group)
+  - [ ] Create `src/app/admin/memberships/[id]/page.tsx` (edit group)
+  - [ ] Create `src/components/memberships/MembershipGroupEditor.tsx`
+  - [ ] Create `src/app/admin/members/page.tsx` (list all members)
+  - [ ] Create `src/app/admin/members/[id]/page.tsx` (view member details, manage memberships)
+  - [ ] Create `src/components/memberships/MemberManagement.tsx`
+  - [ ] Create `src/components/memberships/MemberList.tsx`
+
+- [ ] Content editor integration
+  - [ ] Update `src/components/posts/PostEditor.tsx`:
+    - Add access level dropdown (public, members, group)
+    - Add membership group selector (when access_level = "group")
+  - [ ] Update `src/components/galleries/GalleryEditor.tsx`:
+    - Add access level dropdown
+    - Add membership group selector
+  - [ ] Add preview mode to see member view
+
+- [ ] API routes for memberships
+  - [ ] Create `src/app/api/memberships/route.ts` (GET list, POST create - admin only)
+  - [ ] Create `src/app/api/memberships/[id]/route.ts` (GET, PUT, DELETE - admin only)
+  - [ ] Create `src/app/api/members/route.ts` (GET list - admin only)
+  - [ ] Create `src/app/api/members/[id]/route.ts` (GET details - admin only)
+  - [ ] Create `src/app/api/members/[id]/memberships/route.ts` (POST assign, DELETE remove - admin only)
+  - [ ] Create `src/app/api/member/profile/route.ts` (GET current member profile)
+  - [ ] Update existing content API routes to respect access_level:
+    - Update `src/app/api/posts/[id]/route.ts` to check membership
+    - Update `src/app/api/galleries/[id]/route.ts` to check membership
+
+- [ ] Member authentication middleware
+  - [ ] Update `src/middleware.ts` to handle member routes (`/members/*`)
+  - [ ] Add member session validation (separate from admin)
+  - [ ] Implement protected content route checks
+
+- [ ] Dashboard integration
+  - [ ] Add membership statistics to admin dashboard
+  - [ ] Show recent member registrations
+  - [ ] Display membership group counts
+
+### Phase 6: Archive & Restore System
 
 **Status**: Pending - Can run parallel with other phases
 
@@ -138,7 +225,7 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Create `src/app/api/admin/archive/route.ts` (POST to archive, GET to list)
   - [ ] Create `src/app/api/admin/archive/[id]/restore/route.ts` (POST to restore)
 
-### Phase 6: Reset to Template System
+### Phase 7: Reset to Template System
 
 **Status**: Pending - Can run parallel with other phases
 
@@ -159,7 +246,7 @@ This document tracks planned work, implementation phases, and backlog items for 
 - [ ] Create reset API route
   - [ ] Create `src/app/api/admin/reset/route.ts` (POST with validation and confirmation)
 
-### Phase 7: CLI Tools
+### Phase 8: CLI Tools
 
 **Status**: Pending - Useful for deployment/setup
 
@@ -180,7 +267,7 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Create `scripts/archive-project.ts` (CLI for archiving project, backup options)
   - [ ] Add `pnpm run archive` script to `package.json`
 
-### Phase 8: Storage Bucket Management
+### Phase 9: Storage Bucket Management
 
 **Status**: Pending - Part of infrastructure
 
@@ -195,7 +282,7 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Update migration utilities to include bucket creation
   - [ ] Add bucket validation checks
 
-### Phase 9: API Enhancements
+### Phase 10: API Enhancements
 
 **Status**: Pending - Enhancements to existing APIs
 
@@ -204,14 +291,16 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Add SEO metadata to post responses
   - [ ] Add pagination to gallery API
   - [ ] Add search/filter to posts API
+  - [ ] Ensure all protected content endpoints check membership access
 
 - [ ] Create API documentation
   - [ ] Create `docs/api.md` with comprehensive API documentation
   - [ ] Document all endpoints, request/response formats
-  - [ ] Include authentication requirements
+  - [ ] Include authentication requirements (admin vs member)
+  - [ ] Document membership access requirements
   - [ ] Add rate limiting documentation
 
-### Phase 10: Polish & Testing
+### Phase 11: Polish & Testing
 
 **Status**: Pending - Final phase before release
 
@@ -219,21 +308,25 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Add comprehensive error boundaries
   - [ ] Improve error messages throughout app
   - [ ] Add user-friendly error pages (404, 500)
+  - [ ] Handle membership access denied errors gracefully
 
 - [ ] Loading states
   - [ ] Enhance loading states across admin UI
   - [ ] Add skeleton loaders for public pages
   - [ ] Implement optimistic UI updates where appropriate
+  - [ ] Add loading states for membership checks
 
 - [ ] Type safety
-  - [ ] Generate database types from schema
+  - [ ] Generate database types from schema (including membership tables)
   - [ ] Improve TypeScript coverage
   - [ ] Add strict type checking
+  - [ ] Add types for membership utilities
 
 - [ ] Testing
-  - [ ] Add unit tests for utilities (archive, reset, design system)
-  - [ ] Add integration tests for API routes
+  - [ ] Add unit tests for utilities (archive, reset, design system, memberships)
+  - [ ] Add integration tests for API routes (including protected content)
   - [ ] Test component library components
+  - [ ] Test membership access control flows
 
 ## Completed Phases (From Previous Implementation)
 
@@ -274,8 +367,10 @@ This document tracks planned work, implementation phases, and backlog items for 
 
 ### Authentication
 - Using Supabase Auth with user metadata for multi-tenant access
-- User metadata: `{ tenant_id: "client_abc123", role: "admin|editor|viewer" }`
+- **Admin users**: `user_metadata: { tenant_id: "client_abc123", role: "admin|editor|viewer", type: "admin" }`
+- **Member users**: `user_metadata: { tenant_id: "client_abc123", type: "member" }`
 - Middleware validates tenant_id matches `NEXT_PUBLIC_CLIENT_SCHEMA`
+- Dual authentication system: Admin (CMS) and Member (protected content)
 
 ### Multi-Tenant Security
 - Each deployment scoped to single schema via environment variable
@@ -292,6 +387,13 @@ This document tracks planned work, implementation phases, and backlog items for 
 - Components accept props and consume design system variables
 - Developer-centric approach (no visual page builder)
 
+### Membership Platform
+- Membership groups stored in client schema (membership_groups table)
+- Members extend Supabase auth.users with profile in members table
+- Many-to-many relationship: members can belong to multiple groups
+- Content protection via access_level (public, members, group)
+- Separate member authentication flow from admin authentication
+
 ### Archive/Restore
 - Schema renaming (fast, no data migration)
 - Registry table in `public` schema for cross-schema queries
@@ -304,7 +406,14 @@ This document tracks planned work, implementation phases, and backlog items for 
 - Email notifications for form submissions
 - Content scheduling
 - Multi-language support
-- User roles and permissions refinement
+- User roles and permissions refinement (additional admin roles)
+- **Membership Platform Enhancements:**
+  - Payment integration for paid memberships
+  - Subscription management and renewals
+  - Member activity tracking and analytics
+  - Automated membership expiration reminders
+  - Member referral system
+  - Member directory with privacy controls
 - Advanced design system controls (spacing, border radius, shadows)
 - Design system presets/templates for quick setup
 - Component library documentation site
