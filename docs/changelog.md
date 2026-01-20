@@ -9,6 +9,19 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-20 - Membership Platform Architecture
+- Added comprehensive membership platform section to PRD
+- Documented dual authentication system (admin users vs member users)
+- Added membership groups and access control architecture
+- Documented content protection system (public, members, group access levels)
+- Added database schema for membership system (membership_groups, members, user_memberships tables)
+- Updated route structure with member routes (`/login`, `/register`, `/members/*`)
+- Added admin routes for membership management (`/admin/memberships`, `/admin/members`)
+- Added Phase 5: Membership Platform to planlog with detailed implementation tasks
+- Renumbered subsequent phases (Archive/Restore, Reset, CLI, Storage, API, Polish)
+- Updated architecture notes with membership platform details
+- Added membership-specific future enhancements to planlog
+
 ### 2026-01-20 - Documentation and Architecture Planning
 - Merged detailed implementation plan into `docs/planlog.md`
 - Organized implementation phases (0-10) with priority order
