@@ -1,0 +1,44 @@
+---
+alwaysApply: true
+---
+
+## Package Management
+- Always use pnpm instead of npm for package management
+- Use `pnpm install` instead of `npm install`
+- Use `pnpm add [package]` instead of `npm install [package]`
+- Use `pnpm run [script]` instead of `npm run [script]`
+- Use `pnpm audit` instead of `npm audit`
+- Use `pnpm remove [package]` instead of `npm uninstall [package]`
+- Use `pnpm update` instead of `npm update`
+
+## Additional Rules
+- The server is always running on port 3000
+- Use available MCP servers for knowledgebase and understanding
+- Place components in the root `/components` directory and combine by usecase in subdirectories
+- Always use `/components/ui` for shadcn/ui base components when building new UI components
+- Fetch logs from the console
+- Suggest performance improvements
+- Point out potential security issues and suggest solutions
+- Don't install packages unless asked
+- Prefer iteration and modularization over code duplication
+
+## Git Submodule Management (Optional)
+- **If using submodules:** Always refresh shared documentation submodules at the beginning of each coding session
+- **Command:** Run `git submodule update --remote` to pull latest shared content
+- **Purpose:** Ensure access to latest global PRD, technical specs, and shared documentation
+- **Location:** `docs/shared/` typically contains read-only references to external repositories
+- **Never modify:** Files in submodule directories are read-only - changes must be made in the source repository
+
+## Context7 MCP Server Usage
+- **Always use Context7 MCP server** for enhanced knowledge and context
+- **Before coding:** Query Context7 for relevant documentation and best practices
+- **For libraries/frameworks:** Use `mcp_context7_resolve-library-id` to find official docs
+- **For documentation:** Use `mcp_context7_get-library-docs` to fetch up-to-date docs
+- **Search strategy:** Query Context7 when working with:
+  - Next.js, React, TypeScript, Tailwind CSS, shadcn/ui
+  - Supabase, Drizzle ORM, Express.js
+  - Authentication, security, database design
+  - Multi-component architecture patterns
+  - Deployment and CI/CD best practices
+- **Integration approach:** Use Context7 insights to inform coding decisions and suggest modern patterns
+- **Documentation priority:** Always check Context7 before implementing new features or solving complex problems

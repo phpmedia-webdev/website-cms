@@ -1,0 +1,221 @@
+---
+alwaysApply: true
+---
+
+## Documentation Structure
+
+This document defines the structure and purpose of all documentation files in the project.
+
+### Documentation Directory
+
+All project documentation lives in the `docs/` folder. The root directory should remain clean without README or documentation files.
+
+## Core Documentation Files
+
+### `docs/prd.md` - Product Requirements Document
+
+**Purpose**: Comprehensive product specification and architecture documentation.
+
+**Contents**:
+- Project overview and goals
+- Technology stack
+- Architecture details (single app model, routing, multi-schema strategy)
+- Component architecture (developer-centric approach)
+- Archive & restore system design
+- CI/CD & maintenance strategy
+- Content types (blog posts, galleries, media, forms)
+- Design system & branding
+- Authentication
+- API endpoints
+- Getting started guide
+- Deployment instructions
+- Project structure
+- Development guidelines
+- Key differentiators
+- Future enhancements
+
+**When to Update**:
+- Major architecture changes
+- New feature specifications
+- Technology stack changes
+- Deployment model updates
+
+### `docs/changelog.md` - Change History
+
+**Purpose**: Track all completed changes, fixes, and releases.
+
+**Format**:
+- Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format
+- Uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+- Reverse chronological order (latest first)
+- Date-stamped entries in `YYYY-MM-DD` format
+- Categorized by version: `[Unreleased]`, `[Version]`
+
+**Contents**:
+- **Only completed changes** - no planning items
+- Version releases with dates
+- Bug fixes
+- New features implemented
+- Breaking changes
+- Deprecations
+- Security updates
+
+**When to Update**:
+- After completing features or fixes
+- At the end of each development session
+- When releasing versions
+- When deprecating features
+
+**Changelog Pattern**:
+- **ALWAYS** include a date stamp in version entries: `## [VERSION] - YYYY-MM-DD`
+- Use format: `## [0.3.0] - 2026-01-17` (not just `## [0.3.0]`)
+- When moving items from "Unreleased" to a version, add or update the date stamp
+- Use ISO date format: YYYY-MM-DD (e.g., 2026-01-17)
+- Date should reflect when the version was released/deployed
+- Never leave version entries without dates - all versions must have timestamps
+
+**Structure**:
+```markdown
+# Changelog
+
+## [Unreleased]
+
+### YYYY-MM-DD - Feature/Fix Description
+- Change item 1
+- Change item 2
+
+## [Version] - YYYY-MM-DD
+
+### Added
+- New features
+
+### Changed
+- Changes to existing functionality
+
+### Fixed
+- Bug fixes
+
+### Removed
+- Removed features
+```
+
+**Cross-Reference**: Links to `planlog.md` for planned work.
+
+### `docs/planlog.md` - Planning and Backlog
+
+**Purpose**: Track planned work, implementation phases, future enhancements, and backlog items.
+
+**Contents**:
+- Implementation phases with detailed tasks (organized by priority)
+- Active planning items with checkboxes
+- Feature backlog
+- Technical debt items
+- Future enhancements
+- Architecture features (planned)
+- Architecture notes and implementation details
+- Notes and considerations
+
+**Format**:
+- Uses checkboxes `- [ ]` for incomplete items
+- Uses `- [x]` for completed items
+- Organized by phase/category with priority order
+- Detailed task breakdowns with sub-tasks
+- **IMPORTANT**: Items are NEVER deleted - they remain in the document and are simply checked off when completed
+
+**When to Update**:
+- When identifying new work
+- When planning features
+- During sprint planning
+- When items are completed (check off the checkbox, keep the item)
+- When adding new phases or tasks
+
+**Workflow**:
+1. Add new items to appropriate phase/section
+2. **Check off items** (`- [ ]` → `- [x]`) as work progresses
+3. **Keep completed items in planlog.md** - do NOT delete them
+4. Add summary entries to `changelog.md` at session end (but keep detailed items in planlog)
+5. Review and prioritize regularly
+6. Move completed phases to "Completed Phases" section if desired for organization
+
+**Key Principle**: 
+- **Planlog is a living document** - items stay forever, just get checked off
+- This provides a complete history of what was planned and what was completed
+- Completed items serve as reference for what has been done
+- Only move items to changelog for summary/version entries, not for deletion
+
+**Cross-Reference**: Links to `changelog.md` for version summaries, but detailed task history remains in planlog.
+
+## Documentation Principles
+
+### Separation of Concerns
+
+1. **Planning vs. History**: 
+   - `planlog.md` = What we plan to do
+   - `changelog.md` = What we've done
+
+2. **Specification vs. History**:
+   - `prd.md` = What the system is/does (current state)
+   - `changelog.md` = How we got here (changes over time)
+
+3. **Structure vs. Content**:
+   - `.cursor/rules/structure.mdc` = How docs are organized (this file)
+   - Other docs = Actual project content
+
+### Maintenance Workflow
+
+1. **During Development**:
+   - Add planned items to `planlog.md`
+   - Check off items as work progresses
+
+2. **End of Session**:
+   - Check off completed items in `planlog.md` (do NOT delete them)
+   - Add summary entries to `changelog.md` for completed work
+   - Keep detailed task history in `planlog.md` for reference
+   - Update `prd.md` if architecture/specs changed
+
+3. **Before Release**:
+   - Review and consolidate `changelog.md` entries
+   - Version the release in `changelog.md`
+   - Update `prd.md` if needed
+
+### Versioning
+
+- **Changelog**: Uses semantic versioning (MAJOR.MINOR.PATCH)
+- **PRD**: Updated for significant changes, not every patch
+- **Planlog**: No versioning, always current
+
+### Cross-References
+
+All documentation files should include appropriate cross-references:
+- `changelog.md` → `planlog.md` (for planned work)
+- `planlog.md` → `changelog.md` (for completed work)
+- Both reference `prd.md` (for specifications)
+
+## File Naming Conventions
+
+- Use lowercase with hyphens: `planlog.md`, `changelog.md`
+- Use descriptive names that indicate purpose
+- Keep extensions: `.md` for Markdown, `.mdc` for Markdown documentation structure
+
+## Document Location
+
+All documentation files must be in the `docs/` directory:
+```
+docs/
+├── prd.md          # Product Requirements Document
+├── changelog.md    # Change history (completed work - summaries)
+└── planlog.md      # Planning and backlog (detailed tasks - items stay, just get checked off)
+```
+
+**Note**: `planlog.md` contains the detailed implementation plan with all phases and tasks. Items are never deleted - they remain in the document and are checked off when completed. This provides a complete history of planned and completed work.
+
+The documentation structure specification (this file) lives in `.cursor/rules/structure.mdc` to be part of the cursor rules system.
+
+## Additional Notes
+
+- Keep documentation up-to-date with code changes
+- Review documentation structure periodically
+- Don't duplicate information across files
+- Use consistent formatting and style
+- Include dates in changelog entries (required)
+- Use checkboxes in planlog for tracking
