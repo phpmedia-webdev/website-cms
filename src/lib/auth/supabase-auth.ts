@@ -35,9 +35,9 @@ export interface AuthUser {
  */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    // For server components and API routes, we can use the service role client
-    // which can read the user from the JWT token in cookies
-    const supabase = createServerSupabaseClient();
+    // For server components and API routes, use SSR client for proper cookie handling
+    const { createServerSupabaseClientSSR } = await import("@/lib/supabase/client");
+    const supabase = await createServerSupabaseClientSSR();
     
     // Get user from Supabase Auth
     // The service role client can validate JWT tokens
@@ -82,17 +82,8 @@ export async function getCurrentUserFromRequest(
   request: Request
 ): Promise<AuthUser | null> {
   try {
-    // Extract cookies from request
-    const cookieHeader = request.headers.get("cookie") || "";
-    const cookies = Object.fromEntries(
-      cookieHeader.split("; ").map((c) => {
-        const [key, ...rest] = c.split("=");
-        return [key, decodeURIComponent(rest.join("="))];
-      })
-    );
-
-    // Supabase stores the access token in a cookie
-    // Cookie name format: sb-<project-ref>-auth-token
+    // Use @supabase/ssr createServerClient for proper cookie handling in middleware
+    const { createServerClient } = await import("@supabase/ssr");
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
@@ -100,40 +91,28 @@ export async function getCurrentUserFromRequest(
       return null;
     }
 
-    // Extract project ref from URL to build cookie name
-    const projectRef = supabaseUrl.split("//")[1]?.split(".")[0];
-    if (!projectRef) {
-      return null;
-    }
-
-    // Try to find the access token in cookies
-    // Supabase uses sb-<project-ref>-auth-token for the session
-    const authTokenCookie = cookies[`sb-${projectRef}-auth-token`];
+    // Create a server client that can read cookies from the request
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          // Extract cookies from request headers
+          const cookieHeader = request.headers.get("cookie") || "";
+          return cookieHeader.split("; ").map((cookie) => {
+            const [name, ...rest] = cookie.split("=");
+            return {
+              name: name.trim(),
+              value: decodeURIComponent(rest.join("=")),
+            };
+          });
+        },
+        setAll() {
+          // No-op in middleware - cookies are set via response
+        },
+      },
+    });
     
-    if (!authTokenCookie) {
-      return null;
-    }
-
-    // Parse the cookie value (it's a JSON string with access_token and refresh_token)
-    let accessToken: string | null = null;
-    try {
-      const tokenData = JSON.parse(authTokenCookie);
-      accessToken = tokenData.access_token || null;
-    } catch {
-      // If parsing fails, try using the cookie value directly as token
-      accessToken = authTokenCookie;
-    }
-
-    if (!accessToken) {
-      return null;
-    }
-
-    // Create a client to validate the token
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    
-    // Validate the token and get user
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    // Get user from session
+    const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error || !user) {
       return null;

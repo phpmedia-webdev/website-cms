@@ -48,6 +48,18 @@ alwaysApply: true
 - Don't install packages unless asked
 - Prefer iteration and modularization over code duplication
 
+## Debug Code Guidelines
+- **Always comment out debug code** for easy cleanup later
+- Use clear comment markers: `// DEBUG:` or `/* DEBUG: ... */`
+- Wrap debug code blocks with start/end markers: `// DEBUG START` and `// DEBUG END`
+- Example:
+  ```typescript
+  // DEBUG: Logging user data for troubleshooting
+  // console.log("User data:", user);
+  // DEBUG END
+  ```
+- This makes it easy to find and remove debug code before committing
+
 ## Git Submodule Management (Optional)
 - **If using submodules:** Always refresh shared documentation submodules at the beginning of each coding session
 - **Command:** Run `git submodule update --remote` to pull latest shared content

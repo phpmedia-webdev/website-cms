@@ -1,24 +1,36 @@
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
-import { FileText, FolderImage, Images, FormInput } from "lucide-react";
+import { FileText, Folder, Image, ClipboardList } from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
 
-  // Fetch stats
-  const [postsResult, galleriesResult, mediaResult, formsResult] = await Promise.all([
-    supabase.from("posts").select("id", { count: "exact", head: true }),
-    supabase.from("galleries").select("id", { count: "exact", head: true }),
-    supabase.from("media").select("id", { count: "exact", head: true }),
-    supabase.from("forms").select("id", { count: "exact", head: true }),
-  ]);
-
-  const stats = {
-    posts: postsResult.count || 0,
-    galleries: galleriesResult.count || 0,
-    media: mediaResult.count || 0,
-    forms: formsResult.count || 0,
+  // Fetch stats with error handling
+  let stats = {
+    posts: 0,
+    galleries: 0,
+    media: 0,
+    forms: 0,
   };
+
+  try {
+    const [postsResult, galleriesResult, mediaResult, formsResult] = await Promise.all([
+      supabase.from("posts").select("id", { count: "exact", head: true }),
+      supabase.from("galleries").select("id", { count: "exact", head: true }),
+      supabase.from("media").select("id", { count: "exact", head: true }),
+      supabase.from("forms").select("id", { count: "exact", head: true }),
+    ]);
+
+    stats = {
+      posts: postsResult.count || 0,
+      galleries: galleriesResult.count || 0,
+      media: mediaResult.count || 0,
+      forms: formsResult.count || 0,
+    };
+  } catch (error) {
+    // Stats will remain at 0 if there's an error
+    // Error is silently handled to prevent page breakage
+  }
 
   return (
     <div className="space-y-6">
@@ -39,19 +51,19 @@ export default async function DashboardPage() {
         <StatsCard
           title="Galleries"
           value={stats.galleries}
-          icon={FolderImage}
+          icon={Folder}
           description="Gallery collections"
         />
         <StatsCard
           title="Media"
           value={stats.media}
-          icon={Images}
+          icon={Image}
           description="Images and videos"
         />
         <StatsCard
           title="Forms"
           value={stats.forms}
-          icon={FormInput}
+          icon={ClipboardList}
           description="Active forms"
         />
       </div>

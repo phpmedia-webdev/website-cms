@@ -4,6 +4,26 @@
 
 @layer base {
   :root {
+    /* Design System CSS Variables (loaded from database via DesignSystemProvider) */
+    /* These will be set dynamically, but we provide fallbacks here */
+    --font-primary: "Inter", sans-serif;
+    --font-secondary: "Inter", sans-serif;
+    --color-primary: #3b82f6;
+    --color-secondary: #8b5cf6;
+    --color-accent: #06b6d4;
+    --color-background: #ffffff;
+    --color-background-alt: #f9fafb;
+    --color-foreground: #111827;
+    --color-foreground-muted: #6b7280;
+    --color-border: #e5e7eb;
+    --color-link: #3b82f6;
+    --color-link-hover: #2563eb;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+    --color-info: #3b82f6;
+
+    /* shadcn/ui CSS Variables (for component compatibility) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;

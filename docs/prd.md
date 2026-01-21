@@ -1,4 +1,4 @@
-# Headless CMS - Product Requirements Document
+# Website CMS - Product Requirements Document
 
 ## Project Overview
 
@@ -13,7 +13,7 @@ A WordPress-style CMS application built with Next.js 15, designed as a lightweig
 - **Development Environment:** Cursor IDE
 - **Version Control:** GitHub
 - **Backend/Database:** Supabase (PostgreSQL with multi-schema architecture)
-- **Authentication:** Supabase Auth (native multi-tenant support)
+- **Authentication:** Supabase Auth (native multi-client support)
 - **Styling:** Tailwind CSS
 - **UI Components:** shadcn/ui
 - **Rich Text Editor:** Tiptap
@@ -64,7 +64,7 @@ This WordPress-style approach provides:
 - `/admin/memberships` - Membership group management
 - `/admin/members` - Member user management
 - `/admin/members/[id]` - View member details and memberships
-- `/admin/settings` - Site settings (including design system: fonts and color palette)
+- `/admin/settings` - Site settings (including theme selection, design system: fonts and color palette)
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
 
@@ -182,10 +182,22 @@ The application uses a **developer-centric component library approach** rather t
 src/components/
 ├── ui/                   # shadcn/ui primitives (Button, Card, Input...)
 ├── public/               # PROMOTABLE: reusable across future client sites
-│   ├── layout/           # Navigation/Header/Footer (generic, data-driven)
-│   ├── sections/         # Hero/Testimonials/FAQ/CTA/etc.
-│   ├── blocks/           # Smaller building blocks used inside sections
-│   ├── content/          # Renderers (RichTextRenderer, PostBody, etc.)
+│   ├── themes/           # Theme-tagged component libraries
+│   │   ├── modern/       # Theme: "modern" - Modern design aesthetic
+│   │   │   ├── sections/  # Theme-specific sections (HeroSection, ServicesSection, etc.)
+│   │   │   └── blocks/   # Theme-specific blocks
+│   │   ├── classic/       # Theme: "classic" - Classic/traditional design
+│   │   │   ├── sections/
+│   │   │   └── blocks/
+│   │   ├── minimal/      # Theme: "minimal" - Minimalist design
+│   │   │   ├── sections/
+│   │   │   └── blocks/
+│   │   └── [theme-name]/ # Additional themes can be added
+│   ├── shared/           # Theme-agnostic components (used by all themes)
+│   │   ├── layout/       # Navigation/Header/Footer (generic, data-driven)
+│   │   └── content/      # Renderers (RichTextRenderer, PostBody, etc.)
+│   ├── sections/         # Legacy/default sections (fallback if theme missing component)
+│   ├── blocks/           # Legacy/default blocks
 │   ├── media/            # Public display components (GalleryGrid, MediaFigure, etc.)
 │   └── index.ts          # Optional barrel exports (keep simple)
 └── site/                 # CLIENT glue (keep small)
@@ -202,10 +214,52 @@ src/components/
 - Components automatically inherit themeable properties
 - Example tokens: `bg-background`, `text-foreground`, `bg-primary`, `text-primary-foreground`, `border-border`
 
+**Component Styling Hierarchy:**
+- **Component Defaults**: Components define their own structural styles (layout, spacing, borders, sizing, positioning)
+- **Inherited Styles**: Components inherit colors and fonts from the client's design system settings (configured in `/admin/settings`)
+- **Styling Priority**:
+  1. Component structure/layout/borders (defined in component code)
+  2. Design system colors and fonts (inherited via CSS variables from admin settings)
+  3. Theme-specific overrides (if theme component exists)
+- **Best Practice**: Components focus on structure and layout; colors and fonts come from the design system for consistency and easy customization
+- **Example**: A `HeroSection` component defines its grid layout, padding, and border styles, but uses `text-foreground`, `bg-primary`, and font-family from the design system
+
+**Theme System (Tagged Components):**
+
+The application supports a **theme-based component system** where components are tagged with a theme identifier. This allows clients to switch between different design aesthetics while maintaining the same component structure and functionality.
+
+**Theme-Tagged Component Architecture:**
+- Components are organized by theme in `src/components/public/themes/[theme-name]/`
+- Each theme contains its own versions of sections and blocks (e.g., `HeroSection`, `ServicesSection`)
+- Themes share the same component API/props for consistency
+- Clients can switch themes via admin settings, instantly changing the visual design
+- Fallback to shared/default components if a theme doesn't have a specific component
+
+**Theme Selection:**
+- Theme setting stored in database (settings table)
+- Configurable per client via `/admin/settings` (client admin accessible)
+- Theme change applies immediately across all pages
+- Available themes: `modern`, `classic`, `minimal`, and custom themes as they're added
+
+**Component Resolution:**
+- Pages reference components by name (e.g., `<HeroSection />`)
+- System resolves component based on current theme setting
+- If theme-specific component exists, it's used; otherwise falls back to shared/default
+- Theme context provided at layout level for efficient component loading
+
+**Benefits:**
+- Easy theme switching: Change one setting, entire site updates
+- Component reuse: Same structure, different designs
+- A/B testing: Test different themes easily
+- Client customization: Offer theme options per client
+- Maintainability: Update theme-specific components independently
+- Scalability: Add new themes without affecting existing ones
+
 **Themeability Requirements (Reusable Components):**
 - Reusable components in `src/components/public/**` must use semantic design tokens (no hard-coded colors like `bg-blue-600`)
+- Theme-specific components must maintain the same API/props as other theme versions
 - Avoid `"use client"` in public components unless interactivity truly requires it (keeps public site lightweight)
-- Prefer prop-driven variants (e.g., `variant`, `tone`, `density`) over copy/paste “almost the same” components
+- Prefer prop-driven variants (e.g., `variant`, `tone`, `density`) over copy/paste "almost the same" components
 
 **Naming Conventions (Prevent Near-Duplicates):**
 - Use `NounVariant` names for sections and layouts (avoid `Hero2`, `NewTestimonials`)
@@ -534,11 +588,23 @@ A public-facing event calendar module with an admin-managed event list. Events a
 
 ### Custom Design Per Project
 
-Unlike WordPress, this CMS does not use theme templates. Each project is custom-designed per client requirements. However, the CMS provides global design system controls accessible from the admin settings.
+Unlike WordPress, this CMS does not use traditional theme templates. Each project is custom-designed per client requirements. However, the CMS provides:
+
+1. **Theme System**: A theme-tagged component library system that allows clients to switch between different design aesthetics (modern, classic, minimal, etc.) while maintaining the same component structure
+2. **Global Design System Controls**: Font and color palette management accessible from the admin settings
+3. **Component Customization**: Developers can create custom components or modify theme components per project as needed
+
+The theme system provides the convenience of theme switching (like WordPress) while maintaining the flexibility of custom component development.
 
 ### Font & Color Palette Management
 
 The admin settings include a **Design System** section (`/admin/settings`) that allows configuration of:
+
+- **Theme Selection**:
+  - Select active theme from available themes (e.g., `modern`, `classic`, `minimal`)
+  - Theme change applies immediately across all pages
+  - Preview theme before applying
+  - Theme setting stored in database (settings table)
 
 - **Font Selection**: 
   - Primary font family (headings)
@@ -562,6 +628,7 @@ These settings have **global reach** across the entire application:
 - Stored in database settings table
 - Applied via CSS custom properties (CSS variables)
 - Can be previewed in real-time in the admin
+- Theme selection determines which component library is used (theme-tagged components)
 
 ### Admin Interface Styling
 
@@ -744,13 +811,13 @@ The system formalizes **four primary user types**:
 
 **1) Superadmin (Platform Admin / Developer Team)**
 - **Who**: You (developer) and your internal team members
-- **Scope**: Cross-tenant (can access **all** client deployments / schemas)
+- **Scope**: Cross-client (can access **all** client deployments / schemas)
 - **Purpose**: Platform-wide settings, diagnostics, client lifecycle tooling, and emergency access
 - **Access**: Superadmin-only system area (route to be implemented; recommended: `/admin/super`)
 
 **2) Client Admin (Site Admin)**
 - **Who**: The client’s administrators and staff
-- **Scope**: Single-tenant (their specific client schema only)
+- **Scope**: Single-client (their specific client schema only)
 - **Purpose**: Day-to-day site administration: media, posts, galleries, forms/CRM, events, memberships, site settings
 - **Access**: `/admin/*` (standard CMS)
 
@@ -770,20 +837,22 @@ The system formalizes **four primary user types**:
 - **Admin roles** control **what CMS features** an authenticated admin can access (platform + client admin).
 - **Membership groups** control **what protected content** a GPUM can access on the public site.
 
-### Multi-Tenant Authentication Strategy
+### Multi-Client Authentication Strategy
+
+**Note**: The terms "tenant" and "client" are interchangeable in this system. "Client" is the preferred user-facing term, while "tenant" may appear in technical contexts (e.g., `tenant_id` in user metadata).
 
 Since all clients share a single Supabase project but use separate schemas, authentication works as follows:
 
 1. **User Metadata**: Each user in Supabase Auth has metadata containing:
-   - `tenant_id`: The client schema they belong to (e.g., `client_abc123`) — required for client admins and members
+   - `tenant_id`: The client schema they belong to (e.g., `client_abc123`) — required for client admins and members (note: field name uses "tenant" for technical consistency with Supabase conventions)
    - `type`: `superadmin | admin | member`
    - `role`: Role for admin authorization within the CMS (examples: `client_admin`, `editor`, `viewer`; `superadmin` for platform admins)
-   - `allowed_schemas`: Optional array for cross-tenant access (used by superadmins)
+   - `allowed_schemas`: Optional array for cross-client access (used by superadmins)
 
 2. **Schema Association**: When a user logs in, their `tenant_id` from metadata is matched with the `NEXT_PUBLIC_CLIENT_SCHEMA` environment variable to ensure they can only access their designated schema.
 
 3. **Access Control**: 
-   - Middleware validates user session and checks tenant association
+   - Middleware validates user session and checks client association
    - Database queries are automatically scoped to the correct schema
    - Users cannot access data from other client schemas
 
@@ -797,8 +866,8 @@ Since all clients share a single Supabase project but use separate schemas, auth
 2. Enters email/password or uses OAuth
 3. Supabase Auth validates credentials
 4. User metadata is checked:
-   - **Client Admin**: `tenant_id` must match the deployment’s `NEXT_PUBLIC_CLIENT_SCHEMA`
-   - **Superadmin**: may bypass `tenant_id` match (platform access)
+   - **Client Admin**: `tenant_id` must match the deployment's `NEXT_PUBLIC_CLIENT_SCHEMA`
+   - **Superadmin**: may bypass `tenant_id` match (platform access, cross-client)
 5. Session is established with JWT token
 6. Middleware protects all `/admin/*` routes
 7. User is redirected to `/admin/dashboard`
@@ -815,6 +884,19 @@ Since all clients share a single Supabase project but use separate schemas, auth
 ### Two-Factor Authentication (2FA/MFA)
 
 The application implements **Multi-Factor Authentication (MFA)** using Supabase Auth's built-in MFA capabilities to enhance security for elevated admin roles.
+
+#### Development Mode Bypass
+
+For development convenience, 2FA requirements can be bypassed while keeping authentication active:
+
+- **Environment Variable**: Set `NEXT_PUBLIC_DEV_BYPASS_2FA=true` in `.env.local` (development only)
+- **Behavior**: 
+  - Authentication is still required (users must log in)
+  - 2FA/MFA checks are skipped in development mode
+  - Only works when `NODE_ENV=development`
+  - Automatically disabled in production (no bypass possible)
+- **Purpose**: Faster development iteration without needing to enter 2FA codes repeatedly
+- **Security**: Production deployments always enforce 2FA for required roles
 
 #### MFA Methods
 
@@ -1013,7 +1095,7 @@ The application supports two distinct user types using Supabase Auth:
 
 2. **Member Users** - Access protected content on public site
    - Stored in Supabase Auth with `user_metadata.type = "member"` (GPUM)
-   - Have `user_metadata.tenant_id` (for multi-tenant isolation)
+   - Have `user_metadata.tenant_id` (for multi-client isolation)
    - Authenticate at `/login` or `/register`
    - Profile stored in `members` table in client schema
    - Can belong to multiple membership groups
@@ -1495,12 +1577,13 @@ pnpm run build
 6. **Single App Model**: No separate admin subdomain needed
 7. **API-First**: Built-in REST API for programmatic access
 8. **Multi-Schema Architecture**: Easy to fork and deploy per client
-9. **Custom Design Per Project**: No theme system - each site is custom-designed, with global font and color palette controls
-10. **Unified Design System**: Admin and public site share the same fonts and colors, with admin using a dark theme for distinction
-11. **Developer-Centric Components**: Reusable component library approach, not visual page builder
-12. **CI/CD Ready**: Designed for automated deployments and scalable maintenance
-13. **Archive/Restore System**: Built-in project lifecycle management
-14. **Membership Platform**: Built-in protected content system with membership groups
+9. **Theme System**: Theme-tagged component library allows easy theme switching (modern, classic, minimal, etc.) while maintaining custom design flexibility
+10. **Custom Design Per Project**: Each site is custom-designed with theme selection and global font/color palette controls
+11. **Unified Design System**: Admin and public site share the same fonts and colors, with admin using a dark theme for distinction
+12. **Developer-Centric Components**: Reusable component library approach with theme support, not visual page builder
+13. **CI/CD Ready**: Designed for automated deployments and scalable maintenance
+14. **Archive/Restore System**: Built-in project lifecycle management
+15. **Membership Platform**: Built-in protected content system with membership groups
 
 ## Future Enhancements
 

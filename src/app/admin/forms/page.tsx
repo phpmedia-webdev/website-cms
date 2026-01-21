@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, FormInput, MessageSquare } from "lucide-react";
+import { Plus, ClipboardList, MessageSquare } from "lucide-react";
 
 export default async function FormsPage() {
   const supabase = createServerSupabaseClient();
@@ -38,7 +38,7 @@ export default async function FormsPage() {
       {!forms || forms.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <FormInput className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground mb-4">No forms yet</p>
             <Link href="/admin/forms/new">
               <Button>Create Your First Form</Button>
@@ -52,7 +52,7 @@ export default async function FormsPage() {
               <Card className="hover:bg-accent transition-colors cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
-                    <FormInput className="h-8 w-8 text-primary" />
+                    <ClipboardList className="h-8 w-8 text-primary" />
                     <span className="text-xs text-muted-foreground">
                       {form.submissions?.[0]?.count || 0} submissions
                     </span>

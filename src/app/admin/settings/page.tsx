@@ -1,6 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Shield, Settings as SettingsIcon } from "lucide-react";
 
 export default function SettingsPage() {
   return (
@@ -11,6 +13,30 @@ export default function SettingsPage() {
           Manage your CMS settings and preferences
         </p>
       </div>
+
+      {/* Security Settings Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Security Settings
+          </CardTitle>
+          <CardDescription>
+            Manage your account security and two-factor authentication
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/admin/settings/security">
+            <Button variant="outline" className="w-full">
+              <Shield className="h-4 w-4 mr-2" />
+              Manage Two-Factor Authentication
+            </Button>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-2">
+            Enroll authenticators, manage enrolled factors, and clean up unverified attempts
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

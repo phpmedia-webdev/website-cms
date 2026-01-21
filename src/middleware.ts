@@ -6,9 +6,24 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getCurrentUserFromRequest, validateTenantAccess } from "./lib/auth/supabase-auth";
+import { requiresAAL2, isDevModeBypassEnabled } from "./lib/auth/mfa";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Check for standby/coming soon mode
+  const siteMode = process.env.NEXT_PUBLIC_SITE_MODE || "live";
+  const isComingSoonMode = siteMode === "coming_soon";
+  
+  // Allow access to admin routes, API routes, and coming-soon page even in coming soon mode
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isAPIRoute = pathname.startsWith("/api");
+  const isComingSoonRoute = pathname === "/coming-soon";
+  
+  // If in coming soon mode, redirect all public routes to /coming-soon
+  if (isComingSoonMode && !isAdminRoute && !isAPIRoute && !isComingSoonRoute) {
+    return NextResponse.redirect(new URL("/coming-soon", request.url));
+  }
 
   // Redirect /admin to /admin/dashboard if authenticated, or /admin/login if not
   if (pathname === "/admin") {
@@ -61,16 +76,40 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
       }
     }
-  }
 
-  // If accessing auth route with valid session, redirect to dashboard
-  if (isAuthRoute && user && validateTenantAccess(user)) {
-    // Check if user is admin type
-    if (user.metadata.type === "superadmin" || user.metadata.type === "admin") {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    // Check 2FA requirements (AAL2 enforcement)
+    // Dev mode bypass - skip 2FA check in development if enabled
+    const devBypass = isDevModeBypassEnabled();
+    if (!devBypass) {
+      const needsAAL2 = await requiresAAL2(user, pathname);
+      if (needsAAL2) {
+        // Get current AAL from session
+        const { getAAL } = await import("./lib/auth/mfa");
+        const currentAAL = await getAAL(user);
+        if (currentAAL !== "aal2") {
+          // Redirect to MFA challenge
+          const challengeUrl = new URL("/admin/mfa/challenge", request.url);
+          challengeUrl.searchParams.set("redirect", pathname);
+          return NextResponse.redirect(challengeUrl);
+        }
+      }
     }
   }
 
+  // For login page, redirect to dashboard if already logged in
+  if (isAuthRoute) {
+    if (user && validateTenantAccess(user)) {
+      // Check if user is admin type
+      if (user.metadata.type === "superadmin" || user.metadata.type === "admin") {
+        // User is already logged in, redirect to dashboard
+        return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      }
+    }
+    // Not logged in or not admin, allow access to login page
+    return NextResponse.next();
+  }
+
+  // All other routes continue normally
   return NextResponse.next();
 }
 

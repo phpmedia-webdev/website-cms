@@ -6,33 +6,36 @@ This document tracks planned work, implementation phases, and backlog items for 
 
 ### Phase 0: Supabase Auth Integration
 
-**Status**: Pending - Foundation for all other features
+**Status**: In Progress - Core authentication working, design system foundation complete, setup automation ready for testing
 
-- [ ] Replace custom Auth API with Supabase Auth integration
+**NEXT STEP**: Test Automated Client Setup Script (see below)
+
+- [x] Replace custom Auth API with Supabase Auth integration
   - [x] Update `src/lib/auth/` to use Supabase Auth instead of external API
   - [x] Remove `AUTH_API_URL` and `AUTH_API_KEY` environment variables (old api-client.ts deleted)
   - [x] Update `src/middleware.ts` to use Supabase Auth session validation
   - [x] Update `src/app/api/auth/login/route.ts` to use `supabase.auth.signInWithPassword()`
   - [x] Update `src/app/admin/login/page.tsx` to use Supabase Auth UI
 
-- [ ] Implement multi-tenant auth with user metadata
-  - [ ] Configure user metadata structure:
+- [x] Implement multi-tenant auth with user metadata
+  - [x] Configure user metadata structure:
     - `user_metadata.type`: `superadmin | admin | member`
     - `user_metadata.role`: `superadmin | client_admin | editor | viewer | ...`
     - `user_metadata.tenant_id`: required for `admin` and `member` users (must match deployment schema)
     - `user_metadata.allowed_schemas`: optional allowlist for cross-tenant access (superadmin)
-  - [ ] Update middleware rules:
+  - [x] Update middleware rules:
     - Admin area (`/admin/*`): require authenticated `type in ["superadmin","admin"]`
     - Client admin: enforce `tenant_id === NEXT_PUBLIC_CLIENT_SCHEMA`
     - Superadmin: allow bypass via `type="superadmin"` and `role="superadmin"` (optionally validate allowlist)
-    - Member area (`/members/*`): require authenticated `type="member"`
+    - Member area (`/members/*`): require authenticated `type="member"` (ready for future implementation)
   - [x] Create `src/lib/auth/supabase-auth.ts` utilities:
     - `getCurrentUser()` - Get authenticated user with metadata
-    - `getCurrentUserFromRequest()` - Get user from middleware (handles cookies)
+    - `getCurrentUserFromRequest()` - Get user from middleware (handles cookies via @supabase/ssr)
     - `validateTenantAccess()` - Ensure user can access current schema
     - `hasRole()` - Check user role permissions
     - Helper functions: `isSuperadmin()`, `isClientAdmin()`, `isMember()`
   - [x] Update all admin routes to use Supabase Auth session (session.ts updated, admin layout/page use getSession)
+  - [x] Implement logout functionality in Sidebar component
 
 - [x] Create user management utilities
   - [x] Create `src/lib/supabase/users.ts` utilities for user management
@@ -60,28 +63,61 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [x] Ensure page is accessible only to `type="superadmin"` + `role="superadmin"` (middleware updated)
   - [x] Update Sidebar to show Superadmin link only for superadmins
 
-- [ ] Third-Party Integrations & Head Section Management
-  - [ ] Create database schema for integrations:
-    - Option A: Add `integrations` JSONB column to `settings` table
-    - Option B: Create dedicated `integrations` table (name, enabled, config JSONB)
-    - Store configuration for: Google Analytics, VisitorTracking.com, SimpleCommenter.com
-  - [ ] Create integration utilities (`src/lib/supabase/integrations.ts`):
+- [ ] Test Automated Client Setup Script
+  - [ ] Test `pnpm setup-client <test-schema-name>` script with a test schema (e.g., `test_client_setup`)
+  - [ ] Verify script creates schema successfully
+  - [ ] Verify script runs all migrations correctly (schema name replacement works)
+  - [ ] Verify script creates RPC functions
+  - [ ] Verify script inserts default settings
+  - [ ] Verify script enables RLS and policies
+  - [ ] Verify script creates storage bucket
+  - [ ] Manually expose test schema in Supabase Dashboard (Settings → API → Exposed Schemas)
+  - [ ] Verify design system loads from database (no errors)
+  - [ ] Test authentication with test schema
+  - [ ] Document any issues or improvements needed for the script
+  - [ ] Clean up test schema after testing (optional: keep for reference)
+
+- [ ] Template Subdomain Deployment Setup
+  - [ ] Set up Vercel project for template repository
+  - [ ] Configure subdomain (e.g., `template.yourdomain.com` or `dev.yourdomain.com`)
+  - [ ] Create test schema in Supabase (e.g., `template_dev`) using automated script
+  - [ ] Expose schema in Supabase Dashboard (Settings → API → Exposed Schemas)
+  - [ ] Configure Vercel environment variables:
+    - `NEXT_PUBLIC_SUPABASE_URL`
+    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+    - `SUPABASE_SERVICE_ROLE_KEY`
+    - `NEXT_PUBLIC_CLIENT_SCHEMA=template_dev`
+    - `NEXT_PUBLIC_APP_URL=https://template.yourdomain.com`
+  - [ ] Create superadmin user in Supabase Auth with proper metadata
+  - [ ] Test authentication flow on deployed subdomain
+  - [ ] Verify middleware and route protection work correctly
+  - [ ] Document deployment process for future client setups
+  - [ ] Set up automatic deployments (Vercel auto-deploy on push to main)
+
+- [x] Third-Party Integrations & Head Section Management
+  - [x] Create database schema for integrations:
+    - Created dedicated `integrations` table (Option B) with name, enabled, config JSONB
+    - Migration file: `supabase/migrations/002_integrations_schema.sql`
+    - Default entries for: Google Analytics, VisitorTracking.com, SimpleCommenter.com
+  - [x] Create integration utilities (`src/lib/supabase/integrations.ts`):
     - `getIntegrations()` - Load all integration settings
     - `updateIntegration()` - Update integration configuration (superadmin only)
     - `getIntegrationConfig()` - Get specific integration config
-  - [ ] Create superadmin integrations UI:
-    - Create `src/app/admin/super/integrations/page.tsx` (superadmin-only)
-    - Create `src/components/superadmin/IntegrationsManager.tsx`:
+    - `getIntegrationsMap()` - Get integrations as keyed object
+    - `isIntegrationActive()` - Check if integration is enabled and configured
+  - [x] Create superadmin integrations UI:
+    - Created `src/app/admin/super/integrations/page.tsx` (superadmin-only)
+    - Created `src/components/superadmin/IntegrationsManager.tsx`:
       - Google Analytics: Input field for Measurement ID (e.g., `G-XXXXXXXXXX`)
       - VisitorTracking.com: Input field for Vendor UID
       - SimpleCommenter.com: Input field for Vendor UID
-      - Enable/disable toggles for each integration
-      - Save/Update functionality
-      - Status indicators (configured vs. not configured)
+      - Enable/disable checkboxes for each integration
+      - Save/Update functionality with loading states
+      - Status indicators (configured vs. not configured) with icons
       - Display current vendor UIDs/IDs
-    - Ensure route requires superadmin role + `aal2` (2FA)
-  - [ ] Implement script injection in root layout:
-    - Update `src/app/layout.tsx` to load integration settings
+    - Route requires superadmin role (2FA check added as TODO for when 2FA is implemented)
+  - [x] Implement script injection in public layout:
+    - Updated `src/app/(public)/layout.tsx` to load integration settings
     - Inject Google Analytics script (gtag.js) with Measurement ID
     - Inject VisitorTracking.com script with Vendor UID
     - Inject SimpleCommenter.com script with Vendor UID
@@ -89,11 +125,13 @@ This document tracks planned work, implementation phases, and backlog items for 
       - Google Analytics: `strategy="afterInteractive"`
       - VisitorTracking.com: `strategy="afterInteractive"`
       - SimpleCommenter.com: `strategy="lazyOnload"`
-    - Scripts only load on public pages (not `/admin/*` routes)
-  - [ ] Create API route for integration management:
-    - Create `src/app/api/admin/integrations/route.ts` (GET, PUT - superadmin only)
-    - Validate superadmin access and 2FA requirement
-    - Handle integration configuration updates
+    - Scripts only load on public pages (in `(public)/layout.tsx`, not in admin routes)
+  - [x] Create API route for integration management:
+    - Created `src/app/api/admin/integrations/route.ts` (GET, PUT - superadmin only)
+    - Validates superadmin access
+    - Validates integration names and config formats
+    - Handles integration configuration updates
+    - 2FA requirement added as TODO for when 2FA is implemented
   - [ ] Testing:
     - Test script injection on public pages
     - Verify scripts don't load in admin area
@@ -102,8 +140,8 @@ This document tracks planned work, implementation phases, and backlog items for 
     - Test enable/disable functionality
     - Verify superadmin-only access control
 
-- [ ] Two-Factor Authentication (2FA/MFA) Implementation
-  - [ ] Create MFA utilities (`src/lib/auth/mfa.ts`):
+- [x] Two-Factor Authentication (2FA/MFA) Implementation
+  - [x] Create MFA utilities (`src/lib/auth/mfa.ts`):
     - `enrollTOTP()` - Enroll TOTP factor (generate QR code)
     - `challengeMFA()` - Challenge enrolled factors
     - `verifyMFA()` - Verify MFA code
@@ -111,41 +149,49 @@ This document tracks planned work, implementation phases, and backlog items for 
     - `unenrollFactor()` - Remove enrolled factor
     - `getAAL()` - Get current Authenticator Assurance Level from session
     - `requiresAAL2()` - Check if route/role requires aal2
-  - [ ] Update middleware (`src/middleware.ts`) for AAL enforcement:
-    - Check `aal` claim in JWT token
-    - Superadmin routes (`/admin/super/*`): Always require `aal2`
-    - Client admin sensitive routes: Require `aal2` for `/admin/settings`, `/admin/members`, `/admin/memberships`, `/admin/settings/archive`, `/admin/settings/reset`
-    - Redirect to `/admin/mfa/challenge` if `aal1` but `aal2` required
-  - [ ] Create MFA enrollment flow:
-    - Create `src/app/admin/mfa/enroll/page.tsx` (enrollment page)
-    - Create `src/components/auth/MFAEnroll.tsx`:
+    - `isDevModeBypassEnabled()` - Check if dev mode bypasses 2FA (development only)
+  - [x] Add dev mode 2FA bypass:
+    - Created `isDevModeBypassEnabled()` function that checks `NEXT_PUBLIC_DEV_BYPASS_2FA=true` in development only
+    - Updated `requiresAAL2()` to return false when dev bypass is enabled
+    - Updated middleware to skip 2FA checks when dev bypass is enabled
+    - **Note**: Authentication is still required - only 2FA is bypassed in dev mode
+    - **Environment Variable**: Set `NEXT_PUBLIC_DEV_BYPASS_2FA=true` in `.env.local` for development
+  - [x] Update middleware (`src/middleware.ts`) for AAL enforcement:
+    - [x] Check `aal` claim in JWT token (via `requiresAAL2()` and `getAAL()` functions)
+    - [x] Superadmin routes (`/admin/super/*`): Always require `aal2` (enforced in middleware)
+    - [x] Client admin sensitive routes: Require `aal2` for `/admin/settings`, `/admin/members`, `/admin/memberships`, `/admin/settings/archive`, `/admin/settings/reset` (enforced via `requiresAAL2()`)
+    - [x] Redirect to `/admin/mfa/challenge` if `aal1` but `aal2` required (middleware logic implemented)
+    - [x] Dev mode bypass integrated (skips AAL2 check when `NEXT_PUBLIC_DEV_BYPASS_2FA=true`)
+  - [x] Create MFA enrollment flow:
+    - [x] Create `src/app/admin/mfa/enroll/page.tsx` (enrollment page)
+    - [x] Create `src/components/auth/MFAEnroll.tsx`:
       - Display QR code for TOTP enrollment
       - Show manual entry secret as fallback
       - Verify enrollment with test code
       - Handle enrollment success/error
-    - Redirect superadmin/client admin to enrollment on first login (if no factors enrolled)
-  - [ ] Create MFA challenge flow:
-    - Create `src/app/admin/mfa/challenge/page.tsx` (challenge page)
-    - Create `src/components/auth/MFAChallenge.tsx`:
+    - [x] Redirect superadmin/client admin to enrollment on first login (if no factors enrolled)
+  - [x] Create MFA challenge flow:
+    - [x] Create `src/app/admin/mfa/challenge/page.tsx` (challenge page)
+    - [x] Create `src/components/auth/MFAChallenge.tsx`:
       - List enrolled factors
       - Code input field
       - Verify code and upgrade session to `aal2`
       - Handle challenge success/error
       - Redirect to intended destination after successful verification
-  - [ ] Update login flow (`src/app/admin/login/page.tsx`):
-    - After successful password login, check role requirements
-    - If superadmin: Check if factors enrolled, redirect to enrollment or challenge
-    - If client admin: Check if factors enrolled, redirect to enrollment or challenge (for sensitive routes)
-    - Store intended destination for post-MFA redirect
-  - [ ] Create MFA management UI:
-    - Create `src/app/admin/settings/security/page.tsx` (admin security settings)
-    - Create `src/components/auth/MFAManagement.tsx`:
+  - [x] Update login flow (`src/app/admin/login/page.tsx`):
+    - [x] After successful password login, check role requirements
+    - [x] If superadmin: Check if factors enrolled, redirect to enrollment or challenge
+    - [x] If client admin: Check if factors enrolled, redirect to enrollment or challenge (for sensitive routes)
+    - [x] Store intended destination for post-MFA redirect
+  - [x] Create MFA management UI:
+    - [x] Create `src/app/admin/settings/security/page.tsx` (admin security settings)
+    - [x] Create `src/components/auth/MFAManagement.tsx`:
       - Display enrolled factors list
       - Enroll new TOTP factor button
       - Remove factor button (with safety checks)
       - Show enrollment dates
       - Prevent removing last factor if role requires 2FA
-    - Create `src/app/members/account/security/page.tsx` (member security settings - optional 2FA)
+    - [ ] Create `src/app/members/account/security/page.tsx` (member security settings - optional 2FA) - Deferred to Phase 5 (Membership Platform)
   - [ ] Update API routes for AAL checks:
     - Update sensitive admin API routes to check `aal` claim
     - Require `aal2` for destructive operations (archive, reset, user management)
@@ -179,30 +225,79 @@ This document tracks planned work, implementation phases, and backlog items for 
 
 **Status**: Pending - Required for design system and components
 
-- [ ] Enhance settings table schema
-  - [ ] Update migration to include design system structure in settings table
-  - [ ] Add default design system values (fonts, colors)
-  - [ ] Create settings utility functions in `src/lib/supabase/settings.ts`
+- [x] Enhance settings table schema
+  - [x] Update migration to include design system structure in settings table
+    - Created `supabase/migrations/003_design_system_settings.sql` with default design system values
+  - [x] Add default design system values (fonts, colors)
+    - Default theme: "default"
+    - Default fonts: Inter (primary and secondary) from Google Fonts
+    - Default color palette: Modern blue/purple theme with full color set
+    - Site metadata defaults (name, description)
+  - [x] Create settings utility functions in `src/lib/supabase/settings.ts`
+    - `getSetting()` - Get single setting by key
+    - `setSetting()` - Set/update single setting
+    - `getSettings()` - Get multiple settings by keys
+    - `getDesignSystemConfig()` - Get complete design system config with defaults
+    - `updateDesignSystemConfig()` - Update design system configuration
+    - `getSiteMetadata()` - Get site metadata
+    - `updateSiteMetadata()` - Update site metadata
+  - [x] Create TypeScript types for design system (`src/types/design-system.ts`)
+    - `FontConfig` - Font configuration interface
+    - `ColorPalette` - Color palette interface
+    - `DesignSystemConfig` - Complete design system structure
+    - `SiteMetadata` - Site metadata interface
+    - `DEFAULT_DESIGN_SYSTEM` - Default values constant
 
-- [ ] Design system core implementation
-  - [ ] Create `src/lib/design-system.ts` utility for loading/applying design system
-  - [ ] Create `src/components/design-system/DesignSystemProvider.tsx` to inject CSS variables
-  - [ ] Update `src/app/layout.tsx` to load design system settings and apply CSS variables
-  - [ ] Create TypeScript types for design system settings
+- [x] Design system core implementation
+  - [x] Create `src/lib/design-system.ts` utility for loading/applying design system
+    - `designSystemToCSSVariables()` - Convert config to CSS variables
+    - `generateGoogleFontsURL()` - Generate Google Fonts URL
+    - `loadDesignSystem()` - Main function to load and prepare design system
+  - [x] Create `src/components/design-system/DesignSystemProvider.tsx` to inject CSS variables
+    - Client component that applies CSS variables to document root
+    - Handles Google Fonts loading dynamically
+    - Updates variables when config changes
+  - [x] Update `src/app/layout.tsx` to load design system settings and apply CSS variables
+    - Loads design system config from database (server-side)
+    - Injects CSS variables in `<head>` via inline style (prevents FOUC)
+    - Loads Google Fonts stylesheet
+    - Wraps children with DesignSystemProvider for dynamic updates
+  - [x] Create TypeScript types for design system settings
+    - Already completed in previous step (`src/types/design-system.ts`)
 
-- [ ] Create public component directory structure
-  - [ ] Create `src/components/public/` directory structure
-  - [ ] Set up `layout/`, `sections/`, `blocks/`, `content/`, `media/`
-  - [ ] Create `src/components/site/` directory structure
-  - [ ] Set up `site/pages/`, `site/config/`, `site/overrides/`, `site/experiments/`
-  - [ ] Create base component structure with TypeScript interfaces
+- [x] Create public component directory structure
+  - [x] Create `src/components/public/` directory structure
+    - Created `layout/`, `sections/`, `blocks/`, `content/`, `media/` directories
+    - Added README.md with component guidelines
+    - Added base TypeScript interfaces (`src/components/public/types.ts`)
+  - [x] Create `src/components/site/` directory structure
+    - Created `site/pages/`, `site/config/`, `site/overrides/`, `site/experiments/` directories
+    - Added README.md with promotion workflow
+  - [x] Create base component structure with TypeScript interfaces
+    - `BaseComponentProps` - Base props for all components
+    - `SectionProps` - Props for section components
+    - `MediaProps` - Props for media components
+    - `LayoutProps` - Props for layout components
+    - `ThemeConfig` - Theme configuration interface
 
-- [ ] Standby launch mode (Coming Soon)
-  - [ ] Add env gate for public site mode (e.g., `NEXT_PUBLIC_SITE_MODE=coming_soon|live`)
-  - [ ] Create `/coming-soon` route/page (public)
-  - [ ] Gate public routes to `/coming-soon` when enabled (allow `/admin/*` and `/api/*`)
-  - [ ] Add `noindex`/`nofollow` behavior for coming-soon mode (SEO safety)
+- [x] Standby launch mode (Coming Soon)
+  - [x] Add env gate for public site mode (e.g., `NEXT_PUBLIC_SITE_MODE=coming_soon|live`)
+    - Environment variable: `NEXT_PUBLIC_SITE_MODE` (defaults to "live")
+    - Values: "coming_soon" or "live"
+  - [x] Create `/coming-soon` route/page (public)
+    - Created `src/app/(public)/coming-soon/page.tsx`
+    - Displays site name and description from settings
+    - Uses design system fonts and colors
+    - Includes noindex/nofollow metadata for SEO safety
+  - [x] Gate public routes to `/coming-soon` when enabled (allow `/admin/*` and `/api/*`)
+    - Updated middleware to check `NEXT_PUBLIC_SITE_MODE`
+    - Redirects all public routes to `/coming-soon` when mode is "coming_soon"
+    - Admin routes (`/admin/*`) and API routes (`/api/*`) are always accessible
+    - Coming-soon page itself is accessible
+  - [x] Add `noindex`/`nofollow` behavior for coming-soon mode (SEO safety)
+    - Metadata includes `robots: { index: false, follow: false }`
   - [ ] Document Vercel env var setup for client deployments
+    - TODO: Add to deployment documentation
 
 ### Phase 2: Design System Admin UI
 

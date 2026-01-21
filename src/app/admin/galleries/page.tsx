@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, FolderImage } from "lucide-react";
+import { Plus, Folder } from "lucide-react";
 import Image from "next/image";
 
 export default async function GalleriesPage() {
@@ -39,7 +39,7 @@ export default async function GalleriesPage() {
       {!galleries || galleries.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <FolderImage className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <Folder className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground mb-4">No galleries yet</p>
             <Link href="/admin/galleries/new">
               <Button>Create Your First Gallery</Button>
@@ -61,7 +61,7 @@ export default async function GalleriesPage() {
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full">
-                      <FolderImage className="h-12 w-12 text-muted-foreground" />
+                      <Folder className="h-12 w-12 text-muted-foreground" />
                     </div>
                   )}
                 </div>

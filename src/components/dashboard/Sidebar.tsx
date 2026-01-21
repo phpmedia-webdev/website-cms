@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import {
   LayoutDashboard,
   FileText,
-  Images,
-  FolderImage,
-  FormInput,
+  Image,
+  Folder,
+  ClipboardList,
   Settings,
   Shield,
+  LogOut,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface SidebarProps {
   isSuperadmin?: boolean;
@@ -20,9 +23,9 @@ interface SidebarProps {
 const baseNavigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Posts", href: "/admin/posts", icon: FileText },
-  { name: "Galleries", href: "/admin/galleries", icon: FolderImage },
-  { name: "Media", href: "/admin/media", icon: Images },
-  { name: "Forms", href: "/admin/forms", icon: FormInput },
+  { name: "Galleries", href: "/admin/galleries", icon: Folder },
+  { name: "Media", href: "/admin/media", icon: Image },
+  { name: "Forms", href: "/admin/forms", icon: ClipboardList },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
@@ -32,11 +35,30 @@ const superadminNavigation = [
 
 export function Sidebar({ isSuperadmin = false }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = getSupabaseClient();
   
   // Combine navigation items
   const navigation = isSuperadmin
     ? [...baseNavigation, ...superadminNavigation]
     : baseNavigation;
+
+  const handleLogout = async () => {
+    try {
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error("Logout error:", error);
+        return;
+      }
+
+      // Redirect to login page
+      window.location.href = "/admin/login";
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-card">
@@ -46,6 +68,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
       <nav className="flex-1 space-y-1 p-4">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+          const IconComponent = item.icon;
           return (
             <Link
               key={item.name}
@@ -57,12 +80,22 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
+              {IconComponent ? <IconComponent className="h-5 w-5" /> : null}
               {item.name}
             </Link>
           );
         })}
       </nav>
+      <div className="border-t p-4">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-5 w-5" />
+          Logout
+        </Button>
+      </div>
     </div>
   );
 }

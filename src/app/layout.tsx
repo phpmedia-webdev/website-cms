@@ -1,22 +1,43 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
+import { loadDesignSystem } from "@/lib/design-system";
+import { DesignSystemProvider } from "@/components/design-system/DesignSystemProvider";
 
 export const metadata: Metadata = {
   title: "CMS Admin",
   description: "Headless CMS Administration",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Load design system settings from database
+  const { config, cssVariables, googleFontsURL } = await loadDesignSystem();
+
+  // Convert CSS variables to inline style string
+  const cssVariablesStyle = Object.entries(cssVariables)
+    .map(([key, value]) => `${key}: ${value};`)
+    .join(" ");
+
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <head>
+        {/* Load Google Fonts if needed */}
+        {googleFontsURL && (
+          <link rel="stylesheet" href={googleFontsURL} />
+        )}
+        {/* Inject CSS variables directly in head to avoid FOUC */}
+        <style dangerouslySetInnerHTML={{
+          __html: `:root { ${cssVariablesStyle} }`
+        }} />
+      </head>
+      <body>
+        <DesignSystemProvider config={config}>
+          {children}
+        </DesignSystemProvider>
+      </body>
     </html>
   );
 }

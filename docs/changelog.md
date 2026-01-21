@@ -9,6 +9,39 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-21 16:29 CT - Supabase Schema Setup & Design System Foundation
+- Fixed PostgREST custom schema access issue using RPC functions
+  - Created RPC functions in `public` schema to query custom schemas
+  - Updated `src/lib/supabase/settings.ts` to use RPC functions instead of direct table queries
+  - Resolved "schema must be one of the following" errors
+- Implemented design system loading from database
+  - Created `src/lib/design-system.ts` for design system utilities
+  - Created `src/components/design-system/DesignSystemProvider.tsx` for CSS variable injection
+  - Updated `src/app/layout.tsx` to load and apply design system from database
+  - Added default design system settings migration (`003_design_system_settings.sql`)
+  - Design system now loads CSS variables and Google Fonts from database
+- Created automated client setup script
+  - Added `scripts/setup-client-schema.ts` for one-command client schema creation
+  - Script automates: schema creation, migrations, RPC functions, RLS policies, storage buckets
+  - Added `pnpm setup-client` command to `package.json`
+  - Created comprehensive `docs/CLIENT_SETUP_CHECKLIST.md` with automated and manual steps
+- Implemented Supabase security best practices
+  - Created RLS policies for all tables (`010_enable_rls_and_policies.sql`)
+  - Fixed function search_path security warnings (`011_fix_function_search_path.sql`)
+  - Created permissions migration for exposed schemas (`004_expose_schema_permissions.sql`)
+- Created comprehensive documentation
+  - `docs/CLIENT_SETUP_CHECKLIST.md` - Step-by-step client setup guide
+  - `docs/SUPABASE_SCHEMA_SETUP.md` - Schema exposure instructions
+  - `docs/ARCHITECTURE_DECISION_SCHEMAS.md` - Architecture rationale and alternatives
+  - Updated `docs/planlog.md` with test steps for automated setup script
+- Created migration scripts for schema setup
+  - `004_expose_schema_permissions.sql` - Grant permissions to API roles
+  - `005_refresh_postgrest_cache.sql` - PostgREST cache refresh
+  - `008_create_settings_rpc.sql` - RPC functions for settings access
+  - `009_insert_default_settings.sql` - Default design system values
+  - `010_enable_rls_and_policies.sql` - RLS setup
+  - `011_fix_function_search_path.sql` - Security fix
+
 ### 2026-01-21 14:30 CT - Phase 0: Supabase Auth Integration Implementation
 - Implemented Supabase Auth integration replacing custom Auth API
 - Created `src/lib/auth/supabase-auth.ts` with authentication utilities:
