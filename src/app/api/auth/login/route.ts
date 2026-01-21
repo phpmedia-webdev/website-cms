@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { setSessionToken } from "@/lib/auth/session";
-import { validateSession } from "@/lib/auth/api-client";
+import { createClientSupabaseClient } from "@/lib/supabase/client";
+import { getCurrentUser, validateTenantAccess } from "@/lib/auth/supabase-auth";
 
 /**
- * Login endpoint that validates credentials with auth API
- * and sets session cookie.
+ * Login endpoint using Supabase Auth.
+ * Authenticates user and sets Supabase session cookie.
  */
 export async function POST(request: Request) {
   try {
@@ -17,47 +17,59 @@ export async function POST(request: Request) {
       );
     }
 
-    // TODO: Call auth API to authenticate
-    // This is a placeholder - integrate with your actual auth API
-    const AUTH_API_URL = process.env.AUTH_API_URL;
-    if (!AUTH_API_URL) {
-      return NextResponse.json(
-        { error: "Authentication service not configured" },
-        { status: 500 }
-      );
-    }
+    // Create Supabase client for authentication
+    const supabase = createClientSupabaseClient();
 
-    const response = await fetch(`${AUTH_API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.AUTH_API_KEY && {
-          Authorization: `Bearer ${process.env.AUTH_API_KEY}`,
-        }),
-      },
-      body: JSON.stringify({ email, password }),
+    // Sign in with email and password
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Invalid credentials" }));
-      return NextResponse.json(error, { status: response.status });
-    }
-
-    const { token } = await response.json();
-
-    // Validate the token
-    const session = await validateSession(token);
-    if (!session) {
+    if (authError || !authData.session || !authData.user) {
       return NextResponse.json(
-        { error: "Invalid session token" },
+        { error: authError?.message || "Invalid credentials" },
         { status: 401 }
       );
     }
 
-    // Set session cookie
-    await setSessionToken(token);
+    // Validate user has proper metadata structure
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "User account missing required metadata" },
+        { status: 403 }
+      );
+    }
 
-    return NextResponse.json({ success: true, user: session.user, redirect: "/admin/dashboard" });
+    // Validate tenant access (ensures user can access this deployment's schema)
+    if (!validateTenantAccess(user)) {
+      return NextResponse.json(
+        { error: "Access denied: Invalid tenant association" },
+        { status: 403 }
+      );
+    }
+
+    // Supabase handles session cookies automatically
+    // We need to set the session in the response headers/cookies
+    // For Next.js API routes, we'll return the session tokens
+    // The client-side will handle setting cookies via Supabase client
+    
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.metadata.role,
+        type: user.metadata.type,
+      },
+      session: {
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token,
+        expires_in: authData.session.expires_in,
+      },
+      redirect: "/admin/dashboard",
+    });
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(

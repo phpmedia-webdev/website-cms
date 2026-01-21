@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,23 +21,48 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      // Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.error || "Invalid credentials");
+      if (authError) {
+        setError(authError.message || "Invalid credentials");
+        setLoading(false);
         return;
       }
 
+      if (!authData.user || !authData.session) {
+        setError("Authentication failed");
+        setLoading(false);
+        return;
+      }
+
+      // Validate user has proper metadata
+      const metadata = authData.user.user_metadata;
+      if (!metadata || !metadata.type) {
+        setError("User account missing required metadata. Please contact administrator.");
+        // Sign out since metadata is invalid
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      // Check if user is admin type (superadmin or admin)
+      if (metadata.type !== "superadmin" && metadata.type !== "admin") {
+        setError("Access denied: Admin access required");
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      // Success - Supabase automatically handles session cookies
       const redirect = searchParams.get("redirect") || "/admin/dashboard";
       router.push(redirect);
     } catch (err) {
+      console.error("Login error:", err);
       setError("An error occurred. Please try again.");
-    } finally {
       setLoading(false);
     }
   };

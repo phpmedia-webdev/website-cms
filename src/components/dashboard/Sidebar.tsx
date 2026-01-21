@@ -10,9 +10,14 @@ import {
   FolderImage,
   FormInput,
   Settings,
+  Shield,
 } from "lucide-react";
 
-const navigation = [
+interface SidebarProps {
+  isSuperadmin?: boolean;
+}
+
+const baseNavigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Posts", href: "/admin/posts", icon: FileText },
   { name: "Galleries", href: "/admin/galleries", icon: FolderImage },
@@ -21,8 +26,17 @@ const navigation = [
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export function Sidebar() {
+const superadminNavigation = [
+  { name: "Superadmin", href: "/admin/super", icon: Shield },
+];
+
+export function Sidebar({ isSuperadmin = false }: SidebarProps) {
   const pathname = usePathname();
+  
+  // Combine navigation items
+  const navigation = isSuperadmin
+    ? [...baseNavigation, ...superadminNavigation]
+    : baseNavigation;
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-card">

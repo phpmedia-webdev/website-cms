@@ -9,6 +9,23 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-21 - Phase 0: Supabase Auth Integration Implementation
+- Implemented Supabase Auth integration replacing custom Auth API
+- Created `src/lib/auth/supabase-auth.ts` with authentication utilities:
+  - `getCurrentUser()` and `getCurrentUserFromRequest()` for session management
+  - `validateTenantAccess()` for multi-tenant schema validation
+  - `hasRole()` for role-based access control
+  - Helper functions: `isSuperadmin()`, `isClientAdmin()`, `isMember()`
+- Updated login flow to use Supabase Auth (`signInWithPassword()`)
+- Updated middleware to validate Supabase Auth sessions and enforce tenant access
+- Created user management utilities (`src/lib/supabase/users.ts`):
+  - Functions for creating Superadmin, Client Admin, and Member users
+  - User metadata management and password updates
+- Created Superadmin system area (`/admin/super`) with platform-wide utilities
+- Updated Sidebar to conditionally show Superadmin link based on user role
+- Removed old Auth API code (`api-client.ts`) and dependencies
+- Updated session management to use Supabase Auth
+
 ### 2026-01-21 - Template Workflow and Feature Planning
 - Updated PRD to standardize template → client fork workflow and promotion process back to the template via PRs
 - Documented promotable component library vs site-specific glue folder structure and promotion checklist

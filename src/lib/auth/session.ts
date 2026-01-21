@@ -1,59 +1,64 @@
 /**
- * Session management utilities.
- * Handles session storage and retrieval from cookies.
+ * Session management utilities for Supabase Auth.
+ * Provides compatibility layer for existing code using session helpers.
  */
 
-import { cookies } from "next/headers";
-import { validateSession, type AuthSession } from "./api-client";
-
-const SESSION_COOKIE_NAME = "cms_session_token";
+import { getCurrentUser, type AuthUser } from "./supabase-auth";
 
 /**
- * Get the session token from cookies.
+ * Legacy session interface for backward compatibility.
+ * @deprecated Use AuthUser from supabase-auth.ts instead
  */
-export async function getSessionToken(): Promise<string | null> {
-  const cookieStore = await cookies();
-  return cookieStore.get(SESSION_COOKIE_NAME)?.value || null;
-}
-
-/**
- * Set the session token in cookies.
- */
-export async function setSessionToken(token: string): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-    path: "/",
-  });
-}
-
-/**
- * Remove the session token from cookies.
- */
-export async function clearSessionToken(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
+export interface AuthSession {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    type: string;
+  };
+  expires_at?: string;
 }
 
 /**
  * Get the current authenticated session.
+ * Uses Supabase Auth to get the current user.
+ * 
+ * @returns Session object with user data, or null if not authenticated
  */
 export async function getSession(): Promise<AuthSession | null> {
-  const token = await getSessionToken();
-  if (!token) {
+  const user = await getCurrentUser();
+  
+  if (!user) {
     return null;
   }
 
-  return await validateSession(token);
+  // Return in legacy format for backward compatibility
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.metadata.role || "",
+      type: user.metadata.type,
+    },
+  };
 }
 
 /**
  * Check if user is authenticated.
+ * 
+ * @returns true if user is authenticated, false otherwise
  */
 export async function isAuthenticated(): Promise<boolean> {
-  const session = await getSession();
-  return session !== null;
+  const user = await getCurrentUser();
+  return user !== null;
+}
+
+/**
+ * Get the current authenticated user.
+ * Direct access to Supabase Auth user.
+ * 
+ * @returns AuthUser or null
+ */
+export async function getCurrentSessionUser(): Promise<AuthUser | null> {
+  return await getCurrentUser();
 }

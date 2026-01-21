@@ -1,6 +1,6 @@
 # Plan Log
 
-This document tracks planned work, implementation phases, and backlog items for the Headless CMS project. Items are organized by priority and development phase.
+This document tracks planned work, implementation phases, and backlog items for the Website-CMS project. Items are organized by priority and development phase.
 
 ## Implementation Phases (Priority Order)
 
@@ -9,11 +9,11 @@ This document tracks planned work, implementation phases, and backlog items for 
 **Status**: Pending - Foundation for all other features
 
 - [ ] Replace custom Auth API with Supabase Auth integration
-  - [ ] Update `src/lib/auth/` to use Supabase Auth instead of external API
-  - [ ] Remove `AUTH_API_URL` and `AUTH_API_KEY` environment variables
-  - [ ] Update `src/middleware.ts` to use Supabase Auth session validation
-  - [ ] Update `src/app/api/auth/login/route.ts` to use `supabase.auth.signInWithPassword()`
-  - [ ] Update `src/app/admin/login/page.tsx` to use Supabase Auth UI
+  - [x] Update `src/lib/auth/` to use Supabase Auth instead of external API
+  - [x] Remove `AUTH_API_URL` and `AUTH_API_KEY` environment variables (old api-client.ts deleted)
+  - [x] Update `src/middleware.ts` to use Supabase Auth session validation
+  - [x] Update `src/app/api/auth/login/route.ts` to use `supabase.auth.signInWithPassword()`
+  - [x] Update `src/app/admin/login/page.tsx` to use Supabase Auth UI
 
 - [ ] Implement multi-tenant auth with user metadata
   - [ ] Configure user metadata structure:
@@ -26,27 +26,39 @@ This document tracks planned work, implementation phases, and backlog items for 
     - Client admin: enforce `tenant_id === NEXT_PUBLIC_CLIENT_SCHEMA`
     - Superadmin: allow bypass via `type="superadmin"` and `role="superadmin"` (optionally validate allowlist)
     - Member area (`/members/*`): require authenticated `type="member"`
-  - [ ] Create `src/lib/auth/supabase-auth.ts` utilities:
+  - [x] Create `src/lib/auth/supabase-auth.ts` utilities:
     - `getCurrentUser()` - Get authenticated user with metadata
+    - `getCurrentUserFromRequest()` - Get user from middleware (handles cookies)
     - `validateTenantAccess()` - Ensure user can access current schema
     - `hasRole()` - Check user role permissions
-  - [ ] Update all admin routes to use Supabase Auth session
+    - Helper functions: `isSuperadmin()`, `isClientAdmin()`, `isMember()`
+  - [x] Update all admin routes to use Supabase Auth session (session.ts updated, admin layout/page use getSession)
 
-- [ ] Create user management utilities
-  - [ ] Create `src/lib/supabase/users.ts` utilities for user management
+- [x] Create user management utilities
+  - [x] Create `src/lib/supabase/users.ts` utilities for user management
+    - `createSuperadminUser()` - Create superadmin with cross-tenant access
+    - `createClientAdminUser()` - Create client admin with tenant_id
+    - `createMemberUser()` - Create member user (GPUM)
+    - `updateUserMetadata()` - Update user metadata
+    - `deleteUser()` - Delete user
+    - `getUserById()` - Get user by ID
+    - `listUsers()` - List users with pagination
+    - `updateUserPassword()` - Update user password
   - [ ] Document user creation process:
     - Create **Superadmin** users (cross-tenant) for developer/team
     - Create **Client Admin** users (single-tenant) per deployment with `tenant_id`
     - Create **Member** users (GPUM) with `type="member"` and `tenant_id`
     - Clarify GPU = anonymous (no Auth record)
 
-- [ ] Superadmin system area (platform-only)
-  - [ ] Add protected route (recommended): `/admin/super`
-  - [ ] Create "Superadmin Settings" page for platform-wide utilities (cross-tenant):
-    - Tenant/schema lookup
-    - Archive/restore tooling shortcuts (future phase integrations)
+- [x] Superadmin system area (platform-only)
+  - [x] Add protected route (recommended): `/admin/super`
+  - [x] Create "Superadmin Settings" page for platform-wide utilities (cross-tenant):
+    - Tenant/schema lookup (placeholder for future)
+    - Archive/restore tooling shortcuts (placeholder for future phase)
     - Diagnostics (auth metadata viewer, current tenant context)
-  - [ ] Ensure page is accessible only to `type="superadmin"` + `role="superadmin"`
+    - Integrations link (placeholder for next step)
+  - [x] Ensure page is accessible only to `type="superadmin"` + `role="superadmin"` (middleware updated)
+  - [x] Update Sidebar to show Superadmin link only for superadmins
 
 - [ ] Third-Party Integrations & Head Section Management
   - [ ] Create database schema for integrations:
@@ -725,41 +737,6 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Document LLM provider setup
   - [ ] Document chatbot configuration
   - [ ] Document API endpoints
-
-## Completed Phases (From Previous Implementation)
-
-### Phase 1: Foundation ✅
-- [x] Initialized Next.js 15 project with TypeScript
-- [x] Set up Tailwind CSS and shadcn/ui
-- [x] Configured Supabase client with schema switching
-- [x] Created authentication middleware
-- [x] Set up project structure
-
-### Phase 2: Database & Schema Management ✅
-- [x] Created Supabase migration system
-- [x] Implemented schema creation utility
-
-### Phase 3: Core Admin UI ✅
-- [x] Dashboard layout with navigation
-- [x] Media library (upload, list, manage)
-- [x] Blog posts CRUD with rich text editor
-- [x] Basic settings page
-
-### Phase 4: Advanced Content Types ✅
-- [x] Gallery management
-- [x] Form builder
-- [x] Form submissions CRM view
-
-### Phase 5: REST API ✅
-- [x] Implemented all API endpoints
-- [x] Added rate limiting
-- [x] Added response caching
-
-### Phase 6: Polish & Deployment ✅
-- [x] Error handling and validation
-- [x] Loading states and UX improvements
-- [x] Deployment configuration
-- [x] Documentation
 
 ## Architecture Notes
 

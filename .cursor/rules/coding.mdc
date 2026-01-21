@@ -11,6 +11,32 @@ alwaysApply: true
 - Use `pnpm remove [package]` instead of `npm uninstall [package]`
 - Use `pnpm update` instead of `npm update`
 
+## Incremental Development Workflow
+
+**CRITICAL: Work in small, manageable steps with review points**
+
+- **Break tasks into small increments**: Never code large chunks without stopping points
+- **One logical unit at a time**: Complete one function, component, or feature before moving to the next
+- **Stop and review**: After each logical unit of work, pause and summarize what was done
+- **Wait for assessment**: Do not continue to the next step until the user has reviewed and approved
+- **Natural stopping points**: Stop after:
+  - Completing a single function or utility
+  - Creating a single component
+  - Implementing a single API route
+  - Making a single database schema change
+  - Completing a single feature or sub-feature
+- **Ask before proceeding**: If unsure whether to continue, ask the user if they want to review first
+- **Summarize progress**: After each step, briefly summarize what was completed and what's next
+- **Avoid scope creep**: Stay focused on the current task; don't add "while we're at it" features
+
+**Example workflow:**
+1. User requests: "Add user authentication"
+2. AI breaks it down: "I'll start with the login page component first"
+3. AI implements: Creates login page component
+4. AI stops: "Login page component created. Ready for review before proceeding to API route."
+5. User reviews and approves
+6. AI continues: "Now I'll create the authentication API route..."
+
 ## Additional Rules
 - The server is always running on port 3000
 - Use available MCP servers for knowledgebase and understanding
