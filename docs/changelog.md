@@ -9,7 +9,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
-### 2026-01-21 - Phase 0: Supabase Auth Integration Implementation
+### 2026-01-21 14:30 CT - Phase 0: Supabase Auth Integration Implementation
 - Implemented Supabase Auth integration replacing custom Auth API
 - Created `src/lib/auth/supabase-auth.ts` with authentication utilities:
   - `getCurrentUser()` and `getCurrentUserFromRequest()` for session management
@@ -26,7 +26,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 - Removed old Auth API code (`api-client.ts`) and dependencies
 - Updated session management to use Supabase Auth
 
-### 2026-01-21 - Template Workflow and Feature Planning
+### 2026-01-21 09:15 CT - Template Workflow and Feature Planning
 - Updated PRD to standardize template → client fork workflow and promotion process back to the template via PRs
 - Documented promotable component library vs site-specific glue folder structure and promotion checklist
 - Added developer workflow guidance for ingesting UI ideas (Vercel v0/inspiration) and migrating simple Pages Router sites into the template
@@ -34,7 +34,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 - Added form submission email notifications plan using Nodemailer (SMTP) with documented `SMTP_*` environment variables
 - Added Event Calendar as a core feature (public views + event modal, admin management, API endpoints, ICS subscription feed) and tracked implementation tasks in planlog
 
-### 2026-01-21 - Security, Roles, CRM/Memberships, Integrations, and AI RAG Planning
+### 2026-01-21 11:00 CT - Security, Roles, CRM/Memberships, Integrations, and AI RAG Planning
 - Formalized role model in PRD/planlog: Superadmin (cross-tenant) + Client Admin + GPU (public visitor) + GPUM (member)
 - Expanded Supabase Auth metadata strategy and middleware enforcement for superadmin bypass + tenant scoping
 - Added 2FA/MFA requirements and implementation plan (TOTP first; SMS planned for later with external SMS provider)
@@ -46,7 +46,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
   - Vendor IDs stored in superadmin settings; scripts injected into public layouts only
 - Added AI chatbot roadmap: CMS content as RAG knowledge base (Supabase PGVector) as a later phase in PRD/planlog
 
-### 2026-01-20 - Membership Platform Architecture
+### 2026-01-20 15:00 CT - Membership Platform Architecture
 - Added comprehensive membership platform section to PRD
 - Documented dual authentication system (admin users vs member users)
 - Added membership groups and access control architecture
@@ -59,7 +59,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 - Updated architecture notes with membership platform details
 - Added membership-specific future enhancements to planlog
 
-### 2026-01-20 - Documentation and Architecture Planning
+### 2026-01-20 10:00 CT - Documentation and Architecture Planning
 - Merged detailed implementation plan into `docs/planlog.md`
 - Organized implementation phases (0-10) with priority order
 - Documented Supabase Auth integration strategy
