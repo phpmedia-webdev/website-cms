@@ -45,10 +45,17 @@ This document tracks planned work, implementation phases, and backlog items for 
 
 - [ ] Create public component directory structure
   - [ ] Create `src/components/public/` directory structure
-  - [ ] Set up `sections/` for reusable page sections
-  - [ ] Set up `pages/` for full page-level components
-  - [ ] Set up `layout/` for layout components (Header, Footer, Navigation)
+  - [ ] Set up `layout/`, `sections/`, `blocks/`, `content/`, `media/`
+  - [ ] Create `src/components/site/` directory structure
+  - [ ] Set up `site/pages/`, `site/config/`, `site/overrides/`, `site/experiments/`
   - [ ] Create base component structure with TypeScript interfaces
+
+- [ ] Standby launch mode (Coming Soon)
+  - [ ] Add env gate for public site mode (e.g., `NEXT_PUBLIC_SITE_MODE=coming_soon|live`)
+  - [ ] Create `/coming-soon` route/page (public)
+  - [ ] Gate public routes to `/coming-soon` when enabled (allow `/admin/*` and `/api/*`)
+  - [ ] Add `noindex`/`nofollow` behavior for coming-soon mode (SEO safety)
+  - [ ] Document Vercel env var setup for client deployments
 
 ### Phase 2: Design System Admin UI
 
@@ -102,14 +109,47 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Create `src/app/(public)/gallery/page.tsx` (list all galleries, gallery grid)
   - [ ] Create `src/app/(public)/gallery/[slug]/page.tsx` (single gallery, image grid, lightbox)
 
+- [ ] Build event calendar (public)
+  - [ ] Create `src/app/(public)/events/page.tsx` (day/week/month/agenda views)
+  - [ ] Implement event details modal on click
+  - [ ] Add basic filters (date range navigation; optional "upcoming" quick view)
+
 - [ ] Enhance homepage
   - [ ] Update `src/app/(public)/page.tsx` to use component composition
-  - [ ] Create `src/components/public/pages/HomePage.tsx` (composable sections, content from database)
+  - [ ] Create `src/components/site/pages/HomePage.tsx` (page composition using reusable sections, content from database)
 
 - [ ] Enhance public layout
   - [ ] Update `src/app/(public)/layout.tsx` to use Header and Footer components
   - [ ] Apply design system variables
   - [ ] Add SEO metadata handling
+
+### Phase 4B: Event Calendar (CMS + API + Subscriptions)
+
+**Status**: Pending - Core feature, pairs with Phase 4 public calendar UI
+
+- [ ] Create events schema
+  - [ ] Add `events` table (title, description, start/end, all-day, location, status/published)
+  - [ ] Add indexes for date range queries
+  - [ ] Add optional fields to support future sync (e.g., `external_source`, `external_id`, `last_synced_at`)
+
+- [ ] Build admin UI for events
+  - [ ] Create `src/app/admin/events/page.tsx` (list/search)
+  - [ ] Create `src/app/admin/events/new/page.tsx` (create)
+  - [ ] Create `src/app/admin/events/[id]/page.tsx` (edit)
+  - [ ] Create `src/components/events/EventEditor.tsx` (shared editor form)
+
+- [ ] Add events API endpoints
+  - [ ] Create `src/app/api/events/route.ts` (GET list + POST create)
+  - [ ] Create `src/app/api/events/[id]/route.ts` (GET + PUT + DELETE)
+  - [ ] Support date range filtering for list endpoint
+
+- [ ] Add calendar subscription (ICS)
+  - [ ] Create `GET /api/events/ics` endpoint returning `text/calendar`
+  - [ ] Ensure ICS feed includes correct time zones and all-day handling
+
+- [ ] Sync/import (defer detailed design; keep hooks ready)
+  - [ ] Define a minimal “import format” for API-based event updates
+  - [ ] Plan one-way sync/import from external calendars (e.g., Google/Outlook) as a follow-on task
 
 ### Phase 5: Membership Platform
 
@@ -293,6 +333,14 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Add search/filter to posts API
   - [ ] Ensure all protected content endpoints check membership access
 
+- [ ] Add form submission email notifications (Nodemailer/SMTP)
+  - [ ] Add `nodemailer` dependency to the template
+  - [ ] Document required env vars (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`)
+  - [ ] Create server-only mailer utility (e.g., `src/lib/email/mailer.ts`)
+  - [ ] Update `POST /api/forms/[formId]/submit` to send email when `forms.settings.notifications.email` is set
+  - [ ] Ensure failures do not break form submission (log and continue)
+  - [ ] Add basic manual test plan for local + Vercel environments
+
 - [ ] Create API documentation
   - [ ] Create `docs/api.md` with comprehensive API documentation
   - [ ] Document all endpoints, request/response formats
@@ -403,7 +451,7 @@ This document tracks planned work, implementation phases, and backlog items for 
 
 - SEO tools and sitemap generation
 - Analytics integration
-- Email notifications for form submissions
+- Email notifications for form submissions (Nodemailer/SMTP)
 - Content scheduling
 - Multi-language support
 - User roles and permissions refinement (additional admin roles)

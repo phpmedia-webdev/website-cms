@@ -9,6 +9,14 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-21 - Template Workflow and Feature Planning
+- Updated PRD to standardize template → client fork workflow and promotion process back to the template via PRs
+- Documented promotable component library vs site-specific glue folder structure and promotion checklist
+- Added developer workflow guidance for ingesting UI ideas (Vercel v0/inspiration) and migrating simple Pages Router sites into the template
+- Added standby/coming-soon site mode specification for early deployment + domain setup (with SEO safety guidance)
+- Added form submission email notifications plan using Nodemailer (SMTP) with documented `SMTP_*` environment variables
+- Added Event Calendar as a core feature (public views + event modal, admin management, API endpoints, ICS subscription feed) and tracked implementation tasks in planlog
+
 ### 2026-01-20 - Membership Platform Architecture
 - Added comprehensive membership platform section to PRD
 - Documented dual authentication system (admin users vs member users)

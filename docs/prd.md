@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A WordPress-style CMS application built with Next.js 15, designed as a lightweight alternative to WordPress focused on essential features for basic business websites. The application serves both as the public-facing website and the content management system in a single deployment. Each client instance is cloneable and deployed separately on Vercel but shares a single Supabase project using separate schemas for data isolation.
+A WordPress-style CMS application built with Next.js 15, designed as a lightweight alternative to WordPress focused on essential features for basic business websites. The application serves both as the public-facing website and the content management system in a single deployment. Each client instance is created from a single template repository (via GitHub forks) and deployed separately on Vercel, while sharing a single Supabase project using separate schemas for data isolation.
 
 **Goal**: Create a WordPress killer replacement that narrows down to just the essentials for a basic business website - simpler, faster, and easier to use than WordPress while maintaining similar functionality.
 
@@ -18,6 +18,7 @@ A WordPress-style CMS application built with Next.js 15, designed as a lightweig
 - **UI Components:** shadcn/ui
 - **Rich Text Editor:** Tiptap
 - **Form Builder:** Custom React DnD implementation
+- **Email Notifications:** Nodemailer (SMTP) for form submission notifications
 - **Package Manager:** pnpm
 - **Hosting:** Vercel
 
@@ -43,6 +44,7 @@ This WordPress-style approach provides:
 - `/blog` - Blog listing page
 - `/blog/[slug]` - Single blog post
 - `/gallery/[slug]` - Gallery page
+- `/events` - Event calendar (day/week/month/agenda views)
 - `/login` - Member login/registration
 - `/register` - Member registration (or combined with /login)
 - `/members` - Member dashboard (protected)
@@ -58,12 +60,16 @@ This WordPress-style approach provides:
 - `/admin/galleries` - Gallery management
 - `/admin/media` - Media library
 - `/admin/forms` - Form builder and submissions
+- `/admin/events` - Event calendar management
 - `/admin/memberships` - Membership group management
 - `/admin/members` - Member user management
 - `/admin/members/[id]` - View member details and memberships
 - `/admin/settings` - Site settings (including design system: fonts and color palette)
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
+
+**Standby / Coming Soon Route (Optional):**
+- `/coming-soon` - Standby landing page used when the site is in "coming soon" mode (see Developer Workflow)
 
 ### Multi-Schema Strategy
 
@@ -108,10 +114,50 @@ This provides:
 ### Deployment Model
 
 - Each client = separate Vercel deployment
-- Each deployment = separate GitHub repository clone (or branch)
+- Each client deployment = separate GitHub repository forked from a single template repo
+- Template repo naming: `yourorg/website-cms-template`
+- Client repo naming: `yourorg/website-cms-{client}` (e.g., `yourorg/website-cms-acme`)
+- Reusable improvements flow back to the template via Pull Requests (PRs) from client repos
 - Shared Supabase project with schema isolation
 - Single domain deployment: `clientdomain.com` (no subdomain needed)
 - Admin access via `/admin` route (discreet login link in footer)
+
+### Developer Workflow (Idea Intake, Migrations, and Standby Launch)
+
+This project is optimized for a **developer-authored** workflow (Cursor + Git) rather than a client-side page builder.
+
+**Ingesting UI Ideas (Inspiration Sites, Vercel v0, etc.):**
+- Treat external sources as UI inspiration and **donor components**; do not try to auto-import entire apps into the template.
+- Intake path:
+  - Start in `src/components/site/experiments/` for rapid iteration.
+  - Normalize to template standards (design tokens, accessibility, responsiveness).
+  - Promote reusable sections into `src/components/public/**` and PR them back to `yourorg/website-cms-template`.
+
+**Migrating Simple Existing Sites (Commonly Pages Router):**
+- Use the template as the base and migrate UI into it (avoid merging two Next.js apps).
+- Typical mapping:
+  - `pages/_app.*` wrappers → `src/app/layout.tsx` or `src/app/(public)/layout.tsx`
+  - `pages/*.tsx` routes → `src/app/(public)/*/page.tsx`
+  - `components/*` → start in `src/components/site/experiments/` then promote as needed
+
+**Assets (Images/Media) Intake:**
+- Short-term: static assets may live in `public/` for speed during early build-out.
+- Long-term: upload assets to the CMS Media Library (Supabase Storage) so non-developers can manage media without redeploys.
+
+**Standby Launch (“Coming Soon” Mode):**
+- Purpose: allow early Vercel deployment, domain setup, and environment configuration while keeping the public site hidden until ready.
+- Recommended approach: a single environment variable gate, for example:
+  - `NEXT_PUBLIC_SITE_MODE=coming_soon|live`
+- In `coming_soon` mode:
+  - Public routes redirect/render to `/coming-soon`
+  - `/admin/*` remains accessible for building/configuration
+  - `/api/*` remains accessible for CMS operations and testing
+  - Add `noindex`/`nofollow` and consider a temporary/maintenance response posture (e.g., 503) for SEO safety
+
+**CI/CD (Continuous Integration / Continuous Deployment):**
+- Deploy early with `coming_soon` enabled.
+- Iterate via standard Git pushes to the client repo; Vercel builds/deploys on each push.
+- Flip `NEXT_PUBLIC_SITE_MODE` to `live` when ready to launch.
 
 ### Developer-Centric Component Architecture
 
@@ -121,38 +167,63 @@ The application uses a **developer-centric component library approach** rather t
 
 **Reusable Component Library:**
 - Components are built as React/TypeScript components in the codebase
-- Stored in `src/components/public/` directory structure
-- Components are themeable via CSS variables from the design system
+- Stored in `src/components/public/` (promotable, reusable library)
+- Site-specific glue/composition lives in `src/components/site/` (kept intentionally small)
+- Components are themeable via design tokens (Tailwind semantic classes backed by CSS variables)
 - Library grows over time as reusable patterns are identified
 - Components can be shared across all client projects
 
 **Component Structure:**
 ```
-src/components/public/
-├── sections/              # Reusable page sections
-│   ├── Hero.tsx          # Hero section (uses design system)
-│   ├── TextBlock.tsx     # Text content block
-│   ├── ImageBlock.tsx    # Image with caption
-│   ├── GalleryBlock.tsx  # Embedded gallery display
-│   ├── FormBlock.tsx     # Embedded form
-│   ├── CTASection.tsx    # Call-to-action section
-│   └── ...               # Growing library of reusable sections
-├── pages/                # Full page-level components
-│   ├── HomePage.tsx      # Homepage composition
-│   ├── AboutPage.tsx     # About page template
-│   └── ContactPage.tsx   # Contact page template
-└── layout/               # Layout components
-    ├── Header.tsx        # Site header (customizable per project)
-    ├── Footer.tsx        # Site footer
-    └── Navigation.tsx    # Navigation menu
+src/components/
+├── ui/                   # shadcn/ui primitives (Button, Card, Input...)
+├── public/               # PROMOTABLE: reusable across future client sites
+│   ├── layout/           # Navigation/Header/Footer (generic, data-driven)
+│   ├── sections/         # Hero/Testimonials/FAQ/CTA/etc.
+│   ├── blocks/           # Smaller building blocks used inside sections
+│   ├── content/          # Renderers (RichTextRenderer, PostBody, etc.)
+│   ├── media/            # Public display components (GalleryGrid, MediaFigure, etc.)
+│   └── index.ts          # Optional barrel exports (keep simple)
+└── site/                 # CLIENT glue (keep small)
+    ├── pages/            # Page compositions (Home/About/Contact)
+    ├── config/           # Per-site config (nav items, feature flags, site meta)
+    ├── overrides/        # Rare client-specific wrappers/tweaks
+    └── experiments/      # Incubator components before promotion to `public/`
 ```
 
 **Design System Integration:**
-- Components consume global font and color settings via CSS variables
-- Design system values stored in database (settings table)
-- Applied dynamically via CSS custom properties
+- Components consume global font and color settings via CSS variables (design tokens)
+- Design system values stored in database (settings table) and/or set per-deployment defaults
+- Applied via CSS custom properties (CSS variables) so components inherit theme automatically
 - Components automatically inherit themeable properties
-- Example: `var(--font-heading)`, `var(--color-primary)`, etc.
+- Example tokens: `bg-background`, `text-foreground`, `bg-primary`, `text-primary-foreground`, `border-border`
+
+**Themeability Requirements (Reusable Components):**
+- Reusable components in `src/components/public/**` must use semantic design tokens (no hard-coded colors like `bg-blue-600`)
+- Avoid `"use client"` in public components unless interactivity truly requires it (keeps public site lightweight)
+- Prefer prop-driven variants (e.g., `variant`, `tone`, `density`) over copy/paste “almost the same” components
+
+**Naming Conventions (Prevent Near-Duplicates):**
+- Use `NounVariant` names for sections and layouts (avoid `Hero2`, `NewTestimonials`)
+  - Examples: `HeroCentered`, `HeroSplit`, `TestimonialsGrid`, `FAQAccordion`, `FooterColumns`, `NavigationBar`
+
+**Template → Client → Template Promotion Workflow (Forks + PRs):**
+1. Start a new client site by forking `yourorg/website-cms-template` → `yourorg/website-cms-{client}`
+2. Build new sections quickly under `src/components/site/experiments/` while iterating
+3. When a component is reusable, promote it by moving/refactoring into `src/components/public/**`
+   - Ensure it is data/prop driven (no client names/copy/assets hard-coded)
+   - Ensure it uses design tokens (semantic Tailwind classes backed by CSS variables)
+4. Create a focused branch (recommended: `promote/<component-or-section>`) and open a PR from the client repo back to the template repo
+5. Merge into the template so future client forks start with the improved library
+
+**Promotion Checklist (Before Opening a PR Back to the Template):**
+- Component lives under `src/components/public/**` (not `src/components/site/**`)
+- No client-specific branding: no client name/copy, logos, or assets baked into the component
+- Uses semantic theme tokens (e.g., `bg-background`, `text-foreground`, `bg-primary`) rather than hard-coded colors
+- Public components are server-first: avoid `"use client"` unless interactivity truly requires it
+- Prop/data driven API (accepts data via props rather than importing client-specific config directly)
+- Responsive + accessible by default (semantic HTML, keyboard/focus behavior when applicable)
+- Change set is focused: PR includes only the reusable component + minimal supporting types/helpers
 
 **Page Composition Model:**
 - Pages are React components that compose sections
@@ -245,7 +316,7 @@ Git Repository → CI/CD Pipeline:
 - **Design System**: Admin setting changes → immediate via CSS variables (no deploy needed)
 
 **Scalability Benefits:**
-- Add new clients by cloning repository
+- Add new clients by forking the template repository
 - Create new schema per client
 - Share component library across all deployments
 - Independent versioning per client project
@@ -253,7 +324,7 @@ Git Repository → CI/CD Pipeline:
 
 #### New Client Setup Workflow
 
-1. Clone repository template
+1. Fork the template repository (`yourorg/website-cms-template`) into a new client repo (`yourorg/website-cms-{client}`)
 2. Create new Supabase schema (`client_newname`)
 3. Run migrations in new schema
 4. Create storage bucket (`client-newname`)
@@ -310,6 +381,7 @@ This architecture enables:
 - Visual form builder (drag-and-drop fields)
 - Field types: text, email, phone, textarea, select, checkbox
 - Form submission storage in database
+- Email notifications for form submissions (server-side via Nodemailer/SMTP; configurable per form)
 - Lightweight CRM view for submissions
 - Status tracking (new, contacted, archived)
 - Export capabilities (CSV)
@@ -358,6 +430,26 @@ A protected content system allowing members-only access to content, pages, and r
 - View all members and their group assignments
 - Member status management (activate, suspend, remove)
 - View member activity and access history (future enhancement)
+
+### 6. Event Calendar
+
+A public-facing event calendar module with an admin-managed event list. Events are viewable on the front end in multiple calendar modes, and can be subscribed to by end users via an iCalendar (ICS) feed.
+
+**Front-End Calendar Views:**
+- View modes: day / week / month / agenda (list)
+- Clicking an event opens a modal with event details
+- Responsive UX across desktop and mobile
+
+**Admin (CMS) Event Management:**
+- Create, edit, publish/unpublish, and delete events
+- Event fields (initial scope): title, description, start/end date-time, all-day, location, optional external link
+
+**Subscriptions (Add to End-User Calendars):**
+- Publish an iCalendar (ICS) subscription feed for the site calendar (URL-based subscription)
+
+**Automation & Sync (Planned Capability; design to be finalized later):**
+- Events can be created/updated via API for automation use cases
+- Optional one-way sync/import from external calendars (e.g., client meeting calendars) to keep the site calendar up to date
 
 ## Design System & Branding
 
@@ -608,13 +700,21 @@ ALTER TABLE galleries ADD COLUMN required_membership_group_id UUID
 
 ## API Endpoints
 
-Public REST API endpoints (optional, for programmatic access):
+REST API endpoints (optional, for programmatic content access and automation):
 - `GET /api/posts` - List published posts (pagination, search)
 - `GET /api/posts/[id]` - Get single post by ID or slug
 - `GET /api/galleries` - List all galleries
 - `GET /api/galleries/[id]` - Get gallery with items by ID or slug
 - `GET /api/media/[id]` - Get media item details
-- `POST /api/forms/[formId]/submit` - Submit form data
+- `POST /api/forms/[formId]/submit` - Submit form data (optionally triggers email notification if enabled on the form)
+- `GET /api/events` - List events (supports date range filtering)
+- `GET /api/events/[id]` - Get event by ID (or slug)
+- `GET /api/events/ics` - iCalendar (ICS) subscription feed for the calendar
+
+Authenticated/admin endpoints (for automation and admin tooling):
+- `POST /api/events` - Create event
+- `PUT /api/events/[id]` - Update event
+- `DELETE /api/events/[id]` - Delete event
 
 All API endpoints include:
 - Rate limiting (100 requests per minute)
@@ -655,6 +755,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 NEXT_PUBLIC_CLIENT_SCHEMA=client_default
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Optional (template): SMTP settings for form submission email notifications (Nodemailer)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+SMTP_FROM="Website <no-reply@example.com>"
 ```
 
 **Note**: Supabase Auth credentials are included in the `NEXT_PUBLIC_SUPABASE_ANON_KEY`. No separate auth API is needed.
@@ -677,12 +785,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 Each client should be deployed as a separate Vercel project:
 
-1. Clone the repository for each client
+1. Fork the template repository for each client (creates a new client repo)
 2. Set environment variables in Vercel dashboard:
    - `NEXT_PUBLIC_CLIENT_SCHEMA` - Unique schema name for this client (e.g., `client_abc123`)
    - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key (includes auth capabilities)
    - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (for server-side operations)
+   - `SMTP_*` - SMTP credentials (only required if enabling form submission notifications)
    - `NEXT_PUBLIC_APP_URL` - Your deployment URL (e.g., `https://clientdomain.com`)
 
 **Important**: Create users in Supabase Auth with `user_metadata` containing `tenant_id` matching the `NEXT_PUBLIC_CLIENT_SCHEMA` value for each deployment.
@@ -825,7 +934,7 @@ pnpm run build
 ### New Client Setup
 
 **Workflow:**
-1. Clone repository from template
+1. Fork the template repository to create the client repository
 2. Run setup script: `pnpm run setup --schema client_newproject`
 3. Script creates schema, runs migrations, creates storage bucket
 4. Set environment variables in Vercel
@@ -846,7 +955,7 @@ pnpm run build
 5. **Better Developer Experience**: Type-safe, component-based architecture
 6. **Single App Model**: No separate admin subdomain needed
 7. **API-First**: Built-in REST API for programmatic access
-8. **Multi-Schema Architecture**: Easy to clone and deploy per client
+8. **Multi-Schema Architecture**: Easy to fork and deploy per client
 9. **Custom Design Per Project**: No theme system - each site is custom-designed, with global font and color palette controls
 10. **Unified Design System**: Admin and public site share the same fonts and colors, with admin using a dark theme for distinction
 11. **Developer-Centric Components**: Reusable component library approach, not visual page builder
@@ -858,7 +967,6 @@ pnpm run build
 
 - SEO tools and sitemap generation
 - Analytics integration
-- Email notifications for form submissions
 - Content scheduling
 - Multi-language support
 - **Membership System:**
