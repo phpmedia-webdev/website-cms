@@ -17,6 +17,18 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 - Added form submission email notifications plan using Nodemailer (SMTP) with documented `SMTP_*` environment variables
 - Added Event Calendar as a core feature (public views + event modal, admin management, API endpoints, ICS subscription feed) and tracked implementation tasks in planlog
 
+### 2026-01-21 - Security, Roles, CRM/Memberships, Integrations, and AI RAG Planning
+- Formalized role model in PRD/planlog: Superadmin (cross-tenant) + Client Admin + GPU (public visitor) + GPUM (member)
+- Expanded Supabase Auth metadata strategy and middleware enforcement for superadmin bypass + tenant scoping
+- Added 2FA/MFA requirements and implementation plan (TOTP first; SMS planned for later with external SMS provider)
+- Documented image strategy (local vs CDN) and media optimization plan (store original + generate variants; helper utility guidance)
+- Extended CRM scope to include membership management; emphasized easy client admin workflows for member status and group assignment
+- Simplified ecommerce-to-membership integration to tag-based assignment (no payment transaction duplication; webhook/API key path)
+- Added third-party `<head>` integration management as core system capability:
+  - Always-on scripts: Google Analytics, VisitorTracking.com, SimpleCommenter.com
+  - Vendor IDs stored in superadmin settings; scripts injected into public layouts only
+- Added AI chatbot roadmap: CMS content as RAG knowledge base (Supabase PGVector) as a later phase in PRD/planlog
+
 ### 2026-01-20 - Membership Platform Architecture
 - Added comprehensive membership platform section to PRD
 - Documented dual authentication system (admin users vs member users)

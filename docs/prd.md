@@ -68,6 +68,10 @@ This WordPress-style approach provides:
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
 
+**Superadmin Routes (Protected, Superadmin + 2FA Required):**
+- `/admin/super` - Superadmin dashboard/utilities
+- `/admin/super/integrations` - Third-party integrations management (Google Analytics, VisitorTracking.com, SimpleCommenter.com)
+
 **Standby / Coming Soon Route (Optional):**
 - `/coming-soon` - Standby landing page used when the site is in "coming soon" mode (see Developer Workflow)
 
@@ -206,6 +210,43 @@ src/components/
 **Naming Conventions (Prevent Near-Duplicates):**
 - Use `NounVariant` names for sections and layouts (avoid `Hero2`, `NewTestimonials`)
   - Examples: `HeroCentered`, `HeroSplit`, `TestimonialsGrid`, `FAQAccordion`, `FooterColumns`, `NavigationBar`
+
+**Image Storage Strategy (Local vs CDN):**
+
+The application uses a **hybrid approach** for image storage, with clear guidelines for when to use local files vs CDN (Supabase Storage):
+
+**Use Local Images (`public/` folder) for:**
+- **Static brand assets**: Logo, favicon, default placeholders (< 50KB)
+- **UI elements**: Icons, small graphics that never change
+- **Critical path assets**: Above-the-fold assets that must load immediately
+- **Small files**: Assets under 50KB that are rarely updated
+
+**Use CDN (Supabase Storage) for:**
+- **User-uploaded content**: All images uploaded via CMS admin (galleries, blog images, media library)
+- **Dynamic content**: Images that change frequently without redeploys
+- **Large files**: Images over 100KB that benefit from CDN caching
+- **Member-uploaded content**: User avatars, member-submitted images
+
+**Developer Decision Framework:**
+- **Source**: User-uploaded (via CMS) → Always CDN
+- **Source**: Static asset (in codebase) → Usually local (unless large/frequently changing)
+- **Size**: Small (< 50KB), rarely changes → Local
+- **Size**: Large (> 100KB) or changes often → CDN
+- **Critical path**: Above-the-fold, critical → Consider local for reliability
+- **Critical path**: Below-the-fold, optional → CDN is fine
+
+**Implementation Pattern:**
+- Helper utility `getImageUrl(path, size)` automatically determines source:
+  - Paths starting with `media/`, `galleries/`, etc. → CDN with optimization
+  - Other paths → Local assets from `public/` folder
+- Components use helper utility for consistent image handling
+- CMS admin automatically stores all uploads in Supabase Storage (CDN)
+- Developer makes architectural decisions when building components
+
+**Benefits:**
+- Local assets: Versioned with code, no external dependency, faster initial load
+- CDN assets: Edge caching globally, dynamic optimization, scalable storage
+- Hybrid approach balances performance, cost, and maintainability
 
 **Template → Client → Template Promotion Workflow (Forks + PRs):**
 1. Start a new client site by forking `yourorg/website-cms-template` → `yourorg/website-cms-{client}`
@@ -375,17 +416,41 @@ This architecture enables:
 - Video URL management (Vimeo, YouTube, Adilo)
 - Media metadata (alt text, captions)
 - Search and filtering
-- Image optimization
+- **Image Optimization System**: Automatic generation of multiple image variants (thumbnail, small, medium, large) on upload
+  - Original image stored in Supabase Storage
+  - Variants generated server-side during upload process
+  - Variants stored in organized paths: `/media/{id}/original.{ext}`, `/media/{id}/large.webp`, `/media/{id}/medium.webp`, `/media/{id}/small.webp`, `/media/{id}/thumb.webp`
+  - Metadata stored in database (width, height, format, variant paths)
+  - WebP format used for variants (with fallback to original format if needed)
+  - Standard sizes: Thumbnail (150×150), Small (400px width), Medium (800px width), Large (1200px width)
+  - Supabase Storage Image Transformations available as fallback for ad-hoc sizes
 
-### 4. Forms
+### 4. Forms & CRM (Customer Relationship Management)
+
+A unified CRM system that manages both form submissions and membership relationships, providing a comprehensive view of customer interactions and member management.
+
+**Form Builder:**
 - Visual form builder (drag-and-drop fields)
 - Field types: text, email, phone, textarea, select, checkbox
 - Form submission storage in database
 - Email notifications for form submissions (server-side via Nodemailer/SMTP; configurable per form)
-- Lightweight CRM view for submissions
-- Status tracking (new, contacted, archived)
-- Export capabilities (CSV)
-- Notes and follow-up tracking
+
+**CRM Features:**
+- **Form Submissions Management**: Lightweight CRM view for form submissions
+  - Status tracking (new, contacted, archived)
+  - Export capabilities (CSV)
+  - Notes and follow-up tracking
+  - Contact history and interaction logs
+- **Membership Management**: Integrated membership CRM functionality
+  - View all members and their group assignments
+  - Track membership status and expiration dates
+  - Member activity and engagement tracking
+  - Membership assignment and removal workflows
+  - Bulk membership operations
+- **Unified Customer View**: Single interface for managing both form submissions and memberships
+  - Link form submissions to member profiles (when email matches)
+  - View complete customer journey (form submission → membership conversion)
+  - Track customer touchpoints across the platform
 
 ### 5. Membership Platform
 
@@ -397,6 +462,11 @@ A protected content system allowing members-only access to content, pages, and r
 - Description and benefits for each group
 - Unlimited membership groups per client
 - Group-specific access permissions
+- **Ecommerce Integration** (Simple Tag Reference):
+  - **Ecommerce Tag**: Simple tag/reference field (e.g., "premium-membership", "product-123")
+  - This tag is matched by the ecommerce platform when processing payments
+  - All payment details are stored in the ecommerce platform (not duplicated here)
+  - Auto-assignment flag (automatically grant membership when webhook matches tag)
 
 **Member Users:**
 - Separate user accounts from admin users (uses Supabase Auth)
@@ -419,10 +489,19 @@ A protected content system allowing members-only access to content, pages, and r
 - Member registration and login (separate from admin login)
 - Member dashboard/profile area
 - Content gating with automatic redirects
-- Membership management in admin
+- **Easy Admin CRM Management**: Client admins can easily log in and manage memberships
+  - View all members and their group assignments
+  - Assign/remove memberships with simple interface
+  - Update member status (active, inactive, suspended)
+  - Set expiration dates
+  - Bulk operations for efficiency
 - Member directory (optional, admin-configurable)
 - Membership expiration tracking
-- Subscription/renewal tracking (optional, for future payment integration)
+- **Simple Ecommerce Integration**:
+  - Simple tag-based reference system (no duplicate payment data)
+  - Webhook support for automatic membership assignment
+  - All payment details remain in ecommerce platform
+  - Secure API authentication for webhook endpoints
 
 **Admin Management:**
 - Create and manage membership groups
@@ -492,6 +571,160 @@ The admin area uses the **same design system** (fonts and colors) as the public 
 - Same typography and color palette, different theme application
 - Professional, cohesive appearance
 
+## Third-Party Integrations & Head Section Management
+
+The application includes a head section management system for integrating third-party scripts, analytics, chatbots, and tracking codes. This allows superadmins to configure vendor-specific identifiers and ensures scripts are properly embedded in the HTML `<head>` section of all public-facing pages.
+
+### Head Section Script Management
+
+**Purpose:**
+- Embed analytics tracking codes (Google Analytics, etc.)
+- Integrate visitor tracking services
+- Add chatbot and communication tools
+- Support custom tracking and integration scripts
+- Centralized management of all third-party scripts
+
+**Implementation:**
+- Scripts are injected into the `<head>` section of the root layout (`src/app/layout.tsx`)
+- Scripts load on all public-facing pages (not in admin area)
+- Configuration stored in database (settings table or dedicated integrations table)
+- Managed exclusively by superadmins (platform-level configuration)
+
+### Required Third-Party Scripts
+
+The following scripts are **always present** and configured via superadmin settings:
+
+**1. Google Analytics**
+- **Purpose**: Website analytics and visitor tracking
+- **Configuration Field**: Google Analytics Measurement ID (e.g., `G-XXXXXXXXXX`)
+- **Script Type**: Google Analytics 4 (GA4) gtag.js
+- **Location**: Injected in `<head>` section
+- **Scope**: All public pages
+
+**2. VisitorTracking.com**
+- **Purpose**: Visitor tracking and analytics service
+- **Configuration Field**: VisitorTracking.com Vendor UID
+- **Script Type**: Custom tracking script from VisitorTracking.com
+- **Location**: Injected in `<head>` section
+- **Scope**: All public pages
+
+**3. SimpleCommenter.com**
+- **Purpose**: Comment system integration
+- **Configuration Field**: SimpleCommenter.com Vendor UID
+- **Script Type**: Custom script from SimpleCommenter.com
+- **Location**: Injected in `<head>` section
+- **Scope**: All public pages
+
+### Superadmin Settings Interface
+
+**Route**: `/admin/super/integrations` (superadmin-only)
+
+**Features:**
+- **Third-Party Integrations Section**:
+  - Google Analytics: Input field for Measurement ID
+  - VisitorTracking.com: Input field for Vendor UID
+  - SimpleCommenter.com: Input field for Vendor UID
+  - Save/Update functionality
+  - Test/Preview mode (optional - to verify scripts load correctly)
+- **Script Status Indicators**:
+  - Show which scripts are configured (green) vs. not configured (gray)
+  - Display current vendor UIDs/IDs
+  - Enable/disable toggle for each script (optional)
+- **Additional Scripts** (Future Enhancement):
+  - Ability to add custom script snippets
+  - Script ordering/priority
+  - Conditional loading (specific pages only)
+
+### Database Schema
+
+**Settings Table Integration:**
+```sql
+-- Add to settings table (or create dedicated integrations table)
+ALTER TABLE settings ADD COLUMN integrations JSONB DEFAULT '{}';
+
+-- Example structure:
+{
+  "google_analytics": {
+    "enabled": true,
+    "measurement_id": "G-XXXXXXXXXX"
+  },
+  "visitor_tracking": {
+    "enabled": true,
+    "vendor_uid": "your-vendor-uid"
+  },
+  "simple_commenter": {
+    "enabled": true,
+    "vendor_uid": "your-vendor-uid"
+  }
+}
+```
+
+**Alternative: Dedicated Integrations Table** (if preferred):
+```sql
+CREATE TABLE integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT UNIQUE NOT NULL, -- 'google_analytics', 'visitor_tracking', 'simple_commenter'
+  enabled BOOLEAN DEFAULT true,
+  config JSONB NOT NULL, -- Vendor-specific configuration (UID, ID, etc.)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Script Injection Implementation
+
+**Root Layout** (`src/app/layout.tsx`):
+- Load integration settings from database
+- Conditionally inject scripts based on configuration
+- Use Next.js `<Script>` component for optimal loading
+- Scripts load only on public pages (not `/admin/*` routes)
+
+**Script Loading Strategy:**
+- **Google Analytics**: Load with `strategy="afterInteractive"` (after page becomes interactive)
+- **VisitorTracking.com**: Load with `strategy="afterInteractive"`
+- **SimpleCommenter.com**: Load with `strategy="lazyOnload"` (defer loading)
+
+**Example Implementation:**
+```typescript
+// In src/app/layout.tsx
+import Script from 'next/script';
+import { getIntegrations } from '@/lib/supabase/integrations';
+
+export default async function RootLayout({ children }) {
+  const integrations = await getIntegrations();
+  
+  return (
+    <html>
+      <head>
+        {integrations.google_analytics?.enabled && (
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${integrations.google_analytics.measurement_id}`}
+            strategy="afterInteractive"
+          />
+        )}
+        {/* Additional scripts... */}
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+### Access Control
+
+- **Superadmin Only**: Only users with `user_metadata.type = "superadmin"` can access `/admin/super/integrations`
+- **2FA Required**: Access to superadmin settings requires `aal2` (2FA verified)
+- **Client Admins**: Cannot modify third-party integrations (platform-level configuration)
+
+### Future Enhancements
+
+- **Custom Scripts**: Allow superadmins to add additional custom script snippets
+- **Page-Specific Scripts**: Configure scripts to load only on specific pages
+- **Script Ordering**: Control the order in which scripts load
+- **Performance Monitoring**: Track script load times and impact
+- **A/B Testing Integration**: Support for experimentation platforms
+- **Cookie Consent Integration**: Integration with cookie consent tools
+
 ## Authentication
 
 The application uses **Supabase Auth** for authentication, providing a native, integrated authentication solution within the Supabase ecosystem.
@@ -507,32 +740,45 @@ The application uses **Supabase Auth** for authentication, providing a native, i
 
 ### Role Types
 
-**Admin Roles** (for CMS access):
-- `admin` - Full access to all CMS features and settings
-- `editor` - Can create and edit content, but cannot manage settings
-- `viewer` - Read-only access to CMS
-- Additional roles can be added as needed (stored in `user_metadata.role`)
+The system formalizes **four primary user types**:
 
-**Member Users** (for public site access):
-- Separate authentication from admin users
-- No CMS access
-- Access controlled via membership groups
-- Type stored in `user_metadata.type = "member"`
-- Can belong to multiple membership groups simultaneously
+**1) Superadmin (Platform Admin / Developer Team)**
+- **Who**: You (developer) and your internal team members
+- **Scope**: Cross-tenant (can access **all** client deployments / schemas)
+- **Purpose**: Platform-wide settings, diagnostics, client lifecycle tooling, and emergency access
+- **Access**: Superadmin-only system area (route to be implemented; recommended: `/admin/super`)
 
-**Distinction:**
-- **Roles**: Admin user permissions within the CMS (who can edit content)
-- **Membership Groups**: Member access levels for protected content (what content members can view)
-- Admin users are for content management; member users are for consuming protected content
+**2) Client Admin (Site Admin)**
+- **Who**: The client’s administrators and staff
+- **Scope**: Single-tenant (their specific client schema only)
+- **Purpose**: Day-to-day site administration: media, posts, galleries, forms/CRM, events, memberships, site settings
+- **Access**: `/admin/*` (standard CMS)
+
+**3) GPU (General Public User)**
+- **Who**: Any site visitor (anonymous or logged-out)
+- **Scope**: Public website only
+- **Purpose**: Browse public pages and content
+- **Access**: Public routes only (no auth required)
+
+**4) GPUM (General Public User - Member)**
+- **Who**: End users who register/login and have **membership status**
+- **Scope**: Public site + protected member content (based on membership groups)
+- **Purpose**: Access protected pages/content and member dashboard
+- **Access**: `/login`, `/register`, `/members/*`, plus gated content routes
+
+**Core Distinction (Important):**
+- **Admin roles** control **what CMS features** an authenticated admin can access (platform + client admin).
+- **Membership groups** control **what protected content** a GPUM can access on the public site.
 
 ### Multi-Tenant Authentication Strategy
 
 Since all clients share a single Supabase project but use separate schemas, authentication works as follows:
 
 1. **User Metadata**: Each user in Supabase Auth has metadata containing:
-   - `tenant_id`: The client schema they have access to (e.g., `client_abc123`)
-   - `role`: User role within that tenant (admin, editor, viewer)
-   - `allowed_schemas`: Array of schemas user can access (for cross-tenant admins if needed)
+   - `tenant_id`: The client schema they belong to (e.g., `client_abc123`) — required for client admins and members
+   - `type`: `superadmin | admin | member`
+   - `role`: Role for admin authorization within the CMS (examples: `client_admin`, `editor`, `viewer`; `superadmin` for platform admins)
+   - `allowed_schemas`: Optional array for cross-tenant access (used by superadmins)
 
 2. **Schema Association**: When a user logs in, their `tenant_id` from metadata is matched with the `NEXT_PUBLIC_CLIENT_SCHEMA` environment variable to ensure they can only access their designated schema.
 
@@ -541,12 +787,18 @@ Since all clients share a single Supabase project but use separate schemas, auth
    - Database queries are automatically scoped to the correct schema
    - Users cannot access data from other client schemas
 
+**Superadmin Bypass Rules:**
+- If `user_metadata.type = "superadmin"` and `role = "superadmin"`, middleware can permit access regardless of `NEXT_PUBLIC_CLIENT_SCHEMA`
+- Superadmins may optionally carry `allowed_schemas: ["*"]` or a concrete schema allowlist
+
 ### Authentication Flow
 
 1. User visits `/admin/login`
 2. Enters email/password or uses OAuth
 3. Supabase Auth validates credentials
-4. User metadata is checked for `tenant_id` matching the deployment's schema
+4. User metadata is checked:
+   - **Client Admin**: `tenant_id` must match the deployment’s `NEXT_PUBLIC_CLIENT_SCHEMA`
+   - **Superadmin**: may bypass `tenant_id` match (platform access)
 5. Session is established with JWT token
 6. Middleware protects all `/admin/*` routes
 7. User is redirected to `/admin/dashboard`
@@ -560,6 +812,191 @@ Since all clients share a single Supabase project but use separate schemas, auth
 - **Login Page**: `/admin/login` with Supabase Auth UI components
 - **Discreet Admin Link**: Admin link in public site footer for easy access
 
+### Two-Factor Authentication (2FA/MFA)
+
+The application implements **Multi-Factor Authentication (MFA)** using Supabase Auth's built-in MFA capabilities to enhance security for elevated admin roles.
+
+#### MFA Methods
+
+**Primary Method: TOTP (Time-Based One-Time Password)**
+- **Implementation**: TOTP via authenticator apps (Google Authenticator, Authy, 1Password, etc.)
+- **Enrollment**: Users enroll via `supabase.auth.mfa.enroll()` - generates QR code or secret
+- **Verification**: Challenge → verify with code from authenticator app
+- **Advantages**: 
+  - No external provider setup required (works out-of-the-box)
+  - No per-message costs
+  - More reliable (no delivery delays)
+  - Works offline
+  - Faster verification
+  - Better security (no SIM swapping risk)
+- **Status**: Implemented as primary 2FA method
+
+**Planned Method: SMS/Phone-Based Codes**
+- **Implementation**: SMS or WhatsApp verification codes via Supabase Auth
+- **Provider Requirement**: Requires external SMS provider account (Twilio, MessageBird, Vonage, or Textlocal)
+- **Setup**: Configure SMS provider credentials in Supabase Dashboard
+- **Use Case**: Optional backup/second factor, or for users who cannot use authenticator apps
+- **Status**: Planned for future implementation (not required for initial release)
+
+#### Authenticator Assurance Levels (AAL)
+
+Supabase uses **Authenticator Assurance Levels** in JWT tokens to indicate authentication strength:
+
+- **`aal1`**: Password/social login only (no 2FA verified)
+- **`aal2`**: Password + successful 2FA verification
+
+The JWT `aal` claim is checked in middleware and API routes to enforce access requirements.
+
+#### 2FA Requirements by Role
+
+**Superadmin (Always Required)**
+- **Requirement**: Must have `aal2` (2FA verified) for all superadmin routes
+- **Enrollment**: Required on first login after account creation
+- **Method**: TOTP (authenticator app) - primary and required
+- **Enforcement**: Middleware blocks access to `/admin/super/*` routes if `aal !== 'aal2'`
+- **Recovery**: Multiple factors can be enrolled for backup (up to 10 factors per user)
+
+**Client Admin (Required for Sensitive Operations)**
+- **Requirement**: Must have `aal2` for sensitive operations:
+  - Settings changes (`/admin/settings`)
+  - User/member management (`/admin/members`, `/admin/memberships`)
+  - Archive/reset operations (`/admin/settings/archive`, `/admin/settings/reset`)
+  - API key management
+- **Optional**: Basic content editing (posts, galleries, media) may work with `aal1` (configurable)
+- **Enrollment**: Prompted on first login, can be deferred for basic operations
+- **Method**: TOTP (authenticator app) - primary and required
+- **Enforcement**: Middleware checks `aal` for sensitive routes
+
+**Member Users (GPUM) - Optional**
+- **Requirement**: Optional 2FA enrollment
+- **Access**: Can enable 2FA in account settings (`/members/account`)
+- **Method**: TOTP (authenticator app) - optional
+- **Enforcement**: Not required for member content access
+
+#### MFA Enrollment Flow
+
+1. **First Login After Account Creation**:
+   - User logs in with password (achieves `aal1`)
+   - System detects role requires 2FA (superadmin/client admin)
+   - User is redirected to `/admin/mfa/enroll`
+   - QR code displayed for TOTP enrollment
+   - User scans QR code with authenticator app
+   - User verifies enrollment with code from app
+   - Session upgraded to `aal2`
+   - User granted full access
+
+2. **Subsequent Logins**:
+   - User logs in with password (achieves `aal1`)
+   - System checks role and route requirements
+   - If `aal2` required: User redirected to `/admin/mfa/challenge`
+   - User enters code from authenticator app
+   - Session upgraded to `aal2`
+   - User granted access
+
+3. **Multiple Factors**:
+   - Users can enroll multiple TOTP factors (up to 10)
+   - Useful for backup/recovery
+   - All enrolled factors shown during challenge
+
+#### MFA Challenge Flow
+
+1. **After Password Login**:
+   - User successfully authenticates (password/OAuth)
+   - Session has `aal = 'aal1'`
+   - Middleware checks if route requires `aal2`
+   - If required: Redirect to `/admin/mfa/challenge`
+
+2. **Challenge Page** (`/admin/mfa/challenge`):
+   - Lists all enrolled factors
+   - User selects factor to use (if multiple enrolled)
+   - User enters code from authenticator app
+   - System verifies code via `supabase.auth.mfa.verify()`
+   - Session upgraded to `aal2`
+   - User redirected to intended destination
+
+3. **Session Management**:
+   - `aal2` sessions persist until logout or expiration
+   - Token refresh maintains `aal2` status
+   - Re-login requires new 2FA challenge
+
+#### Middleware Enforcement
+
+**Superadmin Routes** (`/admin/super/*`):
+```typescript
+// Always require aal2
+if (userRole === 'superadmin' && aal !== 'aal2') {
+  return redirect('/admin/mfa/challenge');
+}
+```
+
+**Client Admin Sensitive Routes**:
+```typescript
+// Require aal2 for sensitive operations
+const sensitiveRoutes = ['/admin/settings', '/admin/members', '/admin/memberships'];
+if (userRole === 'client_admin' && sensitiveRoutes.includes(pathname) && aal !== 'aal2') {
+  return redirect('/admin/mfa/challenge');
+}
+```
+
+#### MFA Management UI
+
+**Admin Settings** (`/admin/settings/security`):
+- View enrolled factors
+- Enroll new TOTP factor (QR code)
+- Remove enrolled factors
+- View enrollment dates
+- Manage backup factors
+
+**Member Account Settings** (`/members/account/security`):
+- Optional 2FA enrollment
+- Manage enrolled factors
+- Enable/disable 2FA
+
+#### Recovery & Edge Cases
+
+**Lost Authenticator Access**:
+- Users with multiple enrolled factors can use backup factor
+- Superadmin recovery: Requires separate support process (manual verification)
+- Client admin recovery: Can be handled by superadmin or support process
+
+**Unenrollment**:
+- Superadmin: Cannot unenroll if it's their only factor (must enroll backup first)
+- Client admin: Can unenroll if multiple factors exist
+- System prevents leaving user without required 2FA
+
+**Session Expiration**:
+- `aal2` status persists in session until logout
+- Token refresh maintains `aal2`
+- Re-authentication requires new 2FA challenge
+
+#### Database/RLS Integration
+
+**Row-Level Security (RLS) Policies**:
+- Sensitive tables can check `aal` claim in JWT
+- Require `aal2` for superadmin operations
+- Example: Archive/restore operations require `aal2`
+
+**API Route Protection**:
+- API routes check `aal` claim for sensitive operations
+- Admin API endpoints require `aal2` for destructive operations
+
+#### Future Enhancements (SMS/Phone-Based 2FA)
+
+**Planned Implementation**:
+- SMS provider integration (Twilio, MessageBird, Vonage, or Textlocal)
+- Phone number enrollment flow
+- SMS code verification
+- Backup/second factor option
+- Regional SMS provider selection
+
+**Requirements**:
+- External SMS provider account setup
+- Provider credentials configuration in Supabase Dashboard
+- Per-message costs (handled by provider)
+- Regional compliance considerations
+
+**Status**: Planned for future release (not required for initial implementation)
+
 ## Membership System Architecture
 
 ### Dual Authentication System
@@ -567,13 +1004,15 @@ Since all clients share a single Supabase project but use separate schemas, auth
 The application supports two distinct user types using Supabase Auth:
 
 1. **Admin Users** - Access CMS at `/admin/*`
-   - Stored in Supabase Auth with `user_metadata.type = "admin"` (or absent)
-   - Have `user_metadata.tenant_id` and `user_metadata.role`
+   - Two admin classes:
+     - **Superadmin**: `user_metadata.type = "superadmin"`, `user_metadata.role = "superadmin"` (cross-tenant)
+     - **Client Admin**: `user_metadata.type = "admin"`, `user_metadata.role = "client_admin" | "editor" | "viewer" | ...` (single-tenant)
+   - Client admins require `user_metadata.tenant_id` matching the deployment’s `NEXT_PUBLIC_CLIENT_SCHEMA`
    - Authenticate at `/admin/login`
-   - Manage content and site settings
+   - Manage content and site settings (scope depends on admin role)
 
 2. **Member Users** - Access protected content on public site
-   - Stored in Supabase Auth with `user_metadata.type = "member"`
+   - Stored in Supabase Auth with `user_metadata.type = "member"` (GPUM)
    - Have `user_metadata.tenant_id` (for multi-tenant isolation)
    - Authenticate at `/login` or `/register`
    - Profile stored in `members` table in client schema
@@ -583,7 +1022,7 @@ The application supports two distinct user types using Supabase Auth:
 
 **Roles** (Admin Users):
 - Define what CMS features a user can access
-- Set in `user_metadata.role` (admin, editor, viewer, and more)
+- Set in `user_metadata.role` (superadmin, client_admin, editor, viewer, and more)
 - Examples: "Can this admin user delete posts?", "Can they edit settings?"
 
 **Membership Groups** (Member Users):
@@ -603,8 +1042,12 @@ CREATE TABLE membership_groups (
   slug TEXT UNIQUE NOT NULL,
   description TEXT,
   tier INTEGER DEFAULT 0, -- For hierarchical access (0=free, 1=basic, 2=premium, etc.)
+  -- Simple ecommerce integration (tag reference only)
+  ecommerce_tag TEXT, -- Simple tag/reference from ecommerce platform (e.g., "premium-membership")
+  auto_assign_on_payment BOOLEAN DEFAULT false, -- Auto-grant membership when webhook matches tag
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  INDEX idx_ecommerce_tag (ecommerce_tag) -- For quick webhook lookups
 );
 
 -- Member profiles (extends Supabase auth.users)
@@ -623,9 +1066,14 @@ CREATE TABLE user_memberships (
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   membership_group_id UUID NOT NULL REFERENCES membership_groups(id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ, -- Optional expiration
+  assigned_via TEXT DEFAULT 'manual' CHECK (assigned_via IN ('manual', 'webhook', 'api')), -- Simple tracking of assignment method
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(member_id, membership_group_id)
 );
+
+-- Note: All payment/transaction details are stored in the ecommerce platform.
+-- This system only tracks membership assignments, not payment details.
 ```
 
 **Content Protection Fields** (added to existing tables):
@@ -675,6 +1123,50 @@ ALTER TABLE galleries ADD COLUMN required_membership_group_id UUID
 - Accepts `requiredMembershipGroup` prop
 - Shows teaser or redirect based on membership status
 
+### Ecommerce Integration & Payment-to-Membership Flow
+
+**Architecture:**
+The CMS integrates with external ecommerce platforms (Stripe, Shopify, WooCommerce, etc.) through a robust API system that automatically grants membership access upon successful payment.
+
+**Payment-to-Membership Flow (Simplified):**
+
+1. **Product Configuration**:
+   - Membership group in CMS is configured with an `ecommerce_tag` (e.g., "premium-membership")
+   - `auto_assign_on_payment` flag is enabled if automatic assignment is desired
+   - Ecommerce platform product is tagged with the same tag value
+
+2. **Customer Purchase** (external ecommerce platform):
+   - Customer purchases membership product on external ecommerce site
+   - Payment is processed and stored entirely in the ecommerce platform
+   - Ecommerce platform triggers webhook to CMS with tag and customer email
+
+3. **Webhook Processing** (CMS):
+   - CMS receives webhook at `/api/webhooks/payment/[provider]`
+   - Webhook signature is verified for security
+   - CMS extracts: customer email and product tag
+   - CMS looks up membership group by matching `ecommerce_tag`
+   - If `auto_assign_on_payment` is enabled:
+     - Member profile is created/updated (if email exists)
+     - Membership is assigned to user via `user_memberships` table
+     - `assigned_via` is set to 'webhook'
+
+4. **Member Access Granted**:
+   - Member can immediately access protected content
+   - Membership appears in member dashboard
+   - Expiration date set (if configured in membership group)
+
+**Admin Management** (Primary Method):
+- Client admins log in to `/admin/members`
+- Simple interface to view all members and their memberships
+- One-click assign/remove memberships
+- Update member status and expiration dates
+- All payment details remain in ecommerce platform (no duplication)
+
+**Manual Assignment via API** (for custom integrations):
+- External system calls `POST /api/memberships/[id]/assign` with email
+- CMS validates API key and processes assignment
+- Simple assignment without payment data duplication
+
 ### Integration Points
 
 1. **Content Editor**: 
@@ -687,20 +1179,30 @@ ALTER TABLE galleries ADD COLUMN required_membership_group_id UUID
    - Show membership expiration dates
    - List accessible content categories
    - Account settings
+   - View payment history (if applicable)
 
-3. **Admin Dashboard**:
+3. **Admin Dashboard** (CRM Integration):
    - Membership statistics (total members, by group)
    - Recent member registrations
    - Membership activity overview
+   - Payment transaction log
+   - Failed assignment alerts
 
 4. **API Endpoints**:
    - Member authentication endpoints
    - Protected content endpoints with membership validation
    - Member profile endpoints
+   - **Ecommerce Integration API**: Robust API for external ecommerce modules
+     - Payment webhook endpoints for automatic membership assignment
+     - Membership management API (assign, remove, check status)
+     - Transaction logging and verification
+     - Secure API key authentication for external systems
 
 ## API Endpoints
 
 REST API endpoints (optional, for programmatic content access and automation):
+
+### Public Content API
 - `GET /api/posts` - List published posts (pagination, search)
 - `GET /api/posts/[id]` - Get single post by ID or slug
 - `GET /api/galleries` - List all galleries
@@ -711,15 +1213,52 @@ REST API endpoints (optional, for programmatic content access and automation):
 - `GET /api/events/[id]` - Get event by ID (or slug)
 - `GET /api/events/ics` - iCalendar (ICS) subscription feed for the calendar
 
-Authenticated/admin endpoints (for automation and admin tooling):
+### Authenticated Admin API (for automation and admin tooling)
 - `POST /api/events` - Create event
 - `PUT /api/events/[id]` - Update event
 - `DELETE /api/events/[id]` - Delete event
 
+### Membership & Ecommerce Integration API
+
+**Membership Management API** (Simple API for external integrations):
+- `GET /api/memberships` - List all membership groups (public or API key auth)
+- `GET /api/memberships/[id]` - Get membership group details (public or API key auth)
+- `POST /api/memberships/[id]/assign` - Assign membership to user (API key required)
+  - Body: `{ "email": "user@example.com" }`
+  - Returns: Membership assignment confirmation
+- `POST /api/memberships/[id]/remove` - Remove membership from user (API key required)
+  - Body: `{ "email": "user@example.com" }`
+- `GET /api/members/[email]` - Get member details and memberships (API key required)
+- `POST /api/members/verify` - Verify member has specific membership (API key required)
+
+**Payment Webhook API** (Simple tag-based matching):
+- `POST /api/webhooks/payment` - Receive payment notifications from ecommerce platforms
+  - Accepts webhook payloads from external systems (Stripe, Shopify, WooCommerce, etc.)
+  - Expected payload: `{ "email": "user@example.com", "tag": "premium-membership" }`
+  - Validates webhook signature (configurable per provider)
+  - Looks up membership group by matching `ecommerce_tag`
+  - Automatically assigns membership if `auto_assign_on_payment` is enabled
+  - Returns success/failure status
+- `POST /api/webhooks/payment/[provider]` - Provider-specific webhook endpoints
+  - `/api/webhooks/payment/stripe` - Stripe webhook handler (extracts tag from payload)
+  - `/api/webhooks/payment/shopify` - Shopify webhook handler
+  - `/api/webhooks/payment/woocommerce` - WooCommerce webhook handler
+
+**API Authentication:**
+- **API Key Authentication**: External ecommerce modules use API keys for authentication
+  - API keys stored in database (settings table or dedicated `api_keys` table)
+  - Simple key-based authentication for webhook endpoints
+  - Rate limiting per API key (configurable)
+- **Webhook Security**: 
+  - Signature verification for webhook payloads (provider-specific)
+  - IP allowlist (optional, for additional security)
+  - Idempotency handling (prevent duplicate processing based on email+tag combination)
+
 All API endpoints include:
-- Rate limiting (100 requests per minute)
-- Response caching headers
+- Rate limiting (100 requests per minute for public, configurable for API keys)
+- Response caching headers (where appropriate)
 - JSON responses
+- Error handling with consistent error format
 
 ## Getting Started
 
@@ -982,3 +1521,170 @@ pnpm run build
 - Component library documentation site
 - Component versioning and changelog
 - Automated backup scheduling for archives
+- **AI Chatbot with RAG (Retrieval-Augmented Generation)**:
+  - Custom AI chatbot powered by CMS content as knowledge base
+  - RAG architecture using Supabase PGVector for vector search
+  - Content indexing: posts, pages, galleries (descriptions), events, forms (descriptions)
+  - Chat widget component for public-facing pages
+  - Admin interface for chatbot configuration and training
+  - Conversation history stored in Supabase
+  - Integration with CRM/membership system
+  - Support for protected content (membership-aware responses)
+
+## AI Chatbot with RAG (Planned Feature)
+
+### Overview
+
+A custom AI-powered chatbot that uses the CMS content as a Retrieval-Augmented Generation (RAG) knowledge base. The chatbot answers user questions by retrieving relevant content from the site's posts, pages, galleries, events, and other CMS-managed content, then generating contextual responses using an LLM.
+
+### Architecture
+
+**RAG (Retrieval-Augmented Generation) System:**
+- **Knowledge Base**: All CMS content (posts, pages, galleries, events, forms) serves as the training/knowledge source
+- **Vector Database**: Supabase PGVector extension for storing and searching content embeddings
+- **Embedding Generation**: Content is converted to vector embeddings (using OpenAI, Anthropic, or open-source models)
+- **Retrieval**: User queries are embedded and matched against content vectors using similarity search
+- **Generation**: LLM generates responses based on retrieved context + user query
+- **Response**: Chatbot provides answers grounded in actual CMS content
+
+### Content Indexing
+
+**Indexed Content Types:**
+- **Blog Posts**: Title, content (rich text), excerpt, metadata
+- **Pages**: Title, content, metadata
+- **Galleries**: Name, description, captions
+- **Events**: Title, description, location, date information
+- **Forms**: Name, description, field labels
+- **Media**: Alt text, captions, descriptions
+
+**Indexing Process:**
+- Content is automatically indexed when created/updated
+- Text content is extracted and chunked into manageable segments
+- Embeddings are generated and stored in vector database
+- Index is updated in real-time as content changes
+- Admin can trigger manual re-indexing if needed
+
+### Chatbot Features
+
+**Public-Facing Chat Widget:**
+- Embedded chat widget on public pages
+- Responsive design matching site design system
+- Conversation history (session-based)
+- Typing indicators and smooth UX
+- Optional: Chat history saved for logged-in members
+
+**AI Capabilities:**
+- Answers questions about site content
+- Provides information about events, posts, galleries
+- Can guide users to relevant content
+- Understands context from conversation history
+- Respects content access levels (public vs. member-only content)
+
+**Membership-Aware Responses:**
+- Can reference protected content if user has appropriate membership
+- Redirects non-members to login/registration for protected content
+- Understands membership tiers and access levels
+
+### Admin Interface
+
+**Chatbot Configuration** (`/admin/settings/chatbot`):
+- Enable/disable chatbot
+- Configure LLM provider (OpenAI, Anthropic, local model)
+- Set system prompts and behavior
+- Configure response style and tone
+- Set conversation context window
+- View conversation analytics
+
+**Content Indexing Management**:
+- View indexed content status
+- Trigger manual re-indexing
+- View embedding statistics
+- Monitor index health
+- Exclude specific content types from indexing
+
+**Conversation Management**:
+- View conversation history
+- Link conversations to member profiles (if user logged in)
+- Export conversations for analysis
+- Moderate conversations (if needed)
+- Train/improve responses based on feedback
+
+### Technical Implementation
+
+**Database Schema:**
+```sql
+-- Vector embeddings table (using PGVector)
+CREATE TABLE content_embeddings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content_type TEXT NOT NULL, -- 'post', 'page', 'gallery', 'event', etc.
+  content_id UUID NOT NULL, -- Reference to original content
+  chunk_index INTEGER, -- For chunked content
+  text_content TEXT NOT NULL, -- Original text chunk
+  embedding vector(1536), -- Vector embedding (dimension depends on model)
+  metadata JSONB, -- Additional metadata (title, url, etc.)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  INDEX idx_content_type_id (content_type, content_id),
+  INDEX idx_embedding USING ivfflat (embedding vector_cosine_ops) -- Vector similarity index
+);
+
+-- Chat conversations
+CREATE TABLE chat_conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id TEXT NOT NULL, -- Session identifier
+  member_id UUID REFERENCES members(id) ON DELETE SET NULL, -- If user logged in
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  INDEX idx_session_id (session_id),
+  INDEX idx_member_id (member_id)
+);
+
+-- Chat messages
+CREATE TABLE chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL,
+  retrieved_context JSONB, -- References to content used in RAG
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  INDEX idx_conversation_id (conversation_id)
+);
+```
+
+**Integration Points:**
+- **Content Updates**: Automatically re-index content when posts/pages are created/updated
+- **Vector Search**: Use Supabase PGVector for similarity search
+- **LLM Integration**: Connect to OpenAI, Anthropic, or self-hosted models
+- **CRM Integration**: Link conversations to member profiles
+- **Analytics**: Track conversation metrics and popular queries
+
+### Benefits
+
+- **Content-Driven**: Answers are always based on actual site content
+- **Self-Improving**: As content is added/updated, chatbot knowledge improves
+- **No External Knowledge Base**: CMS content IS the knowledge base
+- **Cost-Effective**: Uses existing content, no separate content management needed
+- **Integrated**: Deep integration with membership and CRM systems
+- **Customizable**: Full control over behavior, responses, and training
+
+### Implementation Considerations
+
+**Phase Planning:**
+- **Phase 1**: Basic RAG setup with content indexing
+- **Phase 2**: Chat widget UI and basic conversation flow
+- **Phase 3**: Membership-aware responses and CRM integration
+- **Phase 4**: Advanced features (analytics, training, moderation)
+
+**Dependencies:**
+- Supabase PGVector extension enabled
+- LLM provider API access (OpenAI, Anthropic, etc.)
+- Embedding model access
+- Vector similarity search implementation
+
+**Cost Considerations:**
+- LLM API costs (per query)
+- Embedding generation costs (per content piece)
+- Vector storage (minimal with Supabase)
+- Hosting/infrastructure for chat widget
+
+**Status**: Planned for future phase (after core CMS features are complete)
