@@ -9,7 +9,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
-### 2026-01-21 21:10 CT - Component Library Reference System & Workflow Improvements
+### 2026-01-21 21:10 CT - Component Library Reference System, CRM Architecture & Workflow Improvements
 - Added Component Library Reference System specification to PRD
   - Library-first development workflow (search first, create spec, then build)
   - Component metadata format with JSDoc-style header comments
@@ -23,6 +23,33 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 - Added Phase 13 to planlog for Component Library Reference System implementation
   - Marked as low priority (nice-to-have, not critical for MVP)
   - Comprehensive implementation tasks for library-first workflow
+- **Completely redesigned Forms & CRM architecture in PRD (CRM-first approach)**
+  - Replaced visual form builder with developer-authored components mapping to CRM fields
+  - CRM as source of truth: All contact data lives in CRM tables, not separate form submission storage
+  - Company-centric architecture: Companies as first-class entities with robust B2B data
+  - Relational data model: Multiple emails/phones per contact, many-to-many contact-company relationships
+  - Comprehensive consent management (ICANN/GDPR/TCPA compliance)
+    - Consent audit trail with IP address, user agent, timestamp, consent text
+    - Email and phone marketing consent tracking
+    - Consent withdrawal with automatic DND status updates
+  - DND (Do Not Disturb) status management
+    - Automatic DND (on unsubscribe, bounce, complaint)
+    - Manual DND (admin override)
+    - DND enforcement for email/phone marketing
+    - DND history audit trail
+  - Duplicate detection logic (perfect match → update, partial match → flag for review)
+  - Form registry as developer helper (not form builder)
+  - Cookie consent management system
+    - Cookie categories (essential, analytics, marketing, functional)
+    - Browser storage (localStorage) + optional database storage
+    - Links to CRM contacts when user identified
+    - GDPR/ePrivacy Directive compliant
+  - Complete database schema for CRM system (contacts, companies, emails, phones, consents, DND history, cookie consents)
+  - Updated API endpoints for CRM operations
+- Added CRM implementation phases to planlog
+  - Phase 5A: CRM MVP (minimal CRM for Phase 5 membership integration)
+  - Phase 10B: CRM-First Forms & Compliance System (full implementation)
+  - Detailed implementation tasks for CRM schema, utilities, admin UI, consent management, DND, cookie consent
 - Updated workflow documentation (structure.mdc)
   - Changed to single-push approach at session end
   - Update all documentation first, then commit and push everything together
