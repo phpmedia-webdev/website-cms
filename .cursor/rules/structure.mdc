@@ -172,11 +172,20 @@ All project documentation lives in the `docs/` folder. The root directory should
    - Add planned items to `planlog.md`
    - Check off items as work progresses
 
-2. **End of Session**:
-   - Check off completed items in `planlog.md` (do NOT delete them)
-   - Add summary entries to `changelog.md` for completed work
-   - Keep detailed task history in `planlog.md` for reference
-   - Update `prd.md` if architecture/specs changed
+2. **End of Session** (Single Commit & Push):
+   - **Update all documentation first:**
+     - Check off completed items in `planlog.md` (do NOT delete them)
+     - Add summary entries to `changelog.md` for completed work
+     - Update `prd.md` if architecture/specs changed
+   - **Then commit and push everything together:**
+     - Single commit with all changes (code + documentation)
+     - Single push to repository
+     - Commit message should summarize all work: "Session wrapup: [summary of work]"
+   - **Why single push?**
+     - Atomic: All related changes together
+     - Clean history: One commit per session
+     - Efficient: No "forgot to update changelog" follow-up commits
+     - Better workflow: Update docs first, then commit everything at once
 
 3. **Before Release**:
    - Review and consolidate `changelog.md` entries

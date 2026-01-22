@@ -17,7 +17,7 @@ A WordPress-style CMS application built with Next.js 15, designed as a lightweig
 - **Styling:** Tailwind CSS
 - **UI Components:** shadcn/ui
 - **Rich Text Editor:** Tiptap
-- **Form Builder:** Custom React DnD implementation
+- **Forms:** Developer-authored components mapping to CRM fields (CRM-first architecture)
 - **Email Notifications:** Nodemailer (SMTP) for form submission notifications
 - **Package Manager:** pnpm
 - **Hosting:** Vercel
@@ -50,6 +50,7 @@ This WordPress-style approach provides:
 - `/members` - Member dashboard (protected)
 - `/members/profile` - Member profile page (protected)
 - `/members/account` - Account settings (protected)
+- `/cookie-policy` - Cookie policy page (public, admin-editable)
 - Other public pages as needed
 
 **Admin Routes (Protected):**
@@ -59,18 +60,21 @@ This WordPress-style approach provides:
 - `/admin/posts` - Blog post management
 - `/admin/galleries` - Gallery management
 - `/admin/media` - Media library
-- `/admin/forms` - Form builder and submissions
+- `/admin/forms` - Form registry (developer helper) and CRM management
+- `/admin/crm` - CRM contacts and companies management
 - `/admin/events` - Event calendar management
 - `/admin/memberships` - Membership group management
 - `/admin/members` - Member user management
 - `/admin/members/[id]` - View member details and memberships
 - `/admin/settings` - Site settings (including theme selection, design system: fonts and color palette)
+- `/admin/settings/cookies` - Cookie consent configuration and policy management
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
 
 **Superadmin Routes (Protected, Superadmin + 2FA Required):**
 - `/admin/super` - Superadmin dashboard/utilities
 - `/admin/super/integrations` - Third-party integrations management (Google Analytics, VisitorTracking.com, SimpleCommenter.com)
+- `/admin/super/components` - Component library reference (searchable component catalog with screenshots/wireframes)
 
 **Standby / Coming Soon Route (Optional):**
 - `/coming-soon` - Standby landing page used when the site is in "coming soon" mode (see Developer Workflow)
@@ -335,6 +339,381 @@ The application uses a **hybrid approach** for image storage, with clear guideli
 - Reusable across projects
 - Maintainable via CI/CD
 
+### Component Library Reference System
+
+A searchable component library reference in the superadmin area that auto-discovers components from the codebase and extracts metadata from header comments. This system helps developers find, understand, and reuse components across client projects, greatly aiding in deploying future client sites.
+
+**Purpose:**
+- **Library-First Development**: Component library is the starting point for component development - search first, create spec if needed, then build
+- Enable quick component discovery and understanding
+- Provide visual reference (screenshots/wireframes) for components
+- Document component props, usage, and dependencies
+- Support developer productivity and code reusability
+- Maintain up-to-date component documentation automatically
+- Track component development lifecycle (planned → in progress → complete)
+
+**Component Metadata Format (JSDoc-style):**
+
+Components use header comments for metadata extraction:
+
+```typescript
+  /**
+   * @library_id abc123-def456-ghi789
+   * @component HeroCentered
+   * @category sections
+   * @theme modern
+   * @description A centered hero section with title, subtitle, and optional CTA button. 
+   * Perfect for landing pages and homepage headers.
+   * 
+   * @props
+   * - title: string (required) - Main headline text
+   * - subtitle?: string - Supporting text below title
+   * - ctaText?: string - Call-to-action button text
+   * - ctaLink?: string - CTA button destination URL
+   * - backgroundImage?: string - Optional background image URL
+   * - variant?: 'default' | 'minimal' | 'gradient' - Visual style variant
+   * 
+   * @usage
+   * ```tsx
+   * <HeroCentered
+   *   title="Welcome to Our Site"
+   *   subtitle="Building amazing experiences"
+   *   ctaText="Get Started"
+   *   ctaLink="/signup"
+   * />
+   * ```
+   * 
+   * @example
+   * Used on: Homepage, Landing pages
+   * Design tokens: Uses bg-primary, text-foreground, spacing tokens
+   * 
+   * @dependencies
+   * - Button component (from ui/)
+   * - Image component (from media/)
+   * 
+   * @author Developer Name
+   * @created 2026-01-20
+   * @updated 2026-01-25
+   */
+```
+
+**Database Schema:**
+
+```sql
+CREATE TABLE component_library (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Component identification
+  name TEXT NOT NULL, -- Component name (e.g., "HeroCentered")
+  library_entry_id UUID UNIQUE, -- Unique ID for this library entry (used in component code @library_id)
+  file_path TEXT, -- Relative path from src/components/ (null if not yet created)
+  full_path TEXT, -- Full file system path (null if not yet created)
+  import_path TEXT, -- How to import (e.g., "@/components/public/sections/HeroCentered")
+  
+  -- Categorization
+  category TEXT NOT NULL, -- 'sections', 'blocks', 'layout', 'media', 'ui', 'content'
+  theme TEXT, -- 'modern', 'classic', 'minimal', null for shared
+  location TEXT NOT NULL, -- 'public', 'site', 'ui'
+  subdirectory TEXT, -- 'sections', 'blocks', 'layout', etc.
+  
+  -- Metadata
+  description TEXT, -- Component description
+  props_schema JSONB, -- Extracted props with types, required, descriptions
+  usage_examples JSONB, -- Code examples array
+  dependencies TEXT[], -- Array of component dependencies
+  design_tokens TEXT[], -- Design tokens used (e.g., ['bg-primary', 'text-foreground'])
+  
+  -- Documentation
+  usage_notes TEXT, -- Additional usage guidance
+  example_use_cases TEXT[], -- Where component is used (e.g., ['Homepage', 'Landing pages'])
+  
+  -- Visual Reference
+  screenshot_url TEXT, -- URL to screenshot (stored in Supabase Storage)
+  screenshot_media_id UUID REFERENCES media(id) ON DELETE SET NULL, -- Link to media library
+  wireframe_url TEXT, -- URL to wireframe/mockup (stored in Supabase Storage)
+  wireframe_media_id UUID REFERENCES media(id) ON DELETE SET NULL, -- Link to media library
+  preview_images JSONB, -- Array of additional preview images: [{url, type: 'screenshot'|'wireframe'|'example', caption}]
+  requirements_screenshot_url TEXT, -- Screenshot/wireframe uploaded before development (spec)
+  requirements_text TEXT, -- Developer prompt/requirements (spec)
+  
+  -- Development Workflow
+  development_status TEXT DEFAULT 'planned', -- 'planned', 'in_progress', 'complete', 'deprecated'
+  is_linked_to_file BOOLEAN DEFAULT false, -- True when component file exists
+  assigned_to TEXT, -- Developer name/ID (optional)
+  priority TEXT, -- 'high', 'medium', 'low'
+  estimated_complexity TEXT, -- 'simple', 'medium', 'complex'
+  
+  -- Development Timeline
+  planned_at TIMESTAMPTZ, -- When component was planned/requested
+  started_at TIMESTAMPTZ, -- When development started
+  completed_at TIMESTAMPTZ, -- When component was completed
+  
+  -- Metadata
+  author TEXT,
+  created_at DATE,
+  updated_at DATE,
+  last_scanned_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true, -- Component still exists in codebase
+  is_promotable BOOLEAN DEFAULT false, -- In public/ directory (promotable)
+  is_client_specific BOOLEAN DEFAULT false, -- In site/ directory (client-specific)
+  
+  -- Search optimization
+  search_text TSVECTOR, -- Full-text search index (description + props + usage)
+  
+  UNIQUE(file_path) WHERE file_path IS NOT NULL,
+  INDEX idx_category (category),
+  INDEX idx_theme (theme),
+  INDEX idx_location (location),
+  INDEX idx_status (development_status),
+  INDEX idx_search (search_text)
+);
+```
+
+**Image Storage Strategy:**
+
+- Images stored in Supabase Storage bucket: `component-library/`
+- Path structure: `component-library/{component-name}/screenshot.{ext}`
+- Alternative: Link to existing media library entries (if uploaded via CMS)
+- Supported image types:
+  - **Screenshot**: Live component render (captured from running app or external tool)
+  - **Wireframe**: Design mockup/wireframe (uploaded from design tools)
+  - **Example**: Multiple usage examples (different props/variants)
+- Formats: PNG, JPG/JPEG, SVG, WebP (with automatic optimization)
+
+**Auto-Discovery System:**
+
+**Component Scanner:**
+- Scans `src/components/` directory recursively
+- Identifies React/TypeScript component files (`.tsx`, `.ts`)
+- Extracts metadata from header comments using regex/parser
+- Parses JSDoc-style comments for structured data
+- Detects component location (public/ vs site/)
+- Identifies theme (from directory path: `themes/[theme-name]/`)
+- Extracts props from TypeScript interfaces/types
+- Updates database on scan
+
+**Scan Triggers:**
+- Manual scan button in admin UI
+- Automatic scan on deployment (CI/CD hook)
+- Scheduled scan (daily/weekly)
+- On component file change (file watcher in dev mode)
+
+**Superadmin UI (`/admin/super/components`):**
+
+**Component Library Interface:**
+
+1. **Search & Filter Bar:**
+   - Full-text search (name, description, props, usage)
+   - Filter by category (sections, blocks, layout, etc.)
+   - Filter by theme (modern, classic, minimal, shared)
+   - Filter by location (public, site, ui)
+   - Filter by promotable status
+   - Sort by: name, category, last updated, usage frequency
+
+2. **Component Grid/List View:**
+   - Card view showing:
+     - Thumbnail image (screenshot or wireframe)
+     - Component name
+     - Category badge
+     - Theme badge (if theme-specific)
+     - Location indicator (public/site)
+     - Brief description
+     - Key props preview
+   - Click to view full details
+
+3. **Component Detail View:**
+   - **Overview:**
+     - Full description
+     - File path (clickable to open in editor)
+     - Import path (copy button)
+     - Category, theme, location
+     - Author and dates
+   
+   - **Visual Reference:**
+     - Primary screenshot/wireframe display (large preview)
+     - Thumbnail grid of additional images
+     - Click to view full-size in modal/lightbox
+     - Image type badges (Screenshot, Wireframe, Example)
+     - Upload/manage images (screenshot, wireframe, examples)
+   
+   - **Props Table:**
+     - Prop name
+     - Type (string, number, boolean, object, etc.)
+     - Required/Optional
+     - Default value
+     - Description
+     - Example values
+   
+   - **Usage Examples:**
+     - Code snippets with syntax highlighting
+     - Multiple examples for different use cases
+     - Copy-to-clipboard functionality
+   
+   - **Dependencies:**
+     - List of components this depends on
+     - Links to dependency component pages
+   
+   - **Design Tokens:**
+     - List of design tokens used
+     - Visual preview of token values
+   
+   - **Use Cases:**
+     - Where component is used (pages, contexts)
+     - Related components
+   
+   - **Actions:**
+     - "View Source" (opens file in editor/IDE)
+     - "Copy Import" (copies import statement)
+     - "Copy Example" (copies usage example)
+
+4. **Statistics Dashboard:**
+   - Total components count
+   - Components by category
+   - Components by theme
+   - Promotable vs client-specific breakdown
+   - Recently added/updated components
+   - Most used components
+   - Development queue (planned components)
+   - Components by status (planned, in progress, complete)
+
+5. **"Create New Component" Button (Library-First Workflow):**
+   - Prominent button in library interface
+   - Opens component spec form:
+     - Component name
+     - Category, theme, location
+     - Description/requirements
+     - Upload screenshot/wireframe (requirements spec)
+     - Add text prompt/requirements
+     - Set priority and complexity
+     - Assign to developer (optional)
+   - Creates library entry with status "planned"
+   - Generates unique `library_entry_id` for linking
+
+6. **Development Status View:**
+   - Filter by status: Planned, In Progress, Complete, Deprecated
+   - Kanban board view (optional):
+     - Planned → In Progress → Complete
+     - Drag-and-drop status updates
+   - Development queue: List of planned components
+   - Component spec page (before development):
+     - Shows requirements screenshot/prompt
+     - Lists requirements
+     - "Start Development" button:
+       - Creates component file template
+       - Links file to library entry
+       - Updates status to "In Progress"
+       - Opens file in editor
+
+7. **Linked Component Development:**
+   - Component file header includes library reference:
+     ```typescript
+     /**
+      * @library_id abc123-def456
+      * @component TestimonialsSlider
+      * @status in_progress
+      * ...
+      */
+     ```
+   - Library entry shows:
+     - "Component file: src/components/public/sections/TestimonialsSlider.tsx"
+     - "View Source" button
+     - "Open in Editor" button
+     - Development progress indicator
+   - Status updates:
+     - Manual: Developer updates status in library UI
+     - Automatic: Scanner detects component file and updates status
+     - Workflow: Planned → In Progress (when file created) → Complete (when component has all required props/metadata)
+
+**Library-First Development Workflow:**
+
+**Step 1: Search First (Prevent Duplication)**
+- Developer needs a new component
+- First action: Search library for existing components
+- Review existing components
+- Decision: Use existing OR create new variant
+
+**Step 2: Create Library Entry (If New Component Needed)**
+- Click "Create New Component Entry"
+- Fill in component spec:
+  - Component name, category, theme, location
+  - Description/requirements
+  - Upload screenshot/wireframe (from design tool)
+  - Add text prompt/requirements
+  - Set priority, complexity, assign to developer
+- Status set to "Planned"
+- Library entry becomes component specification
+
+**Step 3: Develop Component (Linked to Library Entry)**
+- Click "Start Development" on library entry
+- System creates component file template with:
+  - Library entry ID in header (`@library_id`)
+  - Basic component structure
+  - Props interface (from requirements)
+  - Placeholder implementation
+- Component file automatically linked to library entry
+- Status updates: "Planned" → "In Progress"
+- Developer builds component using spec (screenshot/prompt) as reference
+
+**Step 4: Library Entry Updates Automatically**
+- Scanner detects new/updated component file
+- Links to library entry via `@library_id` or file_path match
+- Updates metadata from component code
+- Status: "In Progress" → "Complete" (when component has all required props/metadata)
+- Screenshot can be updated with live component render
+
+**Component File Template Generation:**
+- "Start Development" creates file with:
+  - Library entry ID in header
+  - Basic component structure
+  - Props interface (from requirements)
+  - Placeholder implementation
+  - File path based on category/location/theme
+
+**Automatic Linking:**
+- Scanner matches library entries to files by:
+  - `@library_id` in component header (preferred)
+  - Component name match (fallback)
+  - File path pattern match
+- Two-way reference: file → library, library → file
+
+**Image Upload/Management:**
+- **Upload Screenshot**: File upload or drag-and-drop (PNG, JPG, JPEG, WebP)
+- **Upload Wireframe**: File upload (PNG, JPG, SVG, WebP)
+- **Add Example Images**: Multiple images showing different variants with captions
+- **Image Actions**: Replace, delete, set as primary, add caption, link to media library
+- **Storage**: Images stored in Supabase Storage `component-library/` bucket with automatic optimization
+
+**Benefits:**
+- **Library-First Development**: Prevents duplicate work by searching library first, creates component specs before coding, tracks development lifecycle
+- **Developer Productivity**: Quick component discovery, understand props without reading source, copy-paste examples
+- **Code Reusability**: Discover existing components before creating new ones, understand component capabilities
+- **Documentation**: Self-documenting via header comments, always up-to-date (auto-scanned), searchable and filterable
+- **Team Collaboration**: Shared component knowledge, consistent usage patterns, onboarding reference, component request system
+- **Maintenance**: Track component usage, identify unused components, monitor component updates
+- **Visual Reference**: See component appearance before reading code, compare similar components visually, design reference (wireframes vs screenshots)
+- **Requirements Capture**: Screenshot/prompt documents requirements before coding, clear spec during development, visual reference throughout
+- **Development Tracking**: Track what's planned vs built, see development queue, monitor progress, ensure requirements met
+
+**Integration with Component Structure:**
+- **Public Components** (`src/components/public/`): Marked as `is_promotable: true`, highlighted as "reusable"
+- **Site Components** (`src/components/site/`): Marked as `is_client_specific: true`, still searchable for reference
+- **UI Components** (`src/components/ui/`): Base shadcn/ui components, categorized separately
+- **Theme Components** (`src/components/public/themes/[theme]/`): Theme-specific variants, filterable by theme
+
+**Future Enhancements:**
+- Component usage tracking (which pages use which components)
+- Automatic screenshot generation (render component with sample props programmatically)
+- Component versioning (track changes over time)
+- Component deprecation warnings
+- Integration with design system tokens (visual token reference)
+- Component testing status
+- Performance metrics (bundle size, render time)
+- Animated previews (GIF/Video support for interactive components)
+- Design tool integration (direct import from Figma/Sketch)
+
+**Status**: Planned for future phase (after core CMS features are complete). This is a nice-to-have feature that greatly aids in deploying future client sites but is not critical for MVP.
+
 ### Archive & Restore System
 
 To support client lifecycle management, the system includes an archive/restore feature for when clients leave and may return.
@@ -481,30 +860,545 @@ This architecture enables:
 
 ### 4. Forms & CRM (Customer Relationship Management)
 
-A unified CRM system that manages both form submissions and membership relationships, providing a comprehensive view of customer interactions and member management.
+A CRM-first system where forms are developer-authored components that map to CRM fields. All form submissions are stored directly in the CRM, providing a unified contact and company management system optimized for B2B use cases while supporting B2C. The system includes comprehensive consent management and DND (Do Not Disturb) status tracking for ICANN, GDPR, and TCPA compliance.
 
-**Form Builder:**
-- Visual form builder (drag-and-drop fields)
-- Field types: text, email, phone, textarea, select, checkbox
-- Form submission storage in database
-- Email notifications for form submissions (server-side via Nodemailer/SMTP; configurable per form)
+**Core Philosophy:**
+- **CRM as source of truth**: All contact data lives in CRM tables, not in separate form submission storage
+- **Developer-authored forms**: No visual form builder; developers create form components that reference CRM fields
+- **Company-centric**: Companies are first-class entities with robust data for B2B marketing
+- **Direct storage**: Form submissions create/update CRM records immediately (no staging table)
+- **Compliance-first**: Built-in consent management and DND tracking for marketing compliance
+
+**Database Schema:**
+
+**CRM Fields (Staple + Custom):**
+```sql
+-- Staple CRM fields (built-in, always available as columns in crm_contacts):
+-- firstname, lastname, fullname, category
+
+-- Custom CRM fields (per tenant, defined by admin)
+CREATE TABLE crm_custom_fields (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL, -- 'company_size', 'budget_range', 'referral_source'
+  label TEXT NOT NULL, -- Display label
+  type TEXT NOT NULL, -- 'text', 'email', 'phone', 'select', 'number', 'textarea', 'checkbox'
+  validation_rules JSONB, -- { required: false, minLength: 2, pattern: '...', options: [...] }
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Companies Table:**
+```sql
+CREATE TABLE crm_companies (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE,
+  -- Company details
+  email TEXT, -- Company email (for marketing)
+  industry TEXT,
+  category TEXT, -- Company category/classification
+  tags TEXT[], -- Array of tags for email segmentation
+  company_size TEXT, -- '1-10', '11-50', '51-200', '201-1000', '1000+'
+  website TEXT,
+  description TEXT,
+  -- Location
+  address_line1 TEXT,
+  address_line2 TEXT,
+  city TEXT,
+  state TEXT,
+  postal_code TEXT,
+  country TEXT,
+  -- Custom fields
+  custom_data JSONB,
+  -- Metadata
+  status TEXT DEFAULT 'active', -- 'active', 'inactive', 'prospect', 'customer', 'partner'
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Contacts Table (with relational emails/phones):**
+```sql
+CREATE TABLE crm_contacts (
+  id UUID PRIMARY KEY,
+  -- Staple fields
+  firstname TEXT,
+  lastname TEXT,
+  fullname TEXT,
+  category TEXT, -- 'lead', 'customer', 'partner', etc.
+  -- Custom fields stored in JSONB
+  custom_data JSONB,
+  -- DND (Do Not Disturb) status
+  dnd_status TEXT, -- NULL (no restriction), 'email', 'phone', 'all'
+  -- Metadata
+  source TEXT, -- 'contact_form', 'newsletter', 'manual_entry'
+  form_id UUID REFERENCES forms(id),
+  status TEXT DEFAULT 'new', -- 'new', 'contacted', 'archived'
+  duplicate_status TEXT, -- NULL, 'needs_review' (if potential duplicate detected)
+  potential_duplicate_of UUID REFERENCES crm_contacts(id), -- Link to potential duplicate
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Relational emails (multiple per contact)
+CREATE TABLE crm_contact_emails (
+  id UUID PRIMARY KEY,
+  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  type TEXT, -- 'primary', 'work', 'personal'
+  is_primary BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(contact_id, email)
+);
+
+-- Relational phones (multiple per contact)
+CREATE TABLE crm_contact_phones (
+  id UUID PRIMARY KEY,
+  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  phone TEXT NOT NULL,
+  type TEXT, -- 'primary', 'work', 'mobile', 'home'
+  is_primary BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(contact_id, phone)
+);
+```
+
+**Contact-Company Relationship (Many-to-Many):**
+```sql
+CREATE TABLE crm_contact_companies (
+  id UUID PRIMARY KEY,
+  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES crm_companies(id) ON DELETE CASCADE,
+  role TEXT, -- 'CEO', 'Marketing Manager', 'Decision Maker', etc.
+  department TEXT,
+  is_primary BOOLEAN DEFAULT false, -- Primary company for this contact
+  start_date DATE,
+  end_date DATE, -- NULL = current relationship
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(contact_id, company_id)
+);
+```
+
+**Consent Management (ICANN/GDPR/TCPA Compliance):**
+```sql
+CREATE TABLE crm_consents (
+  id UUID PRIMARY KEY,
+  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  consent_type TEXT NOT NULL, -- 'email_marketing', 'phone_marketing', 'sms', 'postal'
+  consented BOOLEAN NOT NULL, -- true = consented, false = withdrawn
+  -- Audit trail for compliance
+  method TEXT, -- 'form_submission', 'unsubscribe_link', 'manual_admin', 'api', 'import'
+  source TEXT, -- Form ID, URL, admin user, etc.
+  ip_address INET, -- For proof of consent (GDPR requirement)
+  user_agent TEXT, -- Browser/device info
+  consent_text TEXT, -- What text was shown when consent was given
+  -- Timestamps
+  consented_at TIMESTAMPTZ, -- When consent was given
+  withdrawn_at TIMESTAMPTZ, -- When consent was withdrawn (NULL if active)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**DND (Do Not Disturb) History:**
+```sql
+CREATE TABLE crm_dnd_history (
+  id UUID PRIMARY KEY,
+  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  dnd_status TEXT NOT NULL, -- 'email', 'phone', 'all'
+  reason TEXT, -- 'unsubscribed', 'requested', 'bounced', 'complaint', 'manual'
+  method TEXT, -- 'unsubscribe_link', 'form_checkbox', 'manual_admin', 'api', 'bounce_handler'
+  source TEXT, -- URL, form ID, admin user, etc.
+  set_by UUID REFERENCES auth.users(id), -- Admin who set it (if manual)
+  set_at TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT
+);
+```
+
+**Form Registry (Developer Helper + Settings):**
+```sql
+CREATE TABLE forms (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL, -- 'Contact Form', 'Newsletter Signup'
+  slug TEXT UNIQUE,
+  -- Developer helper: Available field mappings (for copy/paste reference)
+  field_mappings JSONB, -- [
+  --   { field_id: "email", field_name: "email", required: true, label: "Email Address" },
+  --   { field_id: "firstname", field_name: "firstname", required: true },
+  --   { field_id: "custom_field_123", field_name: "company_size", required: false }
+  -- ]
+  -- Form settings
+  settings JSONB, -- {
+  --   success_message: "Thanks! We'll be in touch.",
+  --   redirect_url: "/thank-you",
+  --   notifications: { email: "admin@example.com" }
+  -- }
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Form Submission Workflow:**
+
+1. **Developer creates form component** referencing CRM fields:
+   - Developer accesses Form Registry (`/admin/crm/forms`) to view available CRM fields
+   - Copies field IDs/names for use in components
+   - Creates form component mapping inputs to CRM fields
+   - Includes consent checkboxes for email/phone marketing (opt-in, not pre-checked)
+
+2. **Form submission** → `POST /api/forms/[formId]/submit`:
+   - Receives JSON with CRM field values + consent flags
+   - Validates against CRM field validation rules
+   - Performs duplicate detection (see logic below)
+   - Creates/updates CRM contact record directly
+   - Creates email/phone records in relational tables
+   - Links to company if provided (or creates new company if name doesn't exist)
+   - Processes consents and creates `crm_consents` records with audit trail (IP, user agent, timestamp)
+   - Sets DND status based on consent (no consent = DND for that channel)
+   - Sends email notification to admin if configured
+
+3. **Duplicate Detection Logic:**
+   - **Perfect Match**: (firstname + lastname) OR fullname AND (email OR phone) all match
+     - Action: Update existing contact record (keep original `created_at`, update `updated_at`)
+     - Merge new data into existing record (emails, phones, company relationships)
+   - **Partial Match**: Any key field matches (email OR phone OR (firstname + lastname) OR fullname) but not all
+     - Action: Create new contact with `duplicate_status: 'needs_review'` and `potential_duplicate_of` link
+     - Admin can review and merge manually in CRM
+   - **No Match**: No key fields match
+     - Action: Create new contact normally
+
+4. **Company Handling in Forms:**
+   - Company field is optional in forms
+   - If provided: Contact selects existing company (autocomplete/dropdown)
+   - If company name doesn't exist: Create new company record, then link contact
+   - If not provided: Contact created without company; can be added later in CRM
+   - Company is NOT required for contact records (supports B2C use cases)
+
+**Consent Management (ICANN/GDPR/TCPA Compliance):**
+
+**Consent Collection:**
+- **Email Marketing Consent**: Required checkbox on forms with clear language
+  - Example: "I consent to receive marketing emails" (must be opt-in, not pre-checked)
+  - Stored in `crm_consents` with `consent_type: 'email_marketing'`
+  - Tracks IP address, timestamp, consent text, user agent for audit trail
+- **Phone Marketing Consent** (TCPA/GDPR):
+  - Separate checkbox for phone/SMS marketing
+  - Example: "I consent to receive marketing calls/texts"
+  - Stored with `consent_type: 'phone_marketing'` or `'sms'`
+- **Consent Withdrawal**:
+  - Unsubscribe links in emails (one-click)
+  - Updates `crm_consents` record: `consented: false`, `withdrawn_at: NOW()`
+  - Automatically sets DND status if all marketing consents withdrawn
+
+**DND (Do Not Disturb) Status Management:**
+
+**Automatic DND (Recommended Best Practice):**
+- **On Unsubscribe**: When contact clicks unsubscribe link → Set `dnd_status: 'email'` (or add to existing)
+- **On Form Submission**: If contact unchecks consent or explicitly opts out → Set DND for that channel
+- **On Bounce**: If email bounces (hard bounce) → Auto-set `dnd_status: 'email'`
+- **On Complaint**: If contact marks email as spam → Auto-set `dnd_status: 'all'`
+- All DND changes logged in `crm_dnd_history` with reason and method
+
+**Manual DND (Admin Override):**
+- Admin can manually set DND status in CRM
+- Useful for: customer requests, compliance issues, data quality
+- Tracks who set it and why in `crm_dnd_history`
+
+**DND Enforcement:**
+- Email marketing: Check `dnd_status` before sending (must not be 'email' or 'all')
+- Phone marketing: Check `dnd_status` before calling (must not be 'phone' or 'all')
+- API endpoints: Return DND status when querying contacts
+- Export filters: Option to exclude DND contacts from marketing exports
 
 **CRM Features:**
-- **Form Submissions Management**: Lightweight CRM view for form submissions
-  - Status tracking (new, contacted, archived)
-  - Export capabilities (CSV)
-  - Notes and follow-up tracking
-  - Contact history and interaction logs
-- **Membership Management**: Integrated membership CRM functionality
-  - View all members and their group assignments
-  - Track membership status and expiration dates
-  - Member activity and engagement tracking
-  - Membership assignment and removal workflows
-  - Bulk membership operations
-- **Unified Customer View**: Single interface for managing both form submissions and memberships
-  - Link form submissions to member profiles (when email matches)
-  - View complete customer journey (form submission → membership conversion)
-  - Track customer touchpoints across the platform
+
+**Contact Management:**
+- View all contacts with filtering/search
+- Contact detail view showing:
+  - All email addresses and phone numbers (relational)
+  - All company relationships (with roles/departments, primary company marked)
+  - Consent history (with audit trail)
+  - DND status and history
+  - Interaction history
+  - Custom field values
+- Merge duplicate contacts (admin action)
+- Status management (new, contacted, archived)
+- Export capabilities (CSV, with DND/consent filters)
+- Notes and follow-up tracking
+
+**Company Management:**
+- Company list with filtering (industry, size, status, tags)
+- Company detail view showing:
+  - All contacts at company (with roles, primary contact indicator)
+  - Company email, industry, category, tags
+  - Location data
+  - Custom field values
+  - Notes
+- Company-based email marketing (send to all contacts at company, respecting DND)
+- Company segmentation (by industry, size, tags, status)
+- Company analytics (engagement, contact count, etc.)
+
+**Developer Workflow:**
+
+1. **Access Form Registry** (`/admin/crm/forms`):
+   - View available CRM fields (staple + custom)
+   - Copy field IDs/names for use in components
+   - See field validation rules and types
+   - View suggested fields for common form types (e.g., Contact Form)
+
+2. **Create Form Component**:
+   - Reference CRM fields by ID/name
+   - Map form inputs to CRM fields
+   - Include consent checkboxes (email_marketing, phone_marketing)
+   - Use form registry settings for messages/redirects
+
+3. **Form Registry as Helper**:
+   - Shows which fields are available
+   - Provides copy/paste field references
+   - Stores form settings (not field definitions)
+   - Suggests common field combinations for form types
+
+**Compliance Features:**
+
+**Consent Management UI:**
+- Show all consents per contact (with history)
+- Visual indicators: ✅ Consented, ❌ Withdrawn
+- Consent timeline (when given, when withdrawn, method, IP address)
+- Ability to manually record consent (for phone/offline interactions)
+- Export consent audit trail (for GDPR requests)
+
+**DND Status Display:**
+- Clear badge/indicator on contact record
+- DND history timeline (when set, why, who set it)
+- Easy to toggle DND status (with reason tracking)
+- Bulk DND operations (e.g., mark all bounced emails as DND)
+
+**Compliance Reports:**
+- Export consent audit trail (for GDPR requests)
+- Show proof of consent (IP, timestamp, consent text, user agent)
+- DND status reports
+- Consent withdrawal history
+
+**Email Marketing Integration:**
+- Company email field for company-level marketing
+- Contact email addresses (primary + additional)
+- Tags on companies for segmentation
+- Industry/category for targeting
+- Export contacts/companies for email campaigns (with DND/consent filters)
+- Automatic DND enforcement (no emails to DND contacts)
+
+**Cookie Consent Management (GDPR/ePrivacy Compliance):**
+
+A cookie notification and consent system that complies with GDPR, ePrivacy Directive, and similar regulations. Cookie consent is stored both in the browser (localStorage) and optionally in the database when a user is identified (linked to CRM contact).
+
+**Cookie Categories:**
+- **Essential Cookies**: Required for site functionality (authentication, security, session management)
+  - Always enabled, cannot be disabled
+  - No consent required (legitimate interest)
+- **Analytics Cookies**: Track website usage and performance (Google Analytics, etc.)
+  - Requires explicit consent
+  - Can be disabled by user
+- **Marketing Cookies**: Used for advertising and marketing tracking
+  - Requires explicit consent
+  - Can be disabled by user
+- **Functional Cookies**: Enhance user experience (preferences, language, etc.)
+  - Requires explicit consent
+  - Can be disabled by user
+- **Custom Categories**: Admin can define additional cookie categories per client
+
+**Cookie Consent Storage:**
+
+**Browser Storage (Primary):**
+- Consent preferences stored in `localStorage` (key: `cookie_consent`)
+- Format: `{ essential: true, analytics: false, marketing: false, functional: false, timestamp: '2026-01-20T...', version: 1 }`
+- Persists across sessions until user changes preferences
+- Used to control cookie setting/loading on client-side
+
+**Database Storage (Optional, when user identified):**
+- If user submits a form or is logged in, consent is also stored in database
+- Links to CRM contact record if contact exists (via email or user ID)
+- Provides audit trail and compliance reporting
+- Enables consent management in CRM UI
+
+**Cookie Consent Database Schema:**
+```sql
+CREATE TABLE cookie_consents (
+  id UUID PRIMARY KEY,
+  -- Optional link to CRM contact (if user identified)
+  contact_id UUID REFERENCES crm_contacts(id) ON DELETE SET NULL,
+  -- Optional link to member user (if logged in)
+  member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  -- Consent preferences (JSONB for flexibility)
+  preferences JSONB NOT NULL, -- {
+  --   essential: true,
+  --   analytics: false,
+  --   marketing: false,
+  --   functional: false,
+  --   custom_category_1: true
+  -- }
+  -- Consent version (for tracking policy updates)
+  consent_version INTEGER DEFAULT 1,
+  -- Audit trail
+  ip_address INET,
+  user_agent TEXT,
+  -- Timestamps
+  consented_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Session/device identifier (for anonymous users)
+  session_id TEXT, -- Anonymous session identifier
+  UNIQUE(contact_id, consent_version), -- One consent record per contact per version
+  UNIQUE(member_id, consent_version), -- One consent record per member per version
+  UNIQUE(session_id, consent_version) -- One consent record per session per version
+);
+```
+
+**Cookie Consent UI:**
+
+**Cookie Banner Component:**
+- Appears on first visit (if no consent stored in localStorage)
+- Shows brief message with "Accept All", "Reject All", and "Customize" options
+- Links to cookie policy page
+- Dismissible (stores "reject all" if dismissed without action)
+- Responsive design (mobile-friendly)
+- Themeable via design tokens
+
+**Cookie Preferences Modal/Page:**
+- Detailed view showing all cookie categories
+- Toggle switches for each category (except essential)
+- Description of what each category does
+- List of specific cookies/services used (if configured)
+- "Save Preferences" button
+- Link to cookie policy
+
+**Cookie Policy Page:**
+- Public page (`/cookie-policy` or `/privacy-policy#cookies`)
+- Lists all cookie categories
+- Describes purpose of each cookie
+- Lists specific cookies/services used
+- Explains how to manage preferences
+- Admin-editable content (via CMS)
+
+**Consent Workflow:**
+
+1. **First Visit:**
+   - Cookie banner appears
+   - User can: Accept All, Reject All, or Customize
+   - Consent stored in localStorage
+   - If user identified (form submission, login), also stored in database
+
+2. **Subsequent Visits:**
+   - Check localStorage for existing consent
+   - If consent exists and version matches, respect preferences
+   - If consent version outdated, show banner again (policy updated)
+
+3. **User Changes Preferences:**
+   - User clicks "Cookie Settings" link (typically in footer)
+   - Opens preferences modal/page
+   - User toggles categories
+   - Saves preferences → Updates localStorage and database (if identified)
+
+4. **Policy Updates:**
+   - Admin updates cookie policy or adds new categories
+   - Increment `consent_version` in database
+   - Banner reappears for all users (requires re-consent)
+
+**Integration with CRM:**
+
+**When User Submits Form:**
+- If form includes email, check if contact exists in CRM
+- If contact exists, link cookie consent to contact record
+- Store consent preferences in `cookie_consents` table with `contact_id`
+- Enables viewing cookie consent history per contact in CRM
+
+**When User Logs In:**
+- If member user logs in, link cookie consent to member record
+- Store consent preferences with `member_id`
+- Sync preferences from database to localStorage (if database version is newer)
+
+**CRM UI Integration:**
+- Contact detail view shows cookie consent status
+- Display consent preferences per contact
+- Show consent history (when given, when updated, version)
+- Export consent data for GDPR requests
+
+**Cookie Management (Technical Implementation):**
+
+**Client-Side Cookie Control:**
+- Before setting any non-essential cookie, check localStorage consent
+- Only set cookies for categories user has consented to
+- Essential cookies always set (no check needed)
+- Third-party scripts (analytics, marketing) only load if consent given
+
+**Server-Side Cookie Control:**
+- API endpoints can check consent via request headers or session
+- Respect consent preferences when setting cookies server-side
+- Essential cookies (session, auth) always set
+
+**Cookie Script Loading:**
+- Analytics scripts (Google Analytics, etc.) only load if `analytics: true`
+- Marketing scripts (Facebook Pixel, etc.) only load if `marketing: true`
+- Functional scripts (chat widgets, etc.) only load if `functional: true`
+- Use dynamic script loading based on consent preferences
+
+**Admin Configuration:**
+
+**Cookie Settings** (`/admin/settings/cookies`):
+- Enable/disable cookie consent banner
+- Configure cookie categories (add/edit/remove)
+- Set cookie descriptions and purposes
+- Configure third-party services (Google Analytics, Facebook Pixel, etc.)
+- Set cookie policy page URL
+- Configure consent expiration (how long consent is valid)
+- Set consent version (increment when policy changes)
+
+**Cookie Policy Content:**
+- Editable via CMS (rich text editor)
+- Can be separate page or section of privacy policy
+- Should list all cookie categories and specific cookies used
+- Should explain how to manage preferences
+
+**Compliance Features:**
+
+**GDPR Compliance:**
+- Explicit consent required (no pre-checked boxes)
+- Granular consent (per category)
+- Easy withdrawal (user can change preferences anytime)
+- Audit trail (IP, timestamp, user agent, consent text)
+- Data export (consent data included in GDPR requests)
+
+**ePrivacy Directive Compliance:**
+- Consent required before setting non-essential cookies
+- Clear information about cookie purposes
+- Easy opt-out mechanism
+- Consent must be specific and informed
+
+**Consent Withdrawal:**
+- User can withdraw consent anytime via cookie settings
+- Withdrawal immediately stops non-essential cookies
+- Existing cookies may need manual deletion (browser-dependent)
+- Withdrawal logged in database (if user identified)
+
+**API Endpoints:**
+- `POST /api/cookies/consent` - Submit cookie consent preferences
+  - Body: `{ preferences: { analytics: true, marketing: false, ... }, contact_id?: UUID, member_id?: UUID }`
+  - Stores consent in localStorage (client-side) and database (if user identified)
+  - Returns: `{ success: true, version: 1 }`
+- `GET /api/cookies/consent` - Get current consent preferences (if user identified)
+  - Returns: `{ preferences: {...}, version: 1, consented_at: '...' }`
+- `PUT /api/cookies/consent` - Update consent preferences
+- `GET /api/cookies/policy` - Get cookie policy content (public)
+
+**API Endpoints:**
+- `POST /api/forms/[formId]/submit` - Submit form data (creates/updates CRM contact, processes consents)
+- `GET /api/crm/contacts` - List contacts (admin, with DND/consent filters)
+- `GET /api/crm/contacts/[id]` - Get contact details (includes consents, DND history)
+- `POST /api/crm/contacts/[id]/merge` - Merge duplicate contacts (admin)
+- `POST /api/crm/contacts/[id]/unsubscribe` - Unsubscribe endpoint (sets DND, records consent withdrawal)
+- `GET /api/crm/companies` - List companies (admin)
+- `GET /api/crm/companies/[id]` - Get company details
 
 ### 5. Membership Platform
 
@@ -1290,10 +2184,14 @@ REST API endpoints (optional, for programmatic content access and automation):
 - `GET /api/galleries` - List all galleries
 - `GET /api/galleries/[id]` - Get gallery with items by ID or slug
 - `GET /api/media/[id]` - Get media item details
-- `POST /api/forms/[formId]/submit` - Submit form data (optionally triggers email notification if enabled on the form)
+- `POST /api/forms/[formId]/submit` - Submit form data (creates/updates CRM contact, processes consents, handles duplicate detection)
 - `GET /api/events` - List events (supports date range filtering)
 - `GET /api/events/[id]` - Get event by ID (or slug)
 - `GET /api/events/ics` - iCalendar (ICS) subscription feed for the calendar
+- `POST /api/cookies/consent` - Submit cookie consent preferences (stores in localStorage and database if user identified)
+- `GET /api/cookies/consent` - Get current cookie consent preferences (if user identified)
+- `PUT /api/cookies/consent` - Update cookie consent preferences
+- `GET /api/cookies/policy` - Get cookie policy content (public)
 
 ### Authenticated Admin API (for automation and admin tooling)
 - `POST /api/events` - Create event
@@ -1325,6 +2223,30 @@ REST API endpoints (optional, for programmatic content access and automation):
   - `/api/webhooks/payment/stripe` - Stripe webhook handler (extracts tag from payload)
   - `/api/webhooks/payment/shopify` - Shopify webhook handler
   - `/api/webhooks/payment/woocommerce` - WooCommerce webhook handler
+
+### CRM API (Admin & Automation)
+
+**Contact Management API:**
+- `GET /api/crm/contacts` - List contacts (admin, supports filtering by status, DND, consent, company)
+- `GET /api/crm/contacts/[id]` - Get contact details (includes emails, phones, companies, consents, DND history)
+- `POST /api/crm/contacts/[id]/merge` - Merge duplicate contacts (admin)
+- `POST /api/crm/contacts/[id]/unsubscribe` - Unsubscribe endpoint (sets DND, records consent withdrawal)
+- `PUT /api/crm/contacts/[id]` - Update contact (admin)
+- `DELETE /api/crm/contacts/[id]` - Delete contact (admin)
+
+**Company Management API:**
+- `GET /api/crm/companies` - List companies (admin, supports filtering by industry, size, status, tags)
+- `GET /api/crm/companies/[id]` - Get company details (includes all contacts at company)
+- `POST /api/crm/companies` - Create company (admin)
+- `PUT /api/crm/companies/[id]` - Update company (admin)
+- `DELETE /api/crm/companies/[id]` - Delete company (admin)
+
+**Consent & DND API:**
+- `GET /api/crm/contacts/[id]/consents` - Get consent history for contact
+- `POST /api/crm/contacts/[id]/consents` - Record consent (admin or via form submission)
+- `POST /api/crm/contacts/[id]/consents/withdraw` - Withdraw consent (sets DND automatically)
+- `GET /api/crm/contacts/[id]/dnd-history` - Get DND history for contact
+- `PUT /api/crm/contacts/[id]/dnd-status` - Update DND status (admin)
 
 **API Authentication:**
 - **API Key Authentication**: External ecommerce modules use API keys for authentication
@@ -1459,7 +2381,8 @@ website-cms/
 │   │   │   ├── posts/         # Post management
 │   │   │   ├── galleries/     # Gallery management
 │   │   │   ├── media/         # Media library
-│   │   │   ├── forms/         # Form builder
+│   │   │   ├── forms/         # Form registry (developer helper)
+│   │   │   ├── crm/           # CRM contacts and companies management
 │   │   │   ├── memberships/   # Membership group management
 │   │   │   ├── members/       # Member user management
 │   │   │   ├── settings/      # Settings
@@ -1475,7 +2398,8 @@ website-cms/
 │   │   ├── dashboard/         # Admin components
 │   │   ├── editor/            # Rich text editor
 │   │   ├── media/             # Media components
-│   │   ├── forms/             # Form components
+│   │   ├── forms/             # Form components (developer-authored, map to CRM fields)
+│   │   ├── crm/               # CRM management components (contacts, companies, consents)
 │   │   ├── memberships/       # Membership components
 │   │   └── public/            # Public site components (reusable library)
 │   │       ├── sections/      # Reusable page sections
