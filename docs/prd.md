@@ -40,9 +40,10 @@ This WordPress-style approach provides:
 ### Route Structure
 
 **Public Routes:**
-- `/` - Homepage
+- `/` - Homepage (CMS-managed page with slug "home" or "/")
 - `/blog` - Blog listing page
 - `/blog/[slug]` - Single blog post
+- `/[slug]` - Static pages (About, Services, Contact, etc.) - CMS-managed from `pages` table
 - `/gallery/[slug]` - Gallery page
 - `/events` - Event calendar (day/week/month/agenda views)
 - `/login` - Member login/registration
@@ -58,14 +59,15 @@ This WordPress-style approach provides:
 - `/admin/login` - Admin login page
 - `/admin/dashboard` - Dashboard home
 - `/admin/posts` - Blog post management
+- `/admin/pages` - Static page management (About, Services, Contact, Homepage, etc.)
 - `/admin/galleries` - Gallery management
 - `/admin/media` - Media library
 - `/admin/forms` - Form registry (developer helper) and CRM management
 - `/admin/crm` - CRM contacts and companies management
 - `/admin/events` - Event calendar management
-- `/admin/memberships` - Membership group management
+- `/admin/mags` - MAG (Membership Access Groups) management
 - `/admin/members` - Member user management
-- `/admin/members/[id]` - View member details and memberships
+- `/admin/members/[id]` - View member details and MAG assignments
 - `/admin/settings` - Site settings (including theme selection, design system: fonts and color palette)
 - `/admin/settings/cookies` - Cookie consent configuration and policy management
 - `/admin/settings/archive` - Archive/restore project management
@@ -75,6 +77,12 @@ This WordPress-style approach provides:
 - `/admin/super` - Superadmin dashboard/utilities
 - `/admin/super/integrations` - Third-party integrations management (Google Analytics, VisitorTracking.com, SimpleCommenter.com)
 - `/admin/super/components` - Component library reference (searchable component catalog with screenshots/wireframes)
+- `/admin/super/clients` - Client/tenant management (new)
+- `/admin/super/clients/new` - Create new client tenant (new)
+- `/admin/super/clients/[id]` - Client detail view (new)
+- `/admin/super/clients/[id]/admins` - Manage client admins (new)
+- `/admin/super/clients/[id]/admins/new` - Create new admin for client (new)
+- `/admin/super/admins` - Global admin list (view all admins across all sites) (new)
 
 **Standby / Coming Soon Route (Optional):**
 - `/coming-soon` - Standby landing page used when the site is in "coming soon" mode (see Developer Workflow)
@@ -97,8 +105,8 @@ Supabase Project
 ├── public schema
 │   └── archived_projects (registry for archived clients)
 ├── client_abc123 schema (Client 1 data)
-│   ├── posts, galleries, media, forms, settings
-│   ├── membership_groups, members, user_memberships
+│   ├── pages, posts, galleries, media, forms, settings
+│   ├── mags, members, user_mags
 │   └── All client-specific tables
 ├── client_xyz789 schema (Client 2 data)
 │   └── Isolated data for Client 2
@@ -106,7 +114,7 @@ Supabase Project
 ```
 
 **Data Isolation:**
-- Each client schema contains all their CMS data (posts, galleries, media, forms, settings)
+- Each client schema contains all their CMS data (pages, posts, galleries, media, forms, settings)
 - Users are associated with their tenant via `user_metadata.tenant_id`
 - Application logic enforces schema boundaries - users can only access their designated schema
 - Supabase client is configured per-request to use the correct schema based on environment variable
@@ -152,20 +160,28 @@ This project is optimized for a **developer-authored** workflow (Cursor + Git) r
 - Short-term: static assets may live in `public/` for speed during early build-out.
 - Long-term: upload assets to the CMS Media Library (Supabase Storage) so non-developers can manage media without redeploys.
 
-**Standby Launch (“Coming Soon” Mode):**
+**Standby Launch ("Coming Soon" Mode):**
 - Purpose: allow early Vercel deployment, domain setup, and environment configuration while keeping the public site hidden until ready.
-- Recommended approach: a single environment variable gate, for example:
-  - `NEXT_PUBLIC_SITE_MODE=coming_soon|live`
+- Default behavior: New client sites start in "coming_soon" mode automatically
+- Control: Both tenant admin and superadmin can toggle site mode
+- Superadmin lock: Superadmin can lock site mode to prevent tenant admin from changing it during intensive updates or maintenance
+- Recommended approach: Environment variable + database setting:
+  - `NEXT_PUBLIC_SITE_MODE=coming_soon|live` (environment variable)
+  - `settings.site.mode = "coming_soon" | "live"` (database setting, takes precedence)
+  - `public.client_tenants.site_mode` (superadmin CRM tracking)
 - In `coming_soon` mode:
   - Public routes redirect/render to `/coming-soon`
   - `/admin/*` remains accessible for building/configuration
   - `/api/*` remains accessible for CMS operations and testing
   - Add `noindex`/`nofollow` and consider a temporary/maintenance response posture (e.g., 503) for SEO safety
+- Site mode can be changed by:
+  - Tenant admin (in `/admin/settings`) - if not locked
+  - Superadmin (in `/admin/super/clients/[id]`) - always available, can lock/unlock
 
 **CI/CD (Continuous Integration / Continuous Deployment):**
 - Deploy early with `coming_soon` enabled.
 - Iterate via standard Git pushes to the client repo; Vercel builds/deploys on each push.
-- Flip `NEXT_PUBLIC_SITE_MODE` to `live` when ready to launch.
+- Flip `NEXT_PUBLIC_SITE_MODE` to `live` when ready to launch (or via admin settings if database setting takes precedence).
 
 ### Developer-Centric Component Architecture
 
@@ -269,42 +285,121 @@ The application supports a **theme-based component system** where components are
 - Use `NounVariant` names for sections and layouts (avoid `Hero2`, `NewTestimonials`)
   - Examples: `HeroCentered`, `HeroSplit`, `TestimonialsGrid`, `FAQAccordion`, `FooterColumns`, `NavigationBar`
 
-**Image Storage Strategy (Local vs CDN):**
+**Image Storage Strategy (CMS-First with Local Copy Workflow):**
 
-The application uses a **hybrid approach** for image storage, with clear guidelines for when to use local files vs CDN (Supabase Storage):
+The application uses a **CMS-first approach** where all images are initially stored in Supabase Storage (CDN), with an optional workflow for developers to selectively copy images to the local `public/` folder for optimization and version control.
 
-**Use Local Images (`public/` folder) for:**
-- **Static brand assets**: Logo, favicon, default placeholders (< 50KB)
-- **UI elements**: Icons, small graphics that never change
-- **Critical path assets**: Above-the-fold assets that must load immediately
-- **Small files**: Assets under 50KB that are rarely updated
+**Initial Storage (All Images):**
+- **All uploaded images** are stored in Supabase Storage (CDN) by default
+- Images uploaded via CMS admin (galleries, blog images, media library) → Supabase Storage
+- Images can be organized in storage buckets/folders as needed
+- CDN provides global edge caching and dynamic optimization
 
-**Use CDN (Supabase Storage) for:**
-- **User-uploaded content**: All images uploaded via CMS admin (galleries, blog images, media library)
-- **Dynamic content**: Images that change frequently without redeploys
-- **Large files**: Images over 100KB that benefit from CDN caching
-- **Member-uploaded content**: User avatars, member-submitted images
+**Local Copy Workflow (Developer-Controlled):**
 
-**Developer Decision Framework:**
-- **Source**: User-uploaded (via CMS) → Always CDN
-- **Source**: Static asset (in codebase) → Usually local (unless large/frequently changing)
-- **Size**: Small (< 50KB), rarely changes → Local
-- **Size**: Large (> 100KB) or changes often → CDN
-- **Critical path**: Above-the-fold, critical → Consider local for reliability
-- **Critical path**: Below-the-fold, optional → CDN is fine
+Developers can selectively copy images from CDN to local storage for:
+- **Critical path assets**: Above-the-fold images that must load immediately
+- **Performance optimization**: Images that benefit from being served directly (no CDN latency)
+- **Version control**: Images that should be tracked in Git alongside code
+- **Reliability**: Images that must be available even if CDN is temporarily unavailable
+- **Developer preference**: Any image the developer wants to manage locally
 
-**Implementation Pattern:**
-- Helper utility `getImageUrl(path, size)` automatically determines source:
-  - Paths starting with `media/`, `galleries/`, etc. → CDN with optimization
-  - Other paths → Local assets from `public/` folder
-- Components use helper utility for consistent image handling
-- CMS admin automatically stores all uploads in Supabase Storage (CDN)
-- Developer makes architectural decisions when building components
+**Copy to Local Process:**
+
+1. **Image Selection**: In the CMS Media Library, developer views an image and its variants
+2. **Variant Display**: Image variants (original, thumbnail, small, medium, large) are displayed as a list, each with its own "Copy to Local" button
+3. **Copy Action**: Developer clicks "Copy to Local" button on the desired variant
+4. **Folder Selection**: System prompts developer to select local folder path:
+   - Base path: `public/images/` (Next.js standard)
+   - Developer can specify subfolders: `public/images/heroes/`, `public/images/logos/`, etc.
+   - Developer creates folder structure as needed during copy process
+5. **File Naming**: Local copy uses original filename (preserves variant identification)
+6. **Overwrite Protection**: If file already exists locally, system prompts before overwriting (allows updates)
+7. **Database Update**: System marks image as copied:
+   - Sets `copy_to_local = true` in `media` table
+   - Stores `local_path` (e.g., `/images/heroes/hero-image.jpg`)
+   - Records `copied_at` timestamp
+8. **Notification**: System displays toast notification and console log:
+   ```
+   ✅ Image copied to local: /images/heroes/hero-image.jpg
+   
+   Update your code to use local path:
+   OLD: <img src={media.url} />
+   NEW: <img src="/images/heroes/hero-image.jpg" />
+   ```
+9. **Code Update**: Developer updates code to reference local path (can prompt AI for assistance)
+
+**Unmark / Remove Local Copy:**
+
+1. **Unmark Action**: Developer clicks "Remove Local Copy" button on marked image
+2. **Confirmation**: System prompts for confirmation before removing
+3. **File Deletion**: System deletes local file from `public/` folder
+4. **Database Update**: System updates database:
+   - Sets `copy_to_local = false`
+   - Clears `local_path`
+   - Clears `copied_at` timestamp
+5. **Notification**: System displays toast notification and console log:
+   ```
+   ✅ Local copy removed. Image now served from CDN.
+   
+   Update your code to use CDN URL:
+   OLD: <img src="/images/heroes/hero-image.jpg" />
+   NEW: <img src={media.url} />
+   ```
+6. **Code Update**: Developer updates code to reference CDN URL
+
+**Image Variants Management:**
+
+- Each image variant (original, thumbnail, small, medium, large) is treated independently
+- Variants are displayed as a list in the Media Library detail view
+- Each variant has its own "Copy to Local" button
+- Developer can visually inspect variants and choose which specific variant to copy
+- This allows fine-grained control over which image size/quality is stored locally
+- Original filename is preserved in local copy to maintain variant identification
+
+**Database Schema:**
+
+```sql
+ALTER TABLE media ADD COLUMN copy_to_local BOOLEAN DEFAULT false;
+ALTER TABLE media ADD COLUMN local_path TEXT; -- e.g., "/images/heroes/hero-image.jpg"
+ALTER TABLE media ADD COLUMN copied_at TIMESTAMPTZ;
+```
+
+**Sync Behavior:**
+
+- **Manual Sync Only**: If image is updated in CMS, local copy does NOT automatically update
+- **Update Process**: Developer must manually re-copy the image to update local version
+- **Overwrite Allowed**: System prompts before overwriting existing local file (supports updates)
+
+**File Organization:**
+
+- **Base Path**: `public/images/` (Next.js standard)
+- **Subfolder Structure**: Developer creates subfolders as needed (e.g., `public/images/heroes/`, `public/images/logos/`)
+- **Folder Selection**: Developer is prompted for folder path during copy process
+- **Flat Structure**: Default is flat structure, but developer can organize with subfolders
+
+**Git Management:**
+
+- Local images in `public/` folder are tracked in Git (standard Next.js approach)
+- Developer manages balance between local vs CDN images
+- Large number of local images will increase repository size
+- Developer decides which images warrant local storage vs CDN
+
+**Bulk Operations:**
+
+- **No bulk copy operations**: Copy to local is performed one image at a time
+- This ensures careful selection and folder organization for each image
+- Prevents accidental bulk operations that could bloat repository
 
 **Benefits:**
-- Local assets: Versioned with code, no external dependency, faster initial load
-- CDN assets: Edge caching globally, dynamic optimization, scalable storage
-- Hybrid approach balances performance, cost, and maintainability
+
+- **CMS-First**: All images start in CMS, making them manageable by non-developers
+- **Developer Control**: Developers selectively optimize critical images to local storage
+- **Flexibility**: Easy to move images between CDN and local as needed
+- **Performance**: Critical images can be served directly without CDN latency
+- **Version Control**: Important images tracked in Git alongside code
+- **Visual Selection**: Developer can inspect variants before copying
+- **Clean Workflow**: Unmark process provides easy cleanup of local folder
 
 **Template → Client → Template Promotion Workflow (Forks + PRs):**
 1. Start a new client site by forking `yourorg/website-cms-template` → `yourorg/website-cms-{client}`
@@ -761,6 +856,228 @@ CREATE TABLE archived_projects (
 - Export storage bucket contents to backup location
 - Stored separately for compliance/long-term archival
 
+### Superadmin Client & Tenant Admin Management
+
+A global CRM system in the superadmin area for managing client tenants and their admin users. This system enables superadmins to track all client deployments, assign admin users to tenants, and manage the client lifecycle from a centralized interface.
+
+**Scope:**
+- **Global Management**: Tables stored in `public` schema, accessible from any deployment when logged in as superadmin
+- **Centralized View**: Superadmin can view all clients and admins across all sites from any tenant deployment
+- **Multi-Site Admins**: One admin user can be assigned to multiple tenant sites (many-to-many relationship)
+- **Clean Separation**: Admins must log in/out between sites (no workspace switching)
+
+**Database Schema (in `public` schema):**
+
+```sql
+-- Client/Tenant Registry
+CREATE TABLE public.client_tenants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_name TEXT NOT NULL, -- "Acme Corp", "Travel Agency XYZ"
+  slug TEXT UNIQUE NOT NULL, -- "acme-corp", "travel-agency-xyz"
+  schema_name TEXT UNIQUE NOT NULL, -- "client_acme_corp"
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'archived', 'suspended')),
+  -- Deployment tracking
+  deployment_url TEXT, -- "acme.vercel.app" or "acme.com"
+  github_repo TEXT, -- "yourorg/website-cms-acme"
+  -- Site mode control
+  site_mode TEXT DEFAULT 'coming_soon' CHECK (site_mode IN ('coming_soon', 'live')),
+  site_mode_locked BOOLEAN DEFAULT false, -- Superadmin lock (prevents tenant admin from changing mode)
+  site_mode_locked_by UUID REFERENCES auth.users(id), -- Superadmin who locked it
+  site_mode_locked_at TIMESTAMPTZ, -- When locked
+  site_mode_locked_reason TEXT, -- Why locked (e.g., "Intensive updates in progress")
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT -- Superadmin notes
+);
+
+-- Client Admin Registry (Global CRM for Superadmin)
+CREATE TABLE public.client_admins (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  display_name TEXT,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'inactive')),
+  -- Password reset tracking
+  temporary_password_set BOOLEAN DEFAULT false, -- True if using temporary password
+  password_set_at TIMESTAMPTZ, -- When password was set (first login)
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  notes TEXT -- Superadmin notes
+);
+
+-- Admin-Tenant Assignments (Many-to-Many)
+CREATE TABLE public.client_admin_tenants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID NOT NULL REFERENCES public.client_admins(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES public.client_tenants(id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'admin', -- Future: 'admin', 'editor', 'viewer'
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  assigned_by UUID REFERENCES auth.users(id), -- Superadmin who assigned
+  UNIQUE(admin_id, tenant_id)
+);
+```
+
+**Client Onboarding Workflow:**
+
+1. **Superadmin Creates Client Tenant:**
+   - Superadmin goes to `/admin/super/clients`
+   - Creates new client record:
+     - Client name: "Acme Corp"
+     - Generates slug: "acme-corp"
+     - Generates schema name: "client_acme_corp"
+     - Status: "active"
+     - Site mode: "coming_soon" (default)
+
+2. **Superadmin Sets Up Schema:**
+   - Runs setup script: `pnpm setup-client client_acme_corp`
+   - Script creates schema, runs migrations, sets up storage bucket
+   - Superadmin updates client record with schema name
+
+3. **Superadmin Forks Repository:**
+   - Manual step: Fork `website-cms-template` → `website-cms-acme`
+   - Superadmin updates client record with GitHub repo URL
+
+4. **Superadmin Deploys to Vercel:**
+   - Manual step: Deploy `website-cms-acme` repo to Vercel
+   - Sets environment variable: `NEXT_PUBLIC_CLIENT_SCHEMA = "client_acme_corp"`
+   - Sets `NEXT_PUBLIC_SITE_MODE = "coming_soon"` (default)
+   - Superadmin updates client record with deployment URL
+
+5. **Superadmin Creates Admin Account:**
+   - After site is live, superadmin goes to `/admin/super/clients/[id]/admins`
+   - Creates new admin user:
+     - Email: `admin@acme.com`
+     - Display name: "John Admin"
+     - Creates Supabase Auth user with temporary password
+     - Sets `user_metadata.type = "admin"`
+     - Sets `user_metadata.role = "client_admin"`
+     - Sets `user_metadata.tenant_id = "client_acme_corp"`
+     - Creates record in `public.client_admins` table
+     - Links admin to tenant via `client_admin_tenants` junction table
+   - System sends email to admin with:
+     - Login URL: `https://acme.vercel.app/admin/login`
+     - Temporary password
+     - Instructions to set new password on first login
+
+6. **Admin First Login:**
+   - Admin receives email, clicks login URL
+   - Logs in with temporary password
+   - System prompts to set new password (required)
+   - After password set, admin can access CMS
+   - Site remains in "coming soon" mode (public routes hidden)
+
+7. **Admin Content Entry:**
+   - Admin can immediately start entering content via CMS
+   - Can upload media, create pages, posts, galleries
+   - Can configure design system, settings
+   - Public site remains hidden (coming soon mode)
+
+8. **Site Launch:**
+   - When ready, tenant admin can switch site to "live" mode (if not locked)
+   - Or superadmin can switch to "live" mode
+   - Public site becomes accessible
+
+**Superadmin UI (`/admin/super/clients`):**
+
+**Client List View:**
+- Table showing: Client name, schema, status, deployment URL, site mode, admin count
+- Filter by status (active, archived, suspended)
+- Filter by site mode (coming_soon, live)
+- Search by client name
+- Quick actions: View details, Create admin, Archive client
+
+**Client Detail View:**
+- Client information (name, slug, schema, status)
+- Deployment tracking (GitHub repo, Vercel URL, domain)
+- Site mode control:
+  - Current mode (coming_soon/live)
+  - Lock status (locked/unlocked)
+  - Lock reason (if locked)
+  - Toggle lock (superadmin only)
+  - Change mode (if not locked)
+- Admin list (with add/remove buttons)
+- Notes field
+- Quick actions: Create admin, Archive client, View deployment
+
+**Admin Management (`/admin/super/clients/[id]/admins`):**
+- List of all admins assigned to this client
+- Add new admin button
+- For each admin:
+  - Email, display name, status
+  - Assigned date
+  - Last login (if tracked)
+  - Actions: Suspend, Remove, View details
+
+**Global Admin List (`/admin/super/admins`):**
+- View all client admins across all sites
+- Filter by tenant
+- See which sites each admin manages
+- Create new admin (assign to tenant during creation)
+- Suspend/activate admins globally
+
+**Admin Creation Form:**
+- Email (required)
+- Display name (optional)
+- Assign to tenant(s) (multi-select)
+- Status (default: active)
+- Notes
+- On submit:
+  - Creates Supabase Auth user with temporary password
+  - Sets user metadata (type, role, tenant_id)
+  - Creates record in `client_admins` table
+  - Links to selected tenant(s) via `client_admin_tenants`
+  - Sends email with login instructions and temporary password
+
+**Site Mode Control:**
+
+**Tenant Admin Control:**
+- Tenant admin can toggle site mode in `/admin/settings`
+- Can switch between "coming_soon" and "live"
+- **Exception**: If `site_mode_locked = true`, tenant admin cannot change mode
+- Lock status displayed clearly in UI
+
+**Superadmin Lock:**
+- Superadmin can lock site mode to prevent tenant admin from changing it
+- Use cases:
+  - Intensive updates in progress
+  - Site maintenance
+  - Content review period
+  - Launch date coordination
+- Lock includes:
+  - `site_mode_locked = true`
+  - `site_mode_locked_by` (superadmin user ID)
+  - `site_mode_locked_at` (timestamp)
+  - `site_mode_locked_reason` (optional note)
+- When locked:
+  - Tenant admin sees lock status in settings
+  - Toggle is disabled with explanation
+  - Superadmin can unlock at any time
+
+**Multi-Site Admin Management:**
+- One admin can be assigned to multiple tenant sites
+- Admin must log in/out between sites (clean separation)
+- Each login is tenant-specific based on `NEXT_PUBLIC_CLIENT_SCHEMA`
+- No workspace switching in admin panel
+- Admin sees only the current tenant's data when logged in
+
+**Email Notifications:**
+- **New Admin Created**: Email sent with:
+  - Login URL (tenant-specific deployment URL)
+  - Temporary password
+  - Instructions to set new password on first login
+  - Link to password reset if needed
+
+**API Endpoints (Future):**
+- `GET /api/super/clients` - List all clients (superadmin only)
+- `GET /api/super/clients/[id]` - Get client details
+- `POST /api/super/clients` - Create new client
+- `PUT /api/super/clients/[id]` - Update client
+- `POST /api/super/clients/[id]/admins` - Create admin for client
+- `PUT /api/super/clients/[id]/site-mode` - Change site mode (with lock check)
+- `PUT /api/super/clients/[id]/site-mode/lock` - Lock/unlock site mode
+
 ### CI/CD & Maintenance Strategy
 
 The architecture is designed for scalable, maintainable deployments via CI/CD.
@@ -837,14 +1154,48 @@ This architecture enables:
 - Excerpt/summary
 - Categories/tags (future enhancement)
 
-### 2. Galleries
+### 2. Pages (Static Pages - WordPress-Style)
+- **Purpose**: All static page content (About, Services, Contact, etc.) stored in CMS database
+- **WordPress-Style**: Similar to WordPress pages - all content is CMS-managed, enabling theme switching
+- **Database-Driven**: All page content lives in `pages` table, not in code files
+- **Homepage**: Special page entry (slug = "home" or "/") - CMS-managed homepage content
+- **Structure**: Mirrors `posts` table structure for consistency
+  - Title, slug, content (Tiptap JSONB), featured_image_id (optional), status (draft/published)
+  - Same rich text editing capabilities as blog posts
+  - Same media management integration
+- **Theme Switching**: Content remains in database; components pull from CMS and apply theme styling
+- **Component Integration**: Developers build components that pull content from `pages` table
+  - Components reference CMS content (no hardcoded content in component code)
+  - Theme switching changes component styling, not content
+  - Example: `<HeroSection content={pageData} />` pulls from CMS
+- **Admin Management**: Client admins can edit all page content via CMS without code changes
+- **Route Mapping**: Pages can be mapped to routes (e.g., `/about` → page with slug "about")
+
+**Database Schema:**
+```sql
+-- Pages table (mirrors posts structure)
+CREATE TABLE pages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  content JSONB, -- Tiptap rich text content
+  excerpt TEXT,
+  featured_image_id UUID REFERENCES media(id) ON DELETE SET NULL, -- Optional
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 3. Galleries
 - Named gallery collections
 - Multiple images/videos per gallery
 - Drag-and-drop reordering
 - Gallery cover images
 - Captions for gallery items
 
-### 3. Media Library
+### 4. Media Library
 - Image uploads to Supabase Storage
 - Video URL management (Vimeo, YouTube, Adilo)
 - Media metadata (alt text, captions)
@@ -858,163 +1209,145 @@ This architecture enables:
   - Standard sizes: Thumbnail (150×150), Small (400px width), Medium (800px width), Large (1200px width)
   - Supabase Storage Image Transformations available as fallback for ad-hoc sizes
 
-### 4. Forms & CRM (Customer Relationship Management)
+### 5. Forms & CRM (Customer Relationship Management)
 
-A CRM-first system where forms are developer-authored components that map to CRM fields. All form submissions are stored directly in the CRM, providing a unified contact and company management system optimized for B2B use cases while supporting B2C. The system includes comprehensive consent management and DND (Do Not Disturb) status tracking for ICANN, GDPR, and TCPA compliance.
+A lightweight CRM system designed to accept form submissions, store contacts for review, and enable manual push to external CRM or email marketing systems. Forms are developer-authored components that map to CRM fields. All form submissions are stored directly in the CRM, marked as "new" for admin review. The system includes basic consent management and DND (Do Not Disturb) status tracking for marketing compliance.
 
 **Core Philosophy:**
+- **Primary Purpose**: Accept form submissions and store for admin review
 - **CRM as source of truth**: All contact data lives in CRM tables, not in separate form submission storage
 - **Developer-authored forms**: No visual form builder; developers create form components that reference CRM fields
-- **Company-centric**: Companies are first-class entities with robust data for B2B marketing
-- **Direct storage**: Form submissions create/update CRM records immediately (no staging table)
-- **Compliance-first**: Built-in consent management and DND tracking for marketing compliance
+- **Review workflow**: Form submissions marked as "new" for admin review and processing
+- **Manual push**: Admin manually pushes contacts to external CRM or email marketing systems
+- **Tags for segmentation**: Tags enable sorting, filtering, and creating marketing segments
+- **MAG integration**: Contacts can be assigned to MAGs (Membership Access Groups) for content access
+- **Lightweight**: Focus on essential CRM fields with custom fields for tenant-specific needs
 
 **Database Schema:**
 
-**CRM Fields (Staple + Custom):**
-```sql
--- Staple CRM fields (built-in, always available as columns in crm_contacts):
--- firstname, lastname, fullname, category
+**Standard CRM Fields (Built-in):**
+The contacts table includes the most common CRM fields:
+- `firstname`, `lastname`, `fullname`
+- `email` (single primary email)
+- `phone` (single primary phone)
+- `company` (optional company name - simple text field, not relational)
+- `address`, `city`, `state`, `postal_code`, `country`
+- `category` (e.g., 'lead', 'customer', 'partner')
+- `tags` (TEXT[] array for sorting, filtering, and marketing segments)
+- `notes` (admin notes and follow-up tracking)
+- `status` (default: 'new' for review, then 'contacted', 'archived')
+- `dnd_status` (Do Not Disturb: NULL, 'email', 'phone', 'all')
+- `source` (form ID or 'manual_entry')
+- `form_id` (reference to form that created this contact)
 
+**Custom Fields (Relational Table for Tenant-Specific Needs):**
+```sql
 -- Custom CRM fields (per tenant, defined by admin)
 CREATE TABLE crm_custom_fields (
-  id UUID PRIMARY KEY,
-  name TEXT NOT NULL, -- 'company_size', 'budget_range', 'referral_source'
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE, -- 'travel_destination', 'budget_range', 'referral_source'
   label TEXT NOT NULL, -- Display label
   type TEXT NOT NULL, -- 'text', 'email', 'phone', 'select', 'number', 'textarea', 'checkbox'
   validation_rules JSONB, -- { required: false, minLength: 2, pattern: '...', options: [...] }
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Custom field values (relational - one row per custom field per contact)
+CREATE TABLE crm_contact_custom_fields (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  custom_field_id UUID NOT NULL REFERENCES crm_custom_fields(id) ON DELETE CASCADE,
+  value TEXT, -- Stored as text (convert to appropriate type based on field type)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(contact_id, custom_field_id)
+);
 ```
 
-**Companies Table:**
+**Contacts Table:**
 ```sql
-CREATE TABLE crm_companies (
-  id UUID PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT UNIQUE,
-  -- Company details
-  email TEXT, -- Company email (for marketing)
-  industry TEXT,
-  category TEXT, -- Company category/classification
-  tags TEXT[], -- Array of tags for email segmentation
-  company_size TEXT, -- '1-10', '11-50', '51-200', '201-1000', '1000+'
-  website TEXT,
-  description TEXT,
-  -- Location
-  address_line1 TEXT,
-  address_line2 TEXT,
+CREATE TABLE crm_contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Standard fields
+  firstname TEXT,
+  lastname TEXT,
+  fullname TEXT,
+  email TEXT, -- Primary email (single field)
+  phone TEXT, -- Primary phone (single field)
+  company TEXT, -- Optional company name (simple text, not relational)
+  address TEXT,
   city TEXT,
   state TEXT,
   postal_code TEXT,
   country TEXT,
-  -- Custom fields
-  custom_data JSONB,
-  -- Metadata
-  status TEXT DEFAULT 'active', -- 'active', 'inactive', 'prospect', 'customer', 'partner'
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-**Contacts Table (with relational emails/phones):**
-```sql
-CREATE TABLE crm_contacts (
-  id UUID PRIMARY KEY,
-  -- Staple fields
-  firstname TEXT,
-  lastname TEXT,
-  fullname TEXT,
   category TEXT, -- 'lead', 'customer', 'partner', etc.
-  -- Custom fields stored in JSONB
-  custom_data JSONB,
+  -- Tags for sorting, filtering, and marketing segments
+  tags TEXT[], -- Array of tags: ['premium-lead', 'newsletter', 'webinar-attendee']
+  -- Notes and status
+  notes TEXT, -- Admin notes and follow-up tracking
+  status TEXT DEFAULT 'new', -- 'new' (for review), 'contacted', 'archived'
   -- DND (Do Not Disturb) status
   dnd_status TEXT, -- NULL (no restriction), 'email', 'phone', 'all'
   -- Metadata
-  source TEXT, -- 'contact_form', 'newsletter', 'manual_entry'
-  form_id UUID REFERENCES forms(id),
-  status TEXT DEFAULT 'new', -- 'new', 'contacted', 'archived'
-  duplicate_status TEXT, -- NULL, 'needs_review' (if potential duplicate detected)
-  potential_duplicate_of UUID REFERENCES crm_contacts(id), -- Link to potential duplicate
+  source TEXT, -- 'contact_form', 'newsletter', 'manual_entry', 'api'
+  form_id UUID REFERENCES forms(id) ON DELETE SET NULL,
+  -- External CRM sync
+  external_crm_id TEXT, -- ID in external CRM (if synced)
+  external_crm_synced_at TIMESTAMPTZ, -- When last synced to external CRM
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Contact-MAG Relationship (Many-to-Many):**
+```sql
+-- Link contacts to MAGs (Membership Access Groups)
+CREATE TABLE crm_contact_mags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  mag_id UUID NOT NULL REFERENCES mags(id) ON DELETE CASCADE,
+  assigned_via TEXT DEFAULT 'manual' CHECK (assigned_via IN ('manual', 'form', 'api', 'webhook')),
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(contact_id, mag_id)
+);
+```
+
+**Basic Company Table (Simplified - Optional):**
+```sql
+-- Basic company table (optional, not a focus)
+CREATE TABLE crm_companies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT,
+  website TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Relational emails (multiple per contact)
-CREATE TABLE crm_contact_emails (
-  id UUID PRIMARY KEY,
-  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
-  email TEXT NOT NULL,
-  type TEXT, -- 'primary', 'work', 'personal'
-  is_primary BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(contact_id, email)
-);
-
--- Relational phones (multiple per contact)
-CREATE TABLE crm_contact_phones (
-  id UUID PRIMARY KEY,
-  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
-  phone TEXT NOT NULL,
-  type TEXT, -- 'primary', 'work', 'mobile', 'home'
-  is_primary BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(contact_id, phone)
-);
-```
-
-**Contact-Company Relationship (Many-to-Many):**
-```sql
+-- Simple contact-company link (optional)
 CREATE TABLE crm_contact_companies (
-  id UUID PRIMARY KEY,
   contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES crm_companies(id) ON DELETE CASCADE,
-  role TEXT, -- 'CEO', 'Marketing Manager', 'Decision Maker', etc.
-  department TEXT,
-  is_primary BOOLEAN DEFAULT false, -- Primary company for this contact
-  start_date DATE,
-  end_date DATE, -- NULL = current relationship
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(contact_id, company_id)
+  PRIMARY KEY (contact_id, company_id)
 );
 ```
 
-**Consent Management (ICANN/GDPR/TCPA Compliance):**
+**Consent Management (Simplified - ICANN/GDPR/TCPA Compliance):**
 ```sql
+-- Simplified consent tracking
 CREATE TABLE crm_consents (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
-  consent_type TEXT NOT NULL, -- 'email_marketing', 'phone_marketing', 'sms', 'postal'
+  consent_type TEXT NOT NULL, -- 'email_marketing', 'phone_marketing', 'sms'
   consented BOOLEAN NOT NULL, -- true = consented, false = withdrawn
-  -- Audit trail for compliance
-  method TEXT, -- 'form_submission', 'unsubscribe_link', 'manual_admin', 'api', 'import'
-  source TEXT, -- Form ID, URL, admin user, etc.
+  method TEXT, -- 'form_submission', 'unsubscribe_link', 'manual_admin', 'api'
   ip_address INET, -- For proof of consent (GDPR requirement)
-  user_agent TEXT, -- Browser/device info
-  consent_text TEXT, -- What text was shown when consent was given
-  -- Timestamps
-  consented_at TIMESTAMPTZ, -- When consent was given
+  consented_at TIMESTAMPTZ DEFAULT NOW(),
   withdrawn_at TIMESTAMPTZ, -- When consent was withdrawn (NULL if active)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-**DND (Do Not Disturb) History:**
-```sql
-CREATE TABLE crm_dnd_history (
-  id UUID PRIMARY KEY,
-  contact_id UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
-  dnd_status TEXT NOT NULL, -- 'email', 'phone', 'all'
-  reason TEXT, -- 'unsubscribed', 'requested', 'bounced', 'complaint', 'manual'
-  method TEXT, -- 'unsubscribe_link', 'form_checkbox', 'manual_admin', 'api', 'bounce_handler'
-  source TEXT, -- URL, form ID, admin user, etc.
-  set_by UUID REFERENCES auth.users(id), -- Admin who set it (if manual)
-  set_at TIMESTAMPTZ DEFAULT NOW(),
-  notes TEXT
 );
 ```
 
@@ -1044,46 +1377,49 @@ CREATE TABLE forms (
 **Form Submission Workflow:**
 
 1. **Developer creates form component** referencing CRM fields:
-   - Developer accesses Form Registry (`/admin/crm/forms`) to view available CRM fields
+   - Developer accesses Form Registry (`/admin/forms`) to view available CRM fields
    - Copies field IDs/names for use in components
-   - Creates form component mapping inputs to CRM fields
+   - Creates form component mapping inputs to CRM fields (standard + custom fields)
    - Includes consent checkboxes for email/phone marketing (opt-in, not pre-checked)
 
 2. **Form submission** → `POST /api/forms/[formId]/submit`:
-   - Receives JSON with CRM field values + consent flags
+   - Receives JSON with CRM field values (standard + custom) + consent flags
    - Validates against CRM field validation rules
-   - Performs duplicate detection (see logic below)
-   - Creates/updates CRM contact record directly
-   - Creates email/phone records in relational tables
-   - Links to company if provided (or creates new company if name doesn't exist)
-   - Processes consents and creates `crm_consents` records with audit trail (IP, user agent, timestamp)
+   - Creates new CRM contact record with `status = 'new'` (marked for review)
+   - Stores standard fields in `crm_contacts` table
+   - Stores custom field values in `crm_contact_custom_fields` relational table
+   - Processes consents and creates `crm_consents` records (IP address, timestamp)
    - Sets DND status based on consent (no consent = DND for that channel)
+   - **Auto-assigns tags** (if configured in form settings)
+   - **Auto-assigns MAGs** (if configured in form settings)
    - Sends email notification to admin if configured
 
-3. **Duplicate Detection Logic:**
-   - **Perfect Match**: (firstname + lastname) OR fullname AND (email OR phone) all match
-     - Action: Update existing contact record (keep original `created_at`, update `updated_at`)
-     - Merge new data into existing record (emails, phones, company relationships)
-   - **Partial Match**: Any key field matches (email OR phone OR (firstname + lastname) OR fullname) but not all
-     - Action: Create new contact with `duplicate_status: 'needs_review'` and `potential_duplicate_of` link
-     - Admin can review and merge manually in CRM
-   - **No Match**: No key fields match
-     - Action: Create new contact normally
+3. **Admin Review Workflow:**
+   - Admin views contacts with `status = 'new'` in CRM (`/admin/crm`)
+   - Admin reviews contact details, notes, tags, and MAG assignments
+   - Admin can:
+     - Update notes
+     - Assign/adjust tags (for sorting, filtering, marketing segments)
+     - Assign/adjust MAGs (for content access)
+     - Update contact information
+     - Change status: 'new' → 'contacted' → 'archived'
+   - Admin manually pushes contact to external CRM or email marketing system
+   - After push, admin marks contact as synced (updates `external_crm_id` and `external_crm_synced_at`)
 
-4. **Company Handling in Forms:**
-   - Company field is optional in forms
-   - If provided: Contact selects existing company (autocomplete/dropdown)
-   - If company name doesn't exist: Create new company record, then link contact
-   - If not provided: Contact created without company; can be added later in CRM
-   - Company is NOT required for contact records (supports B2C use cases)
+4. **Tags Purpose:**
+   - **Sorting**: Filter contacts by tags (e.g., show all 'premium-lead' contacts)
+   - **Filtering**: Narrow down contact lists by tag combinations
+   - **Marketing Segments**: Create segments for email campaigns (e.g., all contacts with 'newsletter' tag)
+   - Tags are simple text strings stored in `tags` array on contact
+   - Admin can add/remove tags manually or via API
 
-**Consent Management (ICANN/GDPR/TCPA Compliance):**
+**Consent Management (Simplified - ICANN/GDPR/TCPA Compliance):**
 
 **Consent Collection:**
-- **Email Marketing Consent**: Required checkbox on forms with clear language
+- **Email Marketing Consent**: Checkbox on forms with clear language
   - Example: "I consent to receive marketing emails" (must be opt-in, not pre-checked)
   - Stored in `crm_consents` with `consent_type: 'email_marketing'`
-  - Tracks IP address, timestamp, consent text, user agent for audit trail
+  - Tracks IP address and timestamp for audit trail
 - **Phone Marketing Consent** (TCPA/GDPR):
   - Separate checkbox for phone/SMS marketing
   - Example: "I consent to receive marketing calls/texts"
@@ -1094,77 +1430,70 @@ CREATE TABLE forms (
   - Automatically sets DND status if all marketing consents withdrawn
 
 **DND (Do Not Disturb) Status Management:**
-
-**Automatic DND (Recommended Best Practice):**
-- **On Unsubscribe**: When contact clicks unsubscribe link → Set `dnd_status: 'email'` (or add to existing)
+- **On Unsubscribe**: When contact clicks unsubscribe link → Set `dnd_status: 'email'`
 - **On Form Submission**: If contact unchecks consent or explicitly opts out → Set DND for that channel
-- **On Bounce**: If email bounces (hard bounce) → Auto-set `dnd_status: 'email'`
-- **On Complaint**: If contact marks email as spam → Auto-set `dnd_status: 'all'`
-- All DND changes logged in `crm_dnd_history` with reason and method
-
-**Manual DND (Admin Override):**
-- Admin can manually set DND status in CRM
-- Useful for: customer requests, compliance issues, data quality
-- Tracks who set it and why in `crm_dnd_history`
-
-**DND Enforcement:**
-- Email marketing: Check `dnd_status` before sending (must not be 'email' or 'all')
-- Phone marketing: Check `dnd_status` before calling (must not be 'phone' or 'all')
-- API endpoints: Return DND status when querying contacts
-- Export filters: Option to exclude DND contacts from marketing exports
+- **Manual DND**: Admin can manually set DND status in CRM
+- DND status stored directly on contact record (simplified, no separate history table)
 
 **CRM Features:**
 
 **Contact Management:**
-- View all contacts with filtering/search
+- View all contacts with filtering/search (by status, tags, MAGs, DND status)
 - Contact detail view showing:
-  - All email addresses and phone numbers (relational)
-  - All company relationships (with roles/departments, primary company marked)
-  - Consent history (with audit trail)
-  - DND status and history
-  - Interaction history
-  - Custom field values
-- Merge duplicate contacts (admin action)
-- Status management (new, contacted, archived)
-- Export capabilities (CSV, with DND/consent filters)
-- Notes and follow-up tracking
+  - Standard CRM fields (name, email, phone, company, address)
+  - Custom field values (from relational table)
+  - Tags (for sorting, filtering, marketing segments)
+  - MAG assignments (for content access)
+  - Consent status (email, phone marketing)
+  - DND status
+  - Notes (admin notes and follow-up tracking)
+  - Status (new, contacted, archived)
+  - External CRM sync status
+- Admin actions:
+  - Update notes
+  - Assign/adjust tags
+  - Assign/adjust MAGs
+  - Update contact information
+  - Change status
+  - Set DND status
+  - **Manual push to external CRM** (button/action to sync contact to external system)
+- Export capabilities (CSV, with tag/DND/consent filters)
+- Basic client outreach (admin can use lightweight CRM for basic outreach)
 
-**Company Management:**
-- Company list with filtering (industry, size, status, tags)
+**Company Management (Simplified - Optional):**
+- Basic company list (if companies are used)
 - Company detail view showing:
-  - All contacts at company (with roles, primary contact indicator)
-  - Company email, industry, category, tags
-  - Location data
-  - Custom field values
+  - Company name, email, website
+  - Contacts linked to company
   - Notes
-- Company-based email marketing (send to all contacts at company, respecting DND)
-- Company segmentation (by industry, size, tags, status)
-- Company analytics (engagement, contact count, etc.)
+- Company is optional - not a focus of the CRM
+- No company-centric features (no company-based marketing, segmentation, analytics)
 
 **Developer Workflow:**
 
-1. **Access Form Registry** (`/admin/crm/forms`):
-   - View available CRM fields (staple + custom)
+1. **Access Form Registry** (`/admin/forms`):
+   - View available CRM fields (standard + custom)
    - Copy field IDs/names for use in components
    - See field validation rules and types
-   - View suggested fields for common form types (e.g., Contact Form)
+   - View form settings (success message, redirect URL, notifications)
 
 2. **Create Form Component**:
-   - Reference CRM fields by ID/name
+   - Reference CRM fields by ID/name (standard fields: `firstname`, `lastname`, `email`, `phone`, etc.)
+   - Reference custom fields by ID (from `crm_custom_fields` table)
    - Map form inputs to CRM fields
    - Include consent checkboxes (email_marketing, phone_marketing)
-   - Use form registry settings for messages/redirects
+   - Configure auto-assign tags and MAGs (optional, in form settings)
 
 3. **Form Registry as Helper**:
-   - Shows which fields are available
+   - Shows which fields are available (standard + custom)
    - Provides copy/paste field references
-   - Stores form settings (not field definitions)
-   - Suggests common field combinations for form types
+   - Stores form settings (success message, redirect URL, email notifications)
+   - Configures auto-assign tags and MAGs (applied on form submission)
 
 **Compliance Features:**
 
 **Consent Management UI:**
-- Show all consents per contact (with history)
+- Show consent status per contact (email, phone marketing)
 - Visual indicators: ✅ Consented, ❌ Withdrawn
 - Consent timeline (when given, when withdrawn, method, IP address)
 - Ability to manually record consent (for phone/offline interactions)
@@ -1172,23 +1501,16 @@ CREATE TABLE forms (
 
 **DND Status Display:**
 - Clear badge/indicator on contact record
-- DND history timeline (when set, why, who set it)
-- Easy to toggle DND status (with reason tracking)
-- Bulk DND operations (e.g., mark all bounced emails as DND)
+- Easy to toggle DND status (email, phone, all)
+- DND status shown in contact list and detail view
 
-**Compliance Reports:**
-- Export consent audit trail (for GDPR requests)
-- Show proof of consent (IP, timestamp, consent text, user agent)
-- DND status reports
-- Consent withdrawal history
-
-**Email Marketing Integration:**
-- Company email field for company-level marketing
-- Contact email addresses (primary + additional)
-- Tags on companies for segmentation
-- Industry/category for targeting
-- Export contacts/companies for email campaigns (with DND/consent filters)
-- Automatic DND enforcement (no emails to DND contacts)
+**Export & Marketing Integration:**
+- Export contacts for email campaigns (CSV format)
+- Filter exports by tags (for marketing segments)
+- Filter exports by DND status (exclude DND contacts)
+- Filter exports by consent status (only consented contacts)
+- Tags enable creating marketing segments (e.g., export all contacts with 'newsletter' tag)
+- Manual push to external CRM or email marketing system (admin action)
 
 **Cookie Consent Management (GDPR/ePrivacy Compliance):**
 
@@ -1392,24 +1714,32 @@ CREATE TABLE cookie_consents (
 - `GET /api/cookies/policy` - Get cookie policy content (public)
 
 **API Endpoints:**
-- `POST /api/forms/[formId]/submit` - Submit form data (creates/updates CRM contact, processes consents)
-- `GET /api/crm/contacts` - List contacts (admin, with DND/consent filters)
-- `GET /api/crm/contacts/[id]` - Get contact details (includes consents, DND history)
-- `POST /api/crm/contacts/[id]/merge` - Merge duplicate contacts (admin)
+- `POST /api/forms/[formId]/submit` - Submit form data (creates CRM contact with status='new', processes consents, auto-assigns tags/MAGs if configured)
+- `GET /api/crm/contacts` - List contacts (admin, with filtering by status, tags, MAGs, DND status)
+- `GET /api/crm/contacts/[id]` - Get contact details (includes tags, MAGs, consents, custom fields)
+- `PUT /api/crm/contacts/[id]` - Update contact (admin: notes, tags, MAGs, status, DND)
+- `POST /api/crm/contacts/[id]/push` - Manually push contact to external CRM (admin)
 - `POST /api/crm/contacts/[id]/unsubscribe` - Unsubscribe endpoint (sets DND, records consent withdrawal)
-- `GET /api/crm/companies` - List companies (admin)
-- `GET /api/crm/companies/[id]` - Get company details
+- `POST /api/crm/contacts/[id]/tags` - Add/remove tags (admin or API)
+- `POST /api/crm/contacts/[id]/mags` - Assign/remove MAGs (admin or API)
+- `GET /api/crm/companies` - List companies (admin, basic list if companies are used)
 
-### 5. Membership Platform
+### 5. MAG (Membership Access Groups) Platform
 
-A protected content system allowing members-only access to content, pages, and resources. Supports multiple membership groups/tiers with different access levels.
+A comprehensive protected content system allowing granular control over content access at page, section, component, and inline text levels. Supports unlimited membership access groups (MAGs) with different access levels and visibility modes.
 
-**Membership Groups (Access Groups):**
+**Default Behavior:**
+- **Public by Default**: All content is accessible to all visitors unless explicitly restricted
+- **Opt-in Restrictions**: Content restrictions are applied only when explicitly configured
+- **Progressive Restriction**: Start with full public access and narrow down with specific restrictions
+
+**MAG (Membership Access Groups):**
+- Unlimited MAG groups per client (managed in tenant admin section at `/admin/mags`)
 - Named membership tiers (e.g., "Basic", "Premium", "VIP", "Enterprise")
+- Each MAG has a unique `code` for shortcode references (e.g., "premium", "vip")
 - Hierarchical tier levels (numeric tier for access comparison)
-- Description and benefits for each group
-- Unlimited membership groups per client
-- Group-specific access permissions
+- Description and benefits for each MAG
+- **Default Restricted Message**: Site-wide default message for each MAG (can be overridden at section/component/text levels)
 - **Ecommerce Integration** (Simple Tag Reference):
   - **Ecommerce Tag**: Simple tag/reference field (e.g., "premium-membership", "product-123")
   - This tag is matched by the ecommerce platform when processing payments
@@ -1421,41 +1751,110 @@ A protected content system allowing members-only access to content, pages, and r
 - Member registration and login on public site
 - Member profiles with display names
 - Membership status (active, inactive, suspended)
-- Multiple membership groups per member (many-to-many relationship)
-- Optional expiration dates per membership assignment
+- Multiple MAG assignments per member (many-to-many relationship)
+- Optional expiration dates per MAG assignment
 
-**Content Protection:**
-- Posts, galleries, and pages can be marked as protected
-- Three access levels:
-  - `public` - Accessible to all visitors
-  - `members` - Requires any active membership
-  - `group` - Requires specific membership group
-- Content-level access control (select required membership group)
-- Protected content preview (teaser content for non-members)
+**Granular Content Protection (Three Levels):**
+
+1. **Page-Level Protection:**
+   - Entire pages, posts, and galleries can be marked as protected
+   - Access levels: `public` (default), `members` (any active membership), `mag` (specific MAG required)
+   - Visibility modes: `hidden` (default - no visual obstruction) or `message` (show custom message)
+
+2. **Section/Component-Level Protection:**
+   - Individual sections and components can be restricted independently
+   - Each section/component has a unique ID in its header for identification
+   - Section restrictions stored in `pages.section_restrictions` JSONB field
+   - Access levels: `public`, `members`, `mag`
+   - Visibility modes: `hidden` (default) or `message` (with optional override message)
+
+3. **Inline Text Protection:**
+   - Specific text segments within rich content can be protected using shortcode syntax
+   - Shortcode format: `[[mag-code]]protected content[[/mag-code]]`
+   - Supports MAG-specific or global member restrictions
+   - Message override can be included in shortcode
+   - Integrated into Tiptap rich text editor
+
+**Shortcode Syntax:**
+
+**Standard Format:**
+```
+[[mag-code]]Protected content here[[/mag-code]]
+[[mag-uuid]]Protected content here[[/mag-uuid]]
+[[:]]Any membership required[[/]]
+```
+
+**With Message Override:**
+```
+[[mag-code message="Upgrade to Premium to see this content"]]
+This premium content is hidden or shows custom message
+[[/mag-code]]
+```
+
+**Shortcode Rules:**
+- Opening tag: `[[mag-code]]` or `[[mag-uuid]]` or `[[:]]` (any membership)
+- Closing tag: `[[/mag-code]]` or `[[/mag-uuid]]` or `[[/]]`
+- Content between tags is protected
+- Message override is optional and overrides all other message sources
+- Shortcodes are parsed and converted to Tiptap `ProtectedText` nodes
+
+**Visibility Modes:**
+
+1. **Hidden Mode (Default):**
+   - Protected content is completely hidden (no visual obstruction)
+   - User sees no indication that content exists
+   - Seamless reading experience for non-members
+   - Default behavior for all restrictions
+
+2. **Message Mode (Opt-in):**
+   - Protected content is replaced with a custom message
+   - Message can be set at MAG level (default) or overridden per section/component/text
+   - Developer explicitly enables message mode and composes message when needed
+   - Useful for encouraging membership upgrades
+
+**Message Hierarchy (Priority Order):**
+1. **Inline text message override** (highest priority): Message specified in shortcode
+2. **Section/component override**: `restricted_message` field in section restrictions
+3. **MAG default message**: `default_message` field in MAG table (site-wide)
+4. **System fallback**: "This content requires membership" (lowest priority)
+
+**Menu Item Restrictions:**
+- Navigation menu items can be restricted to specific MAGs
+- Menu items hidden from navigation if user doesn't have required MAG
+- Access levels: `public` (default), `members`, `mag`
+- Menu filtering happens automatically based on user's MAG memberships
+- Admin can preview menu for different user roles
 
 **Key Features:**
 - Member registration and login (separate from admin login)
-- Member dashboard/profile area
-- Content gating with automatic redirects
-- **Easy Admin CRM Management**: Client admins can easily log in and manage memberships
-  - View all members and their group assignments
-  - Assign/remove memberships with simple interface
+- Member dashboard/profile area (see Portal Use Case section)
+- Content gating with automatic access checks
+- **Easy Admin CRM Management**: Client admins can easily log in and manage MAGs
+  - View all members and their MAG assignments
+  - Assign/remove MAGs with simple interface
   - Update member status (active, inactive, suspended)
   - Set expiration dates
   - Bulk operations for efficiency
 - Member directory (optional, admin-configurable)
-- Membership expiration tracking
+- MAG expiration tracking
 - **Simple Ecommerce Integration**:
   - Simple tag-based reference system (no duplicate payment data)
-  - Webhook support for automatic membership assignment
+  - Webhook support for automatic MAG assignment
   - All payment details remain in ecommerce platform
   - Secure API authentication for webhook endpoints
 
+**No Nested Protection:**
+- Single-level protection only (no nested protected sections)
+- If multiple protection levels needed, use adjacent sections instead
+- Keeps system simple and maintainable
+- Prevents complex access logic and performance issues
+
 **Admin Management:**
-- Create and manage membership groups
-- Assign members to groups
-- View all members and their group assignments
+- Create and manage MAGs in `/admin/mags` (tenant admin section)
+- Assign members to MAGs
+- View all members and their MAG assignments
 - Member status management (activate, suspend, remove)
+- Configure default messages per MAG
 - View member activity and access history (future enhancement)
 
 ### 6. Event Calendar
@@ -1489,6 +1888,20 @@ Unlike WordPress, this CMS does not use traditional theme templates. Each projec
 3. **Component Customization**: Developers can create custom components or modify theme components per project as needed
 
 The theme system provides the convenience of theme switching (like WordPress) while maintaining the flexibility of custom component development.
+
+**Content-First Architecture (WordPress-Style):**
+- All content (pages, posts, galleries, media) is stored in CMS database tables
+- Components pull content from CMS, not from hardcoded data
+- Theme switching changes component styling/presentation, not content
+- Content remains unchanged when switching themes
+- This enables true WordPress-style theme switching: same content, different design
+
+**Component Test Data/Images:**
+- Components should reference CMS media for test/example images, not hardcoded paths
+- Component library screenshots/wireframes stored in `media` table (via `screenshot_media_id`, `wireframe_media_id`)
+- When building components, developers use CMS media entries for examples
+- This keeps all images in CMS, enabling theme switching to use different images
+- Example: `<HeroSection image={cmsMediaEntry} />` instead of `<img src="/test-hero.jpg" />`
 
 ### Font & Color Palette Management
 
@@ -1712,7 +2125,7 @@ The system formalizes **four primary user types**:
 **2) Client Admin (Site Admin)**
 - **Who**: The client’s administrators and staff
 - **Scope**: Single-client (their specific client schema only)
-- **Purpose**: Day-to-day site administration: media, posts, galleries, forms/CRM, events, memberships, site settings
+- **Purpose**: Day-to-day site administration: media, posts, galleries, forms/CRM, events, MAGs, site settings
 - **Access**: `/admin/*` (standard CMS)
 
 **3) GPU (General Public User)**
@@ -1722,14 +2135,14 @@ The system formalizes **four primary user types**:
 - **Access**: Public routes only (no auth required)
 
 **4) GPUM (General Public User - Member)**
-- **Who**: End users who register/login and have **membership status**
-- **Scope**: Public site + protected member content (based on membership groups)
+- **Who**: End users who register/login and have **MAG assignments**
+- **Scope**: Public site + protected member content (based on MAGs)
 - **Purpose**: Access protected pages/content and member dashboard
 - **Access**: `/login`, `/register`, `/members/*`, plus gated content routes
 
 **Core Distinction (Important):**
 - **Admin roles** control **what CMS features** an authenticated admin can access (platform + client admin).
-- **Membership groups** control **what protected content** a GPUM can access on the public site.
+- **MAGs (Membership Access Groups)** control **what protected content** a GPUM can access on the public site.
 
 ### Multi-Client Authentication Strategy
 
@@ -1835,7 +2248,7 @@ The JWT `aal` claim is checked in middleware and API routes to enforce access re
 **Client Admin (Required for Sensitive Operations)**
 - **Requirement**: Must have `aal2` for sensitive operations:
   - Settings changes (`/admin/settings`)
-  - User/member management (`/admin/members`, `/admin/memberships`)
+  - User/member management (`/admin/members`, `/admin/mags`)
   - Archive/reset operations (`/admin/settings/archive`, `/admin/settings/reset`)
   - API key management
 - **Optional**: Basic content editing (posts, galleries, media) may work with `aal1` (configurable)
@@ -1908,7 +2321,7 @@ if (userRole === 'superadmin' && aal !== 'aal2') {
 **Client Admin Sensitive Routes**:
 ```typescript
 // Require aal2 for sensitive operations
-const sensitiveRoutes = ['/admin/settings', '/admin/members', '/admin/memberships'];
+const sensitiveRoutes = ['/admin/settings', '/admin/members', '/admin/mags'];
 if (userRole === 'client_admin' && sensitiveRoutes.includes(pathname) && aal !== 'aal2') {
   return redirect('/admin/mfa/challenge');
 }
@@ -1973,7 +2386,7 @@ if (userRole === 'client_admin' && sensitiveRoutes.includes(pathname) && aal !==
 
 **Status**: Planned for future release (not required for initial implementation)
 
-## Membership System Architecture
+## MAG (Membership Access Groups) System Architecture
 
 ### Dual Authentication System
 
@@ -1983,7 +2396,7 @@ The application supports two distinct user types using Supabase Auth:
    - Two admin classes:
      - **Superadmin**: `user_metadata.type = "superadmin"`, `user_metadata.role = "superadmin"` (cross-tenant)
      - **Client Admin**: `user_metadata.type = "admin"`, `user_metadata.role = "client_admin" | "editor" | "viewer" | ...` (single-tenant)
-   - Client admins require `user_metadata.tenant_id` matching the deployment’s `NEXT_PUBLIC_CLIENT_SCHEMA`
+   - Client admins require `user_metadata.tenant_id` matching the deployment's `NEXT_PUBLIC_CLIENT_SCHEMA`
    - Authenticate at `/admin/login`
    - Manage content and site settings (scope depends on admin role)
 
@@ -1992,37 +2405,40 @@ The application supports two distinct user types using Supabase Auth:
    - Have `user_metadata.tenant_id` (for multi-client isolation)
    - Authenticate at `/login` or `/register`
    - Profile stored in `members` table in client schema
-   - Can belong to multiple membership groups
+   - Can belong to multiple MAGs
 
-### Membership Groups vs Roles
+### MAG vs Roles
 
 **Roles** (Admin Users):
 - Define what CMS features a user can access
 - Set in `user_metadata.role` (superadmin, client_admin, editor, viewer, and more)
 - Examples: "Can this admin user delete posts?", "Can they edit settings?"
 
-**Membership Groups** (Member Users):
+**MAG (Membership Access Groups)** (Member Users):
 - Define what protected content members can access
-- Stored in `membership_groups` table in client schema
-- Members assigned via `user_memberships` junction table
+- Stored in `mags` table in client schema
+- Members assigned via `user_mags` junction table
 - Examples: "Can this member view premium blog posts?", "Can they access VIP gallery?"
 
 ### Database Schema
 
-**Membership Tables** (in each client schema):
+**MAG Tables** (in each client schema):
 ```sql
--- Membership groups (e.g., "Basic", "Premium", "VIP")
-CREATE TABLE membership_groups (
+-- MAG (Membership Access Groups) - e.g., "Basic", "Premium", "VIP"
+CREATE TABLE mags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
+  code TEXT UNIQUE NOT NULL, -- Short code for shortcode references (e.g., "premium", "vip")
+  name TEXT NOT NULL, -- Display name (e.g., "Premium Membership")
   slug TEXT UNIQUE NOT NULL,
   description TEXT,
   tier INTEGER DEFAULT 0, -- For hierarchical access (0=free, 1=basic, 2=premium, etc.)
+  default_message TEXT, -- Site-wide default message for this MAG (can be overridden)
   -- Simple ecommerce integration (tag reference only)
   ecommerce_tag TEXT, -- Simple tag/reference from ecommerce platform (e.g., "premium-membership")
-  auto_assign_on_payment BOOLEAN DEFAULT false, -- Auto-grant membership when webhook matches tag
+  auto_assign_on_payment BOOLEAN DEFAULT false, -- Auto-grant MAG when webhook matches tag
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
+  INDEX idx_code (code), -- For quick shortcode lookups
   INDEX idx_ecommerce_tag (ecommerce_tag) -- For quick webhook lookups
 );
 
@@ -2036,78 +2452,160 @@ CREATE TABLE members (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- User membership assignments (many-to-many)
-CREATE TABLE user_memberships (
+-- User MAG assignments (many-to-many)
+CREATE TABLE user_mags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-  membership_group_id UUID NOT NULL REFERENCES membership_groups(id) ON DELETE CASCADE,
+  mag_id UUID NOT NULL REFERENCES mags(id) ON DELETE CASCADE,
   expires_at TIMESTAMPTZ, -- Optional expiration
   assigned_via TEXT DEFAULT 'manual' CHECK (assigned_via IN ('manual', 'webhook', 'api')), -- Simple tracking of assignment method
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(member_id, membership_group_id)
+  UNIQUE(member_id, mag_id)
 );
 
 -- Note: All payment/transaction details are stored in the ecommerce platform.
--- This system only tracks membership assignments, not payment details.
+-- This system only tracks MAG assignments, not payment details.
 ```
 
 **Content Protection Fields** (added to existing tables):
 ```sql
 -- Add to posts table
 ALTER TABLE posts ADD COLUMN access_level TEXT DEFAULT 'public' 
-  CHECK (access_level IN ('public', 'members', 'group'));
-ALTER TABLE posts ADD COLUMN required_membership_group_id UUID 
-  REFERENCES membership_groups(id) ON DELETE SET NULL;
+  CHECK (access_level IN ('public', 'members', 'mag'));
+ALTER TABLE posts ADD COLUMN required_mag_id UUID 
+  REFERENCES mags(id) ON DELETE SET NULL;
+ALTER TABLE posts ADD COLUMN visibility_mode TEXT DEFAULT 'hidden'
+  CHECK (visibility_mode IN ('hidden', 'message'));
+ALTER TABLE posts ADD COLUMN restricted_message TEXT; -- Optional override message
 
 -- Add to galleries table
 ALTER TABLE galleries ADD COLUMN access_level TEXT DEFAULT 'public'
-  CHECK (access_level IN ('public', 'members', 'group'));
-ALTER TABLE galleries ADD COLUMN required_membership_group_id UUID 
-  REFERENCES membership_groups(id) ON DELETE SET NULL;
+  CHECK (access_level IN ('public', 'members', 'mag'));
+ALTER TABLE galleries ADD COLUMN required_mag_id UUID 
+  REFERENCES mags(id) ON DELETE SET NULL;
+ALTER TABLE galleries ADD COLUMN visibility_mode TEXT DEFAULT 'hidden'
+  CHECK (visibility_mode IN ('hidden', 'message'));
+ALTER TABLE galleries ADD COLUMN restricted_message TEXT; -- Optional override message
 
--- Future: Add to custom pages table when implemented
+-- Pages table already exists (mirrors posts structure)
+-- Add access control to pages table (same as posts)
+ALTER TABLE pages ADD COLUMN access_level TEXT DEFAULT 'public' 
+  CHECK (access_level IN ('public', 'members', 'mag'));
+ALTER TABLE pages ADD COLUMN required_mag_id UUID 
+  REFERENCES mags(id) ON DELETE SET NULL;
+ALTER TABLE pages ADD COLUMN visibility_mode TEXT DEFAULT 'hidden'
+  CHECK (visibility_mode IN ('hidden', 'message'));
+ALTER TABLE pages ADD COLUMN restricted_message TEXT; -- Optional override message
+
+-- Section-level restrictions (JSONB for flexibility)
+ALTER TABLE pages ADD COLUMN section_restrictions JSONB;
+-- Structure: {
+--   "section-id": {
+--     "access_level": "public" | "members" | "mag",
+--     "required_mag_id": "uuid-here",
+--     "visibility_mode": "hidden" | "message",
+--     "restricted_message": "Optional override message"
+--   }
+-- }
+
+-- Menu items table (for navigation restrictions)
+CREATE TABLE menu_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  menu_id UUID NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  url TEXT NOT NULL, -- Can be internal route or external URL
+  position INTEGER DEFAULT 0,
+  -- MAG restriction
+  access_level TEXT DEFAULT 'public' CHECK (access_level IN ('public', 'members', 'mag')),
+  required_mag_id UUID REFERENCES mags(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
+
+**Rich Text Content Storage:**
+- Rich text content (posts, pages) stored as JSONB (Tiptap JSON format)
+- Inline protected text stored as `ProtectedText` nodes in Tiptap JSON structure
+- No migration needed: JSONB already supports structured content
+- Tiptap extension parses shortcodes and converts to structured nodes
 
 ### Access Control Flow
 
 **Content Access Check:**
-1. User requests protected content (post, gallery, page)
+1. User requests protected content (post, gallery, page, section, or inline text)
 2. Check content `access_level`:
-   - `public` → Allow access
-   - `members` → Verify user is authenticated member (any active membership)
-   - `group` → Verify user belongs to `required_membership_group_id`
-3. If access denied → Redirect to `/login` with redirect URL
-4. If member but wrong group → Show upgrade message or teaser content
+   - `public` → Allow access (default behavior)
+   - `members` → Verify user is authenticated member (any active MAG)
+   - `mag` → Verify user belongs to `required_mag_id`
+3. If access denied:
+   - If `visibility_mode = 'hidden'`: Content is completely hidden (no visual indication)
+   - If `visibility_mode = 'message'`: Show restricted message (from hierarchy)
+4. If member but wrong MAG: Show upgrade message or hide content based on visibility mode
 
 **Member Authentication:**
 1. Member registers/logs in at `/login`
 2. Supabase Auth creates user with `user_metadata.type = "member"`
 3. Member profile created in `members` table
-4. Member assigned to default membership group (optional)
+4. Member assigned to default MAG (optional)
 5. Session established for public site access
 
 ### Middleware & Route Protection
 
 **Public Route Protection:**
 - Member routes (`/members/*`) require member authentication
-- Protected content routes check membership before rendering
+- Protected content routes check MAG membership before rendering
 - Redirect unauthenticated users to `/login` with return URL
 
 **Component-Level Gating:**
 - `<ProtectedContent>` wrapper component for gated sections
-- Accepts `requiredMembershipGroup` prop
-- Shows teaser or redirect based on membership status
+- Accepts `requiredMagId` prop
+- Shows/hides content or message based on visibility mode and user's MAG memberships
+- Section restrictions read from `pages.section_restrictions` JSONB
 
-### Ecommerce Integration & Payment-to-Membership Flow
+**Menu Filtering:**
+- Navigation menu items filtered based on user's MAG memberships
+- Menu items with `access_level = 'mag'` hidden if user doesn't have `required_mag_id`
+- Filtering happens server-side for performance
+
+### Tiptap Integration
+
+**Custom ProtectedText Extension:**
+- Tiptap extension detects shortcode syntax: `[[mag-code]]content[[/mag-code]]`
+- Converts shortcodes to `ProtectedText` nodes in JSON structure
+- Visual indicator in editor (highlighted background or border)
+- Toolbar button to insert protected text block
+- Click protected block → Show MAG selector and message override input
+
+**Tiptap Node Structure:**
+```json
+{
+  "type": "protectedText",
+  "attrs": {
+    "magId": "uuid-here",
+    "magCode": "premium",
+    "message": "Optional override message"
+  },
+  "content": [
+    { "type": "text", "text": "Protected content here" }
+  ]
+}
+```
+
+**Rendering:**
+- Tiptap JSON parsed and rendered as React components
+- `<ProtectedText>` component checks user's MAG memberships
+- Shows/hides content or message based on access and visibility mode
+
+### Ecommerce Integration & Payment-to-MAG Flow
 
 **Architecture:**
-The CMS integrates with external ecommerce platforms (Stripe, Shopify, WooCommerce, etc.) through a robust API system that automatically grants membership access upon successful payment.
+The CMS integrates with external ecommerce platforms (Stripe, Shopify, WooCommerce, etc.) through a robust API system that automatically grants MAG access upon successful payment.
 
-**Payment-to-Membership Flow (Simplified):**
+**Payment-to-MAG Flow (Simplified):**
 
 1. **Product Configuration**:
-   - Membership group in CMS is configured with an `ecommerce_tag` (e.g., "premium-membership")
+   - MAG in CMS is configured with an `ecommerce_tag` (e.g., "premium-membership")
    - `auto_assign_on_payment` flag is enabled if automatic assignment is desired
    - Ecommerce platform product is tagged with the same tag value
 
@@ -2120,65 +2618,248 @@ The CMS integrates with external ecommerce platforms (Stripe, Shopify, WooCommer
    - CMS receives webhook at `/api/webhooks/payment/[provider]`
    - Webhook signature is verified for security
    - CMS extracts: customer email and product tag
-   - CMS looks up membership group by matching `ecommerce_tag`
+   - CMS looks up MAG by matching `ecommerce_tag`
    - If `auto_assign_on_payment` is enabled:
      - Member profile is created/updated (if email exists)
-     - Membership is assigned to user via `user_memberships` table
+     - MAG is assigned to user via `user_mags` table
      - `assigned_via` is set to 'webhook'
 
 4. **Member Access Granted**:
    - Member can immediately access protected content
-   - Membership appears in member dashboard
-   - Expiration date set (if configured in membership group)
+   - MAG appears in member dashboard
+   - Expiration date set (if configured in MAG)
 
 **Admin Management** (Primary Method):
-- Client admins log in to `/admin/members`
-- Simple interface to view all members and their memberships
-- One-click assign/remove memberships
+- Client admins log in to `/admin/mags` (MAG management)
+- Simple interface to view all members and their MAG assignments
+- One-click assign/remove MAGs
 - Update member status and expiration dates
+- Configure default messages per MAG
 - All payment details remain in ecommerce platform (no duplication)
 
 **Manual Assignment via API** (for custom integrations):
-- External system calls `POST /api/memberships/[id]/assign` with email
+- External system calls `POST /api/mags/[id]/assign` with email
 - CMS validates API key and processes assignment
 - Simple assignment without payment data duplication
 
 ### Integration Points
 
 1. **Content Editor**: 
-   - Access level dropdown when creating/editing posts/galleries
-   - Membership group selector when `access_level = "group"`
+   - Access level dropdown when creating/editing posts/galleries/pages
+   - MAG selector when `access_level = "mag"`
+   - Visibility mode toggle (hidden/message)
+   - Restricted message input (optional override)
    - Preview option to see member view
+   - Section-level restrictions UI in page editor
 
-2. **Member Dashboard**:
-   - Display current memberships
-   - Show membership expiration dates
+2. **Rich Text Editor (Tiptap)**:
+   - Shortcode button in toolbar
+   - Visual indicators for protected text blocks
+   - MAG selector when inserting protected text
+   - Message override input
+   - Real-time preview of protected content
+
+3. **Menu Editor**:
+   - Access level dropdown per menu item
+   - MAG selector when `access_level = "mag"`
+   - Preview menu for different user roles
+
+4. **Member Dashboard**:
+   - Display current MAGs
+   - Show MAG expiration dates
    - List accessible content categories
    - Account settings
    - View payment history (if applicable)
 
-3. **Admin Dashboard** (CRM Integration):
-   - Membership statistics (total members, by group)
+5. **Admin Dashboard** (CRM Integration):
+   - MAG statistics (total members, by MAG)
    - Recent member registrations
-   - Membership activity overview
+   - MAG activity overview
    - Payment transaction log
    - Failed assignment alerts
 
-4. **API Endpoints**:
+6. **API Endpoints**:
    - Member authentication endpoints
-   - Protected content endpoints with membership validation
+   - Protected content endpoints with MAG validation
    - Member profile endpoints
-   - **Ecommerce Integration API**: Robust API for external ecommerce modules
-     - Payment webhook endpoints for automatic membership assignment
-     - Membership management API (assign, remove, check status)
-     - Transaction logging and verification
-     - Secure API key authentication for external systems
+   - MAG assignment endpoints
+
+## MAG System Use Cases
+
+The MAG (Membership Access Groups) system and component architecture provide a flexible foundation for building various member-focused applications. The following use cases demonstrate how the existing architecture supports complex member experiences without requiring separate modules.
+
+### User Portal / Member Dashboard
+
+**Overview:**
+A fully customizable member portal/dashboard system built entirely using the existing CMS page architecture, component library, and MAG access restrictions. No separate portal module is required.
+
+**Architecture:**
+- Portal pages are standard CMS pages stored in the `pages` table
+- Routes: `/members/dashboard`, `/members/profile`, `/members/account`, etc.
+- Same component library (`src/components/public/`) used for portal and public site
+- Same design system (fonts, colors, themes) applies to portal
+- Same MAG access restrictions at page, section, and component levels
+
+**Implementation:**
+- Portal pages created via CMS admin (same interface as public pages)
+- Access level set to `members` or specific `mag` for portal pages
+- Components access member context (current user's MAGs, profile data) via props
+- Member data comes from `members` and `user_mags` tables
+- Components remain data-driven, just with member context added
+
+**Example Portal Page Structure:**
+```
+/members/dashboard (CMS page)
+├── HeroSection (public - welcome message)
+├── StatsSection (members - shows member stats)
+├── PremiumContentSection (mag:premium - only for premium members)
+└── ActivityFeedSection (members - shows member activity)
+```
+
+**Component Example:**
+```typescript
+// Same component, different data source
+<StatsSection 
+  content={pageData} // From CMS pages table
+  memberContext={currentMember} // From member session
+  mags={userMags} // User's MAG memberships
+/>
+```
+
+**Key Features:**
+- **Fully CMS-Managed**: Admin creates/edits portal pages like any other page
+- **Component Reuse**: Same component library for portal and public site
+- **Design Consistency**: Same design system and themes
+- **Granular Access**: Different sections visible based on user's MAGs
+- **Customizable Per Client**: Each client designs their portal using components
+- **No Separate Module**: Uses existing architecture, no special portal code needed
+
+**Member Context Provider:**
+- React context provides current member data to all components
+- Includes: member profile, MAG memberships, expiration dates, activity data
+- Components can access member context via hook: `useMemberContext()`
+
+**Portal-Specific Components (Optional):**
+- Specialized components for member data (ProfileCard, MembershipList, ActivityFeed)
+- These are still standard components, just designed for member data display
+- Can be added to component library as needed
+
+### Learning Management System (LMS)
+
+**Overview:**
+A learning management system built using the existing CMS architecture, where courses, lessons, and content are managed as CMS pages with MAG-based access control.
+
+**Architecture:**
+- Courses are CMS pages with `access_level = 'mag'` (specific course MAG required)
+- Lessons are CMS pages with parent course relationship
+- Course content (videos, documents, quizzes) stored in media library
+- Progress tracking via custom database tables (course_progress, lesson_completion)
+- Same component library for course pages and public site
+
+**Database Schema (Additional Tables):**
+```sql
+-- Course structure (extends pages table)
+-- Courses use pages table with course_type = 'course'
+-- Lessons use pages table with course_type = 'lesson' and parent_course_id
+
+-- Course progress tracking
+CREATE TABLE course_progress (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  course_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+  progress_percentage INTEGER DEFAULT 0,
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  last_accessed_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(member_id, course_id)
+);
+
+-- Lesson completion tracking
+CREATE TABLE lesson_completion (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  lesson_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+  course_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+  completed_at TIMESTAMPTZ DEFAULT NOW(),
+  time_spent INTEGER, -- in seconds
+  UNIQUE(member_id, lesson_id)
+);
+
+-- Course MAG assignments (which MAGs grant access to which courses)
+CREATE TABLE course_mags (
+  course_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+  mag_id UUID NOT NULL REFERENCES mags(id) ON DELETE CASCADE,
+  PRIMARY KEY (course_id, mag_id)
+);
+```
+
+**Implementation:**
+- Courses created as CMS pages with `course_type = 'course'`
+- Lessons created as CMS pages with `course_type = 'lesson'` and `parent_course_id`
+- Course access controlled via MAG system (course requires specific MAG)
+- Course pages use standard components (HeroSection, ContentSection, etc.)
+- Progress tracking components access `course_progress` and `lesson_completion` tables
+- Video content stored in media library, referenced in lesson content
+
+**Example Course Structure:**
+```
+/courses/intro-to-web-design (CMS page - course)
+├── HeroSection (course overview)
+├── CourseInfoSection (instructor, duration, MAG required)
+├── LessonListSection (list of lessons with completion status)
+└── EnrollmentSection (if not enrolled, show enrollment CTA)
+
+/courses/intro-to-web-design/lesson-1 (CMS page - lesson)
+├── LessonHeaderSection (lesson title, course breadcrumb)
+├── VideoPlayerSection (video from media library)
+├── LessonContentSection (rich text content with inline MAG protection)
+└── LessonNavigationSection (prev/next lesson, back to course)
+```
+
+**Component Examples:**
+```typescript
+// Course page component
+<CoursePage 
+  course={pageData} // From CMS pages table
+  memberContext={currentMember} // From member session
+  progress={courseProgress} // From course_progress table
+/>
+
+// Lesson completion component
+<LessonCompletion 
+  lessonId={lessonId}
+  memberId={memberId}
+  onComplete={() => updateProgress()}
+/>
+```
+
+**Key Features:**
+- **CMS-Managed Content**: Courses and lessons created via CMS admin
+- **MAG-Based Access**: Course access controlled by MAG membership
+- **Progress Tracking**: Custom tables track member progress (not part of core CMS)
+- **Component Reuse**: Same component library for course pages
+- **Media Integration**: Videos and documents from media library
+- **Flexible Structure**: Support for courses, lessons, modules, quizzes
+- **No Separate LMS Module**: Uses existing architecture with custom progress tables
+
+**LMS-Specific Components (Optional):**
+- CourseCard, LessonCard, ProgressBar, VideoPlayer, QuizComponent
+- These are standard components added to component library
+- Designed for course/lesson data but use same architecture
+
+**Advanced Features (Future):**
+- Certificates (generated when course completed)
+- Quizzes and assessments (form components with scoring)
+- Discussion forums (comments system)
+- Instructor dashboards (admin pages for course management)
 
 ## API Endpoints
 
 REST API endpoints (optional, for programmatic content access and automation):
 
 ### Public Content API
+- `GET /api/pages` - List published pages (pagination, search)
+- `GET /api/pages/[id]` - Get single page by ID or slug (includes homepage)
 - `GET /api/posts` - List published posts (pagination, search)
 - `GET /api/posts/[id]` - Get single post by ID or slug
 - `GET /api/galleries` - List all galleries
@@ -2198,25 +2879,25 @@ REST API endpoints (optional, for programmatic content access and automation):
 - `PUT /api/events/[id]` - Update event
 - `DELETE /api/events/[id]` - Delete event
 
-### Membership & Ecommerce Integration API
+### MAG & Ecommerce Integration API
 
-**Membership Management API** (Simple API for external integrations):
-- `GET /api/memberships` - List all membership groups (public or API key auth)
-- `GET /api/memberships/[id]` - Get membership group details (public or API key auth)
-- `POST /api/memberships/[id]/assign` - Assign membership to user (API key required)
+**MAG Management API** (Simple API for external integrations):
+- `GET /api/mags` - List all MAGs (public or API key auth)
+- `GET /api/mags/[id]` - Get MAG details (public or API key auth)
+- `POST /api/mags/[id]/assign` - Assign MAG to user (API key required)
   - Body: `{ "email": "user@example.com" }`
-  - Returns: Membership assignment confirmation
-- `POST /api/memberships/[id]/remove` - Remove membership from user (API key required)
+  - Returns: MAG assignment confirmation
+- `POST /api/mags/[id]/remove` - Remove MAG from user (API key required)
   - Body: `{ "email": "user@example.com" }`
-- `GET /api/members/[email]` - Get member details and memberships (API key required)
-- `POST /api/members/verify` - Verify member has specific membership (API key required)
+- `GET /api/members/[email]` - Get member details and MAG assignments (API key required)
+- `POST /api/members/verify` - Verify member has specific MAG (API key required)
 
 **Payment Webhook API** (Simple tag-based matching):
 - `POST /api/webhooks/payment` - Receive payment notifications from ecommerce platforms
   - Accepts webhook payloads from external systems (Stripe, Shopify, WooCommerce, etc.)
   - Expected payload: `{ "email": "user@example.com", "tag": "premium-membership" }`
   - Validates webhook signature (configurable per provider)
-  - Looks up membership group by matching `ecommerce_tag`
+  - Looks up MAG by matching `ecommerce_tag`
   - Automatically assigns membership if `auto_assign_on_payment` is enabled
   - Returns success/failure status
 - `POST /api/webhooks/payment/[provider]` - Provider-specific webhook endpoints
@@ -2227,25 +2908,27 @@ REST API endpoints (optional, for programmatic content access and automation):
 ### CRM API (Admin & Automation)
 
 **Contact Management API:**
-- `GET /api/crm/contacts` - List contacts (admin, supports filtering by status, DND, consent, company)
-- `GET /api/crm/contacts/[id]` - Get contact details (includes emails, phones, companies, consents, DND history)
-- `POST /api/crm/contacts/[id]/merge` - Merge duplicate contacts (admin)
+- `GET /api/crm/contacts` - List contacts (admin, supports filtering by status, tags, MAGs, DND status)
+- `GET /api/crm/contacts/[id]` - Get contact details (includes tags, MAGs, consents, custom fields)
+- `PUT /api/crm/contacts/[id]` - Update contact (admin: notes, tags, MAGs, status, DND)
+- `POST /api/crm/contacts/[id]/push` - Manually push contact to external CRM (admin)
 - `POST /api/crm/contacts/[id]/unsubscribe` - Unsubscribe endpoint (sets DND, records consent withdrawal)
-- `PUT /api/crm/contacts/[id]` - Update contact (admin)
 - `DELETE /api/crm/contacts/[id]` - Delete contact (admin)
 
-**Company Management API:**
-- `GET /api/crm/companies` - List companies (admin, supports filtering by industry, size, status, tags)
-- `GET /api/crm/companies/[id]` - Get company details (includes all contacts at company)
-- `POST /api/crm/companies` - Create company (admin)
-- `PUT /api/crm/companies/[id]` - Update company (admin)
-- `DELETE /api/crm/companies/[id]` - Delete company (admin)
+**Tags & MAGs API (External Ecommerce Integration):**
+- `POST /api/crm/contacts/[id]/tags` - Add/remove tags (admin or API key auth)
+  - Body: `{ tags: ['tag1', 'tag2'] }` (replaces existing tags)
+  - External ecommerce systems can assign tags via API
+- `POST /api/crm/contacts/[id]/mags` - Assign/remove MAGs (admin or API key auth)
+  - Body: `{ mag_ids: ['uuid1', 'uuid2'] }` (replaces existing MAGs)
+  - External ecommerce systems can assign MAGs via API
+- `POST /api/crm/contacts/[email]/tags` - Add tags by email (API key auth)
+- `POST /api/crm/contacts/[email]/mags` - Assign MAGs by email (API key auth)
 
 **Consent & DND API:**
 - `GET /api/crm/contacts/[id]/consents` - Get consent history for contact
 - `POST /api/crm/contacts/[id]/consents` - Record consent (admin or via form submission)
 - `POST /api/crm/contacts/[id]/consents/withdraw` - Withdraw consent (sets DND automatically)
-- `GET /api/crm/contacts/[id]/dnd-history` - Get DND history for contact
 - `PUT /api/crm/contacts/[id]/dnd-status` - Update DND status (admin)
 
 **API Authentication:**
@@ -2383,7 +3066,7 @@ website-cms/
 │   │   │   ├── media/         # Media library
 │   │   │   ├── forms/         # Form registry (developer helper)
 │   │   │   ├── crm/           # CRM contacts and companies management
-│   │   │   ├── memberships/   # Membership group management
+│   │   │   ├── mags/          # MAG (Membership Access Groups) management
 │   │   │   ├── members/       # Member user management
 │   │   │   ├── settings/      # Settings
 │   │   │   │   ├── archive/   # Archive/restore management
@@ -2507,7 +3190,7 @@ pnpm run build
 12. **Developer-Centric Components**: Reusable component library approach with theme support, not visual page builder
 13. **CI/CD Ready**: Designed for automated deployments and scalable maintenance
 14. **Archive/Restore System**: Built-in project lifecycle management
-15. **Membership Platform**: Built-in protected content system with membership groups
+15. **MAG Platform**: Built-in protected content system with granular access control (page, section, inline text)
 
 ## Future Enhancements
 
@@ -2558,7 +3241,7 @@ A custom AI-powered chatbot that uses the CMS content as a Retrieval-Augmented G
 
 **Indexed Content Types:**
 - **Blog Posts**: Title, content (rich text), excerpt, metadata
-- **Pages**: Title, content, metadata
+- **Pages**: Title, content (rich text), metadata (all static pages including homepage)
 - **Galleries**: Name, description, captions
 - **Events**: Title, description, location, date information
 - **Forms**: Name, description, field labels

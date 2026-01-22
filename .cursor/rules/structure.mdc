@@ -74,6 +74,12 @@ All project documentation lives in the `docs/` folder. The root directory should
 - Date should reflect when the change was completed/deployed
 - Never leave entries without timestamps - all entries must have date and time
 - Multiple entries per day are supported and should include different times
+- **CRITICAL: Always include context for next session**
+  - Add "Context for Next Session" section at the top of each changelog entry
+  - Include current working state, what's ready to test, and where to continue
+  - List key files changed/created for easy reference
+  - Note any important decisions or patterns established
+  - This makes it easy to pick up work in the next session without re-reading everything
 
 **Structure**:
 ```markdown
@@ -173,14 +179,23 @@ All project documentation lives in the `docs/` folder. The root directory should
    - Check off items as work progresses
 
 2. **End of Session** (Single Commit & Push):
-   - **Update all documentation first:**
+   - **Update all documentation first (CRITICAL - do this before git push):**
      - Check off completed items in `planlog.md` (do NOT delete them)
-     - Add summary entries to `changelog.md` for completed work
+     - **Add changelog entry with context for next session:**
+       - Include "Context for Next Session" section at top
+       - List current working state and what's ready to test
+       - Include key files changed/created
+       - Note important decisions or patterns
+       - This prevents needing to re-read everything next session
      - Update `prd.md` if architecture/specs changed
    - **Then commit and push everything together:**
      - Single commit with all changes (code + documentation)
      - Single push to repository
      - Commit message should summarize all work: "Session wrapup: [summary of work]"
+   - **Why update changelog first?**
+     - Prevents double-push (update docs, commit, push once)
+     - Ensures context is captured while fresh in mind
+     - Makes next session pickup seamless
    - **Why single push?**
      - Atomic: All related changes together
      - Clean history: One commit per session

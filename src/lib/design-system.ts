@@ -19,7 +19,7 @@ export function designSystemToCSSVariables(
   vars["--font-primary"] = `"${config.fonts.primary.family}", sans-serif`;
   vars["--font-secondary"] = `"${config.fonts.secondary.family}", sans-serif`;
 
-  // Color variables
+  // Core Color variables (9)
   vars["--color-primary"] = config.colors.primary;
   vars["--color-secondary"] = config.colors.secondary;
   vars["--color-accent"] = config.colors.accent;
@@ -29,11 +29,13 @@ export function designSystemToCSSVariables(
   vars["--color-foreground-muted"] = config.colors.foregroundMuted;
   vars["--color-border"] = config.colors.border;
   vars["--color-link"] = config.colors.link;
-  vars["--color-link-hover"] = config.colors.linkHover;
-  vars["--color-success"] = config.colors.success;
-  vars["--color-warning"] = config.colors.warning;
-  vars["--color-error"] = config.colors.error;
-  vars["--color-info"] = config.colors.info;
+  // Alternate Color variables (6)
+  vars["--color-alternate-1"] = config.colors.alternate1;
+  vars["--color-alternate-2"] = config.colors.alternate2;
+  vars["--color-alternate-3"] = config.colors.alternate3;
+  vars["--color-alternate-4"] = config.colors.alternate4;
+  vars["--color-alternate-5"] = config.colors.alternate5;
+  vars["--color-alternate-6"] = config.colors.alternate6;
 
   return vars;
 }

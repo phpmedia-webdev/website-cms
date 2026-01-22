@@ -267,3 +267,20 @@ Consider creating:
 - Storage buckets are per client
 - Environment variables are per deployment
 - Superadmin users can access multiple schemas via `allowed_schemas` metadata
+
+---
+
+## Adding New Tables After Initial Setup
+
+**IMPORTANT:** When adding new tables after the initial schema setup, PostgREST may not find them even if the schema is exposed. 
+
+**Solution:** Use RPC functions in the `public` schema (same approach as `settings` and `color_palettes`).
+
+**See:** `docs/ADDING_NEW_TABLES.md` for complete guide and checklist.
+
+**Quick Checklist:**
+1. Create table migration with permissions
+2. Enable RLS and create policies
+3. **Create RPC functions in `public` schema** (CRITICAL)
+4. Use RPC functions in TypeScript (`.rpc()` not `.from()`)
+5. Test write operations with `.from()` first, create RPC if needed

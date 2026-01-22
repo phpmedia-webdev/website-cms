@@ -2,9 +2,82 @@
 
 This document tracks planned work, implementation phases, and backlog items for the Website-CMS project. Items are organized by priority and development phase.
 
+---
+
+## 🚀 Session Continuation - Immediate Next Steps
+
+**Last Session Date:** Current session  
+**Status:** Color Palette Library complete, documentation created, ready to continue
+
+### ✅ Completed This Session
+
+1. **Color Palette Library Implementation**
+   - ✅ Created 15-color system (9 core + 6 alternates)
+   - ✅ Created `color_palettes` table with predefined palettes
+   - ✅ Implemented RPC functions to bypass PostgREST schema search issues
+   - ✅ Created `PaletteLibrary` component for browsing/applying palettes
+   - ✅ Integrated palette library into Design System Settings UI
+   - ✅ Fixed palette loading issue (PostgREST couldn't find table in custom schema)
+
+2. **Documentation Created**
+   - ✅ `docs/ADDING_NEW_TABLES.md` - Complete guide for adding new tables
+   - ✅ `docs/ADDING_NEW_TABLES_CHECKLIST.md` - Quick reference checklist
+   - ✅ `docs/SECURITY_RPC_FUNCTIONS.md` - Security analysis of RPC workaround
+   - ✅ Updated `docs/CLIENT_SETUP_CHECKLIST.md` with reference to new table guide
+
+3. **Architecture Decision**
+   - ✅ Decided to **keep multi-schema architecture** (not switching to multi-tenant tables)
+   - ✅ RPC function workaround is secure and manageable (5 min per new table)
+   - ✅ Documentation makes it repeatable and safe
+
+### 🎯 Immediate Next Steps (Continue Here)
+
+**Context:** Color palette system is working. Design System Settings UI is functional. Ready to continue with next priority items.
+
+1. **Test Color Palette Features** (Quick verification)
+   - [ ] Test creating a custom palette (save current palette)
+   - [ ] Test applying predefined palettes
+   - [ ] Verify colors update correctly in UI
+
+2. **Continue Phase 02: Design System Settings UI**
+   - [ ] Admin dark theme implementation (pending)
+   - [ ] CSS variable integration refinements (if needed)
+
+3. **Phase 05: Media Library** (Next major feature)
+   - [ ] Review current media library implementation
+   - [ ] Plan image optimization system
+   - [ ] Plan local copy workflow implementation
+
+### 📝 Important Context for Next Session
+
+**RPC Functions Pattern:**
+- When adding new tables, use RPC functions in `public` schema (see `docs/ADDING_NEW_TABLES_CHECKLIST.md`)
+- Pattern is established and documented
+- Takes ~5 minutes per table once you know the pattern
+
+**Current Working State:**
+- Color palettes are loading and working
+- Design System Settings UI is functional
+- All migrations have been run (012, 013, 014, 015, 018)
+- Server is running and accessible
+
+**Files to Review:**
+- `supabase/migrations/018_create_color_palettes_rpc.sql` - Example RPC function pattern
+- `src/lib/supabase/color-palettes.ts` - Example TypeScript implementation using RPC
+- `docs/ADDING_NEW_TABLES_CHECKLIST.md` - Quick reference for next table
+
+**Git Status:**
+- All changes should be committed before switching devices
+- Documentation files are new and should be included
+- Migration files (016, 017, 018) should be committed
+- Test route removed (debug endpoint no longer needed)
+- Console.log statements cleaned up
+
+---
+
 ## Implementation Phases (Priority Order)
 
-### Phase 0: Supabase Auth Integration
+### Phase 00: Supabase Auth Integration
 
 **Status**: In Progress - Core authentication working, design system foundation complete, setup automation ready for testing
 
@@ -191,7 +264,7 @@ This document tracks planned work, implementation phases, and backlog items for 
       - Remove factor button (with safety checks)
       - Show enrollment dates
       - Prevent removing last factor if role requires 2FA
-    - [ ] Create `src/app/members/account/security/page.tsx` (member security settings - optional 2FA) - Deferred to Phase 5 (Membership Platform)
+    - [ ] Create `src/app/members/account/security/page.tsx` (member security settings - optional 2FA) - Deferred to Phase 09 (Membership Platform)
   - [ ] Update API routes for AAL checks:
     - Update sensitive admin API routes to check `aal` claim
     - Require `aal2` for destructive operations (archive, reset, user management)
@@ -221,9 +294,11 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Note: Per-message costs apply (handled by provider)
   - [ ] Status: Deferred to future release (TOTP is primary method)
 
-### Phase 1: Foundation & Infrastructure Enhancements
+### Phase 01: Foundation & Infrastructure
 
-**Status**: Pending - Required for design system and components
+**Status**: Pending - Tables and schema (make sure updated PRD specs are properly reflected)
+
+**Note**: Only essentials first. We develop/adjust proper schemas per section as we develop.
 
 - [x] Enhance settings table schema
   - [x] Update migration to include design system structure in settings table
@@ -299,9 +374,21 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Document Vercel env var setup for client deployments
     - TODO: Add to deployment documentation
 
-### Phase 2: Design System Admin UI
+- [ ] Create essential database schemas (as needed per phase)
+  - [ ] **Note**: Schemas will be created incrementally as each phase is developed
+  - [ ] Phase 05 will create: `media` table
+  - [ ] Phase 06 will create: `posts`, `pages` tables
+  - [ ] Phase 07 will create: CRM tables (`crm_contacts`, `crm_custom_fields`, `crm_contact_custom_fields`, `crm_contact_mags`, `crm_consents`, `forms`)
+  - [ ] Phase 08 will use: `forms` table (from Phase 07)
+  - [ ] Phase 09 will create: MAG tables (`mags`, `members`, `user_mags`, `menu_items`)
+  - [ ] Phase 03 will create: Client tenant tables (`public.client_tenants`, `public.client_admins`, `public.client_admin_tenants`)
+  - [ ] All schemas will reflect updated PRD specifications
 
-**Status**: Pending - Depends on Phase 1
+### Phase 02: Superadmin UI
+
+**Status**: Pending - Required to begin settings and developing components (crude MVP component library manager)
+
+**Note**: Simple list/text table to reference components as we build. Start by adding component name and description. As components are built in code, keep metadata in sync.
 
 - [ ] Enhance settings page with design system section
   - [ ] Update `src/app/admin/settings/page.tsx` with design system section
@@ -322,329 +409,128 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Create utility functions to apply design system values
   - [ ] Ensure variables are applied to both public and admin (different themes)
 
-### Phase 3: Component Library - Sections
+- [ ] Create crude MVP component library manager (simple list/text table)
+  - [ ] Create database table for component library (simple: name, description, file_path, status)
+  - [ ] Create superadmin UI at `/admin/super/components` (simple list/table view)
+  - [ ] Add component entry form (name, description)
+  - [ ] Update metadata as components are built
+  - [ ] Simple search/filter functionality
 
-**Status**: Pending - Depends on Phase 1 & 2
+### Phase 03: Superadmin Tenant Admin Management
 
-- [ ] Build base section components
-  - [ ] Create `src/components/public/sections/Hero.tsx` (title, subtitle, image, CTA)
-  - [ ] Create `src/components/public/sections/TextBlock.tsx` (rich text, alignment, spacing)
-  - [ ] Create `src/components/public/sections/ImageBlock.tsx` (image with caption, alt text)
-  - [ ] Create `src/components/public/sections/GalleryBlock.tsx` (embedded gallery display)
-  - [ ] Create `src/components/public/sections/FormBlock.tsx` (embedded form with submission handling)
-  - [ ] All components use design system CSS variables
+**Status**: Pending - New feature for managing client tenants and admin users
 
-- [ ] Build layout components
-  - [ ] Create `src/components/public/layout/Header.tsx` (navigation, logo, responsive menu)
-  - [ ] Create `src/components/public/layout/Footer.tsx` (footer content, admin link, copyright)
-  - [ ] Create `src/components/public/layout/Navigation.tsx` (dynamic nav from settings, active states)
+- [ ] Create client/tenant registry database schema
+  - [ ] Create migration `supabase/migrations/006_client_tenants.sql`:
+    - [ ] `public.client_tenants` table (id, client_name, slug, schema_name, status, deployment_url, github_repo, site_mode, site_mode_locked, site_mode_locked_by, site_mode_locked_at, site_mode_locked_reason, created_at, updated_at, notes)
+    - [ ] `public.client_admins` table (id, user_id, email, display_name, status, temporary_password_set, password_set_at, created_at, updated_at, notes)
+    - [ ] `public.client_admin_tenants` junction table (id, admin_id, tenant_id, role, assigned_at, assigned_by)
+    - [ ] Add indexes for performance (slug, schema_name, email lookups)
 
-### Phase 4: Public-Facing Pages
+- [ ] Create client/tenant management utilities
+  - [ ] Create `src/lib/supabase/client-tenants.ts`:
+    - [ ] `getClientTenants()` - List all client tenants (with filtering)
+    - [ ] `getClientTenant()` - Get tenant details by ID
+    - [ ] `createClientTenant()` - Create new client tenant record
+    - [ ] `updateClientTenant()` - Update tenant record
+    - [ ] `getClientAdmins()` - List all client admins (global or filtered by tenant)
+    - [ ] `getClientAdmin()` - Get admin details
+    - [ ] `createClientAdmin()` - Create admin user (Supabase Auth + CRM record)
+    - [ ] `assignAdminToTenant()` - Link admin to tenant(s)
+    - [ ] `removeAdminFromTenant()` - Unlink admin from tenant
+    - [ ] `lockSiteMode()` - Lock site mode (superadmin only)
+    - [ ] `unlockSiteMode()` - Unlock site mode (superadmin only)
+    - [ ] `updateSiteMode()` - Change site mode (with lock check)
 
-**Status**: Pending - Depends on Phase 3
+- [ ] Build superadmin client management UI
+  - [ ] Create `src/app/admin/super/clients/page.tsx` (client list view):
+    - [ ] Table showing: client name, schema, status, deployment URL, site mode, admin count
+    - [ ] Filter by status (active, archived, suspended)
+    - [ ] Filter by site mode (coming_soon, live)
+    - [ ] Search by client name
+    - [ ] Quick actions: View details, Create admin, Archive client
+  - [ ] Create `src/app/admin/super/clients/new/page.tsx` (create new client):
+    - [ ] Client name input
+    - [ ] Auto-generate slug and schema name
+    - [ ] Status selection
+    - [ ] Deployment URL and GitHub repo fields
+    - [ ] Site mode default (coming_soon)
+    - [ ] Notes field
+  - [ ] Create `src/app/admin/super/clients/[id]/page.tsx` (client detail view):
+    - [ ] Client information display
+    - [ ] Deployment tracking (GitHub repo, Vercel URL, domain)
+    - [ ] Site mode control section:
+      - [ ] Current mode display (coming_soon/live)
+      - [ ] Lock status indicator
+      - [ ] Lock reason display (if locked)
+      - [ ] Toggle lock button (superadmin only)
+      - [ ] Change mode button (if not locked)
+    - [ ] Admin list with add/remove buttons
+    - [ ] Notes field
+    - [ ] Quick actions: Create admin, Archive client, View deployment
+  - [ ] Create `src/app/admin/super/clients/[id]/admins/page.tsx` (manage client admins):
+    - [ ] List of all admins assigned to this client
+    - [ ] Add new admin button
+    - [ ] For each admin: email, display name, status, assigned date, actions (Suspend, Remove, View details)
+  - [ ] Create `src/app/admin/super/clients/[id]/admins/new/page.tsx` (create admin for client):
+    - [ ] Email input (required)
+    - [ ] Display name input (optional)
+    - [ ] Assign to tenant(s) multi-select
+    - [ ] Status selection (default: active)
+    - [ ] Notes field
+    - [ ] On submit: Create Supabase Auth user with temporary password, set user metadata, create CRM record, link to tenant(s), send email
+  - [ ] Create `src/app/admin/super/admins/page.tsx` (global admin list):
+    - [ ] View all client admins across all sites
+    - [ ] Filter by tenant
+    - [ ] See which sites each admin manages
+    - [ ] Create new admin (assign to tenant during creation)
+    - [ ] Suspend/activate admins globally
+  - [ ] Create `src/components/superadmin/ClientList.tsx` (table view)
+  - [ ] Create `src/components/superadmin/ClientDetail.tsx` (detail view)
+  - [ ] Create `src/components/superadmin/AdminList.tsx` (admin table view)
+  - [ ] Create `src/components/superadmin/AdminCreationForm.tsx` (admin creation form)
+  - [ ] Create `src/components/superadmin/SiteModeControl.tsx` (site mode toggle with lock display)
 
-- [ ] Build blog pages
-  - [ ] Create `src/app/(public)/blog/page.tsx` (list published posts, pagination, search/filter)
-  - [ ] Create `src/app/(public)/blog/[slug]/page.tsx` (single post, rich content, related posts, SEO)
+- [ ] Implement email notifications for admin creation
+  - [ ] Create email template for new admin welcome
+  - [ ] Include login URL (tenant-specific deployment URL)
+  - [ ] Include temporary password
+  - [ ] Include instructions to set new password on first login
+  - [ ] Include link to password reset if needed
+  - [ ] Send email when admin is created
 
-- [ ] Build gallery pages
-  - [ ] Create `src/app/(public)/gallery/page.tsx` (list all galleries, gallery grid)
-  - [ ] Create `src/app/(public)/gallery/[slug]/page.tsx` (single gallery, image grid, lightbox)
+- [ ] Update site mode control in tenant admin settings
+  - [ ] Update `src/app/admin/settings/page.tsx` to show site mode toggle
+  - [ ] Display lock status if site mode is locked
+  - [ ] Disable toggle if locked (with explanation)
+  - [ ] Show lock reason if locked
+  - [ ] Allow tenant admin to toggle if not locked
 
-- [ ] Build event calendar (public)
-  - [ ] Create `src/app/(public)/events/page.tsx` (day/week/month/agenda views)
-  - [ ] Implement event details modal on click
-  - [ ] Add basic filters (date range navigation; optional "upcoming" quick view)
+- [ ] Create API routes for client/tenant management
+  - [ ] `GET /api/super/clients` - List all clients (superadmin only)
+  - [ ] `GET /api/super/clients/[id]` - Get client details
+  - [ ] `POST /api/super/clients` - Create new client
+  - [ ] `PUT /api/super/clients/[id]` - Update client
+  - [ ] `POST /api/super/clients/[id]/admins` - Create admin for client
+  - [ ] `PUT /api/super/clients/[id]/site-mode` - Change site mode (with lock check)
+  - [ ] `PUT /api/super/clients/[id]/site-mode/lock` - Lock/unlock site mode
 
-- [ ] Enhance homepage
-  - [ ] Update `src/app/(public)/page.tsx` to use component composition
-  - [ ] Create `src/components/site/pages/HomePage.tsx` (page composition using reusable sections, content from database)
+### Phase 04: Tenant Admin UI
 
-- [ ] Enhance public layout
-  - [ ] Update `src/app/(public)/layout.tsx` to use Header and Footer components
-  - [ ] Apply design system variables
-  - [ ] Add SEO metadata handling
+**Status**: Pending - Placeholder links and pages (tabbed interface, clean visual UX mockup)
 
-### Phase 4B: Event Calendar (CMS + API + Subscriptions)
+**Note**: Can be placeholders but the design will help develop the CMS properly. We may use a tabbed interface. A clean visual interface for client is important so lot of time will be spent here on the mock UX. We will wire it all up as following modules are created.
 
-**Status**: Pending - Core feature, pairs with Phase 4 public calendar UI
+- [ ] Create placeholder admin dashboard structure
+  - [ ] Create tabbed interface layout
+  - [ ] Add placeholder navigation items
+  - [ ] Create placeholder pages for: Posts, Pages, Media, Galleries, Forms, CRM, Settings
+  - [ ] Design clean visual UX mockup
+  - [ ] Wire up navigation and routing structure
 
-- [ ] Create events schema
-  - [ ] Add `events` table (title, description, start/end, all-day, location, status/published)
-  - [ ] Add indexes for date range queries
-  - [ ] Add optional fields to support future sync (e.g., `external_source`, `external_id`, `last_synced_at`)
+### Phase 05: CMS - Media Library (Storage, Image Optimization, Local Copy)
 
-- [ ] Build admin UI for events
-  - [ ] Create `src/app/admin/events/page.tsx` (list/search)
-  - [ ] Create `src/app/admin/events/new/page.tsx` (create)
-  - [ ] Create `src/app/admin/events/[id]/page.tsx` (edit)
-  - [ ] Create `src/components/events/EventEditor.tsx` (shared editor form)
-
-- [ ] Add events API endpoints
-  - [ ] Create `src/app/api/events/route.ts` (GET list + POST create)
-  - [ ] Create `src/app/api/events/[id]/route.ts` (GET + PUT + DELETE)
-  - [ ] Support date range filtering for list endpoint
-
-- [ ] Add calendar subscription (ICS)
-  - [ ] Create `GET /api/events/ics` endpoint returning `text/calendar`
-  - [ ] Ensure ICS feed includes correct time zones and all-day handling
-
-- [ ] Sync/import (defer detailed design; keep hooks ready)
-  - [ ] Define a minimal “import format” for API-based event updates
-  - [ ] Plan one-way sync/import from external calendars (e.g., Google/Outlook) as a follow-on task
-
-### Phase 5A: CRM MVP (Minimal CRM for Membership Integration)
-
-**Status**: Pending - Minimal CRM required for Phase 5 membership features
-
-**Purpose**: Provide basic CRM functionality needed for Phase 5 (linking form submissions to members, unified customer view). Full CRM implementation comes in Phase 10B.
-
-**Scope**: Minimal schema and utilities - just enough to store contacts and link them to members.
-
-- [ ] Create minimal CRM schema (MVP)
-  - [ ] Create migration `supabase/migrations/004_crm_mvp.sql`:
-    - [ ] `crm_contacts` table (minimal: id, email, firstname, lastname, fullname, source, form_id, created_at, updated_at)
-    - [ ] `forms` table (minimal: id, name, slug, settings JSONB) - form registry for tracking form submissions
-    - [ ] Add indexes for email lookups (for member linking)
-    - [ ] Note: Full CRM schema (companies, emails, phones, consents, DND) comes in Phase 10B
-
-- [ ] Create minimal CRM utilities (MVP)
-  - [ ] Create `src/lib/supabase/crm-mvp.ts`:
-    - [ ] `createContact()` - Create contact from form submission (minimal fields)
-    - [ ] `getContactByEmail()` - Get contact by email (for member linking)
-    - [ ] `linkContactToMember()` - Link contact to member profile (by email match)
-    - [ ] `getMemberContacts()` - Get all contacts linked to member (by email)
-    - [ ] `getFormSubmissions()` - Get form submissions for contact (basic)
-
-- [ ] Update form submission API (MVP)
-  - [ ] Update `POST /api/forms/[formId]/submit` to create minimal contact record
-    - [ ] Extract email, name fields from form data
-    - [ ] Create contact in `crm_contacts` table
-    - [ ] Link to form via `form_id`
-    - [ ] Store source as 'contact_form'
-    - [ ] Note: Full duplicate detection, consent management, DND comes in Phase 10B
-
-- [ ] Create minimal member-CRM linking
-  - [ ] Create utility `src/lib/memberships/member-crm-link.ts`:
-    - [ ] `linkMemberToContacts()` - Link member to existing contacts (by email match)
-    - [ ] `getMemberActivity()` - Get form submissions linked to member
-  - [ ] Update member detail page to show linked contacts (basic view)
-    - [ ] Show form submissions linked by email
-    - [ ] Basic activity timeline
-
-**Note**: This MVP provides just enough CRM to support Phase 5's "link form submissions to members" feature. Full CRM (companies, relational emails/phones, consent management, DND, duplicate detection) will be implemented in Phase 10B.
-
-### Phase 5: Membership Platform
-
-**Status**: Pending - Core feature for protected content, depends on Phase 0, 4, and 5A (CRM MVP)
-
-- [ ] Create membership database schema (simplified)
-  - [ ] Create migration `supabase/migrations/002_membership_schema.sql`:
-    - `membership_groups` table (name, slug, description, tier, ecommerce_tag, auto_assign_on_payment)
-    - `members` table (references auth.users, email, display_name, status)
-    - `user_memberships` junction table (member_id, membership_group_id, expires_at, assigned_via)
-    - Note: No payment transaction tracking - all payment details stay in ecommerce platform
-  - [ ] Add `access_level` and `required_membership_group_id` columns to `posts` table
-  - [ ] Add `access_level` and `required_membership_group_id` columns to `galleries` table
-  - [ ] Add indexes for performance (ecommerce_tag for webhook lookups, member_id)
-
-- [ ] Build membership utilities
-  - [ ] Create `src/lib/supabase/memberships.ts`:
-    - `getMembershipGroups()` - List all membership groups
-    - `getMemberMemberships()` - Get member's active memberships
-    - `checkContentAccess()` - Verify member has access to content
-    - `assignMembership()` - Assign member to group
-    - `removeMembership()` - Remove member from group
-  - [ ] Create `src/lib/auth/member-auth.ts`:
-    - `getMemberUser()` - Get authenticated member with profile
-    - `validateMemberAccess()` - Verify member authentication
-    - `hasMembership()` - Check if member has specific membership
-
-- [ ] Member authentication flow
-  - [ ] Create `src/app/(public)/login/page.tsx` (member login/registration)
-  - [ ] Create `src/app/(public)/register/page.tsx` (or combine with login)
-  - [ ] Create API route `src/app/api/auth/member/login/route.ts` (Supabase Auth for members)
-  - [ ] Create API route `src/app/api/auth/member/register/route.ts` (member registration with user_metadata.type = "member")
-  - [ ] Update middleware to handle member authentication (separate from admin)
-
-- [ ] Member routes and pages
-  - [ ] Create `src/app/(public)/members/page.tsx` (member dashboard - protected)
-  - [ ] Create `src/app/(public)/members/profile/page.tsx` (member profile page)
-  - [ ] Create `src/app/(public)/members/account/page.tsx` (account settings)
-  - [ ] Create `src/components/memberships/MemberDashboard.tsx`
-  - [ ] Create `src/components/memberships/MemberProfile.tsx`
-
-- [ ] Content protection implementation
-  - [ ] Update `src/app/(public)/blog/[slug]/page.tsx` to check access_level
-  - [ ] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level
-  - [ ] Create `src/components/public/ProtectedContent.tsx` wrapper component
-  - [ ] Create middleware/utility for checking content access before rendering
-  - [ ] Implement redirect to `/login` for unauthenticated access attempts
-  - [ ] Add teaser/preview content for non-members
-
-- [ ] Admin UI for membership management (Easy CRM interface)
-  - [ ] Create `src/app/admin/memberships/page.tsx` (list all membership groups)
-  - [ ] Create `src/app/admin/memberships/new/page.tsx` (create new group)
-  - [ ] Create `src/app/admin/memberships/[id]/page.tsx` (edit group)
-  - [ ] Create `src/components/memberships/MembershipGroupEditor.tsx`:
-    - Simple ecommerce tag field (text input for tag reference)
-    - Auto-assign toggle checkbox
-    - Clear instructions for setting up ecommerce integration
-  - [ ] Create `src/app/admin/members/page.tsx` (CRM view - easy membership management):
-    - List all members with their current memberships
-    - Simple assign/remove buttons for each membership group
-    - Member status management (active, inactive, suspended)
-    - Set expiration dates
-    - Bulk operations (assign multiple members to group)
-    - Search and filter functionality
-  - [ ] Create `src/app/admin/members/[id]/page.tsx` (member detail page):
-    - View member profile and all memberships
-    - One-click assign/remove memberships
-    - Update member status
-    - Set expiration dates per membership
-    - View member activity (form submissions linked by email) - **Requires Phase 5A (CRM MVP)**
-  - [ ] Create `src/components/memberships/MemberManagement.tsx` (easy-to-use interface)
-  - [ ] Create `src/components/memberships/MemberList.tsx` (table view with actions)
-  - [ ] Create `src/components/memberships/MembershipAssignment.tsx` (simple assign/remove component)
-  - [ ] Create `src/app/admin/api-keys/page.tsx` (API key management for webhook endpoints)
-  - [ ] Create `src/components/api/ApiKeyManager.tsx` (simple API key generation/management)
-
-- [ ] Content editor integration
-  - [ ] Update `src/components/posts/PostEditor.tsx`:
-    - Add access level dropdown (public, members, group)
-    - Add membership group selector (when access_level = "group")
-  - [ ] Update `src/components/galleries/GalleryEditor.tsx`:
-    - Add access level dropdown
-    - Add membership group selector
-  - [ ] Add preview mode to see member view
-
-- [ ] API routes for memberships
-  - [ ] Create `src/app/api/memberships/route.ts` (GET list, POST create - admin only)
-  - [ ] Create `src/app/api/memberships/[id]/route.ts` (GET, PUT, DELETE - admin only)
-  - [ ] Create `src/app/api/memberships/[id]/assign/route.ts` (POST - API key auth for ecommerce)
-  - [ ] Create `src/app/api/memberships/[id]/remove/route.ts` (POST - API key auth)
-  - [ ] Create `src/app/api/members/route.ts` (GET list - admin only)
-  - [ ] Create `src/app/api/members/[id]/route.ts` (GET details - admin only)
-  - [ ] Create `src/app/api/members/[id]/memberships/route.ts` (POST assign, DELETE remove - admin only)
-  - [ ] Create `src/app/api/members/[email]/route.ts` (GET member by email - API key auth)
-  - [ ] Create `src/app/api/members/verify/route.ts` (POST verify membership - API key auth)
-  - [ ] Create `src/app/api/member/profile/route.ts` (GET current member profile)
-  - [ ] Update existing content API routes to respect access_level:
-    - Update `src/app/api/posts/[id]/route.ts` to check membership
-    - Update `src/app/api/galleries/[id]/route.ts` to check membership
-
-- [ ] Ecommerce Integration API (simple tag-based system)
-  - [ ] Create API key management system:
-    - Create `api_keys` table (key_hash, name, rate_limit, created_at, expires_at)
-    - Create `src/lib/api/api-keys.ts` utilities (validate, rate limiting)
-    - Create API key generation endpoint (admin only): `POST /api/admin/api-keys`
-  - [ ] Create payment webhook endpoints (simple tag matching):
-    - Create `src/app/api/webhooks/payment/route.ts` (generic webhook handler)
-    - Create `src/app/api/webhooks/payment/stripe/route.ts` (Stripe-specific handler)
-    - Create `src/app/api/webhooks/payment/shopify/route.ts` (Shopify-specific handler)
-    - Create `src/app/api/webhooks/payment/woocommerce/route.ts` (WooCommerce-specific handler)
-    - Implement webhook signature verification per provider
-    - Create `src/lib/webhooks/payment-processor.ts`:
-      - `extractTagAndEmail()` - Extract tag and email from webhook payload (provider-specific)
-      - `findMembershipByTag()` - Lookup membership group by `ecommerce_tag`
-      - `assignMembershipOnPayment()` - Auto-assign membership if enabled
-      - `handleWebhookError()` - Error handling and logging
-  - [ ] Implement simple payment-to-membership flow:
-    - Create `src/lib/memberships/payment-integration.ts`:
-      - `findMembershipByTag()` - Lookup membership group by ecommerce_tag
-      - `assignMembership()` - Simple assignment (no payment data)
-      - `createOrUpdateMember()` - Create member profile if doesn't exist
-      - `preventDuplicateAssignment()` - Idempotency check (email + tag combination)
-    - Handle duplicate webhook prevention (idempotency based on email+tag)
-    - Simple error handling and logging
-
-- [ ] Member authentication middleware
-  - [ ] Update `src/middleware.ts` to handle member routes (`/members/*`)
-  - [ ] Add member session validation (separate from admin)
-  - [ ] Implement protected content route checks
-
-- [ ] Dashboard integration (CRM view)
-  - [ ] Add membership statistics to admin dashboard
-  - [ ] Show recent member registrations
-  - [ ] Display membership group counts
-  - [ ] Quick access to member management (`/admin/members`)
-  - [ ] Link form submissions to member profiles (when email matches) - **Requires Phase 5A (CRM MVP)**
-  - [ ] Unified customer view (form submissions + memberships) - **Requires Phase 5A (CRM MVP)**
-  - [ ] Simple interface for client admins to manage memberships easily
-  - [ ] **Note**: Full CRM features (companies, consents, DND, duplicate detection) come in Phase 10B
-
-### Phase 6: Archive & Restore System
-
-**Status**: Pending - Can run parallel with other phases
-
-- [ ] Create archive registry table
-  - [ ] Create migration `supabase/migrations/002_archive_registry.sql`
-  - [ ] Create `public.archived_projects` table in public schema
-  - [ ] Add indexes and constraints
-
-- [ ] Build archive utilities
-  - [ ] Create `src/lib/supabase/archive.ts`:
-    - `archiveProject()` - Rename schema and bucket, create registry entry
-    - `restoreProject()` - Restore schema and bucket, update registry
-    - `listArchivedProjects()` - Query archived projects
-  - [ ] Use Supabase service role for schema operations
-
-- [ ] Build archive admin UI
-  - [ ] Create `src/app/admin/settings/archive/page.tsx`:
-    - List archived projects
-    - Archive current project form
-    - Restore project interface
-    - Archive metadata display
-
-- [ ] Create archive API routes
-  - [ ] Create `src/app/api/admin/archive/route.ts` (POST to archive, GET to list)
-  - [ ] Create `src/app/api/admin/archive/[id]/restore/route.ts` (POST to restore)
-
-### Phase 7: Reset to Template System
-
-**Status**: Pending - Can run parallel with other phases
-
-- [ ] Build reset utilities
-  - [ ] Create `src/lib/supabase/reset.ts`:
-    - `resetContent()` - Clear posts, galleries, forms, submissions
-    - `resetDesignSystem()` - Restore default design system values
-    - `resetMedia()` - Optionally clear media library
-    - `fullReset()` - Complete factory reset
-
-- [ ] Build reset admin UI
-  - [ ] Create `src/app/admin/settings/reset/page.tsx`:
-    - Reset options selection
-    - Confirmation dialogs (multiple confirmations)
-    - Progress indication
-    - Safety warnings
-
-- [ ] Create reset API route
-  - [ ] Create `src/app/api/admin/reset/route.ts` (POST with validation and confirmation)
-
-### Phase 8: CLI Tools
-
-**Status**: Pending - Useful for deployment/setup
-
-- [ ] Create setup script
-  - [ ] Create `scripts/setup-new-client.ts`:
-    - Interactive CLI for new client setup
-    - Schema creation
-    - Migration execution
-    - Storage bucket creation
-    - Environment variable validation
-  - [ ] Add `pnpm run setup` script to `package.json`
-
-- [ ] Create reset script
-  - [ ] Create `scripts/reset-content.ts` (CLI for resetting content, partial/full options)
-  - [ ] Add `pnpm run reset` script to `package.json`
-
-- [ ] Create archive script
-  - [ ] Create `scripts/archive-project.ts` (CLI for archiving project, backup options)
-  - [ ] Add `pnpm run archive` script to `package.json`
-
-### Phase 9: Storage Bucket Management & Image Optimization
-
-**Status**: Pending - Part of infrastructure
+**Status**: Pending - Media first, then content. As we develop content we will reference media files so they need to exist.
 
 - [ ] Build storage utilities
   - [ ] Create `src/lib/supabase/storage.ts`:
@@ -692,7 +578,412 @@ This document tracks planned work, implementation phases, and backlog items for 
     - Update `GalleryEditor` to use optimized gallery images
     - Update public-facing components to use appropriate sizes
 
-### Phase 10: API Enhancements
+- [ ] Image Storage Strategy (CMS-First with Local Copy Workflow)
+  - [ ] Update media database schema for local copy tracking
+    - [ ] Add columns to `media` table:
+      - [ ] `copy_to_local BOOLEAN DEFAULT false`
+      - [ ] `local_path TEXT` (e.g., "/images/heroes/hero-image.jpg")
+      - [ ] `copied_at TIMESTAMPTZ`
+    - [ ] Migration: `supabase/migrations/007_image_local_copy.sql`
+  - [ ] Create local copy workflow utilities
+    - [ ] Create `src/lib/media/local-copy.ts`:
+      - [ ] `copyImageToLocal()` - Copy image variant to local `public/` folder
+      - [ ] `removeLocalCopy()` - Remove local copy (delete file, update database)
+      - [ ] `getLocalImagePath()` - Get local path for image
+      - [ ] `checkLocalCopyExists()` - Check if local copy exists
+      - [ ] `promptForLocalFolder()` - Prompt developer for folder path
+      - [ ] `validateLocalPath()` - Validate local path format
+      - [ ] `handleOverwrite()` - Handle file overwrite with confirmation
+  - [ ] Update media library UI for local copy workflow
+    - [ ] Update `src/components/media/MediaLibrary.tsx`:
+      - [ ] Display "Copy to Local" button for each image variant
+      - [ ] Show local copy status (if copied, show local path)
+      - [ ] Display "Remove Local Copy" button for copied images
+      - [ ] Show variant list with individual copy buttons
+    - [ ] Create `src/components/media/LocalCopyDialog.tsx`:
+      - [ ] Folder selection UI (base path: `public/images/` with subfolder input)
+      - [ ] File naming display (original filename preserved)
+      - [ ] Overwrite confirmation if file exists
+      - [ ] Copy action with progress indicator
+    - [ ] Create notification system:
+      - [ ] Toast notification on copy success
+      - [ ] Console log with code snippet for updating image reference
+      - [ ] Toast notification on remove success
+      - [ ] Console log with code snippet for reverting to CDN URL
+  - [ ] Create local copy API routes
+    - [ ] `POST /api/media/[id]/copy-to-local` - Copy image variant to local (admin only)
+    - [ ] `POST /api/media/[id]/remove-local-copy` - Remove local copy (admin only)
+    - [ ] Handle file operations (copy, delete)
+    - [ ] Update database records
+    - [ ] Return success with local path
+  - [ ] Update image helper utilities
+    - [ ] Update `src/lib/images/getImageUrl.ts`:
+      - [ ] Check `copy_to_local` flag
+      - [ ] Return local path if copied, CDN URL if not
+      - [ ] Support size parameter for variants
+      - [ ] Handle both CDN and local images seamlessly
+
+- [ ] Video URL management
+  - [ ] Add video URL field to media table
+  - [ ] Support for YouTube, Vimeo, and direct video URLs
+  - [ ] Video embed component for public pages
+
+**Note**: Event Calendar feature has been removed from the priority list. Can be added back as a future enhancement if needed.
+
+### Phase 06: CMS - Content Management (Blogs, Pages, Text Editor)
+
+**Status**: Pending - Depends on Phase 01, 02, and 05 (Media Library)
+
+- [ ] Build blog admin UI
+  - [ ] Create `src/app/admin/posts/page.tsx` (list posts, pagination, search/filter)
+  - [ ] Create `src/app/admin/posts/new/page.tsx` (create new post)
+  - [ ] Create `src/app/admin/posts/[id]/page.tsx` (edit post)
+  - [ ] Create `src/components/posts/PostEditor.tsx` (rich text editor integration)
+
+- [ ] Build pages admin UI
+  - [ ] Create `src/app/admin/pages/page.tsx` (list pages)
+  - [ ] Create `src/app/admin/pages/new/page.tsx` (create new page)
+  - [ ] Create `src/app/admin/pages/[id]/page.tsx` (edit page)
+  - [ ] Create `src/components/pages/PageEditor.tsx` (rich text editor integration)
+
+- [ ] Integrate rich text editor (Tiptap)
+  - [ ] Create `src/components/editor/RichTextEditor.tsx` (Tiptap integration)
+  - [ ] Add basic formatting toolbar
+  - [ ] Support for saving/loading content
+  - [ ] Prepare for MAG protection integration (Phase 09)
+
+- [ ] Build public-facing blog pages
+  - [ ] Create `src/app/(public)/blog/page.tsx` (list published posts, pagination, search/filter)
+  - [ ] Create `src/app/(public)/blog/[slug]/page.tsx` (single post, rich content, related posts, SEO)
+
+- [ ] Build public-facing pages
+  - [ ] Create dynamic page routing
+  - [ ] Create `src/app/(public)/[slug]/page.tsx` (dynamic page renderer)
+  - [ ] Support for page composition using reusable sections
+
+### Phase 07: CRM-First Lightweight CRM
+
+**Status**: Pending - Primary purpose: Accept form submissions and store for review. Admin can update notes, assign tags, manage MAGs, and manually push to external CRM.
+
+**Workflow**: Form submitted (common + custom fields) → pushed to CRM and marked as new for review → some tags and MAGs created automatically → admin reviews, makes notes, adjusts tags/MAGs, and manually pushes to external CRM or email marketing system.
+
+- [ ] Create simplified CRM schema
+  - [ ] Create migration `supabase/migrations/004_crm_schema.sql`:
+    - [ ] `crm_contacts` table:
+      - [ ] Standard fields: id, email, phone, firstname, lastname, fullname, company (text field), address, city, state, postal_code, country
+      - [ ] `tags TEXT[]` array (for sorting, filtering, marketing segments)
+      - [ ] `status TEXT` (new, contacted, archived)
+      - [ ] `dnd_status TEXT` (none, email, phone, all)
+      - [ ] `external_crm_id TEXT` (ID in external CRM if synced)
+      - [ ] `external_crm_synced_at TIMESTAMPTZ` (when last synced)
+      - [ ] `notes TEXT` (admin notes)
+      - [ ] `source TEXT`, `form_id UUID`, timestamps
+    - [ ] `crm_custom_fields` table (tenant-specific field definitions):
+      - [ ] `id`, `name`, `label`, `type`, `validation_rules JSONB`, timestamps
+    - [ ] `crm_contact_custom_fields` table (relational for tenant-specific field values):
+      - [ ] `id`, `contact_id`, `custom_field_id`, `value TEXT`, timestamps
+    - [ ] `crm_contact_mags` junction table (link contacts to MAGs):
+      - [ ] `id`, `contact_id`, `mag_id`, `assigned_via`, `assigned_at`
+    - [ ] `crm_consents` table (simplified: contact_id, consent_type, consented, ip_address, consented_at, withdrawn_at)
+    - [ ] `forms` table (id, name, slug, auto_assign_tags TEXT[], auto_assign_mag_ids UUID[], settings JSONB) - form registry
+    - [ ] Add indexes for email lookups, tags, MAGs
+
+- [ ] Create CRM utilities
+  - [ ] Create `src/lib/supabase/crm.ts`:
+    - [ ] `getContacts()` - Filter by tags, MAGs, status, DND
+    - [ ] `getContact()` - Include tags, MAGs, custom fields
+    - [ ] `createContact()` - Store standard fields + custom fields in relational table
+    - [ ] `updateContact()` - Update notes, tags, MAGs, status, DND
+    - [ ] `addTagsToContact()` - Add/remove tags (for sorting, filtering, segments)
+    - [ ] `assignMAGsToContact()` - Assign/remove MAGs
+    - [ ] `pushContactToExternalCRM()` - Manual push to external CRM
+    - [ ] `getCustomFields()` - Get tenant-specific custom fields
+    - [ ] `createCustomField()` - Create custom field definition
+
+- [ ] Update form submission workflow
+  - [ ] Update `POST /api/forms/[formId]/submit`:
+    - [ ] Store standard fields in `crm_contacts` table
+    - [ ] Store custom field values in `crm_contact_custom_fields` relational table
+    - [ ] Auto-assign tags (if configured in form settings)
+    - [ ] Auto-assign MAGs (if configured in form settings)
+    - [ ] Create contact with `status = 'new'` (marked for review)
+    - [ ] Process consents (simplified, IP address and timestamp)
+    - [ ] Set DND status based on consent
+
+- [ ] Create CRM admin UI
+  - [ ] Create `src/app/admin/crm/page.tsx` (CRM dashboard)
+  - [ ] Create `src/app/admin/crm/contacts/page.tsx`:
+    - [ ] Filter by tags (for marketing segments)
+    - [ ] Filter by MAGs
+    - [ ] Filter by status (new, contacted, archived)
+    - [ ] Filter by DND status
+  - [ ] Create `src/app/admin/crm/contacts/[id]/page.tsx`:
+    - [ ] Display tags (with add/remove functionality)
+    - [ ] Display MAG assignments (with assign/remove functionality)
+    - [ ] Display custom field values (from relational table)
+    - [ ] Display notes (admin notes and follow-up tracking)
+    - [ ] Display status (new, contacted, archived)
+    - [ ] Display external CRM sync status
+    - [ ] "Manual push to external CRM" button/action
+  - [ ] Create `src/components/crm/TagManager.tsx` (tag assignment UI)
+  - [ ] Create `src/components/crm/MAGAssignment.tsx` (MAG assignment UI)
+  - [ ] Create `src/components/crm/ExternalCRMPush.tsx` (manual push UI)
+
+- [ ] Create CRM API endpoints
+  - [ ] `GET /api/crm/contacts` - List contacts (admin, with filtering)
+  - [ ] `GET /api/crm/contacts/[id]` - Get contact details
+  - [ ] `POST /api/crm/contacts/[id]/tags` - Add/remove tags (admin or API key auth)
+  - [ ] `POST /api/crm/contacts/[id]/mags` - Assign/remove MAGs (admin or API key auth)
+  - [ ] `POST /api/crm/contacts/[id]/push` - Manually push contact to external CRM (admin)
+  - [ ] `POST /api/crm/contacts/[email]/tags` - Add tags by email (API key auth)
+  - [ ] `POST /api/crm/contacts/[email]/mags` - Assign MAGs by email (API key auth)
+
+### Phase 08: Forms Management
+
+**Status**: Pending - Virtual component to organize form structure and CRM field mapping
+
+**Note**: Forms are developer-authored components that map to CRM fields. Form registry is a virtual component to organize form structure and CRM field mapping and outline the intended workflow to update tags/mags.
+
+- [ ] Create form registry UI (developer helper)
+  - [ ] Create `src/app/admin/forms/page.tsx` (form registry list)
+  - [ ] Create `src/app/admin/forms/new/page.tsx` (create form registry entry)
+  - [ ] Create `src/app/admin/forms/[id]/page.tsx` (edit form registry entry)
+  - [ ] Create `src/components/forms/FormRegistryEditor.tsx`:
+    - [ ] Display available CRM fields (standard + custom) with copy/paste field references
+    - [ ] Field mappings JSONB editor (for developer reference)
+    - [ ] Form settings (success_message, redirect_url, notifications)
+    - [ ] Auto-assign tags configuration
+    - [ ] Auto-assign MAGs configuration
+    - [ ] Suggested field combinations for common form types
+    - [ ] Field validation rules display
+
+- [ ] Create form submission API
+  - [ ] Create `POST /api/forms/[formId]/submit` route:
+    - [ ] Validate form data against CRM field validation rules
+    - [ ] Create/update CRM contact record
+    - [ ] Store custom field values in relational table
+    - [ ] Auto-assign tags (if configured)
+    - [ ] Auto-assign MAGs (if configured)
+    - [ ] Process consents
+    - [ ] Set DND status based on consent
+    - [ ] Return success/error response
+
+- [ ] Create form submissions view
+  - [ ] Create `src/app/admin/forms/[id]/submissions/page.tsx` (view form submissions)
+  - [ ] Link submissions to CRM contacts
+  - [ ] Filter and search submissions
+
+### Phase 09: Membership System / MAG Manager (Tied to CRM)
+
+**Status**: Pending - Core feature for protected content, depends on Phase 00, 06, and 07 (CRM)
+
+- [ ] Create MAG (Membership Access Groups) database schema
+  - [ ] Create migration `supabase/migrations/005_mag_schema.sql`:
+    - [ ] `mags` table (id, code TEXT UNIQUE, name, slug, description, tier, default_message, ecommerce_tag, auto_assign_on_payment, created_at, updated_at)
+    - [ ] `members` table (id UUID REFERENCES auth.users, email, display_name, status, created_at, updated_at)
+    - [ ] `user_mags` junction table (id, member_id, mag_id, expires_at, assigned_via, created_at, updated_at)
+    - [ ] Note: No payment transaction tracking - all payment details stay in ecommerce platform
+  - [ ] Add content protection columns to `posts` table:
+    - [ ] `access_level TEXT` (public, members, mag)
+    - [ ] `required_mag_id UUID` REFERENCES mags(id)
+    - [ ] `visibility_mode TEXT` (hidden, message)
+    - [ ] `restricted_message TEXT` (optional override)
+  - [ ] Add content protection columns to `galleries` table (same as posts)
+  - [ ] Add content protection columns to `pages` table:
+    - [ ] Same as posts, plus `section_restrictions JSONB` for section-level protection
+  - [ ] Add `menu_items` table with `access_level` and `required_mag_id` columns
+  - [ ] Add indexes for performance (code for shortcode lookups, ecommerce_tag for webhook lookups, member_id)
+
+- [ ] Build MAG utilities
+  - [ ] Create `src/lib/supabase/mags.ts`:
+    - `getMAGs()` - List all MAGs
+    - `getMemberMAGs()` - Get member's active MAGs
+    - `checkContentAccess()` - Verify member has access to content
+    - `assignMAG()` - Assign member to MAG
+    - `removeMAG()` - Remove member from MAG
+    - `hasMAGAccess()` - Check if user has specific MAG
+    - `hasAnyMembership()` - Check if user has any active membership
+  - [ ] Create `src/lib/mags/content-protection.ts`:
+    - `checkPageAccess()` - Check page-level access
+    - `checkSectionAccess()` - Check section-level access
+    - `checkInlineTextAccess()` - Check inline text access
+    - `getRestrictedMessage()` - Get message with hierarchy (inline > section > MAG > system)
+  - [ ] Create `src/lib/mags/section-protection.ts`:
+    - `getSectionRestrictions()` - Get restrictions for page sections
+    - `checkSectionAccess()` - Verify user has access to section
+    - `getSectionMessage()` - Get restricted message for section (with hierarchy)
+  - [ ] Create `src/lib/mags/shortcode-parser.ts`:
+    - Parse shortcode syntax: `[[mag-code]]`, `[[mag-uuid]]`, `[[:]]` (any membership)
+    - Extract message override from shortcode attributes
+  - [ ] Create `src/lib/mags/menu-filter.ts`:
+    - `filterMenuItems()` - Filter menu items based on user access
+  - [ ] Create `src/lib/auth/member-auth.ts`:
+    - `getMemberUser()` - Get authenticated member with profile
+    - `validateMemberAccess()` - Verify member authentication
+    - `hasMAG()` - Check if member has specific MAG
+
+- [ ] Member authentication flow
+  - [ ] Create `src/app/(public)/login/page.tsx` (member login/registration)
+  - [ ] Create `src/app/(public)/register/page.tsx` (or combine with login)
+  - [ ] Create API route `src/app/api/auth/member/login/route.ts` (Supabase Auth for members)
+  - [ ] Create API route `src/app/api/auth/member/register/route.ts` (member registration with user_metadata.type = "member")
+  - [ ] Update middleware to handle member authentication (separate from admin)
+
+- [ ] Member routes and pages
+  - [ ] Create `src/app/(public)/members/page.tsx` (member dashboard - protected)
+  - [ ] Create `src/app/(public)/members/profile/page.tsx` (member profile page)
+  - [ ] Create `src/app/(public)/members/account/page.tsx` (account settings)
+  - [ ] Create `src/components/memberships/MemberDashboard.tsx`
+  - [ ] Create `src/components/memberships/MemberProfile.tsx`
+
+- [ ] Content protection implementation
+  - [ ] Update `src/app/(public)/blog/[slug]/page.tsx` to check access_level
+  - [ ] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level
+  - [ ] Create `src/components/public/ProtectedContent.tsx` wrapper component
+  - [ ] Create middleware/utility for checking content access before rendering
+  - [ ] Implement redirect to `/login` for unauthenticated access attempts
+  - [ ] Add teaser/preview content for non-members
+
+- [ ] Admin UI for MAG management (Easy CRM interface)
+  - [ ] Create `src/app/admin/mags/page.tsx` (list all MAGs)
+  - [ ] Create `src/app/admin/mags/new/page.tsx` (create new MAG)
+  - [ ] Create `src/app/admin/mags/[id]/page.tsx` (edit MAG):
+    - [ ] Code field (unique, for shortcode references)
+    - [ ] Name, slug, description
+    - [ ] Default message field (site-wide default message)
+    - [ ] Simple ecommerce tag field (text input for tag reference)
+    - [ ] Auto-assign toggle checkbox
+    - [ ] Clear instructions for setting up ecommerce integration
+  - [ ] Create `src/components/mags/MAGEditor.tsx`:
+    - [ ] All MAG fields with validation
+    - [ ] Code uniqueness check
+  - [ ] Create `src/app/admin/members/page.tsx` (CRM view - easy MAG management):
+    - [ ] List all members with their current MAGs
+    - [ ] Simple assign/remove buttons for each MAG
+    - [ ] Member status management (active, inactive, suspended)
+    - [ ] Set expiration dates
+    - [ ] Bulk operations (assign multiple members to MAG)
+    - [ ] Search and filter functionality
+  - [ ] Create `src/app/admin/members/[id]/page.tsx` (member detail page):
+    - [ ] View member profile and all MAGs
+    - [ ] One-click assign/remove MAGs
+    - [ ] Update member status
+    - [ ] Set expiration dates per MAG
+    - [ ] View member activity (form submissions linked by email) - **Requires Phase 07 (CRM)**
+  - [ ] Create `src/components/mags/MemberManagement.tsx` (easy-to-use interface)
+  - [ ] Create `src/components/mags/MemberList.tsx` (table view with actions)
+  - [ ] Create `src/components/mags/MAGAssignment.tsx` (simple assign/remove component)
+  - [ ] Create `src/app/admin/api-keys/page.tsx` (API key management for webhook endpoints)
+  - [ ] Create `src/components/api/ApiKeyManager.tsx` (simple API key generation/management)
+
+- [ ] Implement granular content protection
+  - [ ] Section-level content protection:
+    - [ ] Update page editor to support section-level restrictions
+    - [ ] Section restriction UI in page editor
+    - [ ] Section ID assignment (unique IDs for each section)
+    - [ ] Access level dropdown per section
+    - [ ] MAG selector per section
+    - [ ] Visibility mode toggle per section
+    - [ ] Message override input per section
+  - [ ] Inline text protection (shortcode syntax):
+    - [ ] Create Tiptap extension for protected text (`src/lib/tiptap/extensions/ProtectedText.ts`)
+    - [ ] Parse shortcode syntax: `[[mag-code]]content[[/mag-code]]`
+    - [ ] Parse shortcode with message: `[[mag-code message="..."]][[/mag-code]]`
+    - [ ] Convert shortcodes to `ProtectedText` nodes in JSON structure
+    - [ ] Visual indicator in editor (highlighted background or border)
+    - [ ] Toolbar button to insert protected text block
+    - [ ] Create protected text rendering component (`src/components/public/ProtectedText.tsx`)
+    - [ ] Update rich text renderer to handle `ProtectedText` nodes
+  - [ ] Visibility modes:
+    - [ ] Update content access check utilities to return visibility mode
+    - [ ] Update `ProtectedContent` component:
+      - [ ] Handle `hidden` mode (completely hide content)
+      - [ ] Handle `message` mode (show restricted message)
+      - [ ] Apply message hierarchy for message content
+  - [ ] Menu item restrictions:
+    - [ ] Update menu rendering to filter items based on user's MAGs
+    - [ ] Add menu item restriction UI in menu editor:
+      - [ ] Access level dropdown per menu item
+      - [ ] MAG selector per menu item (when access_level = "mag")
+
+- [ ] Content editor integration
+  - [ ] Update `src/components/posts/PostEditor.tsx`:
+    - [ ] Add access level dropdown (public, members, mag)
+    - [ ] Add MAG selector (when access_level = "mag")
+    - [ ] Add visibility mode toggle (hidden/message)
+    - [ ] Add restricted message input (optional override)
+  - [ ] Update `src/components/galleries/GalleryEditor.tsx`:
+    - [ ] Add access level dropdown
+    - [ ] Add MAG selector
+    - [ ] Add visibility mode toggle
+    - [ ] Add restricted message input
+  - [ ] Update `src/components/pages/PageEditor.tsx`:
+    - [ ] Add page-level protection (same as posts)
+    - [ ] Add section restrictions UI
+  - [ ] Update Tiptap editor:
+    - [ ] Protected text toolbar button
+    - [ ] MAG selector when inserting protected text
+    - [ ] Message override input
+    - [ ] Visual indicators for protected text blocks
+  - [ ] Add preview mode to see member view
+
+- [ ] API routes for MAGs
+  - [ ] Create `src/app/api/mags/route.ts` (GET list, POST create - admin only)
+  - [ ] Create `src/app/api/mags/[id]/route.ts` (GET, PUT, DELETE - admin only)
+  - [ ] Create `src/app/api/mags/[id]/assign/route.ts` (POST - API key auth for ecommerce)
+  - [ ] Create `src/app/api/mags/[id]/remove/route.ts` (POST - API key auth)
+  - [ ] Create `src/app/api/members/route.ts` (GET list - admin only)
+  - [ ] Create `src/app/api/members/[id]/route.ts` (GET details - admin only)
+  - [ ] Create `src/app/api/members/[id]/mags/route.ts` (POST assign, DELETE remove - admin only)
+  - [ ] Create `src/app/api/members/[email]/route.ts` (GET member by email - API key auth)
+  - [ ] Create `src/app/api/members/verify/route.ts` (POST verify MAG - API key auth)
+  - [ ] Create `src/app/api/member/profile/route.ts` (GET current member profile)
+  - [ ] Update existing content API routes to respect access_level:
+    - [ ] Update `src/app/api/posts/[id]/route.ts` to check MAG access
+    - [ ] Update `src/app/api/galleries/[id]/route.ts` to check MAG access
+    - [ ] Update `src/app/api/pages/[id]/route.ts` to check MAG access (page + section level)
+
+- [ ] Ecommerce Integration API (simple tag-based system)
+  - [ ] Create API key management system:
+    - [ ] Create `api_keys` table (key_hash, name, rate_limit, created_at, expires_at)
+    - [ ] Create `src/lib/api/api-keys.ts` utilities (validate, rate limiting)
+    - [ ] Create API key generation endpoint (admin only): `POST /api/admin/api-keys`
+  - [ ] Create payment webhook endpoints (simple tag matching):
+    - [ ] Create `src/app/api/webhooks/payment/route.ts` (generic webhook handler)
+    - [ ] Create `src/app/api/webhooks/payment/stripe/route.ts` (Stripe-specific handler)
+    - [ ] Create `src/app/api/webhooks/payment/shopify/route.ts` (Shopify-specific handler)
+    - [ ] Create `src/app/api/webhooks/payment/woocommerce/route.ts` (WooCommerce-specific handler)
+    - [ ] Implement webhook signature verification per provider
+    - [ ] Create `src/lib/webhooks/payment-processor.ts`:
+      - [ ] `extractTagAndEmail()` - Extract tag and email from webhook payload (provider-specific)
+      - [ ] `findMAGByTag()` - Lookup MAG by `ecommerce_tag`
+      - [ ] `assignMAGOnPayment()` - Auto-assign MAG if enabled
+      - [ ] `handleWebhookError()` - Error handling and logging
+  - [ ] Implement simple payment-to-MAG flow:
+    - [ ] Create `src/lib/mags/payment-integration.ts`:
+      - [ ] `findMAGByTag()` - Lookup MAG by ecommerce_tag
+      - [ ] `assignMAG()` - Simple assignment (no payment data)
+      - [ ] `createOrUpdateMember()` - Create member profile if doesn't exist
+      - [ ] `preventDuplicateAssignment()` - Idempotency check (email + tag combination)
+    - [ ] Handle duplicate webhook prevention (idempotency based on email+tag)
+    - [ ] Simple error handling and logging
+
+- [ ] Member authentication middleware
+  - [ ] Update `src/middleware.ts` to handle member routes (`/members/*`)
+  - [ ] Add member session validation (separate from admin)
+  - [ ] Implement protected content route checks
+
+- [ ] Dashboard integration (CRM view)
+  - [ ] Add membership statistics to admin dashboard
+  - [ ] Show recent member registrations
+  - [ ] Display membership group counts
+  - [ ] Quick access to member management (`/admin/members`)
+  - [ ] Link form submissions to member profiles (when email matches) - **Requires Phase 07 (CRM)**
+  - [ ] Unified customer view (form submissions + memberships) - **Requires Phase 07 (CRM)**
+  - [ ] Simple interface for client admins to manage memberships easily
+  - [ ] **Note**: Full CRM features (companies, consents, DND, duplicate detection) come in Phase 10B
+
+### Phase 10: API Development
 
 **Status**: Pending - Enhancements to existing APIs
 
@@ -701,7 +992,7 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Add SEO metadata to post responses
   - [ ] Add pagination to gallery API
   - [ ] Add search/filter to posts API
-  - [ ] Ensure all protected content endpoints check membership access
+  - [ ] Ensure all protected content endpoints check MAG access
 
 - [ ] Add form submission email notifications (Nodemailer/SMTP)
   - [ ] Add `nodemailer` dependency to the template
@@ -715,220 +1006,148 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Create `docs/api.md` with comprehensive API documentation
   - [ ] Document all endpoints, request/response formats
   - [ ] Include authentication requirements (admin vs member)
-  - [ ] Document membership access requirements
+  - [ ] Document MAG access requirements
   - [ ] Add rate limiting documentation
 
-### Phase 10B: CRM-First Forms & Compliance System (Full Implementation)
+### Phase 11: CLI Deployment Tools
 
-**Status**: Pending - Full CRM implementation building on Phase 5A MVP
+**Status**: Pending - Useful for deployment/setup
 
-**Priority**: High - Required for form submissions and marketing compliance (GDPR, ICANN, TCPA)
+- [ ] Create setup script
+  - [ ] Create `scripts/setup-new-client.ts`:
+    - Interactive CLI for new client setup
+    - Schema creation
+    - Migration execution
+    - Storage bucket creation
+    - Environment variable validation
+  - [ ] Add `pnpm run setup` script to `package.json`
 
-**Note**: Phase 5A provides minimal CRM (basic contacts, form linking). This phase expands to full CRM with companies, relational data, consent management, DND, and compliance features.
+- [ ] Create reset script
+  - [ ] Create `scripts/reset-content.ts` (CLI for resetting content, partial/full options)
+  - [ ] Add `pnpm run reset` script to `package.json`
 
-- [ ] Create CRM database schema
-  - [ ] Create migration `supabase/migrations/004_crm_schema.sql`:
-    - [ ] `crm_custom_fields` table (name, label, type, validation_rules JSONB)
-    - [ ] `crm_companies` table (name, slug, email, industry, category, tags, company_size, website, description, address fields, custom_data JSONB, status, notes)
-    - [ ] `crm_contacts` table (firstname, lastname, fullname, category, custom_data JSONB, dnd_status, source, form_id, status, duplicate_status, potential_duplicate_of, notes)
-    - [ ] `crm_contact_emails` table (contact_id, email, type, is_primary) - relational emails
-    - [ ] `crm_contact_phones` table (contact_id, phone, type, is_primary) - relational phones
-    - [ ] `crm_contact_companies` table (contact_id, company_id, role, department, is_primary, start_date, end_date) - many-to-many
-    - [ ] `crm_consents` table (contact_id, consent_type, consented, method, source, ip_address, user_agent, consent_text, consented_at, withdrawn_at) - marketing consent audit trail
-    - [ ] `crm_dnd_history` table (contact_id, dnd_status, reason, method, source, set_by, set_at, notes) - DND audit trail
-    - [ ] `forms` table (name, slug, field_mappings JSONB, settings JSONB) - form registry (developer helper)
-    - [ ] `cookie_consents` table (contact_id, member_id, preferences JSONB, consent_version, ip_address, user_agent, consented_at, session_id) - cookie consent storage
-    - [ ] Add indexes for performance (email lookups, company relationships, consent queries)
-    - [ ] Add foreign key constraints and cascade deletes
+- [ ] Create archive script
+  - [ ] Create `scripts/archive-project.ts` (CLI for archiving project, backup options)
+  - [ ] Add `pnpm run archive` script to `package.json`
 
-- [ ] Create CRM utilities
-  - [ ] Create `src/lib/supabase/crm.ts`:
-    - [ ] `getCRMFields()` - Get all CRM fields (staple + custom)
-    - [ ] `getCustomFields()` - Get custom CRM fields
-    - [ ] `createCustomField()` - Create custom CRM field
-    - [ ] `updateCustomField()` - Update custom CRM field
-    - [ ] `getContacts()` - List contacts with filtering (status, DND, consent, company)
-    - [ ] `getContact()` - Get contact details (with emails, phones, companies, consents, DND history)
-    - [ ] `createContact()` - Create contact record
-    - [ ] `updateContact()` - Update contact record
-    - [ ] `mergeContacts()` - Merge duplicate contacts
-    - [ ] `detectDuplicates()` - Duplicate detection logic (perfect match, partial match)
-    - [ ] `getCompanies()` - List companies with filtering
-    - [ ] `getCompany()` - Get company details (with contacts)
-    - [ ] `createCompany()` - Create company record
-    - [ ] `updateCompany()` - Update company record
-    - [ ] `linkContactToCompany()` - Link contact to company (many-to-many)
-    - [ ] `getConsents()` - Get consent history for contact
-    - [ ] `recordConsent()` - Record marketing consent (with audit trail)
-    - [ ] `withdrawConsent()` - Withdraw consent (sets DND automatically)
-    - [ ] `getDNDHistory()` - Get DND history for contact
-    - [ ] `setDNDStatus()` - Set DND status (automatic or manual)
-    - [ ] `checkDNDStatus()` - Check if contact has DND for channel
+### Phase 12: Superadmin - Visual Component Library
 
-- [ ] Implement form submission workflow
-  - [ ] Update `POST /api/forms/[formId]/submit` route:
-    - [ ] Validate form data against CRM field validation rules
-    - [ ] Perform duplicate detection (perfect match → update, partial match → flag for review, no match → create new)
-    - [ ] Create/update CRM contact record directly (no staging table)
-    - [ ] Create email/phone records in relational tables (support multiple per contact)
-    - [ ] Handle company linking (autocomplete existing or create new)
-    - [ ] Process marketing consents (email_marketing, phone_marketing) with audit trail (IP, user agent, timestamp)
-    - [ ] Set DND status based on consent (no consent = DND for that channel)
-    - [ ] Link cookie consent to contact if user identified
-    - [ ] Send email notification to admin if configured (Nodemailer)
-    - [ ] Return success/error response
+**Status**: Pending - Visual component library to manage pages, sections. Up until now components are being built in a reusable structure. This section will scan and help visually organize the components for easier client site deployment.
 
-- [ ] Create form registry UI (developer helper)
-  - [ ] Create `src/app/admin/crm/forms/page.tsx` (form registry list)
-  - [ ] Create `src/app/admin/crm/forms/new/page.tsx` (create form registry entry)
-  - [ ] Create `src/app/admin/crm/forms/[id]/page.tsx` (edit form registry entry)
-  - [ ] Create `src/components/crm/FormRegistryEditor.tsx`:
-    - [ ] Display available CRM fields (staple + custom) with copy/paste field references
-    - [ ] Field mappings JSONB editor (for developer reference)
-    - [ ] Form settings (success_message, redirect_url, notifications)
-    - [ ] Suggested field combinations for common form types
-    - [ ] Field validation rules display
+**Note**: This is the full visual component library system (from old Phase 13). The crude MVP component library manager is in Phase 02.
 
-- [ ] Create CRM admin UI (contacts and companies)
-  - [ ] Create `src/app/admin/crm/page.tsx` (CRM dashboard - contacts and companies overview)
-  - [ ] Create `src/app/admin/crm/contacts/page.tsx` (contact list with filtering/search)
-  - [ ] Create `src/app/admin/crm/contacts/[id]/page.tsx` (contact detail view):
-    - [ ] Display all email addresses and phone numbers (relational)
-    - [ ] Display all company relationships (with roles, primary company indicator)
-    - [ ] Display consent history (with audit trail - IP, timestamp, consent text)
-    - [ ] Display DND status and history timeline
-    - [ ] Display custom field values
-    - [ ] Display interaction history
-    - [ ] Merge duplicate contacts action
-    - [ ] Status management (new, contacted, archived)
-    - [ ] Notes and follow-up tracking
-    - [ ] Export contact data (CSV, with DND/consent filters)
-  - [ ] Create `src/app/admin/crm/companies/page.tsx` (company list with filtering)
-  - [ ] Create `src/app/admin/crm/companies/[id]/page.tsx` (company detail view):
-    - [ ] Display all contacts at company (with roles, primary contact indicator)
-    - [ ] Display company email, industry, category, tags
-    - [ ] Display location data
-    - [ ] Display custom field values
-    - [ ] Display notes
-    - [ ] Company-based email marketing (send to all contacts, respecting DND)
-  - [ ] Create `src/components/crm/ContactList.tsx` (table view with actions)
-  - [ ] Create `src/components/crm/ContactDetail.tsx` (comprehensive contact view)
-  - [ ] Create `src/components/crm/CompanyList.tsx` (table view with filtering)
-  - [ ] Create `src/components/crm/CompanyDetail.tsx` (comprehensive company view)
-  - [ ] Create `src/components/crm/DuplicateReview.tsx` (review and merge potential duplicates)
-  - [ ] Create `src/components/crm/ConsentHistory.tsx` (consent timeline with audit trail)
-  - [ ] Create `src/components/crm/DNDManagement.tsx` (DND status display and management)
+- [ ] Create component library database schema
+  - [ ] Create migration `supabase/migrations/008_component_library.sql`:
+    - [ ] `component_library` table (name, library_entry_id UUID UNIQUE, file_path, import_path, category, theme, location, description, props_schema JSONB, usage_examples JSONB, dependencies, design_tokens, screenshot_url, wireframe_url, preview_images JSONB, requirements_screenshot_url, requirements_text, development_status, is_linked_to_file, assigned_to, priority, estimated_complexity, planned_at, started_at, completed_at, author, dates, search_text TSVECTOR)
+    - [ ] Add indexes for category, theme, location, development_status, and full-text search
+    - [ ] Create Supabase Storage bucket `component-library/` for image storage
 
-- [ ] Implement consent management system
-  - [ ] Create `src/lib/compliance/consent.ts`:
-    - [ ] `recordMarketingConsent()` - Record consent with audit trail (IP, user agent, timestamp, consent text)
-    - [ ] `withdrawConsent()` - Withdraw consent (updates crm_consents, sets DND if all withdrawn)
-    - [ ] `getConsentHistory()` - Get consent history for contact
-    - [ ] `checkConsentStatus()` - Check if contact has consented to channel
-    - [ ] `exportConsentAuditTrail()` - Export consent data for GDPR requests
-  - [ ] Create consent UI components:
-    - [ ] `src/components/crm/ConsentBadge.tsx` - Visual consent indicators (✅ Consented, ❌ Withdrawn)
-    - [ ] `src/components/crm/ConsentTimeline.tsx` - Consent history timeline
-    - [ ] `src/components/crm/ManualConsentRecord.tsx` - Manual consent recording (for phone/offline)
-  - [ ] Create unsubscribe endpoint:
-    - [ ] `POST /api/crm/contacts/[id]/unsubscribe` - Unsubscribe endpoint (sets DND, records consent withdrawal)
-    - [ ] One-click unsubscribe link generation for emails
+- [ ] Build component scanner/auto-discovery system
+  - [ ] Create `src/lib/components/scanner.ts`:
+    - [ ] `scanComponents()` - Recursively scan `src/components/` directory
+    - [ ] `extractMetadata()` - Parse JSDoc-style header comments
+    - [ ] `parseProps()` - Extract props from TypeScript interfaces
+    - [ ] `detectComponentInfo()` - Detect category, theme, location from file path
+    - [ ] `linkComponentToLibrary()` - Link component file to library entry (via @library_id or name match)
+    - [ ] `updateComponentLibrary()` - Update database with discovered components
+    - [ ] `updateDevelopmentStatus()` - Auto-update status based on component file existence and completeness
 
-- [ ] Implement DND (Do Not Disturb) status management
-  - [ ] Create `src/lib/compliance/dnd.ts`:
-    - [ ] `setDNDStatus()` - Set DND status (automatic or manual, with reason tracking)
-    - [ ] `getDNDHistory()` - Get DND history for contact
-    - [ ] `checkDNDStatus()` - Check if contact has DND for channel (email, phone, all)
-    - [ ] `enforceDND()` - Enforce DND before sending emails/calls
-  - [ ] Automatic DND triggers:
-    - [ ] On unsubscribe link click → Set `dnd_status: 'email'`
-    - [ ] On form submission (no consent) → Set DND for that channel
-    - [ ] On email bounce (hard bounce) → Auto-set `dnd_status: 'email'`
-    - [ ] On spam complaint → Auto-set `dnd_status: 'all'`
-    - [ ] All DND changes logged in `crm_dnd_history` with reason and method
-  - [ ] Manual DND (admin override):
-    - [ ] Admin can manually set DND status in CRM
-    - [ ] Tracks who set it and why in `crm_dnd_history`
-  - [ ] DND enforcement:
-    - [ ] Email marketing: Check DND before sending (must not be 'email' or 'all')
-    - [ ] Phone marketing: Check DND before calling (must not be 'phone' or 'all')
-    - [ ] Export filters: Option to exclude DND contacts from marketing exports
+- [ ] Build superadmin component library UI
+  - [ ] Create `src/app/admin/super/components/page.tsx` (component library list):
+    - [ ] Search bar (full-text search)
+    - [ ] Filter controls (category, theme, location, development_status)
+    - [ ] Sort options (name, category, last updated, status)
+    - [ ] Grid/List view toggle
+    - [ ] Component cards with thumbnails and status badges
+    - [ ] Statistics dashboard (total components, by category, by theme, by status)
+    - [ ] Development queue view (planned components)
+    - [ ] "Create New Component" button (prominent)
+  - [ ] Create `src/app/admin/super/components/[id]/page.tsx` (component detail):
+    - [ ] Component overview (name, description, file path, import path, library_entry_id)
+    - [ ] Development status section (status badge, timeline, assigned developer)
+    - [ ] Visual reference section (screenshot, wireframe, example images)
+    - [ ] Props table (name, type, required, default, description)
+    - [ ] Usage examples (code snippets with syntax highlighting)
+    - [ ] Dependencies list (with links to dependency components)
+    - [ ] Design tokens used
+    - [ ] Use cases and related components
+    - [ ] Actions (view source, copy import, copy example, open in editor, update status)
 
-- [ ] Implement cookie consent management
-  - [ ] Create cookie consent database schema (already in CRM schema migration)
-  - [ ] Create `src/lib/compliance/cookies.ts`:
-    - [ ] `getCookieConsent()` - Get consent preferences (from localStorage or database)
-    - [ ] `saveCookieConsent()` - Save consent (localStorage + database if user identified)
-    - [ ] `updateCookieConsent()` - Update consent preferences
-    - [ ] `checkCookieCategory()` - Check if user consented to category
-    - [ ] `linkConsentToContact()` - Link cookie consent to CRM contact (when form submitted)
-    - [ ] `linkConsentToMember()` - Link cookie consent to member (when logged in)
-  - [ ] Create cookie consent UI components:
-    - [ ] `src/components/public/cookies/CookieBanner.tsx` - Cookie banner (first visit)
-    - [ ] `src/components/public/cookies/CookiePreferences.tsx` - Preferences modal/page
-    - [ ] `src/components/public/cookies/CookiePolicy.tsx` - Cookie policy page component
-  - [ ] Create cookie consent API endpoints:
-    - [ ] `POST /api/cookies/consent` - Submit cookie consent preferences
-    - [ ] `GET /api/cookies/consent` - Get current consent preferences (if user identified)
-    - [ ] `PUT /api/cookies/consent` - Update consent preferences
-    - [ ] `GET /api/cookies/policy` - Get cookie policy content (public)
-  - [ ] Implement client-side cookie control:
-    - [ ] Before setting non-essential cookies, check localStorage consent
-    - [ ] Only set cookies for categories user has consented to
-    - [ ] Third-party scripts (analytics, marketing) only load if consent given
-    - [ ] Dynamic script loading based on consent preferences
-  - [ ] Create cookie policy page:
-    - [ ] `src/app/(public)/cookie-policy/page.tsx` - Public cookie policy page (admin-editable)
-    - [ ] Lists all cookie categories and specific cookies used
-    - [ ] Explains how to manage preferences
-  - [ ] Create admin cookie configuration:
-    - [ ] `src/app/admin/settings/cookies/page.tsx` - Cookie settings configuration
-    - [ ] Enable/disable cookie consent banner
-    - [ ] Configure cookie categories (add/edit/remove)
-    - [ ] Set cookie descriptions and purposes
-    - [ ] Configure third-party services (Google Analytics, Facebook Pixel, etc.)
-    - [ ] Set cookie policy page URL
-    - [ ] Configure consent expiration
-    - [ ] Set consent version (increment when policy changes)
-    - [ ] Editable cookie policy content (rich text editor)
+- [ ] Implement image upload/management
+  - [ ] Create `src/components/superadmin/ComponentImageUpload.tsx`:
+    - [ ] Upload screenshot (file upload, drag-and-drop)
+    - [ ] Upload wireframe (file upload)
+    - [ ] Add example images (multiple images with captions)
+    - [ ] Image preview and management (replace, delete, set primary)
+    - [ ] Link to media library entries
+  - [ ] Create image upload API route:
+    - [ ] `POST /api/admin/components/[id]/images` - Upload component image
+    - [ ] Store images in Supabase Storage `component-library/` bucket
+    - [ ] Generate optimized variants (thumbnail, large)
+    - [ ] Update component record with image URLs
 
-- [ ] Create CRM API endpoints
-  - [ ] `GET /api/crm/contacts` - List contacts (admin, with filtering)
-  - [ ] `GET /api/crm/contacts/[id]` - Get contact details (includes consents, DND history)
-  - [ ] `POST /api/crm/contacts/[id]/merge` - Merge duplicate contacts (admin)
-  - [ ] `POST /api/crm/contacts/[id]/unsubscribe` - Unsubscribe endpoint (sets DND, records consent withdrawal)
-  - [ ] `PUT /api/crm/contacts/[id]` - Update contact (admin)
-  - [ ] `DELETE /api/crm/contacts/[id]` - Delete contact (admin)
-  - [ ] `GET /api/crm/companies` - List companies (admin, with filtering)
-  - [ ] `GET /api/crm/companies/[id]` - Get company details (includes all contacts)
-  - [ ] `POST /api/crm/companies` - Create company (admin)
-  - [ ] `PUT /api/crm/companies/[id]` - Update company (admin)
-  - [ ] `DELETE /api/crm/companies/[id]` - Delete company (admin)
-  - [ ] `GET /api/crm/contacts/[id]/consents` - Get consent history for contact
-  - [ ] `POST /api/crm/contacts/[id]/consents` - Record consent (admin or via form submission)
-  - [ ] `POST /api/crm/contacts/[id]/consents/withdraw` - Withdraw consent (sets DND automatically)
-  - [ ] `GET /api/crm/contacts/[id]/dnd-history` - Get DND history for contact
-  - [ ] `PUT /api/crm/contacts/[id]/dnd-status` - Update DND status (admin)
+- [ ] Create component scanning API and automation
+  - [ ] Create `src/app/api/admin/components/scan/route.ts` (POST - manual scan trigger)
+  - [ ] Create scheduled scan job (daily/weekly) - optional
+  - [ ] Create file watcher for dev mode (auto-scan on file change) - optional
+  - [ ] Create CI/CD hook for automatic scan on deployment
 
-- [ ] Update form submission email notifications
-  - [ ] Integrate Nodemailer with CRM form submission workflow
-  - [ ] Send email notification when form submitted (if configured in form registry settings)
-  - [ ] Include contact details and consent status in notification
-  - [ ] Respect DND status (don't send notification if contact has DND for email)
+- [ ] Build component library search functionality
+  - [ ] Implement PostgreSQL full-text search (TSVECTOR)
+  - [ ] Weighted search (name > description > props)
+  - [ ] Fuzzy matching for typos
+  - [ ] Category/theme filtering
+  - [ ] Search API endpoint: `GET /api/admin/components/search`
 
-- [ ] Testing and validation
-  - [ ] Test duplicate detection logic (perfect match, partial match, no match)
-  - [ ] Test company linking (existing vs new company creation)
-  - [ ] Test consent recording with audit trail (IP, user agent, timestamp)
-  - [ ] Test DND status management (automatic and manual)
-  - [ ] Test cookie consent storage (localStorage and database)
-  - [ ] Test cookie consent linking to CRM contacts
-  - [ ] Test form submission workflow end-to-end
-  - [ ] Test CRM admin UI (contacts, companies, consents, DND)
-  - [ ] Test compliance features (consent withdrawal, DND enforcement, export audit trails)
-  - [ ] Test API endpoints (authentication, filtering, CRUD operations)
+### Phase 13: Archive & Restore System
 
-### Phase 11: Polish & Testing
+**Status**: Pending - Can run parallel with other phases
+
+- [ ] Create archive registry table
+  - [ ] Create migration `supabase/migrations/009_archive_registry.sql`
+  - [ ] Create `public.archived_projects` table in public schema
+  - [ ] Add indexes and constraints
+
+- [ ] Build archive utilities
+  - [ ] Create `src/lib/supabase/archive.ts`:
+    - `archiveProject()` - Rename schema and bucket, create registry entry
+    - `restoreProject()` - Restore schema and bucket, update registry
+    - `listArchivedProjects()` - Query archived projects
+  - [ ] Use Supabase service role for schema operations
+
+- [ ] Build archive admin UI
+  - [ ] Create `src/app/admin/settings/archive/page.tsx`:
+    - List archived projects
+    - Archive current project form
+    - Restore project interface
+    - Archive metadata display
+
+- [ ] Create archive API routes
+  - [ ] Create `src/app/api/admin/archive/route.ts` (POST to archive, GET to list)
+  - [ ] Create `src/app/api/admin/archive/[id]/restore/route.ts` (POST to restore)
+
+### Phase 14: Reset All for Clean Template
+
+**Status**: Pending - Can run parallel with other phases
+
+- [ ] Build reset utilities
+  - [ ] Create `src/lib/supabase/reset.ts`:
+    - `resetContent()` - Clear posts, galleries, forms, submissions
+    - `resetDesignSystem()` - Restore default design system values
+    - `resetMedia()` - Optionally clear media library
+    - `fullReset()` - Complete factory reset
+
+- [ ] Build reset admin UI
+  - [ ] Create `src/app/admin/settings/reset/page.tsx`:
+    - Reset options selection
+    - Confirmation dialogs (multiple confirmations)
+    - Progress indication
+    - Safety warnings
+
+- [ ] Create reset API route
+  - [ ] Create `src/app/api/admin/reset/route.ts` (POST with validation and confirmation)
+
+### Phase 15: Polish & Testing
 
 **Status**: Pending - Final phase before release
 
@@ -956,7 +1175,7 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Test component library components
   - [ ] Test membership access control flows
 
-### Phase 12: AI Chatbot with RAG (Retrieval-Augmented Generation)
+### Phase 16: RAG Chatbot (Future Nice-to-Have)
 
 **Status**: Planned - Future enhancement after core CMS features complete
 
@@ -1085,13 +1304,34 @@ This document tracks planned work, implementation phases, and backlog items for 
   - [ ] Document chatbot configuration
   - [ ] Document API endpoints
 
-### Phase 13: Component Library Reference System
+### Phase 17: LMS Components for Developing Courseware (Future Nice-to-Have)
 
-**Status**: Planned - Nice-to-have feature that greatly aids in deploying future client sites
+**Status**: Planned - Future enhancement
 
-**Priority**: Low - Not critical for MVP, but significantly improves developer productivity for future client deployments
+**Note**: Visual components will be part of library but course requires unique code to be developed.
 
-**Purpose**: Create a searchable component library reference in superadmin area that serves as the starting point for component development. Developers search the library first, create component specs if needed, then build components that are tightly linked to library entries. The system auto-discovers components, extracts metadata from header comments, and provides visual reference (screenshots/wireframes) to help developers find, understand, and reuse components.
+- [ ] Design LMS schema extension
+  - [ ] Create `courses` table (title, slug, description, status, mag_id for access)
+  - [ ] Create `lessons` table (course_id, title, slug, content, order, status)
+  - [ ] Create `course_progress` table (member_id, course_id, progress_percentage, started_at, completed_at)
+  - [ ] Create `lesson_completion` table (member_id, lesson_id, completed_at)
+  - [ ] Create `course_mags` junction table (course_id, mag_id) for course access control
+
+- [ ] Build LMS admin UI
+  - [ ] Create course management interface
+  - [ ] Create lesson management interface
+  - [ ] Link courses to MAGs for access control
+  - [ ] Track student progress
+
+- [ ] Build LMS public UI
+  - [ ] Create course catalog page
+  - [ ] Create course detail page
+  - [ ] Create lesson viewer
+  - [ ] Create student dashboard (progress tracking)
+
+- [ ] Integrate with MAG system
+  - [ ] Use MAG access control for courses
+  - [ ] Track course completion and grant MAGs if configured
 
 - [ ] Create component library database schema
   - [ ] Create migration `supabase/migrations/005_component_library.sql`:
@@ -1291,26 +1531,32 @@ This document tracks planned work, implementation phases, and backlog items for 
 - Components accept props and consume design system variables
 - Developer-centric approach (no visual page builder)
 
-### Membership Platform & CRM Integration
-- Membership groups stored in client schema (membership_groups table)
+### MAG (Membership Access Groups) Platform & CRM Integration
+- MAGs stored in client schema (mags table)
 - Members extend Supabase auth.users with profile in members table
-- Many-to-many relationship: members can belong to multiple groups
-- Content protection via access_level (public, members, group)
+- Many-to-many relationship: members can belong to multiple MAGs
+- Content protection via access_level (public, members, mag) with granular control:
+  - Page-level protection
+  - Section/component-level protection (JSONB)
+  - Inline text protection (shortcode syntax)
+  - Menu item restrictions
+- Visibility modes: `hidden` (default) or `message` (opt-in)
+- Message hierarchy: Inline override > Section/component override > MAG default > System fallback
 - Separate member authentication flow from admin authentication
-- **CRM System**: Unified system for managing form submissions and memberships
-  - Form submissions and memberships managed in same CRM interface
+- **CRM System**: Unified system for managing form submissions and MAGs
+  - Form submissions and MAGs managed in same CRM interface
   - Link form submissions to member profiles (email matching)
-  - Track customer journey from form submission to membership conversion
-  - **Easy Admin Management**: Client admins can easily log in and manage memberships
+  - Track customer journey from form submission to MAG conversion
+  - **Easy Admin Management**: Client admins can easily log in and manage MAGs
     - Simple assign/remove interface
     - Member status management
     - Bulk operations
 - **Simple Ecommerce Integration**: Tag-based reference system
-  - Simple `ecommerce_tag` field in membership groups (no duplicate payment data)
-  - Payment webhook endpoints match tag and assign membership
+  - Simple `ecommerce_tag` field in MAGs (no duplicate payment data)
+  - Payment webhook endpoints match tag and assign MAG
   - All payment details remain in ecommerce platform (not duplicated)
   - API key authentication for webhook endpoints
-  - Simple payment-to-membership automatic flow
+  - Simple payment-to-MAG automatic flow
 
 ### Archive/Restore
 - Schema renaming (fast, no data migration)
@@ -1371,6 +1617,116 @@ This document tracks planned work, implementation phases, and backlog items for 
 - This provides a complete history of what was planned and what was completed
 - Check off items as they are completed (keep them in the document)
 - Add summary entries to `changelog.md` for completed work, but keep detailed task history here
-- Follow phase dependencies (don't start Phase 2 before Phase 1 is complete)
+- Follow phase dependencies (don't start Phase 02 before Phase 01 is complete)
 - Refer to `docs/prd.md` for detailed architecture and specifications
 - Review and update regularly during development sessions
+
+**Note**: All PRD updates have been integrated into the appropriate phases above. The reorganization is complete with the new priority order (00-17).
+
+**Status**: Pending - New feature for managing client tenants and admin users
+
+- [ ] Create client/tenant registry database schema
+  - [ ] Create migration `supabase/migrations/006_client_tenants.sql`:
+    - [ ] `public.client_tenants` table (id, client_name, slug, schema_name, status, deployment_url, github_repo, site_mode, site_mode_locked, site_mode_locked_by, site_mode_locked_at, site_mode_locked_reason, created_at, updated_at, notes)
+    - [ ] `public.client_admins` table (id, user_id, email, display_name, status, temporary_password_set, password_set_at, created_at, updated_at, notes)
+    - [ ] `public.client_admin_tenants` junction table (id, admin_id, tenant_id, role, assigned_at, assigned_by)
+    - [ ] Add indexes for performance (slug, schema_name, email lookups)
+
+- [ ] Create client/tenant management utilities
+  - [ ] Create `src/lib/supabase/client-tenants.ts`:
+    - [ ] `getClientTenants()` - List all client tenants (with filtering)
+    - [ ] `getClientTenant()` - Get tenant details by ID
+    - [ ] `createClientTenant()` - Create new client tenant record
+    - [ ] `updateClientTenant()` - Update tenant record
+    - [ ] `getClientAdmins()` - List all client admins (global or filtered by tenant)
+    - [ ] `getClientAdmin()` - Get admin details
+    - [ ] `createClientAdmin()` - Create admin user (Supabase Auth + CRM record)
+    - [ ] `assignAdminToTenant()` - Link admin to tenant(s)
+    - [ ] `removeAdminFromTenant()` - Unlink admin from tenant
+    - [ ] `lockSiteMode()` - Lock site mode (superadmin only)
+    - [ ] `unlockSiteMode()` - Unlock site mode (superadmin only)
+    - [ ] `updateSiteMode()` - Change site mode (with lock check)
+
+- [ ] Build superadmin client management UI
+  - [ ] Create `src/app/admin/super/clients/page.tsx` (client list view):
+    - [ ] Table showing: client name, schema, status, deployment URL, site mode, admin count
+    - [ ] Filter by status (active, archived, suspended)
+    - [ ] Filter by site mode (coming_soon, live)
+    - [ ] Search by client name
+    - [ ] Quick actions: View details, Create admin, Archive client
+  - [ ] Create `src/app/admin/super/clients/new/page.tsx` (create new client):
+    - [ ] Client name input
+    - [ ] Auto-generate slug and schema name
+    - [ ] Status selection
+    - [ ] Deployment URL and GitHub repo fields
+    - [ ] Site mode default (coming_soon)
+    - [ ] Notes field
+  - [ ] Create `src/app/admin/super/clients/[id]/page.tsx` (client detail view):
+    - [ ] Client information display
+    - [ ] Deployment tracking (GitHub repo, Vercel URL, domain)
+    - [ ] Site mode control section:
+      - [ ] Current mode display (coming_soon/live)
+      - [ ] Lock status indicator
+      - [ ] Lock reason display (if locked)
+      - [ ] Toggle lock button (superadmin only)
+      - [ ] Change mode button (if not locked)
+    - [ ] Admin list with add/remove buttons
+    - [ ] Notes field
+    - [ ] Quick actions: Create admin, Archive client, View deployment
+  - [ ] Create `src/app/admin/super/clients/[id]/admins/page.tsx` (manage client admins):
+    - [ ] List of all admins assigned to this client
+    - [ ] Add new admin button
+    - [ ] For each admin: email, display name, status, assigned date, actions (Suspend, Remove, View details)
+  - [ ] Create `src/app/admin/super/clients/[id]/admins/new/page.tsx` (create admin for client):
+    - [ ] Email input (required)
+    - [ ] Display name input (optional)
+    - [ ] Assign to tenant(s) multi-select
+    - [ ] Status selection (default: active)
+    - [ ] Notes field
+    - [ ] On submit: Create Supabase Auth user with temporary password, set user metadata, create CRM record, link to tenant(s), send email
+  - [ ] Create `src/app/admin/super/admins/page.tsx` (global admin list):
+    - [ ] View all client admins across all sites
+    - [ ] Filter by tenant
+    - [ ] See which sites each admin manages
+    - [ ] Create new admin (assign to tenant during creation)
+    - [ ] Suspend/activate admins globally
+  - [ ] Create `src/components/superadmin/ClientList.tsx` (table view)
+  - [ ] Create `src/components/superadmin/ClientDetail.tsx` (detail view)
+  - [ ] Create `src/components/superadmin/AdminList.tsx` (admin table view)
+  - [ ] Create `src/components/superadmin/AdminCreationForm.tsx` (admin creation form)
+  - [ ] Create `src/components/superadmin/SiteModeControl.tsx` (site mode toggle with lock display)
+
+- [ ] Implement email notifications for admin creation
+  - [ ] Create email template for new admin welcome
+  - [ ] Include login URL (tenant-specific deployment URL)
+  - [ ] Include temporary password
+  - [ ] Include instructions to set new password on first login
+  - [ ] Include link to password reset if needed
+  - [ ] Send email when admin is created
+
+- [ ] Update site mode control in tenant admin settings
+  - [ ] Update `src/app/admin/settings/page.tsx` to show site mode toggle
+  - [ ] Display lock status if site mode is locked
+  - [ ] Disable toggle if locked (with explanation)
+  - [ ] Show lock reason if locked
+  - [ ] Allow tenant admin to toggle if not locked
+
+- [ ] Create API routes for client/tenant management
+  - [ ] `GET /api/super/clients` - List all clients (superadmin only)
+  - [ ] `GET /api/super/clients/[id]` - Get client details
+  - [ ] `POST /api/super/clients` - Create new client
+  - [ ] `PUT /api/super/clients/[id]` - Update client
+  - [ ] `POST /api/super/clients/[id]/admins` - Create admin for client
+  - [ ] `PUT /api/super/clients/[id]/site-mode` - Change site mode (with lock check)
+  - [ ] `PUT /api/super/clients/[id]/site-mode/lock` - Lock/unlock site mode
+
+## Notes
+
+- **IMPORTANT**: Items are NEVER deleted from this document - they remain and are simply checked off (`- [ ]` → `- [x]`) when completed
+- This provides a complete history of what was planned and what was completed
+- Check off items as they are completed (keep them in the document)
+- Add summary entries to `changelog.md` for completed work, but keep detailed task history here
+- Follow phase dependencies (don't start Phase 02 before Phase 01 is complete)
+- Refer to `docs/prd.md` for detailed architecture and specifications
+- Review and update regularly during development sessions
+- **REORGANIZATION COMPLETE**: All PRD updates have been integrated into the appropriate phases with the new priority order (00-17)

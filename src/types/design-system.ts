@@ -15,8 +15,10 @@ export interface FontConfig {
 
 /**
  * Color palette configuration
+ * 15 colors total: 9 core colors + 6 alternate colors
  */
 export interface ColorPalette {
+  // Core Colors (9)
   primary: string; // Primary brand color (hex)
   secondary: string; // Secondary brand color (hex)
   accent: string; // Accent color (hex)
@@ -26,11 +28,13 @@ export interface ColorPalette {
   foregroundMuted: string; // Muted text color (hex)
   border: string; // Border color (hex)
   link: string; // Link color (hex)
-  linkHover: string; // Link hover color (hex)
-  success: string; // Success state color (hex)
-  warning: string; // Warning state color (hex)
-  error: string; // Error state color (hex)
-  info: string; // Info state color (hex)
+  // Alternate Colors (6) - Custom/flexible colors for theme variations
+  alternate1: string; // Alternate color 1 (hex)
+  alternate2: string; // Alternate color 2 (hex)
+  alternate3: string; // Alternate color 3 (hex)
+  alternate4: string; // Alternate color 4 (hex)
+  alternate5: string; // Alternate color 5 (hex)
+  alternate6: string; // Alternate color 6 (hex)
 }
 
 /**
@@ -83,6 +87,7 @@ export const DEFAULT_DESIGN_SYSTEM: DesignSystemConfig = {
     },
   },
   colors: {
+    // Core Colors (9)
     primary: "#3b82f6",
     secondary: "#8b5cf6",
     accent: "#06b6d4",
@@ -92,10 +97,12 @@ export const DEFAULT_DESIGN_SYSTEM: DesignSystemConfig = {
     foregroundMuted: "#6b7280",
     border: "#e5e7eb",
     link: "#3b82f6",
-    linkHover: "#2563eb",
-    success: "#10b981",
-    warning: "#f59e0b",
-    error: "#ef4444",
-    info: "#3b82f6",
+    // Alternate Colors (6)
+    alternate1: "#10b981", // Success/Green
+    alternate2: "#f59e0b", // Warning/Orange
+    alternate3: "#ef4444", // Error/Red
+    alternate4: "#3b82f6", // Info/Blue
+    alternate5: "#2563eb", // Link Hover/Dark Blue
+    alternate6: "#8b5a2b", // Custom/Brown
   },
 };

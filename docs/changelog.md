@@ -9,6 +9,61 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-22 16:38 CT - Color Palette Library & Multi-Schema Table Documentation
+- **Context for Next Session:** Color palette system is fully functional. All palettes load correctly. Design System Settings UI complete. Ready to test palette features or continue with Phase 02/Phase 05.
+- Implemented 15-color palette system (9 core colors + 6 alternates)
+  - Updated `ColorPalette` type to include `alternate1` through `alternate6` colors
+  - Updated `DEFAULT_DESIGN_SYSTEM` with default alternate color values
+  - Updated CSS variable generation to include alternate colors
+  - Updated `DesignSystemSettings` UI with 3-column layout for all 15 colors
+- Created color palette library system with database storage
+  - Created `color_palettes` table migration (`012_create_color_palettes_table.sql`)
+  - Inserted 8 predefined palettes (Material Design, Tailwind, etc.) via migration (`013_insert_predefined_color_palettes.sql`)
+  - Created RPC functions in `public` schema to bypass PostgREST schema search issues (`018_create_color_palettes_rpc.sql`)
+  - Created `PaletteLibrary` component for browsing, saving, and applying palettes
+  - Integrated palette library into Design System Settings UI (2nd position, after fonts)
+- Fixed PostgREST custom schema table access issue
+  - **Problem:** PostgREST couldn't find `color_palettes` table in custom schema (looked in `public` instead)
+  - **Solution:** Created RPC functions in `public` schema that query custom schema (same pattern as `settings` table)
+  - **Key Learning:** New tables added after initial schema setup require RPC functions for PostgREST to find them
+  - Created comprehensive documentation for this pattern
+- Created comprehensive documentation for adding new tables to custom schemas
+  - `docs/ADDING_NEW_TABLES.md` - Complete guide with security analysis
+  - `docs/ADDING_NEW_TABLES_CHECKLIST.md` - Quick reference checklist
+  - `docs/SECURITY_RPC_FUNCTIONS.md` - Security analysis of RPC function workaround
+  - Updated `docs/CLIENT_SETUP_CHECKLIST.md` with reference to new table guide
+- Architecture decision: Kept multi-schema approach (not switching to multi-tenant tables)
+  - RPC function workaround is secure and manageable (~5 min per new table)
+  - Better data isolation and compliance benefits
+  - Documentation makes pattern repeatable
+- Code cleanup
+  - Removed debug test route (`/api/admin/color-palettes/test`)
+  - Cleaned up console.log statements from palette components
+  - Added documentation comments to verification scripts
+- **Files Changed:**
+  - New: `supabase/migrations/012_create_color_palettes_table.sql`
+  - New: `supabase/migrations/013_insert_predefined_color_palettes.sql`
+  - New: `supabase/migrations/014_enable_rls_color_palettes.sql`
+  - New: `supabase/migrations/015_refresh_postgrest_after_color_palettes.sql`
+  - New: `supabase/migrations/016_verify_color_palettes_permissions.sql`
+  - New: `supabase/migrations/017_force_postgrest_refresh.sql`
+  - New: `supabase/migrations/018_create_color_palettes_rpc.sql`
+  - New: `src/types/color-palette.ts`
+  - New: `src/lib/supabase/color-palettes.ts`
+  - New: `src/components/settings/PaletteLibrary.tsx`
+  - New: `src/app/api/admin/color-palettes/route.ts`
+  - New: `src/app/api/admin/color-palettes/[id]/route.ts`
+  - New: `docs/ADDING_NEW_TABLES.md`
+  - New: `docs/ADDING_NEW_TABLES_CHECKLIST.md`
+  - New: `docs/SECURITY_RPC_FUNCTIONS.md`
+  - Updated: `src/types/design-system.ts` (15-color system)
+  - Updated: `src/lib/design-system.ts` (alternate colors)
+  - Updated: `src/app/globals.css` (alternate color fallbacks)
+  - Updated: `src/components/settings/DesignSystemSettings.tsx` (palette library integration, section reordering)
+  - Updated: `docs/CLIENT_SETUP_CHECKLIST.md` (new table guide reference)
+  - Updated: `docs/planlog.md` (session continuation section)
+- **Next Steps:** Test palette features (create custom palette, apply predefined), continue Phase 02 (admin dark theme), or move to Phase 05 (Media Library)
+
 ### 2026-01-21 21:10 CT - Component Library Reference System, CRM Architecture & Workflow Improvements
 - Added Component Library Reference System specification to PRD
   - Library-first development workflow (search first, create spec, then build)

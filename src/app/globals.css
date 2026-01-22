@@ -8,6 +8,7 @@
     /* These will be set dynamically, but we provide fallbacks here */
     --font-primary: "Inter", sans-serif;
     --font-secondary: "Inter", sans-serif;
+    /* Core Colors (9) */
     --color-primary: #3b82f6;
     --color-secondary: #8b5cf6;
     --color-accent: #06b6d4;
@@ -17,11 +18,13 @@
     --color-foreground-muted: #6b7280;
     --color-border: #e5e7eb;
     --color-link: #3b82f6;
-    --color-link-hover: #2563eb;
-    --color-success: #10b981;
-    --color-warning: #f59e0b;
-    --color-error: #ef4444;
-    --color-info: #3b82f6;
+    /* Alternate Colors (6) */
+    --color-alternate-1: #10b981;
+    --color-alternate-2: #f59e0b;
+    --color-alternate-3: #ef4444;
+    --color-alternate-4: #3b82f6;
+    --color-alternate-5: #2563eb;
+    --color-alternate-6: #8b5a2b;
 
     /* shadcn/ui CSS Variables (for component compatibility) */
     --background: 0 0% 100%;

@@ -3,8 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Shield, Settings as SettingsIcon } from "lucide-react";
+import { DesignSystemSettings } from "@/components/settings/DesignSystemSettings";
+import { getDesignSystemConfig } from "@/lib/supabase/settings";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  // Load current design system config
+  const designSystemConfig = await getDesignSystemConfig();
+
   return (
     <div className="space-y-6">
       <div>
@@ -13,6 +18,9 @@ export default function SettingsPage() {
           Manage your CMS settings and preferences
         </p>
       </div>
+
+      {/* Design System Settings */}
+      <DesignSystemSettings initialConfig={designSystemConfig} />
 
       {/* Security Settings Card */}
       <Card>
