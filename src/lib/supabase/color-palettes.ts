@@ -90,34 +90,42 @@ export async function getColorPalette(id: string): Promise<ColorPaletteEntry | n
 
 /**
  * Create a new custom color palette
+ * Uses RPC function to bypass PostgREST schema search issues
  */
 export async function createColorPalette(
   payload: ColorPalettePayload
 ): Promise<ColorPaletteEntry | null> {
   try {
     const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("color_palettes")
-      .insert({
-        name: payload.name,
-        description: payload.description || null,
-        colors: payload.colors,
-        is_predefined: false,
-        tags: payload.tags || [],
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc("create_color_palette", {
+      palette_name: payload.name,
+      palette_description: payload.description || null,
+      palette_colors: payload.colors,
+      palette_tags: payload.tags || [],
+    });
 
-    if (error) throw error;
-    return data as ColorPaletteEntry;
+    if (error) {
+      console.error("Error creating color palette:", {
+        error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      throw error;
+    }
+    
+    // RPC returns an array, get first item
+    return (data && data.length > 0) ? (data[0] as ColorPaletteEntry) : null;
   } catch (error) {
-    console.error("Error creating color palette:", error);
+    console.error("Error creating color palette (catch):", error);
     return null;
   }
 }
 
 /**
  * Update an existing color palette (custom palettes only)
+ * Uses RPC function to bypass PostgREST schema search issues
  */
 export async function updateColorPalette(
   id: string,
@@ -125,45 +133,58 @@ export async function updateColorPalette(
 ): Promise<ColorPaletteEntry | null> {
   try {
     const supabase = createServerSupabaseClient();
-    const updateData: any = {};
+    const { data, error } = await supabase.rpc("update_color_palette", {
+      palette_id: id,
+      palette_name: payload.name || null,
+      palette_description: payload.description !== undefined ? (payload.description || null) : null,
+      palette_colors: payload.colors || null,
+      palette_tags: payload.tags || null,
+    });
+
+    if (error) {
+      console.error("Error updating color palette:", {
+        error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      throw error;
+    }
     
-    if (payload.name !== undefined) updateData.name = payload.name;
-    if (payload.description !== undefined) updateData.description = payload.description || null;
-    if (payload.colors !== undefined) updateData.colors = payload.colors;
-    if (payload.tags !== undefined) updateData.tags = payload.tags || [];
-
-    const { data, error } = await supabase
-      .from("color_palettes")
-      .update(updateData)
-      .eq("id", id)
-      .eq("is_predefined", false) // Only allow updating custom palettes
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as ColorPaletteEntry;
+    // RPC returns an array, get first item
+    return (data && data.length > 0) ? (data[0] as ColorPaletteEntry) : null;
   } catch (error) {
-    console.error("Error updating color palette:", error);
+    console.error("Error updating color palette (catch):", error);
     return null;
   }
 }
 
 /**
  * Delete a color palette (custom palettes only)
+ * Uses RPC function to bypass PostgREST schema search issues
  */
 export async function deleteColorPalette(id: string): Promise<boolean> {
   try {
     const supabase = createServerSupabaseClient();
-    const { error } = await supabase
-      .from("color_palettes")
-      .delete()
-      .eq("id", id)
-      .eq("is_predefined", false); // Only allow deleting custom palettes
+    const { data, error } = await supabase.rpc("delete_color_palette", {
+      palette_id: id,
+    });
 
-    if (error) throw error;
-    return true;
+    if (error) {
+      console.error("Error deleting color palette:", {
+        error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      throw error;
+    }
+    
+    return data === true;
   } catch (error) {
-    console.error("Error deleting color palette:", error);
+    console.error("Error deleting color palette (catch):", error);
     return false;
   }
 }

@@ -48,6 +48,14 @@ This document tracks planned work, implementation phases, and backlog items for 
    - [ ] Plan image optimization system
    - [ ] Plan local copy workflow implementation
 
+4. **Color palette schema evolution (consider)**
+   - [ ] Move to `color01`–`color15` as fixed keys with **user-defined labels**
+   - [ ] Store colors as `color01`…`color15`; store labels separately (e.g. `colorLabels` or in settings)
+   - [ ] UI displays user-defined label; fallback to "Color 1" etc. when missing
+   - [ ] Migration: map existing `primary`/`alternate1`–`alternate6` → `color01`–`color15`; preserve default labels
+   - [ ] Update types, DB (settings + `color_palettes`), design-system CSS vars, predefined palettes
+   - [ ] Enables flexible naming (e.g. "Hover", "Success") without schema changes; no label/key mismatch
+
 ### 📝 Important Context for Next Session
 
 **RPC Functions Pattern:**

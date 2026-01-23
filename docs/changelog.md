@@ -9,6 +9,30 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-22 18:30 CT - Color Palette Layout, Planlog Update, .cursor Duplicate Cleanup
+- **Context for Next Session:** Color palette UI uses 3×5 grid (Alternate 1 in row 2, Alternates 2–6 in row 3). Labels match schema (Alternate 1–6). Planlog includes "Color palette schema evolution (consider)" for `color01`–`color15` + user-defined labels. Docs live only in `docs/`; `.cursor/` holds only `rules/`. Ready to test palette features, continue Phase 02/05, or explore color01–color15 when desired.
+- Color palette layout (ColorsSettings)
+  - Reorganized to **3 rows × 5 columns** to fix unbalanced 5-column grid (core 9 = 5+4, alternates 6 = 5+1)
+  - Row 1: Primary, Secondary, Accent, Background, Background Alt
+  - Row 2: Foreground, Foreground Muted, Border, Link, Alternate 1
+  - Row 3: Alternate 2–6
+  - Single "Brand & theme colors (15)" section; merged former Core/Alternate blocks
+- Reverted label renames (no Hover / Alternate 1–5)
+  - Kept schema keys as `alternate1`–`alternate6`; display labels stay "Alternate 1"–"Alternate 6"
+  - Avoids label/schema mismatch (e.g. "Alternate 1" ↔ `alternate2`)
+- Planlog: added "Color palette schema evolution (consider)" to Session Continuation
+  - Future option: `color01`–`color15` fixed keys + user-defined labels; store labels separately; migration from current keys
+  - Enables flexible naming (e.g. Hover, Success) without schema changes
+- Removed duplicate docs from `.cursor/` root (accidental copy/paste)
+  - Compared 14 `.md` files in `.cursor/` vs `docs/`; 13 identical, `planlog.md` differed (docs newer, has color-palette step)
+  - Deleted all 14 duplicates from `.cursor/`; `docs/` is sole source of truth for project docs
+  - Retained `.cursor/rules/` (coding.mdc, MCP.md, structure.mdc)
+- **Files Changed:**
+  - Updated: `src/components/settings/ColorsSettings.tsx` (3×5 grid, single palette section, label revert)
+  - Updated: `docs/planlog.md` (color01–color15 step in Session Continuation)
+  - Deleted: 14 duplicates from `.cursor/` root (`ADDING_NEW_TABLES_CHECKLIST.md`, `ADDING_NEW_TABLES.md`, `ARCHITECTURE_DECISION_SCHEMAS.md`, `changelog.md`, `CLIENT_SETUP_CHECKLIST.md`, `MFA_SETUP.md`, `planlog.md`, `prd.md`, `SECURITY_RPC_FUNCTIONS.md`, `SESSION_SUMMARY.md`, `STATUS.md`, `SUPABASE_SCHEMA_SETUP.md`, `TESTING_2FA.md`, `TESTING_SETUP_SCRIPT.md`)
+- **Next Steps:** Test palette features; Phase 02 (admin dark theme) or Phase 05 (Media Library); consider color01–color15 when ready
+
 ### 2026-01-22 16:38 CT - Color Palette Library & Multi-Schema Table Documentation
 - **Context for Next Session:** Color palette system is fully functional. All palettes load correctly. Design System Settings UI complete. Ready to test palette features or continue with Phase 02/Phase 05.
 - Implemented 15-color palette system (9 core colors + 6 alternates)

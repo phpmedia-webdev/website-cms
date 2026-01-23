@@ -116,6 +116,7 @@ async function setupClientSchema(schemaName: string) {
       { file: "009_insert_default_settings.sql", desc: "Inserting default settings" },
       { file: "010_enable_rls_and_policies.sql", desc: "Enabling RLS and policies" },
       { file: "011_fix_function_search_path.sql", desc: "Fixing function search path" },
+      { file: "018_create_color_palettes_rpc.sql", desc: "Creating color palette RPC functions" },
     ];
 
     for (const migration of migrations) {

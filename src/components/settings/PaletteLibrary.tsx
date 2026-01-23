@@ -12,16 +12,33 @@ import { Search, Save, Trash2, Palette as PaletteIcon, Sparkles } from "lucide-r
 interface PaletteLibraryProps {
   currentColors: ColorPalette;
   onPaletteSelect: (colors: ColorPalette) => void;
+  showSaveDialog?: boolean;
+  onSaveDialogChange?: (show: boolean) => void;
 }
 
-export function PaletteLibrary({ currentColors, onPaletteSelect }: PaletteLibraryProps) {
+export function PaletteLibrary({ 
+  currentColors, 
+  onPaletteSelect, 
+  showSaveDialog: externalShowSaveDialog,
+  onSaveDialogChange 
+}: PaletteLibraryProps) {
   const [palettes, setPalettes] = useState<ColorPaletteEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [internalShowSaveDialog, setInternalShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
   const [filter, setFilter] = useState<"all" | "predefined" | "custom">("all");
+
+  // Use external state if provided, otherwise use internal state
+  const showSaveDialog = externalShowSaveDialog !== undefined ? externalShowSaveDialog : internalShowSaveDialog;
+  const setShowSaveDialog = (show: boolean) => {
+    if (onSaveDialogChange) {
+      onSaveDialogChange(show);
+    } else {
+      setInternalShowSaveDialog(show);
+    }
+  };
 
   useEffect(() => {
     loadPalettes();
@@ -61,27 +78,53 @@ export function PaletteLibrary({ currentColors, onPaletteSelect }: PaletteLibrar
     }
 
     try {
+      // Import default colors to ensure all properties are present
+      const { DEFAULT_DESIGN_SYSTEM } = await import("@/types/design-system");
+      
+      // Merge current colors with defaults to ensure all alternate colors are present
+      // This prevents null/undefined values from being saved
+      const completeColors: ColorPalette = {
+        ...DEFAULT_DESIGN_SYSTEM.colors,
+        ...currentColors,
+        // Explicitly ensure alternate colors are set (use current or default)
+        alternate1: currentColors.alternate1 || DEFAULT_DESIGN_SYSTEM.colors.alternate1,
+        alternate2: currentColors.alternate2 || DEFAULT_DESIGN_SYSTEM.colors.alternate2,
+        alternate3: currentColors.alternate3 || DEFAULT_DESIGN_SYSTEM.colors.alternate3,
+        alternate4: currentColors.alternate4 || DEFAULT_DESIGN_SYSTEM.colors.alternate4,
+        alternate5: currentColors.alternate5 || DEFAULT_DESIGN_SYSTEM.colors.alternate5,
+        alternate6: currentColors.alternate6 || DEFAULT_DESIGN_SYSTEM.colors.alternate6,
+      };
+      
       const response = await fetch("/api/admin/color-palettes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: saveName,
           description: saveDescription || null,
-          colors: currentColors,
+          colors: completeColors,
           tags: [],
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to save palette");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to save palette:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        throw new Error(errorData.error || `Failed to save palette: ${response.status} ${response.statusText}`);
+      }
 
+      const result = await response.json();
       setShowSaveDialog(false);
       setSaveName("");
       setSaveDescription("");
-      loadPalettes();
+      await loadPalettes();
       alert("Palette saved successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving palette:", error);
-      alert("Failed to save palette. Please try again.");
+      alert(`Failed to save palette: ${error.message || "Please try again."}`);
     }
   };
 
@@ -93,13 +136,22 @@ export function PaletteLibrary({ currentColors, onPaletteSelect }: PaletteLibrar
         method: "DELETE",
       });
 
-      if (!response.ok) throw new Error("Failed to delete palette");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to delete palette:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        throw new Error(errorData.error || `Failed to delete palette: ${response.status} ${response.statusText}`);
+      }
 
+      const result = await response.json();
       loadPalettes();
       alert("Palette deleted successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting palette:", error);
-      alert("Failed to delete palette. Please try again.");
+      alert(`Failed to delete palette: ${error.message || "Please try again."}`);
     }
   };
 
@@ -130,7 +182,7 @@ export function PaletteLibrary({ currentColors, onPaletteSelect }: PaletteLibrar
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -141,37 +193,16 @@ export function PaletteLibrary({ currentColors, onPaletteSelect }: PaletteLibrar
             />
           </div>
           <div className="flex gap-2">
-            <Button
-              variant={filter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("all")}
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as "all" | "predefined" | "custom")}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              All
-            </Button>
-            <Button
-              variant={filter === "predefined" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("predefined")}
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Predefined
-            </Button>
-            <Button
-              variant={filter === "custom" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("custom")}
-            >
-              Custom
-            </Button>
+              <option value="all">All Palettes</option>
+              <option value="predefined">Predefined</option>
+              <option value="custom">Custom</option>
+            </select>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowSaveDialog(true)}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save Current
-          </Button>
         </div>
 
         {/* Save Dialog */}
@@ -227,60 +258,79 @@ export function PaletteLibrary({ currentColors, onPaletteSelect }: PaletteLibrar
             {searchQuery ? "No palettes found matching your search." : "No palettes available."}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredPalettes.map((palette) => (
-              <Card
-                key={palette.id}
-                className="relative group cursor-pointer hover:border-primary transition-colors"
-                onClick={() => handleApplyPalette(palette)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-sm font-semibold">{palette.name}</CardTitle>
-                      {palette.description && (
-                        <CardDescription className="text-xs mt-1">
-                          {palette.description}
-                        </CardDescription>
-                      )}
+          <div className="max-h-[600px] overflow-y-auto pr-2">
+            <div className="grid grid-cols-5 gap-3">
+              {filteredPalettes.map((palette) => (
+                <Card
+                  key={palette.id}
+                  className="relative group cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => handleApplyPalette(palette)}
+                >
+                  <CardHeader className="pb-2 px-3 pt-3">
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-xs font-semibold truncate" title={palette.name}>
+                          {palette.name}
+                        </CardTitle>
+                        {palette.is_predefined && (
+                          <Sparkles className="h-3 w-3 text-muted-foreground mt-1" />
+                        )}
+                      </div>
                     </div>
-                    {palette.is_predefined && (
-                      <Sparkles className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Color Preview */}
-                  <div className="grid grid-cols-5 gap-1 mb-3">
-                    {Object.values(palette.colors).slice(0, 5).map((color, idx) => (
-                      <div
-                        key={idx}
-                        className="aspect-square rounded border"
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Button size="sm" variant="outline" className="flex-1 mr-2">
-                      Apply
-                    </Button>
-                    {!palette.is_predefined && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
+                  </CardHeader>
+                  <CardContent className="px-3 pb-3">
+                    {/* Color Preview - Compact 5 color swatches */}
+                    <div className="grid grid-cols-5 gap-0.5 mb-2">
+                      {[
+                        palette.colors.primary,
+                        palette.colors.secondary,
+                        palette.colors.accent,
+                        palette.colors.alternate1,
+                        palette.colors.alternate2,
+                      ].map((color, idx) => {
+                        const displayColor = color || "#000000";
+                        const colorLabel = color || "undefined";
+                        
+                        return (
+                          <div
+                            key={idx}
+                            className="aspect-square rounded-sm border border-border/50"
+                            style={{ backgroundColor: displayColor }}
+                            title={colorLabel}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 text-xs h-7"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeletePalette(palette.id);
+                          handleApplyPalette(palette);
                         }}
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        Apply
                       </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                      {!palette.is_predefined && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePalette(palette.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

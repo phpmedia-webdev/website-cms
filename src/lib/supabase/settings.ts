@@ -167,9 +167,24 @@ export async function getDesignSystemConfig(): Promise<DesignSystemConfig> {
       (settings["design_system.fonts.secondary"] as FontConfig) ||
       defaultConfig.fonts.secondary;
 
-    const colors =
-      (settings["design_system.colors"] as ColorPalette) ||
-      defaultConfig.colors;
+    const colorsFromDb =
+      (settings["design_system.colors"] as ColorPalette) || null;
+
+    // Merge with defaults to ensure all color properties are present
+    // This prevents missing alternate colors when loading from database
+    const colors: ColorPalette = colorsFromDb
+      ? {
+          ...defaultConfig.colors,
+          ...colorsFromDb,
+          // Explicitly ensure alternate colors are set (use from DB or default)
+          alternate1: colorsFromDb.alternate1 || defaultConfig.colors.alternate1,
+          alternate2: colorsFromDb.alternate2 || defaultConfig.colors.alternate2,
+          alternate3: colorsFromDb.alternate3 || defaultConfig.colors.alternate3,
+          alternate4: colorsFromDb.alternate4 || defaultConfig.colors.alternate4,
+          alternate5: colorsFromDb.alternate5 || defaultConfig.colors.alternate5,
+          alternate6: colorsFromDb.alternate6 || defaultConfig.colors.alternate6,
+        }
+      : defaultConfig.colors;
 
     return {
       theme,
