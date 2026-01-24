@@ -60,6 +60,14 @@ All project documentation lives in the `docs/` folder. The root directory should
 - Deprecations
 - Security updates
 
+**Writing Style - Be Concise:**
+- **Just the facts** - Include only essential information developers need to understand what changed
+- **Avoid verbosity** - No lengthy explanations or background context
+- **Minimize code samples** - Only include code if absolutely necessary for understanding
+- **Focus on what, not how** - Describe what was done, not detailed implementation steps
+- **Key files only** - List important files changed, not exhaustive lists
+- **Context for next session** - Brief summary of current state and where to continue
+
 **When to Update**:
 - After completing features or fixes
 - At the end of each development session
@@ -132,6 +140,14 @@ All project documentation lives in the `docs/` folder. The root directory should
 - Organized by phase/category with priority order
 - Detailed task breakdowns with sub-tasks
 - **IMPORTANT**: Items are NEVER deleted - they remain in the document and are simply checked off when completed
+
+**Writing Style - Be Concise:**
+- **Just the facts** - Include only essential information developers need to carry out the task
+- **Avoid verbosity** - No lengthy explanations, background context, or implementation details
+- **Minimize code samples** - Avoid code blocks unless critical for understanding the task
+- **Focus on what, not how** - Describe what needs to be done, not detailed implementation steps
+- **Task-oriented** - Each item should be a clear, actionable task
+- **Reference technical docs** - Link to `prd-technical.md` for implementation patterns instead of including them
 
 **When to Update**:
 - When identifying new work

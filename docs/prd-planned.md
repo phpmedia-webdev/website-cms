@@ -6,7 +6,272 @@ For the core product requirements and architecture, see [prd.md](./prd.md).
 
 ---
 
-## Future Enhancements
+## Developer Workflow with Content Placeholders (Planned Feature)
+
+### Overview
+
+A comprehensive system enabling developers and clients to collaborate efficiently during site setup. Developers create placeholder content to design and build components while clients progressively complete those placeholders with real content. A dashboard checklist tracks all incomplete items, ensuring nothing is missed before launch.
+
+### Problem Addressed
+
+Currently, when launching a new site:
+- Developer needs real content to design components
+- Client is still deciding on content/images
+- Hard to track what still needs completion
+- No clear workflow for collaborative setup
+
+This feature solves these challenges by enabling:
+- Developers to create placeholders (Lorem Ipsum, dummy images)
+- Seamless progression to real content without redesigning
+- Clear visibility of completion status
+- Collaborative setup workflow
+
+### Features
+
+**Placeholder Content Creation:**
+- Create placeholder media items (with default thumbnail/placeholder image)
+- Create placeholder posts and pages (with Lorem Ipsum text)
+- Maintain full metadata structure (title, slug, description, tags, etc.)
+- Mark items as "placeholder" for easy filtering and tracking
+- Cannot be published - must be replaced with real content before launch
+
+**Placeholder Usage in Components:**
+- Components can use placeholder items during development
+- Placeholder items have all the same properties as real content
+- Full design/layout flexibility with placeholder data
+- Seamless transition: replace placeholder with published content, layout stays the same
+
+**Setup Checklist:**
+- Dashboard widget showing all incomplete placeholder items
+- Grouped by content type (Media, Posts, Pages, Forms, etc.)
+- Item count and progress percentage
+- Quick-link to edit each incomplete item
+- Mark item complete when content is finalized and published
+- Filter: "show only placeholders" toggle
+
+**Status Tracking:**
+- Each content item has `status: 'placeholder'` or `status: 'published'`
+- Placeholder items hidden from public site (not published)
+- Can have placeholder version and published version (separately tracked)
+- Progress tracking: X of Y placeholder items completed
+- Launch check: Site cannot be published while placeholder items remain
+
+**Permissions:**
+- Both developers and clients can create/edit placeholder items
+- Both can complete placeholders (change from draft to published)
+- Admin can see all items (draft + published)
+
+### Technical Implementation
+
+**Database Schema Updates:**
+
+```sql
+-- Add status column to content tables with 'placeholder' status
+-- Placeholder = required content that MUST be completed before launch
+-- Published = live content visible on site
+ALTER TABLE website_cms_template_dev.posts ADD COLUMN IF NOT EXISTS
+  status TEXT DEFAULT 'placeholder' CHECK (status IN ('placeholder', 'published', 'archived'));
+
+ALTER TABLE website_cms_template_dev.pages ADD COLUMN IF NOT EXISTS
+  status TEXT DEFAULT 'placeholder' CHECK (status IN ('placeholder', 'published', 'archived'));
+
+ALTER TABLE website_cms_template_dev.media ADD COLUMN IF NOT EXISTS
+  status TEXT DEFAULT 'placeholder' CHECK (status IN ('placeholder', 'published', 'archived'));
+
+-- Create view for incomplete placeholder items (all content types)
+CREATE OR REPLACE VIEW incomplete_placeholders AS
+  SELECT 'post' as type, id, title, created_at FROM website_cms_template_dev.posts WHERE status = 'placeholder'
+  UNION ALL
+  SELECT 'page' as type, id, title, created_at FROM website_cms_template_dev.pages WHERE status = 'placeholder'
+  UNION ALL
+  SELECT 'media' as type, id, name as title, created_at FROM website_cms_template_dev.media WHERE status = 'placeholder'
+  ORDER BY created_at ASC;
+
+-- RPC to get setup checklist (placeholders that need completion)
+CREATE OR REPLACE FUNCTION public.get_setup_checklist()
+RETURNS TABLE (
+  type TEXT,
+  total_placeholder_count INTEGER,
+  published_count INTEGER,
+  items JSONB
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = website_cms_template_dev, public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    t.content_type,
+    COUNT(*) FILTER (WHERE t.status = 'placeholder')::INTEGER as placeholder_count,
+    COUNT(*) FILTER (WHERE t.status = 'published')::INTEGER as published,
+    jsonb_agg(
+      jsonb_build_object(
+        'id', t.id,
+        'title', t.title,
+        'status', t.status,
+        'is_placeholder', t.status = 'placeholder',
+        'created_at', t.created_at
+      )
+    ) as items
+  FROM (
+    SELECT 'post'::TEXT as content_type, id, title, status, created_at FROM website_cms_template_dev.posts
+    UNION ALL
+    SELECT 'page'::TEXT as content_type, id, title, status, created_at FROM website_cms_template_dev.pages
+    UNION ALL
+    SELECT 'media'::TEXT as content_type, id, name as title, status, created_at FROM website_cms_template_dev.media
+  ) t
+  GROUP BY t.content_type;
+END;
+$$;
+```
+
+**Frontend Components:**
+
+- **Setup Checklist Widget** (`/admin/dashboard`):
+  - Summary card showing completion percentage
+  - Grouped sections by content type
+  - Item list with status badge
+  - Quick-edit button (modal or link to editor)
+  - "Mark Complete" button (updates status to published)
+
+- **Content Editor Updates** (Posts, Pages, Media):
+  - Status selector (Draft / Published)
+  - Placeholder toggle (optional UI for "is_placeholder" flag)
+  - Preview info: "This is draft content, not visible on site"
+
+- **Dashboard Summary**:
+  - "X items need completion" card
+  - Progress bar showing % complete
+  - Link to full checklist view
+
+**API Endpoints:**
+
+```sql
+-- Get setup checklist summary (all placeholders that need completion)
+GET /api/setup-checklist/summary
+Response: {
+  total_placeholders: 7,
+  completed_count: 3,
+  remaining_placeholders: 4,
+  by_type: { posts: 2, pages: 1, media: 1 },
+  site_ready_to_launch: false  // true only when remaining_placeholders = 0
+}
+
+-- Get detailed incomplete placeholders by type
+GET /api/setup-checklist/placeholders?type=post
+GET /api/setup-checklist/placeholders?type=page
+GET /api/setup-checklist/placeholders?type=media
+
+-- Replace placeholder with published content (completes checklist item)
+POST /api/setup-checklist/[type]/[id]/complete
+Payload: { status: 'published', ... }  // Update placeholder to published
+```
+
+**Placeholder Content Defaults:**
+
+- **Placeholder Posts/Pages**: Use Lorem Ipsum body text
+- **Placeholder Media**: Use default placeholder image (e.g., gray rectangle with text)
+- **Titles/Slugs**: Developer provides (e.g., "Team Bio - Sarah", "Product Image - Feature")
+- **Metadata**: Empty/optional until client fills in
+
+### Workflow Example
+
+1. **Dev starts new site from template**
+   - Dashboard shows empty checklist
+   - Standby page active (not published)
+
+2. **Dev creates placeholder items**
+   - Creates post: "Team Bio - Sarah" (placeholder status, Lorem Ipsum body)
+   - Creates media: "Hero Image" (placeholder status, default placeholder image)
+   - Creates page: "Services" (placeholder status, Lorem Ipsum content)
+   - Creates form: "Contact Form" (placeholder status, placeholder fields)
+
+3. **Dev builds components**
+   - Uses placeholder posts in "Team Section" component
+   - Uses placeholder media in "Gallery Component"
+   - Designs and styles with placeholder content
+
+4. **Dev shares with client**
+   - Client sees dashboard with setup checklist
+   - 4 placeholder items requiring completion before launch
+   - Client progress: 0 of 4 completed
+
+5. **Client fills in real content**
+   - Client clicks "Team Bio - Sarah" → Opens editor
+   - Client replaces Lorem Ipsum with real bio
+   - Client uploads real photo (replaces placeholder image)
+   - Client changes status from "placeholder" to "published"
+   - Checklist updates: 1 of 4 completed
+
+6. **Repeat for all placeholder items**
+   - Client completes remaining placeholders
+   - Checklist reaches 100%
+
+7. **Launch**
+   - All placeholder items completed (replaced with published content)
+   - No remaining placeholders
+   - Site marked ready to launch
+   - Standby page removed, live site goes public
+
+### Benefits
+
+- **Parallel Work**: Dev and client work simultaneously
+- **No Redesign**: Placeholder content seamlessly becomes real content
+- **Progress Tracking**: Clear visibility of setup completion
+- **Reduced Back-and-Forth**: Dev doesn't need to ask client for content
+- **Professional Setup**: Structured onboarding process
+- **Flexible**: Works for any content type
+
+### Implementation Phases
+
+**Phase 1: Status Tracking**
+- Add `status` column to content tables
+- Create RPC for incomplete items query
+- Update editors to show/set status
+
+**Phase 2: Setup Checklist Dashboard**
+- Build checklist widget on dashboard
+- Show incomplete items by type
+- Quick-links to editors
+
+**Phase 3: Placeholder Helpers**
+- Placeholder image generation/defaults
+- Lorem Ipsum text templates
+- "Create placeholder" quick-action
+
+**Phase 4: Analytics & Refinement**
+- Track setup completion time
+- Monitor which content types are bottlenecks
+- Optional: Automated reminders for incomplete items
+
+### Future Enhancements
+
+- **Workflow Automation**: Automatically assign incomplete items to specific team members
+- **Deadline Tracking**: Set target completion dates for placeholders
+- **Notifications**: Notify team members of incomplete items
+- **Bulk Actions**: Mark multiple items complete at once
+- **Completion Reports**: Export setup progress report
+- **Client Onboarding Guide**: Interactive tutorial showing placeholders → completion
+
+### Access & Permissions
+
+- **View Checklist**: Admin, Developer, Client role
+- **Edit Placeholder Items**: Admin, Developer, Client role
+- **Mark Complete**: Admin, Developer, Client role (any role can complete items)
+- **View Details**: Can see all incomplete items in dashboard
+
+### Integration Points
+
+- Admin dashboard (checklist widget)
+- Content editors (Posts, Pages, Media)
+- Status tracking system (status column)
+- Database queries (RPC functions for incomplete items)
+- Supabase storage (placeholder image defaults)
+
+**Status**: Planned nice-to-have feature for future phase (after Media Library is complete)
+
+---
 
 - SEO tools and sitemap generation
 - Analytics integration
