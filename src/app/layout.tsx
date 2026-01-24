@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { loadDesignSystem } from "@/lib/design-system";
 import { DesignSystemProvider } from "@/components/design-system/DesignSystemProvider";
+import { PublicPageTracker } from "@/components/public/PublicPageTracker";
 
 export const metadata: Metadata = {
   title: "CMS Admin",
@@ -34,6 +35,7 @@ export default async function RootLayout({
         }} />
       </head>
       <body>
+        <PublicPageTracker />
         <DesignSystemProvider config={config}>
           {children}
         </DesignSystemProvider>

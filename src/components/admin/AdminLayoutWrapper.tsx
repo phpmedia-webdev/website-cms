@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 
 interface AdminLayoutWrapperProps {
@@ -19,6 +20,16 @@ export function AdminLayoutWrapper({
 }: AdminLayoutWrapperProps) {
   const pathname = usePathname();
   const isLoginPage = pathname === "/admin/login" || pathname.startsWith("/admin/login");
+
+  // Apply admin theme class to body element
+  useEffect(() => {
+    if (!isLoginPage) {
+      document.body.classList.add("admin-theme");
+      return () => {
+        document.body.classList.remove("admin-theme");
+      };
+    }
+  }, [isLoginPage]);
 
   // Don't show sidebar on login page
   if (isLoginPage) {

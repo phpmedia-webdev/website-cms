@@ -139,6 +139,57 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["settings"]["Insert"]>;
       };
+      taxonomy_terms: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          type: "category" | "tag";
+          parent_id: string | null;
+          description: string | null;
+          suggested_sections: string[] | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["taxonomy_terms"]["Row"], "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["taxonomy_terms"]["Insert"]>;
+      };
+      taxonomy_relationships: {
+        Row: {
+          id: string;
+          term_id: string;
+          content_type: "post" | "page" | "media" | "gallery";
+          content_id: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["taxonomy_relationships"]["Row"], "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["taxonomy_relationships"]["Insert"]>;
+      };
+      section_taxonomy_config: {
+        Row: {
+          id: string;
+          section_name: string;
+          display_name: string;
+          content_type: "post" | "page" | "media" | "gallery";
+          category_slugs: string[] | null;
+          tag_slugs: string[] | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["section_taxonomy_config"]["Row"], "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["section_taxonomy_config"]["Insert"]>;
+      };
     };
   };
 }

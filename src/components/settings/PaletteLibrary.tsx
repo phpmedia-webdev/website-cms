@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import type { ColorPaletteEntry, ColorPalettePayload } from "@/types/color-palette";
 import type { ColorPalette } from "@/types/design-system";
-import { Search, Save, Trash2, Palette as PaletteIcon, Sparkles } from "lucide-react";
+import { Search, Save, Trash2, Palette as PaletteIcon, Sparkles, X } from "lucide-react";
 
 interface PaletteLibraryProps {
   currentColors: ColorPalette;
@@ -28,7 +28,20 @@ export function PaletteLibrary({
   const [internalShowSaveDialog, setInternalShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
-  const [filter, setFilter] = useState<"all" | "predefined" | "custom">("all");
+  const [filter, setFilter] = useState<string>("all");
+  const [selectedPalette, setSelectedPalette] = useState<ColorPaletteEntry | null>(null);
+
+  // Color palette groups
+  const PALETTE_GROUPS = [
+    { value: "all", label: "All Palettes" },
+    { value: "professional", label: "Professional & Corporate" },
+    { value: "material-design", label: "Material Design" },
+    { value: "tailwind", label: "Tailwind Defaults" },
+    { value: "pastels", label: "Pastels & Soft" },
+    { value: "cool-tones", label: "Cool Tones" },
+    { value: "warm-tones", label: "Warm Tones" },
+    { value: "custom", label: "Custom" },
+  ];
 
   // Use external state if provided, otherwise use internal state
   const showSaveDialog = externalShowSaveDialog !== undefined ? externalShowSaveDialog : internalShowSaveDialog;
@@ -67,8 +80,82 @@ export function PaletteLibrary({
     }
   };
 
-  const handleApplyPalette = (palette: ColorPaletteEntry) => {
-    onPaletteSelect(palette.colors);
+  const handleOpenPaletteModal = (palette: ColorPaletteEntry) => {
+    setSelectedPalette(palette);
+  };
+
+  // Fill palette to 15 colors by creating variations of existing colors
+  const fillPaletteTo15 = (palette: ColorPalette): ColorPalette => {
+    const filled = { ...palette };
+    const colorKeys: (keyof ColorPalette)[] = [
+      "color01", "color02", "color03", "color04", "color05",
+      "color06", "color07", "color08", "color09", "color10",
+      "color11", "color12", "color13", "color14", "color15",
+    ];
+
+    // Find which colors are missing
+    const missingKeys: (keyof ColorPalette)[] = colorKeys.filter(
+      (key) => !filled[key] || filled[key] === ""
+    );
+
+    if (missingKeys.length === 0) return filled; // Already has 15 colors
+
+    // Get existing colors (first 9 are typically core colors)
+    const existingColors = colorKeys
+      .slice(0, 9)
+      .map((key) => filled[key])
+      .filter((color) => color && color !== "");
+
+    if (existingColors.length === 0) {
+      // No colors to work with, use defaults
+      const { DEFAULT_DESIGN_SYSTEM } = require("@/types/design-system");
+      return DEFAULT_DESIGN_SYSTEM.colors;
+    }
+
+    // Helper to adjust color brightness
+    const adjustColor = (hex: string, percent: number, lighter: boolean): string => {
+      const cleanHex = hex.replace("#", "");
+      const r = parseInt(cleanHex.substring(0, 2), 16);
+      const g = parseInt(cleanHex.substring(2, 4), 16);
+      const b = parseInt(cleanHex.substring(4, 6), 16);
+
+      const adjust = (val: number) => {
+        if (lighter) {
+          return Math.min(255, val + (255 - val) * percent / 100);
+        } else {
+          return Math.max(0, val - val * percent / 100);
+        }
+      };
+
+      const newR = Math.round(adjust(r));
+      const newG = Math.round(adjust(g));
+      const newB = Math.round(adjust(b));
+
+      return `#${newR.toString(16).padStart(2, "0")}${newG.toString(16).padStart(2, "0")}${newB.toString(16).padStart(2, "0")}`;
+    };
+
+    // Fill missing colors with variations
+    missingKeys.forEach((key, index) => {
+      const sourceColor = existingColors[index % existingColors.length];
+      if (!sourceColor) return;
+
+      // Create variations: lighter for even indices, darker for odd
+      const isEven = index % 2 === 0;
+      const variationPercent = isEven ? 20 : 25; // Lighter or darker percentage
+
+      filled[key] = adjustColor(sourceColor, variationPercent, isEven);
+    });
+
+    return filled;
+  };
+
+  const handleApplyPalette = () => {
+    if (selectedPalette) {
+      // Fill palette to 15 colors if needed
+      const filledPalette = fillPaletteTo15(selectedPalette.colors);
+      onPaletteSelect(filledPalette);
+      setSelectedPalette(null);
+    }
   };
 
   const handleSavePalette = async () => {
@@ -81,18 +168,27 @@ export function PaletteLibrary({
       // Import default colors to ensure all properties are present
       const { DEFAULT_DESIGN_SYSTEM } = await import("@/types/design-system");
       
-      // Merge current colors with defaults to ensure all alternate colors are present
+      // Merge current colors with defaults to ensure all 15 colors are present
       // This prevents null/undefined values from being saved
       const completeColors: ColorPalette = {
         ...DEFAULT_DESIGN_SYSTEM.colors,
         ...currentColors,
-        // Explicitly ensure alternate colors are set (use current or default)
-        alternate1: currentColors.alternate1 || DEFAULT_DESIGN_SYSTEM.colors.alternate1,
-        alternate2: currentColors.alternate2 || DEFAULT_DESIGN_SYSTEM.colors.alternate2,
-        alternate3: currentColors.alternate3 || DEFAULT_DESIGN_SYSTEM.colors.alternate3,
-        alternate4: currentColors.alternate4 || DEFAULT_DESIGN_SYSTEM.colors.alternate4,
-        alternate5: currentColors.alternate5 || DEFAULT_DESIGN_SYSTEM.colors.alternate5,
-        alternate6: currentColors.alternate6 || DEFAULT_DESIGN_SYSTEM.colors.alternate6,
+        // Explicitly ensure all color01-color15 are set (use current or default)
+        color01: currentColors.color01 || DEFAULT_DESIGN_SYSTEM.colors.color01,
+        color02: currentColors.color02 || DEFAULT_DESIGN_SYSTEM.colors.color02,
+        color03: currentColors.color03 || DEFAULT_DESIGN_SYSTEM.colors.color03,
+        color04: currentColors.color04 || DEFAULT_DESIGN_SYSTEM.colors.color04,
+        color05: currentColors.color05 || DEFAULT_DESIGN_SYSTEM.colors.color05,
+        color06: currentColors.color06 || DEFAULT_DESIGN_SYSTEM.colors.color06,
+        color07: currentColors.color07 || DEFAULT_DESIGN_SYSTEM.colors.color07,
+        color08: currentColors.color08 || DEFAULT_DESIGN_SYSTEM.colors.color08,
+        color09: currentColors.color09 || DEFAULT_DESIGN_SYSTEM.colors.color09,
+        color10: currentColors.color10 || DEFAULT_DESIGN_SYSTEM.colors.color10,
+        color11: currentColors.color11 || DEFAULT_DESIGN_SYSTEM.colors.color11,
+        color12: currentColors.color12 || DEFAULT_DESIGN_SYSTEM.colors.color12,
+        color13: currentColors.color13 || DEFAULT_DESIGN_SYSTEM.colors.color13,
+        color14: currentColors.color14 || DEFAULT_DESIGN_SYSTEM.colors.color14,
+        color15: currentColors.color15 || DEFAULT_DESIGN_SYSTEM.colors.color15,
       };
       
       const response = await fetch("/api/admin/color-palettes", {
@@ -156,8 +252,15 @@ export function PaletteLibrary({
   };
 
   const filteredPalettes = palettes.filter((palette) => {
-    if (filter === "predefined" && !palette.is_predefined) return false;
-    if (filter === "custom" && palette.is_predefined) return false;
+    // Filter by group
+    if (filter === "custom") {
+      if (palette.is_predefined) return false;
+    } else if (filter !== "all") {
+      // Filter by group tag
+      if (!palette.is_predefined || !palette.tags.includes(filter)) return false;
+    }
+
+    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
@@ -171,12 +274,12 @@ export function PaletteLibrary({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <PaletteIcon className="h-5 w-5" />
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <PaletteIcon className="h-4 w-4" />
           Palette Library
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs mt-0.5">
           Browse predefined palettes or save your custom color combinations
         </CardDescription>
       </CardHeader>
@@ -195,12 +298,14 @@ export function PaletteLibrary({
           <div className="flex gap-2">
             <select
               value={filter}
-              onChange={(e) => setFilter(e.target.value as "all" | "predefined" | "custom")}
+              onChange={(e) => setFilter(e.target.value)}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="all">All Palettes</option>
-              <option value="predefined">Predefined</option>
-              <option value="custom">Custom</option>
+              {PALETTE_GROUPS.map((group) => (
+                <option key={group.value} value={group.value}>
+                  {group.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -259,78 +364,282 @@ export function PaletteLibrary({
           </div>
         ) : (
           <div className="max-h-[600px] overflow-y-auto pr-2">
-            <div className="grid grid-cols-5 gap-3">
-              {filteredPalettes.map((palette) => (
-                <Card
-                  key={palette.id}
-                  className="relative group cursor-pointer hover:border-primary transition-colors"
-                  onClick={() => handleApplyPalette(palette)}
-                >
-                  <CardHeader className="pb-2 px-3 pt-3">
-                    <div className="flex items-start justify-between gap-1">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-xs font-semibold truncate" title={palette.name}>
-                          {palette.name}
-                        </CardTitle>
-                        {palette.is_predefined && (
-                          <Sparkles className="h-3 w-3 text-muted-foreground mt-1" />
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="px-3 pb-3">
-                    {/* Color Preview - Compact 5 color swatches */}
-                    <div className="grid grid-cols-5 gap-0.5 mb-2">
-                      {[
-                        palette.colors.primary,
-                        palette.colors.secondary,
-                        palette.colors.accent,
-                        palette.colors.alternate1,
-                        palette.colors.alternate2,
-                      ].map((color, idx) => {
-                        const displayColor = color || "#000000";
-                        const colorLabel = color || "undefined";
-                        
-                        return (
-                          <div
-                            key={idx}
-                            className="aspect-square rounded-sm border border-border/50"
-                            style={{ backgroundColor: displayColor }}
-                            title={colorLabel}
-                          />
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="flex-1 text-xs h-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleApplyPalette(palette);
-                        }}
+            {(() => {
+              // If "all" is selected, group by category; otherwise show flat list
+              if (filter === "all") {
+                // Group palettes by their primary group tag
+                const groupedPalettes: Record<string, ColorPaletteEntry[]> = {};
+                
+                filteredPalettes.forEach((palette) => {
+                  if (palette.is_predefined) {
+                    // Find the primary group tag
+                    const groupTag = PALETTE_GROUPS.find(
+                      (g) => g.value !== "all" && g.value !== "custom" && palette.tags.includes(g.value)
+                    )?.value || "other";
+                    
+                    if (!groupedPalettes[groupTag]) {
+                      groupedPalettes[groupTag] = [];
+                    }
+                    groupedPalettes[groupTag].push(palette);
+                  } else {
+                    // Custom palettes
+                    if (!groupedPalettes["custom"]) {
+                      groupedPalettes["custom"] = [];
+                    }
+                    groupedPalettes["custom"].push(palette);
+                  }
+                });
+
+                return (
+                  <div className="space-y-6">
+                    {Object.entries(groupedPalettes).map(([groupKey, groupPalettes]) => {
+                      const groupInfo = PALETTE_GROUPS.find((g) => g.value === groupKey);
+                      const groupLabel = groupInfo?.label || "Other";
+                      const maxVisible = 10; // 2 rows × 5 columns
+                      const hasMore = groupPalettes.length > maxVisible;
+
+                      return (
+                        <div key={groupKey} className="space-y-3">
+                          <h3 className="text-sm font-semibold text-foreground">{groupLabel}</h3>
+                          <div className="grid grid-cols-5 gap-3">
+                            {groupPalettes.map((palette) => (
+                          <Card
+                            key={palette.id}
+                            className="relative group cursor-pointer hover:border-primary transition-colors"
+                            onClick={() => handleOpenPaletteModal(palette)}
+                          >
+                            <CardHeader className="pb-2 px-3 pt-3">
+                              <div className="flex items-start justify-between gap-1">
+                                <div className="flex-1 min-w-0">
+                                  <CardTitle className="text-xs font-semibold truncate" title={palette.name}>
+                                    {palette.name}
+                                  </CardTitle>
+                                  {palette.is_predefined && (
+                                    <Sparkles className="h-3 w-3 text-muted-foreground mt-1" />
+                                  )}
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="px-3 pb-3">
+                              {/* Color Preview - Compact 5 color swatches */}
+                              <div className="grid grid-cols-5 gap-0.5 mb-2">
+                                {[
+                                  palette.colors.color01,
+                                  palette.colors.color02,
+                                  palette.colors.color03,
+                                  palette.colors.color04,
+                                  palette.colors.color05,
+                                ].map((color, idx) => {
+                                  const displayColor = color || "#000000";
+                                  const colorLabel = color || "undefined";
+                                  
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className="aspect-square rounded-sm border border-border/50"
+                                      style={{ backgroundColor: displayColor }}
+                                      title={colorLabel}
+                                    />
+                                  );
+                                })}
+                              </div>
+                              {!palette.is_predefined && (
+                                <div className="flex items-center justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeletePalette(palette.id);
+                                    }}
+                                  >
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                            ))}
+                          </div>
+                          {hasMore && (
+                            <div className="text-xs text-muted-foreground text-center mt-2">
+                              Showing first {maxVisible} of {groupPalettes.length} palettes
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              } else {
+                // Show flat list when a specific group is selected
+                return (
+                  <div className="grid grid-cols-5 gap-3">
+                    {filteredPalettes.map((palette) => (
+                      <Card
+                        key={palette.id}
+                        className="relative group cursor-pointer hover:border-primary transition-colors"
+                        onClick={() => handleOpenPaletteModal(palette)}
                       >
-                        Apply
-                      </Button>
-                      {!palette.is_predefined && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeletePalette(palette.id);
-                          }}
+                        <CardHeader className="pb-2 px-3 pt-3">
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="flex-1 min-w-0">
+                              <CardTitle className="text-xs font-semibold truncate" title={palette.name}>
+                                {palette.name}
+                              </CardTitle>
+                              {palette.is_predefined && (
+                                <Sparkles className="h-3 w-3 text-muted-foreground mt-1" />
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3">
+                          {/* Color Preview - Compact 5 color swatches */}
+                          <div className="grid grid-cols-5 gap-0.5 mb-2">
+                            {[
+                              palette.colors.color01,
+                              palette.colors.color02,
+                              palette.colors.color03,
+                              palette.colors.color04,
+                              palette.colors.color05,
+                            ].map((color, idx) => {
+                              const displayColor = color || "#000000";
+                              const colorLabel = color || "undefined";
+                              
+                              return (
+                                <div
+                                  key={idx}
+                                  className="aspect-square rounded-sm border border-border/50"
+                                  style={{ backgroundColor: displayColor }}
+                                  title={colorLabel}
+                                />
+                              );
+                            })}
+                          </div>
+                          {!palette.is_predefined && (
+                            <div className="flex items-center justify-end">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeletePalette(palette.id);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                );
+              }
+            })()}
+          </div>
+        )}
+
+        {/* Palette Preview Modal */}
+        {selectedPalette && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle>{selectedPalette.name}</CardTitle>
+                    {selectedPalette.is_predefined && (
+                      <Sparkles className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedPalette(null)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {selectedPalette.description && (
+                  <CardDescription>{selectedPalette.description}</CardDescription>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* All 15 Colors Grid */}
+                <div>
+                  <Label className="text-sm font-semibold mb-3 block">All Colors (15)</Label>
+                  <div className="grid grid-cols-5 gap-3">
+                    {[
+                      { key: "color01", label: "Color 1" },
+                      { key: "color02", label: "Color 2" },
+                      { key: "color03", label: "Color 3" },
+                      { key: "color04", label: "Color 4" },
+                      { key: "color05", label: "Color 5" },
+                      { key: "color06", label: "Color 6" },
+                      { key: "color07", label: "Color 7" },
+                      { key: "color08", label: "Color 8" },
+                      { key: "color09", label: "Color 9" },
+                      { key: "color10", label: "Color 10" },
+                      { key: "color11", label: "Color 11" },
+                      { key: "color12", label: "Color 12" },
+                      { key: "color13", label: "Color 13" },
+                      { key: "color14", label: "Color 14" },
+                      { key: "color15", label: "Color 15" },
+                    ].map(({ key, label }) => {
+                      const color = selectedPalette.colors[key as keyof ColorPalette];
+                      const displayColor = color || "#000000";
+                      
+                      return (
+                        <div key={key} className="flex flex-col">
+                          <Label className="text-xs mb-1">{label}</Label>
+                          <div
+                            className="w-full aspect-square rounded-lg border-2 border-border"
+                            style={{ backgroundColor: displayColor }}
+                            title={displayColor}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                            {displayColor}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tags */}
+                {selectedPalette.tags && selectedPalette.tags.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-semibold mb-2 block">Tags</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPalette.tags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-1 text-xs bg-muted rounded-md"
                         >
-                          <Trash2 className="h-3 w-3 text-destructive" />
-                        </Button>
-                      )}
+                          {tag}
+                        </span>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </div>
+                )}
+
+                {/* Apply Button */}
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedPalette(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleApplyPalette}>
+                    Apply Palette
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </CardContent>

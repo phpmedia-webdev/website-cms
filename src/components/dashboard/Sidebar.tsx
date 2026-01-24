@@ -13,6 +13,8 @@ import {
   Settings,
   Shield,
   LogOut,
+  ArrowLeft,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,10 +24,11 @@ interface SidebarProps {
 
 const baseNavigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  { name: "Posts", href: "/admin/posts", icon: FileText },
-  { name: "Galleries", href: "/admin/galleries", icon: Folder },
-  { name: "Media", href: "/admin/media", icon: Image },
+  { name: "Contacts", href: "/admin/contacts", icon: Users },
   { name: "Forms", href: "/admin/forms", icon: ClipboardList },
+  { name: "Media", href: "/admin/media", icon: Image },
+  { name: "Galleries", href: "/admin/galleries", icon: Folder },
+  { name: "Content", href: "/admin/content", icon: FileText },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
@@ -61,9 +64,35 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-card">
-      <div className="flex h-16 items-center border-b px-6">
-        <h1 className="text-xl font-bold">CMS Admin</h1>
+    <div className="flex h-full w-64 flex-col border-r sidebar-container" style={{
+      backgroundColor: 'hsl(220, 13%, 85%)', // Medium grey for sidebar (#D1D5DB)
+      borderColor: 'hsl(220, 13%, 80%)', // Slightly darker border
+    }}>
+      {/* Header with back button */}
+      <div className="flex h-16 items-center border-b px-6" style={{
+        borderColor: 'hsl(220, 13%, 80%)',
+      }}>
+        <h1 className="text-xl font-bold flex-1 text-foreground">CMS Admin</h1>
+      </div>
+      <div className="border-b px-4 py-2" style={{
+        borderColor: 'hsl(220, 13%, 80%)',
+      }}>
+        <button
+          onClick={() => {
+            // Get the last visited public page from localStorage
+            const lastPublicPage = localStorage.getItem("lastPublicPage");
+            if (lastPublicPage) {
+              router.push(lastPublicPage);
+            } else {
+              // Fallback to homepage if no public page stored
+              router.push("/");
+            }
+          }}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Website
+        </button>
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {navigation.map((item) => {
@@ -86,7 +115,9 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           );
         })}
       </nav>
-      <div className="border-t p-4">
+      <div className="border-t p-4" style={{
+        borderColor: 'hsl(220, 13%, 80%)',
+      }}>
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"

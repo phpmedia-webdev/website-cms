@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Script from "next/script";
 import { getIntegrations } from "@/lib/supabase/integrations";
+import { PublicPageTracker } from "@/components/public/PublicPageTracker";
 
 export default async function PublicLayout({
   children,
@@ -80,6 +81,7 @@ export default async function PublicLayout({
         />
       )}
 
+      <PublicPageTracker />
       <div className="min-h-screen flex flex-col">
         <header className="border-b">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">

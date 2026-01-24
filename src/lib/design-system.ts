@@ -19,23 +19,40 @@ export function designSystemToCSSVariables(
   vars["--font-primary"] = `"${config.fonts.primary.family}", sans-serif`;
   vars["--font-secondary"] = `"${config.fonts.secondary.family}", sans-serif`;
 
-  // Core Color variables (9)
-  vars["--color-primary"] = config.colors.primary;
-  vars["--color-secondary"] = config.colors.secondary;
-  vars["--color-accent"] = config.colors.accent;
-  vars["--color-background"] = config.colors.background;
-  vars["--color-background-alt"] = config.colors.backgroundAlt;
-  vars["--color-foreground"] = config.colors.foreground;
-  vars["--color-foreground-muted"] = config.colors.foregroundMuted;
-  vars["--color-border"] = config.colors.border;
-  vars["--color-link"] = config.colors.link;
-  // Alternate Color variables (6)
-  vars["--color-alternate-1"] = config.colors.alternate1;
-  vars["--color-alternate-2"] = config.colors.alternate2;
-  vars["--color-alternate-3"] = config.colors.alternate3;
-  vars["--color-alternate-4"] = config.colors.alternate4;
-  vars["--color-alternate-5"] = config.colors.alternate5;
-  vars["--color-alternate-6"] = config.colors.alternate6;
+  // Color variables (15) - using color01-color15 keys
+  vars["--color-01"] = config.colors.color01;
+  vars["--color-02"] = config.colors.color02;
+  vars["--color-03"] = config.colors.color03;
+  vars["--color-04"] = config.colors.color04;
+  vars["--color-05"] = config.colors.color05;
+  vars["--color-06"] = config.colors.color06;
+  vars["--color-07"] = config.colors.color07;
+  vars["--color-08"] = config.colors.color08;
+  vars["--color-09"] = config.colors.color09;
+  vars["--color-10"] = config.colors.color10;
+  vars["--color-11"] = config.colors.color11;
+  vars["--color-12"] = config.colors.color12;
+  vars["--color-13"] = config.colors.color13;
+  vars["--color-14"] = config.colors.color14;
+  vars["--color-15"] = config.colors.color15;
+
+  // Generate CSS variables from user-defined labels (if available)
+  // Example: if color01 has label "Primary", creates --color-primary
+  if (config.colorLabels) {
+    Object.entries(config.colorLabels).forEach(([colorKey, label]) => {
+      if (label) {
+        // Sanitize label for CSS variable name (lowercase, replace spaces with hyphens)
+        const sanitizedLabel = label
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9-]/g, "");
+        const colorValue = config.colors[colorKey as keyof typeof config.colors];
+        if (colorValue && sanitizedLabel) {
+          vars[`--color-${sanitizedLabel}`] = colorValue;
+        }
+      }
+    });
+  }
 
   return vars;
 }

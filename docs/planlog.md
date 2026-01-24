@@ -4,75 +4,122 @@ This document tracks planned work, implementation phases, and backlog items for 
 
 ---
 
-## 🚀 Session Continuation - Immediate Next Steps
+## 🚀 Quick Session Summary
 
-**Last Session Date:** Current session  
-**Status:** Color Palette Library complete, documentation created, ready to continue
+**Last Session:** Taxonomy System - Search & Scroll Implementation  
+**Status:** ✅ Complete - All items integrated into main tracking below.
 
-### ✅ Completed This Session
+All completed work has been verified and checked off in the "Implementation Phases" section below.
 
-1. **Color Palette Library Implementation**
-   - ✅ Created 15-color system (9 core + 6 alternates)
-   - ✅ Created `color_palettes` table with predefined palettes
-   - ✅ Implemented RPC functions to bypass PostgREST schema search issues
-   - ✅ Created `PaletteLibrary` component for browsing/applying palettes
-   - ✅ Integrated palette library into Design System Settings UI
-   - ✅ Fixed palette loading issue (PostgREST couldn't find table in custom schema)
+---
 
-2. **Documentation Created**
-   - ✅ `docs/ADDING_NEW_TABLES.md` - Complete guide for adding new tables
-   - ✅ `docs/ADDING_NEW_TABLES_CHECKLIST.md` - Quick reference checklist
-   - ✅ `docs/SECURITY_RPC_FUNCTIONS.md` - Security analysis of RPC workaround
-   - ✅ Updated `docs/CLIENT_SETUP_CHECKLIST.md` with reference to new table guide
+## Implementation Phases (Priority Order)
 
-3. **Architecture Decision**
-   - ✅ Decided to **keep multi-schema architecture** (not switching to multi-tenant tables)
-   - ✅ RPC function workaround is secure and manageable (5 min per new table)
-   - ✅ Documentation makes it repeatable and safe
+### Phase 04: Taxonomy System (Completed This Session)
 
-### 🎯 Immediate Next Steps (Continue Here)
+**Status**: Complete - All taxonomy management UI with search/scroll implemented, PRD updated with section-scoped filtering
 
-**Context:** Color palette system is working. Design System Settings UI is functional. Ready to continue with next priority items.
+- [x] Design unified taxonomy system (shared across posts, pages, and media)
+- [x] Create database migration (021_create_taxonomy_system.sql)
+- [x] Document taxonomy system in PRD (including **section-scoped filtering architecture**)
+- [x] Create taxonomy management UI (`/admin/settings/taxonomy` tab)
+  - [x] **Sections management** (table with search, CRUD, section-to-category/tag mapping)
+  - [x] **Categories management** (hierarchical tree, create/edit/delete with search + scroll)
+  - [x] **Tags management** (list with search + scroll, usage counts via badges)
+  - [x] **Search feature** on all 3 tables (real-time filtering by name/slug)
+  - [x] **Scroll feature** on all 3 tables (handles large datasets)
+  - [x] **Sticky headers** while scrolling through tables
+  - [x] **Empty state messaging** when search has no results
+- [ ] **Next: Integrate taxonomy into content editors**
+  - [ ] Post editor: Category multi-select (hierarchical) + tag autocomplete
+  - [ ] Page editor: Category multi-select (hierarchical) + tag autocomplete
+  - [ ] Media upload/edit: Category multi-select + tag autocomplete
+- [ ] Create taxonomy assignment components
+  - [ ] Category selector component (hierarchical dropdown)
+  - [ ] Tag input component (autocomplete with create-on-the-fly)
+- [ ] Add taxonomy filtering to admin content lists
+  - [ ] Filter posts by category/tag
+  - [ ] Filter pages by category/tag
+  - [ ] Filter media by category/tag
+- [ ] Implement public-facing taxonomy features
+  - [ ] Category archive pages (`/blog/category/[slug]`, `/category/[slug]`)
+  - [ ] Tag archive pages (`/blog/tag/[slug]`, `/tag/[slug]`)
+  - [ ] Category/tag links in content metadata
+  - [ ] Taxonomy filtering widgets for public pages
+- [ ] Handle "Uncategorized" default category
+  - [ ] Auto-assign when no category selected
+  - [ ] Prevent deletion of "Uncategorized"
+  - [ ] Reassign to "Uncategorized" when category deleted
 
-1. **Test Color Palette Features** (Quick verification)
-   - [ ] Test creating a custom palette (save current palette)
-   - [ ] Test applying predefined palettes
-   - [ ] Verify colors update correctly in UI
+### Phase 05: Media Library
 
-2. **Continue Phase 02: Design System Settings UI**
-   - [ ] Admin dark theme implementation (pending)
-   - [ ] CSS variable integration refinements (if needed)
+**Status**: Pending - Media first, then content. As we develop content we will reference media files so they need to exist.
 
-3. **Phase 05: Media Library** (Next major feature)
-   - [ ] Review current media library implementation
-   - [ ] Plan image optimization system
-   - [ ] Plan local copy workflow implementation
+- [ ] Review current media library implementation
+- [ ] **Storage Limits & Quotas:**
+  - [ ] Implement per-client storage quota system
+  - [ ] Add storage usage tracking (total GB used per client)
+  - [ ] Set configurable storage limits per tenant (default: e.g., 5GB, 10GB, 20GB)
+  - [ ] Display storage usage in media library UI (progress bar, usage stats)
+  - [ ] Block uploads when quota exceeded (with clear error message)
+  - [ ] Add storage quota management in superadmin panel
+  - [ ] Track storage usage in database (store total bytes used per client schema)
+- [ ] **Image Optimization:**
+  - [ ] Limit image variants to original + 2 optimized versions
+  - [ ] Implement threshold warning for oversized images to prevent database overload
+  - [ ] Research best practices for maximum resolution suitable for websites
+- [ ] **Video Hosting Research:**
+  - [ ] Investigate Supabase object bucket storage capabilities for small video files and GIF animations
+  - [ ] Determine if Supabase CDN is suitable for video playback or if external hosting (Vimeo, YouTube) is preferable
+  - [ ] Document findings and recommendations
+  - [ ] **Decision**: Use external video hosting (Vimeo/YouTube) for cost control and abuse prevention
+- [ ] Plan local copy workflow implementation
 
-4. **Color palette schema evolution (consider)**
-   - [ ] Move to `color01`–`color15` as fixed keys with **user-defined labels**
-   - [ ] Store colors as `color01`…`color15`; store labels separately (e.g. `colorLabels` or in settings)
-   - [ ] UI displays user-defined label; fallback to "Color 1" etc. when missing
-   - [ ] Migration: map existing `primary`/`alternate1`–`alternate6` → `color01`–`color15`; preserve default labels
-   - [ ] Update types, DB (settings + `color_palettes`), design-system CSS vars, predefined palettes
-   - [ ] Enables flexible naming (e.g. "Hover", "Success") without schema changes; no label/key mismatch
+### Phase 06: Super Admin Settings
+
+- [ ] Add captcha field to super admin panel
+- [ ] Include fields for Google Analytics keys
+- [ ] Add visitor tracking configuration
+- [ ] Add commenter settings
+- [ ] Integrate PHP BME email account for notifications
+- [ ] Implement programmable username and password storage for email account
 
 ### 📝 Important Context for Next Session
 
-**RPC Functions Pattern:**
-- When adding new tables, use RPC functions in `public` schema (see `docs/ADDING_NEW_TABLES_CHECKLIST.md`)
-- Pattern is established and documented
-- Takes ~5 minutes per table once you know the pattern
+**Taxonomy System Status:**
+- Taxonomy management UI is complete (`/admin/settings/taxonomy`)
+- All 3 tables have search + scroll + sticky headers
+- Section-scoped filtering architecture documented in PRD (searches across posts, pages, media - shared terms but filtered per section)
+- Ready for integration into content editors (Posts, Pages, Media)
+
+**Implementation Pattern for Taxonomy Integration:**
+- Use `section_taxonomy_config` to filter which terms are available per section
+- Categories use hierarchical parent-child structure (show hierarchy in selectors)
+- Tags are flat (autocomplete with create-on-the-fly)
+- Both types share same database tables and relationships
+
+**Files Modified/Created This Session:**
+- `src/components/settings/TaxonomySettings.tsx` - All search/scroll/form management
+- `src/types/taxonomy.ts` - Type definitions
+- `src/lib/supabase/taxonomy.ts` - Client/server functions
+- `docs/prd.md` - Updated taxonomy system section with section-scoped filtering
 
 **Current Working State:**
-- Color palettes are loading and working
-- Design System Settings UI is functional
-- All migrations have been run (012, 013, 014, 015, 018)
+- Taxonomy management UI fully functional with search on all 3 tables
+- Real-time filtering working correctly
+- Sticky headers working while scrolling
+- Form state management prevents conflicts when editing different items
+- All migrations for taxonomy have been run (021-025)
 - Server is running and accessible
 
 **Files to Review:**
-- `supabase/migrations/018_create_color_palettes_rpc.sql` - Example RPC function pattern
-- `src/lib/supabase/color-palettes.ts` - Example TypeScript implementation using RPC
-- `docs/ADDING_NEW_TABLES_CHECKLIST.md` - Quick reference for next table
+- `src/components/settings/TaxonomySettings.tsx` - Main UI component with search/scroll on all 3 tables
+- `src/types/taxonomy.ts` - Taxonomy types including TaxonomyTerm, SectionTaxonomyConfig, filter functions
+- `src/lib/supabase/taxonomy.ts` - Client/server functions for loading terms and section configs
+- `supabase/migrations/021_create_taxonomy_system.sql` - Initial taxonomy tables
+- `supabase/migrations/023_create_taxonomy_rpc.sql` - RPC functions for taxonomy (pattern like color palettes)
+- `docs/prd.md` - Section 4: Taxonomy System (updated with section-scoped filtering)
+- `docs/prd.md` - Database schema section shows new `section_taxonomy_config` table
 
 **Git Status:**
 - All changes should be committed before switching devices

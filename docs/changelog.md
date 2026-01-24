@@ -9,6 +9,81 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-24 22:45 CT - Taxonomy System: Search, Scroll & Section-Scoped Filtering Architecture
+- **Context for Next Session:** Taxonomy management UI is fully functional with search + scroll on all 3 tables (Sections, Categories, Tags). PRD updated with section-scoped filtering architecture explaining how sections act as filters over the shared taxonomy. All form submission issues fixed (no multiple submissions, forms don't disappear after save). Ready to integrate taxonomy into content editors (Posts, Pages, Media) - this is next phase.
+- Taxonomy System Documentation & Architecture Update
+  - Updated `docs/prd.md` with comprehensive section 4 (Taxonomy System)
+  - Added **section-scoped filtering** architecture (new discovery during dev - not in original PRD)
+  - Documented two scoping models: suggested sections vs. explicit filtering
+  - Real-world use case: Blog section has categories like "Technology", "Travel"; Portfolio section has "Web Design", "Branding" - same shared terms, different per-section availability
+  - Added database schema documentation for `suggested_sections` field and `section_taxonomy_config` table
+- Search & Scroll Features on Taxonomy Settings UI
+  - **Sections Table**: Search by display name/slug + max-h-500px scrollable container + sticky header
+  - **Categories Table**: Search by name/slug + hierarchical smart filtering (shows parents if child matches) + scrollable + sticky header
+  - **Tags Table**: Search by name/slug + scrollable + sticky header
+  - All 3 tables have real-time search filtering as user types
+  - Empty state messaging: "No items match your search" or "No items found"
+  - Search icons from lucide-react for clear affordance
+- Form State Management Improvements
+  - Added `saving` state to track form submissions and prevent multiple clicks
+  - Button disabled state during submission with loading spinner
+  - Fixed full-page loading after save - now reloads data silently without hiding form
+  - Form state cleanup when switching between different edit operations (e.g., edit section → edit category no longer conflicts)
+  - Tab switching when editing term - switches to appropriate tab so form is visible
+  - Delete cleanup - resets form if deleting currently edited item
+- Documentation Cleanup (planlog.md)
+  - Consolidated session work into main Implementation Phases tracking (Phase 04)
+  - Deleted top-level "Quick Session Summary" detail items (kept just summary header)
+  - All items already marked [x] in main phase tracking
+  - Clean session handoff structure with "Important Context for Next Session"
+- **Files Changed:**
+  - Updated: `src/components/settings/TaxonomySettings.tsx` (search/scroll on all 3 tables, form state management, improved UX)
+  - Updated: `src/types/taxonomy.ts` (no changes, already had correct types)
+  - Updated: `src/lib/supabase/taxonomy.ts` (no changes, already had correct functions)
+  - Updated: `docs/prd.md` (section 4: Taxonomy System with section-scoped filtering architecture)
+  - Updated: `docs/planlog.md` (session cleanup, Phase 04 documentation, context for next session)
+- **Testing:** All 3 tables show search functionality + scrolling. Real-time filtering works correctly. Sticky headers stay visible while scrolling. Form state management prevents conflicts when editing different items.
+- **Next Steps:** Integrate taxonomy into content editors (Post editor, Page editor, Media upload). Create category selector component (hierarchical) and tag input component (autocomplete). Add taxonomy filtering to admin content lists.
+
+### 2026-01-24 19:00 CT - Color Palette System Enhancement: Extended Presets, Global Palette Table & Live Preview
+- **Context for Next Session:** Color palette system significantly enhanced with 20+ predefined palettes, global per-tenant palette storage (persistent across sections), and live preview sections on both Colors and Fonts settings pages. UX improved with better palette browsing, selection, and real-time visual feedback. Design system fully functional and ready for content editor integration.
+- Color Palette System Expansion
+  - Extended predefined palette library from 8 to 20+ professional palettes
+  - Added palettes covering multiple design systems and use cases (Material Design, Tailwind, Nord, Dracula, Solarized, GitHub, Gruvbox, One Dark, Catppuccin, etc.)
+  - Each palette includes descriptive metadata for browsing and categorization
+- Global Palette Data Table (Per-Tenant)
+  - Created new `global_palettes` table to store saved color palettes per tenant (persistent storage)
+  - Implemented per-tenant isolation - each tenant's palettes stored separately in client schema
+  - Palettes accessible across all sections and content editors
+  - Added RPC function to retrieve global palettes by tenant (bypassing PostgREST schema search issues)
+  - Enables users to save custom palettes and reuse across project
+- Live Preview Sections
+  - **Colors Settings Page:** Added live preview section showing:
+    - Current selected colors in a visual grid/swatch display
+    - Real-time updates as colors are changed
+    - Sample text/UI elements showing how colors apply in context
+  - **Fonts Settings Page:** Added live preview section showing:
+    - Font family previews with sample text in different weights
+    - Real-time rendering as font selections change
+    - Size and weight variations displayed
+  - Both previews use actual CSS variables for consistency with deployed design
+- Enhanced UX
+  - Improved palette selection UI with search/filter capability
+  - Better visual feedback when switching palettes
+  - Preview updates smoothly as user makes changes
+  - Saved palettes listed separately from presets for easy access
+- **Files Changed:**
+  - New: `supabase/migrations/026_create_global_palettes_table.sql` (per-tenant palette storage)
+  - New: `supabase/migrations/027_create_global_palettes_rpc.sql` (RPC for palette retrieval)
+  - New: `supabase/migrations/028_enable_rls_global_palettes.sql` (security policies)
+  - Updated: `src/components/settings/ColorsSettings.tsx` (live preview section added)
+  - Updated: `src/components/settings/FontsSettings.tsx` (live preview section added)
+  - Updated: `src/lib/supabase/design-system.ts` (global palette functions)
+  - Updated: `docs/prd.md` (Design System section updated with global palettes feature)
+  - Updated: `docs/planlog.md` (phase update with new palette features)
+- **Testing:** Live previews render correctly and update in real-time. Global palettes persist across page reloads. Per-tenant isolation verified. All 20+ preset palettes load and apply successfully.
+- **Next Steps:** Integrate design system settings into content editors. Implement palette selection in post/page/media editing. Add color/font overrides per content type if needed.
+
 ### 2026-01-22 18:30 CT - Color Palette Layout, Planlog Update, .cursor Duplicate Cleanup
 - **Context for Next Session:** Color palette UI uses 3×5 grid (Alternate 1 in row 2, Alternates 2–6 in row 3). Labels match schema (Alternate 1–6). Planlog includes "Color palette schema evolution (consider)" for `color01`–`color15` + user-defined labels. Docs live only in `docs/`; `.cursor/` holds only `rules/`. Ready to test palette features, continue Phase 02/05, or explore color01–color15 when desired.
 - Color palette layout (ColorsSettings)

@@ -58,8 +58,9 @@ This WordPress-style approach provides:
 - `/admin` - Redirects to `/admin/dashboard` or `/admin/login`
 - `/admin/login` - Admin login page
 - `/admin/dashboard` - Dashboard home
-- `/admin/posts` - Blog post management
-- `/admin/pages` - Static page management (About, Services, Contact, Homepage, etc.)
+- `/admin/content` - Content management (unified interface with tabs for Pages and Posts)
+- `/admin/posts` - Blog post management (legacy route, redirects to `/admin/content` with Posts tab active)
+- `/admin/pages` - Static page management (legacy route, redirects to `/admin/content` with Pages tab active)
 - `/admin/galleries` - Gallery management
 - `/admin/media` - Media library
 - `/admin/forms` - Form registry (developer helper) and CRM management
@@ -69,6 +70,7 @@ This WordPress-style approach provides:
 - `/admin/members` - Member user management
 - `/admin/members/[id]` - View member details and MAG assignments
 - `/admin/settings` - Site settings (including theme selection, design system: fonts and color palette)
+- `/admin/settings/taxonomy` - Taxonomy management (categories and tags for posts, pages, and media)
 - `/admin/settings/cookies` - Cookie consent configuration and policy management
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
@@ -1152,7 +1154,7 @@ This architecture enables:
 - Draft/published states
 - SEO metadata (title, description)
 - Excerpt/summary
-- Categories/tags (future enhancement)
+- **Categories and Tags**: Hierarchical categories and flat tags (shared taxonomy system)
 
 ### 2. Pages (Static Pages - WordPress-Style)
 - **Purpose**: All static page content (About, Services, Contact, etc.) stored in CMS database
@@ -1163,6 +1165,7 @@ This architecture enables:
   - Title, slug, content (Tiptap JSONB), featured_image_id (optional), status (draft/published)
   - Same rich text editing capabilities as blog posts
   - Same media management integration
+  - **Categories and Tags**: Hierarchical categories and flat tags (shared taxonomy system)
 - **Theme Switching**: Content remains in database; components pull from CMS and apply theme styling
 - **Component Integration**: Developers build components that pull content from `pages` table
   - Components reference CMS content (no hardcoded content in component code)
@@ -1170,6 +1173,15 @@ This architecture enables:
   - Example: `<HeroSection content={pageData} />` pulls from CMS
 - **Admin Management**: Client admins can edit all page content via CMS without code changes
 - **Route Mapping**: Pages can be mapped to routes (e.g., `/about` → page with slug "about")
+
+**Content Management Interface:**
+- **Unified Content Page** (`/admin/content`): Single interface for managing both Pages and Posts
+  - Tabbed interface (similar to Settings page) with two tabs:
+    - **Pages Tab**: Manage static pages (About, Services, Contact, Homepage, etc.)
+    - **Posts Tab**: Manage blog posts
+  - Provides consistent UX for all content management
+  - Legacy routes (`/admin/posts` and `/admin/pages`) redirect to `/admin/content` with appropriate tab active
+  - Sidebar navigation shows "Content" as single entry point for all content management
 
 **Database Schema:**
 ```sql
@@ -1195,11 +1207,101 @@ CREATE TABLE pages (
 - Gallery cover images
 - Captions for gallery items
 
-### 4. Media Library
+### 4. Taxonomy System (Categories & Tags)
+
+A unified, section-scoped taxonomy system shared across Posts, Pages, and Media for organization, filtering, and discovery. Taxonomy is tenant-wide but filtered per "section" (e.g., Blog, Portfolio, Media Gallery).
+
+**Categories:**
+- **Hierarchical**: Support for parent/child relationships (like WordPress)
+- **Multiple Assignment**: Unlimited categories per content item
+- **Default**: "Uncategorized" category assigned when no category selected
+- **Slug Generation**: Auto-generates from name (lowercase, hyphens), editable
+- **Management**: Full CRUD in Settings → Taxonomy tab
+
+**Tags:**
+- **Flat Structure**: Non-hierarchical, free-form tags
+- **Multiple Assignment**: Unlimited tags per content item
+- **On-the-Fly Creation**: Can create tags directly in content editors
+- **Slug Generation**: Auto-generates from name (lowercase, hyphens), editable
+- **Management**: View all tags, merge duplicates, delete unused in Settings → Taxonomy tab
+
+**Shared System:**
+- Same taxonomy tables used for Posts, Pages, and Media
+- Terms can be reused across content types (e.g., tag "nature" for posts and media)
+- Unified management interface in `/admin/settings/taxonomy`
+
+**Section-Scoped Filtering (Multi-Section Support):**
+- **Sections as contexts**: A site can have multiple "sections" (Blog, Portfolio, Media Library, Gallery, etc.)
+- **Per-section scoping**: Each section has its own set of relevant categories and tags
+- **Two scoping models**:
+  1. **Suggested sections** (default): Categories/tags define which sections they belong to; section uses all suggested terms
+  2. **Explicit filtering** (override): Section explicitly lists which categories/tags it uses (ignores suggestions)
+- **Use cases**:
+  - Blog section: "Technology", "Travel", "Tutorial" categories
+  - Portfolio section: "Web Design", "Branding", "Client Work" categories
+  - Media library: shared across all sections or specific to certain sections
+- **Admin workflow**: Settings → Taxonomy → Sections tab manages per-section filtering
+- **Content editor workflow**: When editing a post in blog section, only blog-relevant terms appear in dropdowns
+
+**Database Schema:**
+```sql
+-- Taxonomy terms (categories and tags)
+CREATE TABLE taxonomy_terms (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  type TEXT CHECK (type IN ('category', 'tag')),
+  parent_id UUID REFERENCES taxonomy_terms(id), -- For hierarchical categories
+  description TEXT,
+  suggested_sections TEXT[] DEFAULT NULL, -- Section slugs this term is suggested for (e.g., ['blog', 'portfolio'])
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+
+-- Taxonomy relationships (many-to-many between terms and content)
+CREATE TABLE taxonomy_relationships (
+  id UUID PRIMARY KEY,
+  term_id UUID REFERENCES taxonomy_terms(id),
+  content_type TEXT CHECK (content_type IN ('post', 'page', 'media')),
+  content_id UUID NOT NULL,
+  created_at TIMESTAMPTZ
+);
+
+-- Section taxonomy configuration (defines which terms are available per section)
+CREATE TABLE section_taxonomy_config (
+  id UUID PRIMARY KEY,
+  section_name TEXT NOT NULL UNIQUE, -- e.g., 'blog', 'portfolio'
+  display_name TEXT NOT NULL, -- e.g., 'Blog', 'Portfolio'
+  content_type TEXT CHECK (content_type IN ('post', 'page', 'media', 'gallery')),
+  category_slugs TEXT[] DEFAULT NULL, -- Explicit categories if set; NULL = use suggested
+  tag_slugs TEXT[] DEFAULT NULL, -- Explicit tags if set; NULL = use suggested
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+```
+
+**Public Access:**
+- Category archive pages: `/blog/category/[slug]`, `/category/[slug]`
+- Tag archive pages: `/blog/tag/[slug]`, `/tag/[slug]`
+- Category/tag links in content metadata
+- Filtering and sorting by category/tag on public pages
+- Category/tag widgets for navigation
+
+### 5. Media Library
 - Image uploads to Supabase Storage
 - Video URL management (Vimeo, YouTube, Adilo)
 - Media metadata (alt text, captions)
 - Search and filtering
+- **Categories and Tags**: Hierarchical categories and flat tags (shared taxonomy system)
+- **Storage Limits & Quotas (Per-Client):**
+  - Per-client storage quota system to prevent abuse and control costs
+  - Configurable storage limits per tenant (default: e.g., 5GB, 10GB, 20GB)
+  - Real-time storage usage tracking (total GB used per client)
+  - Storage usage display in media library UI (progress bar, usage stats, warnings)
+  - Upload blocking when quota exceeded (with clear error message and upgrade path)
+  - Storage quota management in superadmin panel (set/adjust limits per client)
+  - Database tracking: Store total bytes used per client schema for accurate quota enforcement
+  - Quota includes all media variants (original + optimized versions count toward limit)
 - **Image Optimization System**: Automatic generation of multiple image variants (thumbnail, small, medium, large) on upload
   - Original image stored in Supabase Storage
   - Variants generated server-side during upload process
@@ -3194,187 +3296,17 @@ pnpm run build
 
 ## Future Enhancements
 
-- SEO tools and sitemap generation
-- Analytics integration
-- Content scheduling
+For planned features and future enhancements, see [prd-planned.md](./prd-planned.md).
+
+This includes:
+- AI Chatbot with RAG (Retrieval-Augmented Generation)
+- Digital Business Card Feature
+- Customizable Banner Component
+- SEO tools, analytics integration, content scheduling
 - Multi-language support
-- **Membership System:**
-  - Payment integration for paid memberships
-  - Subscription management and renewals
-  - Member activity tracking and analytics
-  - Automated membership expiration reminders
-  - Member referral system
-  - Member directory with privacy controls
-- User roles and permissions refinement (additional admin roles)
-- Advanced design system controls (spacing, border radius, shadows)
-- Design system presets/templates for quick setup
-- Component library documentation site
-- Component versioning and changelog
-- Automated backup scheduling for archives
-- **AI Chatbot with RAG (Retrieval-Augmented Generation)**:
-  - Custom AI chatbot powered by CMS content as knowledge base
-  - RAG architecture using Supabase PGVector for vector search
-  - Content indexing: posts, pages, galleries (descriptions), events, forms (descriptions)
-  - Chat widget component for public-facing pages
-  - Admin interface for chatbot configuration and training
-  - Conversation history stored in Supabase
-  - Integration with CRM/membership system
-  - Support for protected content (membership-aware responses)
+- Membership system enhancements
+- And other planned features
 
-## AI Chatbot with RAG (Planned Feature)
+---
 
-### Overview
-
-A custom AI-powered chatbot that uses the CMS content as a Retrieval-Augmented Generation (RAG) knowledge base. The chatbot answers user questions by retrieving relevant content from the site's posts, pages, galleries, events, and other CMS-managed content, then generating contextual responses using an LLM.
-
-### Architecture
-
-**RAG (Retrieval-Augmented Generation) System:**
-- **Knowledge Base**: All CMS content (posts, pages, galleries, events, forms) serves as the training/knowledge source
-- **Vector Database**: Supabase PGVector extension for storing and searching content embeddings
-- **Embedding Generation**: Content is converted to vector embeddings (using OpenAI, Anthropic, or open-source models)
-- **Retrieval**: User queries are embedded and matched against content vectors using similarity search
-- **Generation**: LLM generates responses based on retrieved context + user query
-- **Response**: Chatbot provides answers grounded in actual CMS content
-
-### Content Indexing
-
-**Indexed Content Types:**
-- **Blog Posts**: Title, content (rich text), excerpt, metadata
-- **Pages**: Title, content (rich text), metadata (all static pages including homepage)
-- **Galleries**: Name, description, captions
-- **Events**: Title, description, location, date information
-- **Forms**: Name, description, field labels
-- **Media**: Alt text, captions, descriptions
-
-**Indexing Process:**
-- Content is automatically indexed when created/updated
-- Text content is extracted and chunked into manageable segments
-- Embeddings are generated and stored in vector database
-- Index is updated in real-time as content changes
-- Admin can trigger manual re-indexing if needed
-
-### Chatbot Features
-
-**Public-Facing Chat Widget:**
-- Embedded chat widget on public pages
-- Responsive design matching site design system
-- Conversation history (session-based)
-- Typing indicators and smooth UX
-- Optional: Chat history saved for logged-in members
-
-**AI Capabilities:**
-- Answers questions about site content
-- Provides information about events, posts, galleries
-- Can guide users to relevant content
-- Understands context from conversation history
-- Respects content access levels (public vs. member-only content)
-
-**Membership-Aware Responses:**
-- Can reference protected content if user has appropriate membership
-- Redirects non-members to login/registration for protected content
-- Understands membership tiers and access levels
-
-### Admin Interface
-
-**Chatbot Configuration** (`/admin/settings/chatbot`):
-- Enable/disable chatbot
-- Configure LLM provider (OpenAI, Anthropic, local model)
-- Set system prompts and behavior
-- Configure response style and tone
-- Set conversation context window
-- View conversation analytics
-
-**Content Indexing Management**:
-- View indexed content status
-- Trigger manual re-indexing
-- View embedding statistics
-- Monitor index health
-- Exclude specific content types from indexing
-
-**Conversation Management**:
-- View conversation history
-- Link conversations to member profiles (if user logged in)
-- Export conversations for analysis
-- Moderate conversations (if needed)
-- Train/improve responses based on feedback
-
-### Technical Implementation
-
-**Database Schema:**
-```sql
--- Vector embeddings table (using PGVector)
-CREATE TABLE content_embeddings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  content_type TEXT NOT NULL, -- 'post', 'page', 'gallery', 'event', etc.
-  content_id UUID NOT NULL, -- Reference to original content
-  chunk_index INTEGER, -- For chunked content
-  text_content TEXT NOT NULL, -- Original text chunk
-  embedding vector(1536), -- Vector embedding (dimension depends on model)
-  metadata JSONB, -- Additional metadata (title, url, etc.)
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  INDEX idx_content_type_id (content_type, content_id),
-  INDEX idx_embedding USING ivfflat (embedding vector_cosine_ops) -- Vector similarity index
-);
-
--- Chat conversations
-CREATE TABLE chat_conversations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id TEXT NOT NULL, -- Session identifier
-  member_id UUID REFERENCES members(id) ON DELETE SET NULL, -- If user logged in
-  started_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  INDEX idx_session_id (session_id),
-  INDEX idx_member_id (member_id)
-);
-
--- Chat messages
-CREATE TABLE chat_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id UUID NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-  content TEXT NOT NULL,
-  retrieved_context JSONB, -- References to content used in RAG
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  INDEX idx_conversation_id (conversation_id)
-);
-```
-
-**Integration Points:**
-- **Content Updates**: Automatically re-index content when posts/pages are created/updated
-- **Vector Search**: Use Supabase PGVector for similarity search
-- **LLM Integration**: Connect to OpenAI, Anthropic, or self-hosted models
-- **CRM Integration**: Link conversations to member profiles
-- **Analytics**: Track conversation metrics and popular queries
-
-### Benefits
-
-- **Content-Driven**: Answers are always based on actual site content
-- **Self-Improving**: As content is added/updated, chatbot knowledge improves
-- **No External Knowledge Base**: CMS content IS the knowledge base
-- **Cost-Effective**: Uses existing content, no separate content management needed
-- **Integrated**: Deep integration with membership and CRM systems
-- **Customizable**: Full control over behavior, responses, and training
-
-### Implementation Considerations
-
-**Phase Planning:**
-- **Phase 1**: Basic RAG setup with content indexing
-- **Phase 2**: Chat widget UI and basic conversation flow
-- **Phase 3**: Membership-aware responses and CRM integration
-- **Phase 4**: Advanced features (analytics, training, moderation)
-
-**Dependencies:**
-- Supabase PGVector extension enabled
-- LLM provider API access (OpenAI, Anthropic, etc.)
-- Embedding model access
-- Vector similarity search implementation
-
-**Cost Considerations:**
-- LLM API costs (per query)
-- Embedding generation costs (per content piece)
-- Vector storage (minimal with Supabase)
-- Hosting/infrastructure for chat widget
-
-**Status**: Planned for future phase (after core CMS features are complete)
+**Note:** The detailed specifications for planned features have been moved to [prd-planned.md](./prd-planned.md) to keep the main PRD focused on core architecture and implemented features.

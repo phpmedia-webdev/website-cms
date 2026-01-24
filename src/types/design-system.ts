@@ -15,26 +15,48 @@ export interface FontConfig {
 
 /**
  * Color palette configuration
- * 15 colors total: 9 core colors + 6 alternate colors
+ * 15 colors total, stored as color01-color15
+ * Users can customize labels for each color (e.g., "Primary", "Hover", "Accent")
  */
 export interface ColorPalette {
-  // Core Colors (9)
-  primary: string; // Primary brand color (hex)
-  secondary: string; // Secondary brand color (hex)
-  accent: string; // Accent color (hex)
-  background: string; // Main background color (hex)
-  backgroundAlt: string; // Alternative background color (hex)
-  foreground: string; // Main text color (hex)
-  foregroundMuted: string; // Muted text color (hex)
-  border: string; // Border color (hex)
-  link: string; // Link color (hex)
-  // Alternate Colors (6) - Custom/flexible colors for theme variations
-  alternate1: string; // Alternate color 1 (hex)
-  alternate2: string; // Alternate color 2 (hex)
-  alternate3: string; // Alternate color 3 (hex)
-  alternate4: string; // Alternate color 4 (hex)
-  alternate5: string; // Alternate color 5 (hex)
-  alternate6: string; // Alternate color 6 (hex)
+  color01: string; // Color 1 (hex)
+  color02: string; // Color 2 (hex)
+  color03: string; // Color 3 (hex)
+  color04: string; // Color 4 (hex)
+  color05: string; // Color 5 (hex)
+  color06: string; // Color 6 (hex)
+  color07: string; // Color 7 (hex)
+  color08: string; // Color 8 (hex)
+  color09: string; // Color 9 (hex)
+  color10: string; // Color 10 (hex)
+  color11: string; // Color 11 (hex)
+  color12: string; // Color 12 (hex)
+  color13: string; // Color 13 (hex)
+  color14: string; // Color 14 (hex)
+  color15: string; // Color 15 (hex)
+}
+
+/**
+ * Color labels configuration
+ * Maps color keys (color01-color15) to user-defined labels
+ * Example: { color01: "Primary", color02: "Hover", color03: "Accent" }
+ */
+export interface ColorLabels {
+  color01?: string;
+  color02?: string;
+  color03?: string;
+  color04?: string;
+  color05?: string;
+  color06?: string;
+  color07?: string;
+  color08?: string;
+  color09?: string;
+  color10?: string;
+  color11?: string;
+  color12?: string;
+  color13?: string;
+  color14?: string;
+  color15?: string;
 }
 
 /**
@@ -47,6 +69,7 @@ export interface DesignSystemConfig {
     secondary: FontConfig;
   };
   colors: ColorPalette;
+  colorLabels?: ColorLabels; // Optional user-defined labels for colors
 }
 
 /**
@@ -65,6 +88,7 @@ export interface DesignSystemSettings {
   "design_system.fonts.primary": FontConfig;
   "design_system.fonts.secondary": FontConfig;
   "design_system.colors": ColorPalette;
+  "design_system.colorLabels"?: ColorLabels; // Optional user-defined color labels
   "site.name": string;
   "site.description": string;
 }
@@ -87,22 +111,40 @@ export const DEFAULT_DESIGN_SYSTEM: DesignSystemConfig = {
     },
   },
   colors: {
-    // Core Colors (9)
-    primary: "#3b82f6",
-    secondary: "#8b5cf6",
-    accent: "#06b6d4",
-    background: "#ffffff",
-    backgroundAlt: "#f9fafb",
-    foreground: "#111827",
-    foregroundMuted: "#6b7280",
-    border: "#e5e7eb",
-    link: "#3b82f6",
-    // Alternate Colors (6)
-    alternate1: "#10b981", // Success/Green
-    alternate2: "#f59e0b", // Warning/Orange
-    alternate3: "#ef4444", // Error/Red
-    alternate4: "#3b82f6", // Info/Blue
-    alternate5: "#2563eb", // Link Hover/Dark Blue
-    alternate6: "#8b5a2b", // Custom/Brown
+    // 15 colors using color01-color15 keys
+    // Default mapping from old schema: primary→color01, secondary→color02, etc.
+    color01: "#3b82f6", // Primary (was: primary)
+    color02: "#8b5cf6", // Secondary (was: secondary)
+    color03: "#06b6d4", // Accent (was: accent)
+    color04: "#ffffff", // Background (was: background)
+    color05: "#f9fafb", // Background Alt (was: backgroundAlt)
+    color06: "#111827", // Foreground (was: foreground)
+    color07: "#6b7280", // Foreground Muted (was: foregroundMuted)
+    color08: "#e5e7eb", // Border (was: border)
+    color09: "#3b82f6", // Link (was: link)
+    color10: "#10b981", // Success/Green (was: alternate1)
+    color11: "#f59e0b", // Warning/Orange (was: alternate2)
+    color12: "#ef4444", // Error/Red (was: alternate3)
+    color13: "#3b82f6", // Info/Blue (was: alternate4)
+    color14: "#2563eb", // Link Hover/Dark Blue (was: alternate5)
+    color15: "#8b5a2b", // Custom/Brown (was: alternate6)
+  },
+  // Default color labels (users can customize these)
+  colorLabels: {
+    color01: "Primary",
+    color02: "Secondary",
+    color03: "Accent",
+    color04: "Background",
+    color05: "Background Alt",
+    color06: "Foreground",
+    color07: "Foreground Muted",
+    color08: "Border",
+    color09: "Link",
+    color10: "Alternate 1",
+    color11: "Alternate 2",
+    color12: "Alternate 3",
+    color13: "Alternate 4",
+    color14: "Alternate 5",
+    color15: "Alternate 6",
   },
 };

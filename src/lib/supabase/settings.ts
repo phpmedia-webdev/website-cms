@@ -10,9 +10,40 @@ import type {
   DesignSystemSettings,
   FontConfig,
   ColorPalette,
+  ColorLabels,
   SiteMetadata,
 } from "@/types/design-system";
 import { DEFAULT_DESIGN_SYSTEM as defaultConfig } from "@/types/design-system";
+
+/**
+ * Migration helper: Convert old color schema (primary/secondary/alternate1-6) to new (color01-color15)
+ * This ensures backward compatibility during migration
+ */
+function migrateColorPalette(oldColors: any): ColorPalette {
+  // If already in new format (has color01), return as-is
+  if (oldColors && oldColors.color01) {
+    return oldColors as ColorPalette;
+  }
+
+  // Migrate from old format to new format
+  return {
+    color01: oldColors?.primary || defaultConfig.colors.color01,
+    color02: oldColors?.secondary || defaultConfig.colors.color02,
+    color03: oldColors?.accent || defaultConfig.colors.color03,
+    color04: oldColors?.background || defaultConfig.colors.color04,
+    color05: oldColors?.backgroundAlt || defaultConfig.colors.color05,
+    color06: oldColors?.foreground || defaultConfig.colors.color06,
+    color07: oldColors?.foregroundMuted || defaultConfig.colors.color07,
+    color08: oldColors?.border || defaultConfig.colors.color08,
+    color09: oldColors?.link || defaultConfig.colors.color09,
+    color10: oldColors?.alternate1 || defaultConfig.colors.color10,
+    color11: oldColors?.alternate2 || defaultConfig.colors.color11,
+    color12: oldColors?.alternate3 || defaultConfig.colors.color12,
+    color13: oldColors?.alternate4 || defaultConfig.colors.color13,
+    color14: oldColors?.alternate5 || defaultConfig.colors.color14,
+    color15: oldColors?.alternate6 || defaultConfig.colors.color15,
+  };
+}
 
 /**
  * Get a single setting by key
@@ -151,6 +182,7 @@ export async function getDesignSystemConfig(): Promise<DesignSystemConfig> {
       "design_system.fonts.primary",
       "design_system.fonts.secondary",
       "design_system.colors",
+      "design_system.colorLabels",
     ];
 
     const settings = await getSettings(keys);
@@ -167,24 +199,17 @@ export async function getDesignSystemConfig(): Promise<DesignSystemConfig> {
       (settings["design_system.fonts.secondary"] as FontConfig) ||
       defaultConfig.fonts.secondary;
 
-    const colorsFromDb =
-      (settings["design_system.colors"] as ColorPalette) || null;
+    const colorsFromDb = settings["design_system.colors"] as any;
 
-    // Merge with defaults to ensure all color properties are present
-    // This prevents missing alternate colors when loading from database
+    // Migrate colors from old schema to new schema if needed
     const colors: ColorPalette = colorsFromDb
-      ? {
-          ...defaultConfig.colors,
-          ...colorsFromDb,
-          // Explicitly ensure alternate colors are set (use from DB or default)
-          alternate1: colorsFromDb.alternate1 || defaultConfig.colors.alternate1,
-          alternate2: colorsFromDb.alternate2 || defaultConfig.colors.alternate2,
-          alternate3: colorsFromDb.alternate3 || defaultConfig.colors.alternate3,
-          alternate4: colorsFromDb.alternate4 || defaultConfig.colors.alternate4,
-          alternate5: colorsFromDb.alternate5 || defaultConfig.colors.alternate5,
-          alternate6: colorsFromDb.alternate6 || defaultConfig.colors.alternate6,
-        }
+      ? migrateColorPalette(colorsFromDb)
       : defaultConfig.colors;
+
+    // Get color labels (optional - defaults provided if missing)
+    const colorLabelsFromDb =
+      (settings["design_system.colorLabels"] as ColorLabels) || null;
+    const colorLabels: ColorLabels = colorLabelsFromDb || defaultConfig.colorLabels || {};
 
     return {
       theme,
@@ -193,6 +218,7 @@ export async function getDesignSystemConfig(): Promise<DesignSystemConfig> {
         secondary: secondaryFont,
       },
       colors,
+      colorLabels,
     };
   } catch (error: any) {
     console.error("Error in getDesignSystemConfig, using defaults:", error);
@@ -227,7 +253,13 @@ export async function updateDesignSystemConfig(
     }
 
     if (config.colors) {
-      updates.push(setSetting("design_system.colors", config.colors));
+      // Ensure colors are in new format (color01-color15)
+      const migratedColors = migrateColorPalette(config.colors);
+      updates.push(setSetting("design_system.colors", migratedColors));
+    }
+
+    if (config.colorLabels !== undefined) {
+      updates.push(setSetting("design_system.colorLabels", config.colorLabels));
     }
 
     const results = await Promise.all(updates);

@@ -24,8 +24,6 @@ export async function GET() {
     }
 
     const palettes = await getAllColorPalettes();
-    
-    console.log("API: Fetched palettes count:", palettes.length);
 
     return NextResponse.json({
       success: true,

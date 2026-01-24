@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
-import { Shield, Settings as SettingsIcon, Type, Palette, Code } from "lucide-react";
+import { Shield, Settings as SettingsIcon, Type, Palette, Code, Tags } from "lucide-react";
 import { FontsSettings } from "@/components/settings/FontsSettings";
 import { ColorsSettings } from "@/components/settings/ColorsSettings";
+import { TaxonomySettings } from "@/components/settings/TaxonomySettings";
 import { updateDesignSystemConfig } from "@/lib/supabase/settings";
 import type { DesignSystemConfig } from "@/types/design-system";
 
@@ -47,7 +48,7 @@ export function SettingsTabs({ initialConfig }: SettingsTabsProps) {
 
   return (
     <Tabs defaultValue="fonts" className="w-full">
-      <TabsList className="grid w-full grid-cols-5">
+      <TabsList className="grid w-full grid-cols-6">
         <TabsTrigger value="fonts" className="flex items-center gap-2">
           <Type className="h-4 w-4" />
           Fonts
@@ -55,6 +56,10 @@ export function SettingsTabs({ initialConfig }: SettingsTabsProps) {
         <TabsTrigger value="colors" className="flex items-center gap-2">
           <Palette className="h-4 w-4" />
           Colors
+        </TabsTrigger>
+        <TabsTrigger value="taxonomy" className="flex items-center gap-2">
+          <Tags className="h-4 w-4" />
+          Taxonomy
         </TabsTrigger>
         <TabsTrigger value="security" className="flex items-center gap-2">
           <Shield className="h-4 w-4" />
@@ -88,6 +93,10 @@ export function SettingsTabs({ initialConfig }: SettingsTabsProps) {
           saving={saving}
           saved={saved}
         />
+      </TabsContent>
+
+      <TabsContent value="taxonomy" className="mt-6">
+        <TaxonomySettings />
       </TabsContent>
 
       <TabsContent value="security" className="mt-6">

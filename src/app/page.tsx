@@ -1,5 +1,5 @@
 // Root page - redirect to public homepage
-import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export default function Home() {
   // The public homepage is in (public)/page.tsx
@@ -12,12 +12,12 @@ export default function Home() {
           This is the public homepage. Content will be added here.
         </p>
         <div className="pt-4">
-          <a 
+          <Link 
             href="/admin/login" 
             className="text-primary hover:underline"
           >
             Admin Login
-          </a>
+          </Link>
         </div>
       </div>
     </div>
