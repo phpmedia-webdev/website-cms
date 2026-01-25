@@ -8,6 +8,7 @@ import { MediaWithVariants } from "@/types/media";
 import { formatFileSize } from "@/lib/media/image-optimizer";
 import { deleteMedia } from "@/lib/supabase/media";
 import { format } from "date-fns";
+import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 
 interface MediaLibraryListProps {
   media: MediaWithVariants[];
@@ -29,23 +30,25 @@ export function MediaLibraryList({
   onDelete,
 }: MediaLibraryListProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const handleDelete = async (mediaId: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (mediaId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setConfirmDeleteId(mediaId);
+  };
 
-    if (!confirm("Delete this media and all its variants?")) {
-      return;
-    }
-
-    setDeleting(mediaId);
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    setDeleting(confirmDeleteId);
     try {
-      await deleteMedia(mediaId);
+      await deleteMedia(confirmDeleteId);
       onDelete?.();
     } catch (error) {
       console.error("Error deleting media:", error);
       alert("Failed to delete media");
     } finally {
       setDeleting(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -158,7 +161,7 @@ export function MediaLibraryList({
                         size="sm"
                         variant="ghost"
                         className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                        onClick={(e) => handleDelete(item.id, e)}
+                        onClick={(e) => handleDeleteClick(item.id, e)}
                         disabled={deleting === item.id}
                         title="Delete"
                       >
@@ -176,6 +179,15 @@ export function MediaLibraryList({
           </tbody>
         </table>
       </div>
+
+      <ConfirmDeleteModal
+        open={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={handleConfirmDelete}
+        title="Are you sure?"
+        message="This image will be permanently deleted. This cannot be undone."
+        isDeleting={deleting !== null}
+      />
     </div>
   );
 }

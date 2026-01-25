@@ -110,13 +110,11 @@ async function setupClientSchema(schemaName: string) {
 
     // Step 2: Run migrations
     const migrations = [
-      { file: "000_create_schema_and_tables.sql", desc: "Creating tables" },
-      { file: "004_expose_schema_permissions.sql", desc: "Granting permissions" },
-      { file: "008_create_settings_rpc.sql", desc: "Creating RPC functions" },
-      { file: "009_insert_default_settings.sql", desc: "Inserting default settings" },
-      { file: "010_enable_rls_and_policies.sql", desc: "Enabling RLS and policies" },
-      { file: "011_fix_function_search_path.sql", desc: "Fixing function search path" },
-      { file: "018_create_color_palettes_rpc.sql", desc: "Creating color palette RPC functions" },
+      { file: "026_create_media_with_variants.sql", desc: "Creating media tables" },
+      { file: "027_enable_rls_media.sql", desc: "Enabling RLS for media" },
+      { file: "038_fix_all_media_rpc_functions.sql", desc: "Creating media RPC functions" },
+      // Note: Media migrations 028, 031, 034, 036, 037 are replaced by 038
+      // Note: Storage policies are set up in Step 3b below
     ];
 
     for (const migration of migrations) {
@@ -143,6 +141,108 @@ async function setupClientSchema(schemaName: string) {
       }
     } else {
       console.log(`   ✅ Storage bucket created: ${bucketName}`);
+    }
+
+    // Step 3b: Setup storage bucket policies
+    console.log("\n🔒 Step 3b: Setting up storage bucket policies...");
+    try {
+      // Enable RLS on storage.objects if not already enabled
+      const enableRLSSQL = `ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;`;
+      
+      // Create storage policies for the bucket
+      const policySQL = `
+        DO $$
+        DECLARE
+          bucket_name TEXT := '${bucketName}';
+          bucket_id_val UUID;
+        BEGIN
+          -- Get bucket ID
+          SELECT id INTO bucket_id_val FROM storage.buckets WHERE name = bucket_name;
+          
+          IF bucket_id_val IS NULL THEN
+            RAISE WARNING 'Bucket % does not exist. Policies will be skipped.', bucket_name;
+            RETURN;
+          END IF;
+
+          -- Policy 1: Allow authenticated users to upload files (INSERT)
+          DROP POLICY IF EXISTS "Allow authenticated uploads_${bucketName}" ON storage.objects;
+          CREATE POLICY "Allow authenticated uploads_${bucketName}"
+          ON storage.objects
+          FOR INSERT
+          TO authenticated
+          WITH CHECK (
+            bucket_id = bucket_id_val
+          );
+
+          -- Policy 2: Allow authenticated users to update files (UPDATE)
+          DROP POLICY IF EXISTS "Allow authenticated updates_${bucketName}" ON storage.objects;
+          CREATE POLICY "Allow authenticated updates_${bucketName}"
+          ON storage.objects
+          FOR UPDATE
+          TO authenticated
+          USING (
+            bucket_id = bucket_id_val
+          )
+          WITH CHECK (
+            bucket_id = bucket_id_val
+          );
+
+          -- Policy 3: Allow authenticated users to delete files (DELETE)
+          DROP POLICY IF EXISTS "Allow authenticated deletes_${bucketName}" ON storage.objects;
+          CREATE POLICY "Allow authenticated deletes_${bucketName}"
+          ON storage.objects
+          FOR DELETE
+          TO authenticated
+          USING (
+            bucket_id = bucket_id_val
+          );
+
+          -- Policy 4: Allow public read access (SELECT)
+          DROP POLICY IF EXISTS "Allow public reads_${bucketName}" ON storage.objects;
+          CREATE POLICY "Allow public reads_${bucketName}"
+          ON storage.objects
+          FOR SELECT
+          TO public
+          USING (
+            bucket_id = bucket_id_val
+          );
+
+          RAISE NOTICE 'Storage policies configured for bucket: % (ID: %)', bucket_name, bucket_id_val;
+        END $$;
+      `;
+
+      // Enable RLS first
+      const { error: rlsError } = await supabase.rpc("exec_sql", {
+        sql: enableRLSSQL,
+      }).catch(() => ({ error: null }));
+
+      if (rlsError) {
+        console.warn(`   ⚠️  Could not enable RLS on storage.objects: ${rlsError.message}`);
+      }
+
+      // Create policies
+      const { error: policyError } = await supabase.rpc("exec_sql", {
+        sql: policySQL,
+      }).catch(async () => {
+        console.warn("   ⚠️  Could not set storage policies automatically (RPC not available)");
+        console.warn("   Please configure storage policies manually in Supabase Dashboard:");
+        console.warn(`   Storage → ${bucketName} → Policies`);
+        return { error: null };
+      });
+
+      if (policyError) {
+        console.warn(`   ⚠️  Could not set storage policies: ${policyError.message}`);
+        console.warn("   Please configure storage policies manually in Supabase Dashboard:");
+        console.warn(`   Storage → ${bucketName} → Policies`);
+        console.warn("   See migration 039_setup_storage_bucket_policies.sql for policy details");
+      } else {
+        console.log(`   ✅ Storage bucket policies configured`);
+      }
+    } catch (error: any) {
+      console.warn(`   ⚠️  Error setting storage policies: ${error.message}`);
+      console.warn("   Please configure storage policies manually in Supabase Dashboard:");
+      console.warn(`   Storage → ${bucketName} → Policies`);
+      console.warn("   See migration 039_setup_storage_bucket_policies.sql for policy details");
     }
 
     // Step 4: Refresh PostgREST cache
@@ -176,7 +276,7 @@ async function setupClientSchema(schemaName: string) {
   } catch (error: any) {
     console.error("\n❌ Setup failed:", error.message);
     console.error("\n💡 Some steps may need to be completed manually.");
-    console.error("   See docs/CLIENT_SETUP_CHECKLIST.md for manual steps.");
+    console.error("   See Manual Setup Steps in docs/prd-technical.md or docs/archived/zzz-CLIENT_SETUP_CHECKLIST.md");
     process.exit(1);
   }
 }

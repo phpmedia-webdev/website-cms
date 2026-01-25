@@ -271,7 +271,7 @@ pnpm setup-client <schema-name>
 3. Create superadmin user
 4. Deploy application
 
-**Note:** Script uses `exec_sql` RPC which may not be available in all Supabase projects. If script fails, use manual steps.
+**Note:** Script uses `exec_sql` RPC which may not be available in all Supabase projects. If script fails, use manual steps below or `docs/archived/zzz-CLIENT_SETUP_CHECKLIST.md`.
 
 ### Manual Setup Steps
 
@@ -279,14 +279,16 @@ pnpm setup-client <schema-name>
 - Run: `CREATE SCHEMA IF NOT EXISTS client_acme_corp;`
 - Schema names must use underscores, not hyphens
 
-**Step 2: Run Core Migrations**
-Run in order, replacing `website_cms_template_dev` with your client schema name:
-- `000_create_schema_and_tables.sql` - Create tables
-- `004_expose_schema_permissions.sql` - Grant permissions
-- `008_create_settings_rpc.sql` - Create RPC functions
-- `009_insert_default_settings.sql` - Insert defaults
-- `010_enable_rls_and_policies.sql` - Enable RLS
-- `011_fix_function_search_path.sql` - Fix search path
+**Step 2: Run Migrations**
+Migrations `000`–`022` are in `supabase/migrations/archive/`. Current migrations (`023`+) include taxonomy, media, and storage.
+
+**Option A – Use setup script (recommended):** `pnpm setup-client <schema-name>` runs 026, 027, 038 (media + RPC) and creates the storage bucket. It does not run archived or taxonomy migrations.
+
+**Option B – Manual:** Run migrations in order. For template-like setup:
+- Archived (if needed): from `archive/` — 000, 004, 008, 009, 010, 011, etc.
+- Current: 023–025 (taxonomy), 026–027 (media tables + RLS), 038 (media RPCs — consolidates 028, 031, 034, 036, 037), 039 (storage bucket policies).
+
+Replace `website_cms_template_dev` with your client schema name in all migrations.
 
 **Step 3: Expose Schema**
 - Dashboard → Settings → API → Exposed Schemas
@@ -297,6 +299,7 @@ Run in order, replacing `website_cms_template_dev` with your client schema name:
 - Dashboard → Storage
 - Create bucket: `client-{schema_name}`
 - Set to Public (if needed)
+- **IMPORTANT:** Configure RLS policies — run `039_setup_storage_bucket_policies.sql` (edit `bucket_name` if needed) or use Dashboard (see Storage Bucket Policies section below)
 
 **Step 5: Configure Environment Variables**
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -411,6 +414,9 @@ Infinite recursion can cause severe cost and performance issues:
    - [ ] `search_path` has `public` first
    - [ ] Function tested in isolation
    - [ ] No circular function dependencies
+   - [ ] Proper error handling
+   - [ ] Permissions granted correctly
+   - [ ] Schema-qualified table names in queries
    - [ ] Statement timeout configured
 
 4. **Monitoring:**
@@ -423,6 +429,8 @@ Infinite recursion can cause severe cost and performance issues:
 - If recursion detected: Immediately drop problematic functions to stop the loop
 - Use `DROP FUNCTION IF EXISTS ... CASCADE;` to break recursion
 - See migration `037_emergency_fix_recursion.sql` for example emergency fix pattern
+
+**Media RPC consolidation:** Migration `038_fix_all_media_rpc_functions.sql` consolidates and supersedes 028, 031, 034, 036, 037 for media. Use 038 for new setups; it applies the correct `search_path` and defines `get_media_with_variants`, `get_media_by_id`, `search_media`, `get_media_stats`, etc.
 
 **Common Functions:**
 - `get_all_{table}()` - List all records
@@ -661,6 +669,64 @@ Use sequential numbering:
 - Rate limiting (100 req/min public, configurable for API keys)
 - Idempotency handling for webhooks
 
+**Storage Bucket Policies:**
+
+Storage buckets require RLS policies on `storage.objects` to allow file uploads, updates, deletes, and reads. Without these policies, uploads will fail with "new row violates row-level security policy" errors.
+
+**Key Facts:**
+- `storage.objects.bucket_id` is **TEXT** (bucket name), not UUID
+- Policies must be created on `storage.objects` table (not on buckets table)
+- Use `EXECUTE format()` with `%L` to inline bucket name as literal in policies
+- PostgreSQL does NOT support `CREATE POLICY IF NOT EXISTS` - use `DROP POLICY IF EXISTS` then `CREATE POLICY`
+
+**Required Policies:**
+1. **INSERT** (uploads) - Allow `authenticated` users to upload files
+2. **UPDATE** - Allow `authenticated` users to update files
+3. **DELETE** - Allow `authenticated` users to delete files
+4. **SELECT** (reads) - Allow `public` (or `anon`/`authenticated`) to read files
+
+**Migration Pattern:**
+See `supabase/migrations/039_setup_storage_bucket_policies.sql` for the complete pattern. Key structure:
+
+```sql
+DO $$
+DECLARE
+  bucket_name TEXT := 'client-website_cms_template_dev';
+BEGIN
+  -- Verify bucket exists
+  IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE name = bucket_name) THEN
+    RAISE EXCEPTION 'Bucket % does not exist.', bucket_name;
+  END IF;
+
+  -- Use EXECUTE format() to inline bucket name as literal
+  DROP POLICY IF EXISTS "Allow authenticated uploads" ON storage.objects;
+  EXECUTE format(
+    'CREATE POLICY "Allow authenticated uploads" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = %L)',
+    bucket_name
+  );
+  -- ... repeat for UPDATE, DELETE, SELECT
+END $$;
+```
+
+**Why `EXECUTE format()`?**
+- Variables in `CREATE POLICY` are resolved against the table being policied (`storage.objects`)
+- PostgreSQL looks for a column named `bucket_name` in `storage.objects` (doesn't exist)
+- `EXECUTE format()` with `%L` inlines the value as a SQL literal string
+- Result: `bucket_id = 'client-website_cms_template_dev'` (literal comparison)
+
+**Common Errors:**
+- `invalid input syntax for type uuid: "bucket-name"` → Using UUID instead of bucket name (text)
+- `column "bucket_name" does not exist` → Variable used directly in CREATE POLICY (use EXECUTE format)
+- `syntax error at or near "NOT"` → Using `CREATE POLICY IF NOT EXISTS` (not supported)
+
+**Dashboard Alternative:**
+If SQL migration doesn't work, configure policies via Dashboard:
+1. Go to Supabase Dashboard → Storage
+2. Click on your bucket
+3. Go to "Policies" tab
+4. Add policies for INSERT, UPDATE, DELETE, SELECT operations
+5. Use `bucket_id = 'your-bucket-name'` in policy expressions
+
 ---
 
 ## 7. Testing & Troubleshooting
@@ -704,7 +770,7 @@ Use sequential numbering:
 7. Test authentication (login with test user)
 
 **Troubleshooting:**
-- "RPC exec_sql not available" → Run migrations manually
+- "RPC exec_sql not available" → Use manual setup steps (Step 2 option B) or `docs/archived/zzz-CLIENT_SETUP_CHECKLIST.md`
 - "Schema already exists" → Use different test schema name
 - "Missing environment variables" → Check `.env.local`
 - "Permission denied" → Verify service role key

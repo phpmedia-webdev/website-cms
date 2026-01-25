@@ -37,6 +37,9 @@ export interface MediaVariant {
   created_at: string;
 }
 
+/** Media type: image (incl. GIF) or video */
+export type MediaType = 'image' | 'video';
+
 /**
  * Base media asset
  * Represents the original uploaded file and metadata
@@ -47,15 +50,20 @@ export interface MediaAsset {
   slug: string;
   description: string | null;
   alt_text: string | null;
-  
+
   // Original file info (archived)
   original_filename: string;
   original_format: ImageFormat;
   original_size_bytes: number;
   original_width: number | null;
   original_height: number | null;
-  
+
   mime_type: string | null;
+  /** 'image' | 'video'; inferred from file or explicit for URL videos */
+  media_type: MediaType;
+  /** Video URL (YouTube, Vimeo, Adilo) when media_type is 'video' and source is URL */
+  video_url: string | null;
+
   created_at: string;
   updated_at: string;
 }
@@ -79,7 +87,7 @@ export interface UploadProgress {
   percentComplete: number;
   variantsGenerating: VariantType[];
   variantsComplete: VariantType[];
-  status: 'uploading' | 'processing' | 'complete' | 'error';
+  status: 'preparing' | 'uploading' | 'processing' | 'complete' | 'error';
   error?: string;
 }
 
@@ -120,6 +128,8 @@ export interface MediaBulkResponse {
   original_width: number | null;
   original_height: number | null;
   mime_type: string | null;
+  media_type?: MediaType;
+  video_url?: string | null;
   created_at: string;
   updated_at: string;
   variants: MediaVariant[];
@@ -135,11 +145,14 @@ export interface MediaCreatePayload {
   description?: string;
   alt_text?: string;
   original_filename: string;
-  original_format: ImageFormat;
+  /** ImageFormat for images; 'url' for URL videos; 'mp4'|'webm'|'mov' for uploaded video */
+  original_format: ImageFormat | 'url' | 'mp4' | 'webm' | 'mov';
   original_size_bytes: number;
   original_width: number | null;
   original_height: number | null;
   mime_type?: string;
+  media_type?: MediaType;
+  video_url?: string | null;
 }
 
 /**

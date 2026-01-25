@@ -63,22 +63,37 @@ export function ImageUpload({
 
   const handleFile = async (file: File) => {
     try {
-      // Reset progress
-      setProgress(null);
+      // Show "Preparing..." immediately so user sees feedback before any async work
+      setProgress({
+        fileName: file.name,
+        totalSize: file.size,
+        uploadedBytes: 0,
+        percentComplete: 0,
+        variantsGenerating: [],
+        variantsComplete: [],
+        status: "preparing",
+      });
+      await new Promise((r) => setTimeout(r, 0));
 
-      // Validate file
       const validation = await validateFileBeforeUpload(file, maxFileSize);
       if (!validation.valid) {
         const error = new Error(validation.error);
         onError?.(error);
-        setProgress(null);
+        setProgress({
+          fileName: file.name,
+          totalSize: file.size,
+          uploadedBytes: 0,
+          percentComplete: 0,
+          variantsGenerating: [],
+          variantsComplete: [],
+          status: "error",
+          error: validation.error,
+        });
         return;
       }
 
-      // Get bucket name
       const bucket = getClientBucket();
 
-      // Verify bucket exists
       try {
         await ensureStorageBucket(bucket);
       } catch (bucketError) {
@@ -97,16 +112,9 @@ export function ImageUpload({
         return;
       }
 
-      // Extract metadata
-      setProgress({
-        fileName: file.name,
-        totalSize: file.size,
-        uploadedBytes: 0,
-        percentComplete: 10,
-        variantsGenerating: [],
-        variantsComplete: [],
-        status: "uploading",
-      });
+      setProgress((prev) =>
+        prev ? { ...prev, percentComplete: 10, status: "uploading" } : null
+      );
 
       const metadata = await extractFileMetadata(file);
 
@@ -235,6 +243,7 @@ export function ImageUpload({
         return <CheckCircle2 className="h-8 w-8 text-green-500" />;
       case "error":
         return <AlertCircle className="h-8 w-8 text-red-500" />;
+      case "preparing":
       case "uploading":
       case "processing":
         return <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />;
@@ -246,6 +255,8 @@ export function ImageUpload({
   const getStatusText = () => {
     if (!progress) return null;
     switch (progress.status) {
+      case "preparing":
+        return "Preparing...";
       case "uploading":
         return "Uploading...";
       case "processing":

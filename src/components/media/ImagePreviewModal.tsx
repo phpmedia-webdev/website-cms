@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Copy, Download, Trash2, Loader2, Save } from "lucide-react";
+import { X, Copy, Trash2, Loader2, Save, FolderDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { MediaWithVariants } from "@/types/media";
 import { updateMedia, deleteMedia } from "@/lib/supabase/media";
 import { formatFileSize } from "@/lib/media/image-optimizer";
+import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import Image from "next/image";
 
 interface ImagePreviewModalProps {
@@ -27,7 +28,9 @@ export function ImagePreviewModal({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [localCopyStatus, setLocalCopyStatus] = useState<Record<string, "not_copied" | "copied" | "copying">>({});
 
   const [formData, setFormData] = useState({
     name: media.name,
@@ -36,10 +39,18 @@ export function ImagePreviewModal({
     description: media.description || "",
   });
 
-  const handleCopyUrl = (url: string, variantType: string) => {
+  const handleCopyUrl = (url: string, variantId: string) => {
     navigator.clipboard.writeText(url);
-    setCopied(variantType);
+    setCopied(variantId);
     setTimeout(() => setCopied(null), 2000);
+  };
+
+  const handleSaveToLocal = (variantId: string) => {
+    setLocalCopyStatus((prev) => ({ ...prev, [variantId]: "copying" }));
+    // Stub: Save to Local workflow (folder picker, copy to public/) not yet implemented.
+    setTimeout(() => {
+      setLocalCopyStatus((prev) => ({ ...prev, [variantId]: "not_copied" }));
+    }, 300);
   };
 
   const handleSave = async () => {
@@ -60,11 +71,7 @@ export function ImagePreviewModal({
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this media? This cannot be undone.")) {
-      return;
-    }
-
+  const handleConfirmDelete = async () => {
     setIsDeleting(true);
     try {
       await deleteMedia(media.id);
@@ -75,6 +82,7 @@ export function ImagePreviewModal({
       alert("Failed to delete media");
     } finally {
       setIsDeleting(false);
+      setShowConfirmDelete(false);
     }
   };
 
@@ -84,6 +92,7 @@ export function ImagePreviewModal({
   const displayUrl = displayVariant?.url || "";
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
@@ -100,7 +109,7 @@ export function ImagePreviewModal({
         </div>
 
         <div className="p-4 space-y-6">
-          {/* Image Preview */}
+          {/* a. Image Preview */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Preview</Label>
             <div className="relative bg-muted rounded-lg overflow-hidden">
@@ -110,57 +119,17 @@ export function ImagePreviewModal({
                   alt={media.alt_text || media.name}
                   width={600}
                   height={400}
-                  className="w-full h-auto max-h-96 object-contain"
+                  className="w-full h-auto max-h-72 object-contain"
                 />
               ) : (
-                <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <div className="h-72 flex items-center justify-center text-muted-foreground">
                   No preview available
                 </div>
               )}
             </div>
           </div>
 
-          {/* Variants Section */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Variants ({media.variants.length})</Label>
-            <div className="grid gap-2 max-h-48 overflow-y-auto">
-              {media.variants.map((variant) => (
-                <div
-                  key={variant.id}
-                  className="p-3 bg-muted rounded-lg space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium capitalize">
-                        {variant.variant_type}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {variant.width}×{variant.height}px • {formatFileSize(variant.size_bytes || 0)} • {variant.format.toUpperCase()}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleCopyUrl(variant.url, variant.id)}
-                      title="Copy URL"
-                    >
-                      {copied === variant.id ? (
-                        <span className="text-xs">✓</span>
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <code className="text-xs bg-background p-1.5 rounded block truncate">
-                    {variant.url}
-                  </code>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Original File Info */}
+          {/* b. Original File Info */}
           <div className="p-3 bg-blue-50 border border-blue-200 rounded space-y-1">
             <p className="text-xs font-medium text-blue-900">Original File</p>
             <p className="text-xs text-blue-800">
@@ -168,7 +137,7 @@ export function ImagePreviewModal({
             </p>
           </div>
 
-          {/* Edit Section */}
+          {/* c. Edit Metadata Section */}
           {isEditing ? (
             <div className="space-y-3 p-4 bg-muted rounded-lg">
               <h3 className="font-medium text-sm">Edit Metadata</h3>
@@ -279,21 +248,92 @@ export function ImagePreviewModal({
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-2">
+          {/* d. Variants Section */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Variants ({media.variants.length})</Label>
+            <div className="grid gap-1.5 max-h-64 overflow-y-auto overflow-x-hidden min-w-0">
+              {media.variants.map((variant) => (
+                <div
+                  key={variant.id}
+                  className="px-2.5 py-2 bg-muted rounded-md space-y-1.5 min-w-0"
+                >
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <p className="text-xs text-foreground truncate min-w-0">
+                      <span className="text-sm font-semibold capitalize">
+                        {variant.variant_type}
+                      </span>
+                      <span className="text-muted-foreground font-normal mx-1">·</span>
+                      {variant.width}×{variant.height}px
+                      <span className="text-muted-foreground font-normal mx-1">·</span>
+                      {formatFileSize(variant.size_bytes || 0)}
+                      <span className="text-muted-foreground font-normal mx-1">·</span>
+                      {variant.format.toUpperCase()}
+                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => handleSaveToLocal(variant.id)}
+                        disabled={localCopyStatus[variant.id] === "copying"}
+                        title="Copy variant to local public/ folder"
+                      >
+                        {localCopyStatus[variant.id] === "copying" ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <FolderDown className="h-3 w-3 mr-1" />
+                        )}
+                        Save to Local
+                      </Button>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {localCopyStatus[variant.id] === "copying"
+                          ? "Copying…"
+                          : localCopyStatus[variant.id] === "copied"
+                            ? "Copied to /images/…"
+                            : "Not copied"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0 min-w-0 rounded border border-input bg-background overflow-hidden">
+                    <Input
+                      readOnly
+                      value={variant.url}
+                      className="h-7 border-0 rounded-none bg-transparent text-xs truncate min-w-0 flex-1 focus-visible:ring-0 focus-visible:ring-offset-0 py-1"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 shrink-0 rounded-none border-l border-input"
+                      onClick={() => handleCopyUrl(variant.url, variant.id)}
+                      title="Copy URL"
+                    >
+                      {copied === variant.id ? (
+                        <span className="text-xs">✓</span>
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* e. Actions - smaller, centered */}
+          <div className="flex justify-center gap-2 pt-2">
             <Button
               variant="destructive"
-              onClick={handleDelete}
+              size="sm"
+              onClick={() => setShowConfirmDelete(true)}
               disabled={isDeleting}
-              className="flex-1"
             >
               {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
             </Button>
             <Button
               variant="outline"
+              size="sm"
               onClick={onClose}
-              className="flex-1"
             >
               Close
             </Button>
@@ -301,5 +341,15 @@ export function ImagePreviewModal({
         </div>
       </Card>
     </div>
+
+    <ConfirmDeleteModal
+      open={showConfirmDelete}
+      onClose={() => setShowConfirmDelete(false)}
+      onConfirm={handleConfirmDelete}
+      title="Are you sure?"
+      message="This image will be permanently deleted. This cannot be undone."
+      isDeleting={isDeleting}
+    />
+    </>
   );
 }

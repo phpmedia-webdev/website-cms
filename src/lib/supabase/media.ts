@@ -4,7 +4,8 @@
  */
 
 import { createClientSupabaseClient } from './client';
-import { getClientSchema } from './schema';
+import { getClientBucket, getClientSchema } from './schema';
+import { deleteFilesFromStorage } from '@/lib/media/storage';
 import {
   MediaAsset,
   MediaWithVariants,
@@ -39,12 +40,13 @@ export async function getMediaWithVariants(): Promise<MediaWithVariants[]> {
     const { data, error } = await supabase.rpc('get_media_with_variants');
 
     if (error) {
-      console.error('Error fetching media with variants:', error);
+      const schema = getClientSchema();
+      console.error(`Error fetching media with variants [schema: ${schema}]:`, error);
       
       // Provide helpful error messages
       if (error.message?.includes('function') && error.message?.includes('does not exist')) {
         throw new Error(
-          'RPC function get_media_with_variants not found. Please run migrations 028 and 034 in Supabase SQL Editor.'
+          'RPC function get_media_with_variants not found. Please run migration 038 in Supabase SQL Editor.'
         );
       }
       if (error.message?.includes('permission denied')) {
@@ -70,12 +72,15 @@ export async function getMediaWithVariants(): Promise<MediaWithVariants[]> {
       original_width: item.original_width,
       original_height: item.original_height,
       mime_type: item.mime_type,
+      media_type: (item.media_type ?? 'image') as 'image' | 'video',
+      video_url: item.video_url ?? null,
       created_at: item.created_at,
       updated_at: item.updated_at,
       variants: Array.isArray(item.variants) ? item.variants : [],
     }));
   } catch (error) {
-    console.error('Exception in getMediaWithVariants:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in getMediaWithVariants [schema: ${schema}]:`, error);
     throw error;
   }
 }
@@ -99,7 +104,8 @@ export async function getMediaById(mediaId: string): Promise<MediaWithVariants |
         // Not found
         return null;
       }
-      console.error('Error fetching media by ID:', error);
+      const schema = getClientSchema();
+      console.error(`Error fetching media by ID [schema: ${schema}]:`, error);
       throw error;
     }
 
@@ -117,12 +123,15 @@ export async function getMediaById(mediaId: string): Promise<MediaWithVariants |
       original_width: data.original_width,
       original_height: data.original_height,
       mime_type: data.mime_type,
+      media_type: (data.media_type ?? 'image') as 'image' | 'video',
+      video_url: data.video_url ?? null,
       created_at: data.created_at,
       updated_at: data.updated_at,
       variants: Array.isArray(data.variants) ? data.variants : [],
     };
   } catch (error) {
-    console.error('Exception in getMediaById:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in getMediaById [schema: ${schema}]:`, error);
     throw error;
   }
 }
@@ -130,39 +139,47 @@ export async function getMediaById(mediaId: string): Promise<MediaWithVariants |
 /**
  * Get media library statistics
  * Returns total count and total size of all media
+ * Uses RPC function for reliable schema access
  */
 export async function getMediaStats(): Promise<{ totalCount: number; totalSizeBytes: number }> {
   try {
-    const supabase = createClientSupabaseClient();
+    const supabase = createRpcClient();
+    const schema = getClientSchema();
 
-    // Query media table directly (client already has schema configured)
-    const { count, error: countError } = await supabase
-      .from('media')
-      .select('*', { count: 'exact', head: true });
+    // Use RPC function for statistics (more reliable than direct table access)
+    const { data, error } = await supabase.rpc('get_media_stats').single();
 
-    if (countError) {
-      console.error('Error counting media:', countError);
-      throw countError;
+    if (error) {
+      console.error(`Error fetching media stats [schema: ${schema}]:`, error);
+      
+      if (error.message?.includes('function') && error.message?.includes('does not exist')) {
+        throw new Error(
+          'RPC function get_media_stats not found. Please run migration 038 in Supabase SQL Editor.'
+        );
+      }
+      if (error.message?.includes('permission denied')) {
+        throw new Error(
+          'Permission denied accessing media stats. Check RLS policies and RPC function permissions.'
+        );
+      }
+      
+      throw error;
     }
 
-    // Sum total size from all media
-    const { data, error: sumError } = await supabase
-      .from('media')
-      .select('original_size_bytes');
-
-    if (sumError) {
-      console.error('Error summing media sizes:', sumError);
-      throw sumError;
+    if (!data) {
+      return {
+        totalCount: 0,
+        totalSizeBytes: 0,
+      };
     }
-
-    const totalSizeBytes = (data || []).reduce((sum, item) => sum + (item.original_size_bytes || 0), 0);
 
     return {
-      totalCount: count || 0,
-      totalSizeBytes,
+      totalCount: Number(data.total_count) || 0,
+      totalSizeBytes: Number(data.total_size_bytes) || 0,
     };
   } catch (error) {
-    console.error('Exception in getMediaStats:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in getMediaStats [schema: ${schema}]:`, error);
     throw error;
   }
 }
@@ -188,12 +205,15 @@ export async function createMedia(payload: MediaCreatePayload): Promise<MediaAss
         original_width: payload.original_width,
         original_height: payload.original_height,
         mime_type: payload.mime_type || null,
+        media_type: payload.media_type ?? 'image',
+        video_url: payload.video_url ?? null,
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating media:', error);
+      const schema = getClientSchema();
+      console.error(`Error creating media [schema: ${schema}]:`, error);
       if (error.message?.includes('row-level security')) {
         throw new Error('RLS policy blocking media creation. Check RLS policies and ensure user is authenticated.');
       }
@@ -209,7 +229,8 @@ export async function createMedia(payload: MediaCreatePayload): Promise<MediaAss
 
     return data as MediaAsset;
   } catch (error) {
-    console.error('Exception in createMedia:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in createMedia [schema: ${schema}]:`, error);
     throw error;
   }
 }
@@ -236,7 +257,8 @@ export async function createMediaVariant(payload: VariantCreatePayload): Promise
       });
 
     if (error) {
-      console.error('Error creating media variant:', error);
+      const schema = getClientSchema();
+      console.error(`Error creating media variant [schema: ${schema}]:`, error);
       if (error.message?.includes('row-level security')) {
         throw new Error('RLS policy blocking variant creation. Check RLS policies and ensure user is authenticated.');
       }
@@ -246,7 +268,8 @@ export async function createMediaVariant(payload: VariantCreatePayload): Promise
       throw error;
     }
   } catch (error) {
-    console.error('Exception in createMediaVariant:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in createMediaVariant [schema: ${schema}]:`, error);
     throw error;
   }
 }
@@ -276,7 +299,8 @@ export async function updateMedia(
       .single();
 
     if (error) {
-      console.error('Error updating media:', error);
+      const schema = getClientSchema();
+      console.error(`Error updating media [schema: ${schema}]:`, error);
       throw error;
     }
 
@@ -286,53 +310,103 @@ export async function updateMedia(
 
     return data as MediaAsset;
   } catch (error) {
-    console.error('Exception in updateMedia:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in updateMedia [schema: ${schema}]:`, error);
     throw error;
   }
 }
 
 /**
  * Delete media asset and all its variants
- * Cascades to delete all variants due to foreign key constraint
+ * Removes storage files first, then deletes DB records (cascade removes variants).
+ * Storage cleanup prevents "The resource already exists" when re-uploading the same file.
  */
 export async function deleteMedia(mediaId: string): Promise<void> {
   try {
-    const supabase = createClientSupabaseClient();
+    const media = await getMediaById(mediaId);
+    const bucket = getClientBucket();
 
+    if (media?.variants?.length) {
+      const storagePaths = media.variants
+        .map((v) => (v as { storage_path?: string }).storage_path)
+        .filter((p): p is string => Boolean(p));
+      if (storagePaths.length) {
+        await deleteFilesFromStorage(bucket, storagePaths);
+      }
+    }
+
+    const supabase = createClientSupabaseClient();
     const { error } = await supabase
       .from('media')
       .delete()
       .eq('id', mediaId);
 
     if (error) {
-      console.error('Error deleting media:', error);
+      const schema = getClientSchema();
+      console.error(`Error deleting media [schema: ${schema}]:`, error);
       throw error;
     }
   } catch (error) {
-    console.error('Exception in deleteMedia:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in deleteMedia [schema: ${schema}]:`, error);
     throw error;
   }
 }
 
 /**
- * Search media by name or slug
+ * Search media by name, slug, or description
  * Returns media matching the search query
+ * Uses server-side RPC function for better performance
  */
 export async function searchMedia(query: string): Promise<MediaWithVariants[]> {
   try {
-    // Get all media and filter client-side for now
-    // TODO: Implement server-side search via RPC if needed for performance
-    const allMedia = await getMediaWithVariants();
-    
-    const searchLower = query.toLowerCase();
-    return allMedia.filter(
-      (media) =>
-        media.name.toLowerCase().includes(searchLower) ||
-        media.slug.toLowerCase().includes(searchLower) ||
-        (media.description && media.description.toLowerCase().includes(searchLower))
-    );
+    const supabase = createRpcClient();
+    const schema = getClientSchema();
+
+    // Use RPC function for server-side search (more efficient than client-side filtering)
+    const { data, error } = await supabase.rpc('search_media', {
+      search_query: query,
+    });
+
+    if (error) {
+      console.error(`Error searching media [schema: ${schema}]:`, error);
+      
+      if (error.message?.includes('function') && error.message?.includes('does not exist')) {
+        throw new Error(
+          'RPC function search_media not found. Please run migration 038 in Supabase SQL Editor.'
+        );
+      }
+      if (error.message?.includes('permission denied')) {
+        throw new Error(
+          'Permission denied searching media. Check RLS policies and RPC function permissions.'
+        );
+      }
+      
+      throw error;
+    }
+
+    // Transform RPC response to MediaWithVariants
+    return (data || []).map((item) => ({
+      id: item.media_id,
+      name: item.name,
+      slug: item.slug,
+      description: item.description,
+      alt_text: item.alt_text,
+      original_filename: item.original_filename,
+      original_format: item.original_format,
+      original_size_bytes: item.original_size_bytes,
+      original_width: item.original_width,
+      original_height: item.original_height,
+      mime_type: item.mime_type,
+      media_type: (item.media_type ?? 'image') as 'image' | 'video',
+      video_url: item.video_url ?? null,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      variants: Array.isArray(item.variants) ? item.variants : [],
+    }));
   } catch (error) {
-    console.error('Exception in searchMedia:', error);
+    const schema = getClientSchema();
+    console.error(`Exception in searchMedia [schema: ${schema}]:`, error);
     throw error;
   }
 }

@@ -17,6 +17,7 @@ import {
   calculateVariantDimensions,
   generateStoragePath,
   VARIANT_CONFIGS,
+  requiresSquareCrop,
 } from './image-optimizer';
 
 /**
@@ -149,8 +150,15 @@ async function generateSingleVariant(
         canvas.width = targetDimensions.width;
         canvas.height = targetDimensions.height;
 
-        // Draw image on canvas (browser handles resizing)
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        if (requiresSquareCrop(variantType)) {
+          // Center-crop using smallest dimension to avoid distortion
+          const cropSize = Math.min(originalWidth, originalHeight);
+          const sx = (originalWidth - cropSize) / 2;
+          const sy = (originalHeight - cropSize) / 2;
+          ctx.drawImage(img, sx, sy, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
+        } else {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        }
 
         // Convert canvas to WebP blob
         canvas.toBlob(
@@ -162,7 +170,7 @@ async function generateSingleVariant(
             resolve(blob);
           },
           'image/webp',
-          VARIANT_CONFIGS[variantType].quality / 100 // Convert 0-100 to 0-1
+          (VARIANT_CONFIGS[variantType]?.quality ?? 85) / 100 // Convert 0-100 to 0-1
         );
       };
 
@@ -225,12 +233,12 @@ export async function uploadFileToStorage(
     // Verify bucket exists first
     await ensureStorageBucket(bucket);
 
-    // Upload file
+    // Upload file (upsert: true allows re-upload after delete when storage cleanup missed files)
     const { error: uploadError, data } = await supabase.storage
       .from(bucket)
       .upload(storagePath, file, {
         cacheControl: '31536000', // 1 year
-        upsert: false,
+        upsert: true,
       });
 
     if (uploadError) {
@@ -425,6 +433,108 @@ export async function validateFileBeforeUpload(
   }
 
   return { valid: true };
+}
+
+/** Allowed video file MIME types (mp4, webm, mov) */
+export const VIDEO_FILE_MIMES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime', // .mov
+] as const;
+
+const VIDEO_EXT_BY_MIME: Record<string, 'mp4' | 'webm' | 'mov'> = {
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+};
+
+export function getVideoFormatFromFile(file: File): 'mp4' | 'webm' | 'mov' {
+  return VIDEO_EXT_BY_MIME[file.type] ?? 'mp4';
+}
+
+export function isVideoFile(file: File): boolean {
+  return VIDEO_FILE_MIMES.includes(file.type as (typeof VIDEO_FILE_MIMES)[number]);
+}
+
+/**
+ * Validate video file before upload (mime + size only).
+ */
+export function validateVideoFile(
+  file: File,
+  maxSizeBytes: number = 100 * 1024 * 1024 // 100MB
+): { valid: boolean; error?: string } {
+  if (!isVideoFile(file)) {
+    return {
+      valid: false,
+      error: `Unsupported video type: ${file.type}. Allowed: MP4, WebM, MOV`,
+    };
+  }
+  if (file.size > maxSizeBytes) {
+    const maxMB = maxSizeBytes / (1024 * 1024);
+    const fileMB = file.size / (1024 * 1024);
+    return {
+      valid: false,
+      error: `Video too large: ${fileMB.toFixed(1)}MB. Maximum: ${maxMB.toFixed(0)}MB`,
+    };
+  }
+  return { valid: true };
+}
+
+/** Allowed URL domains for "Add Video URL" (YouTube, Vimeo, Adilo) */
+const VIDEO_URL_PATTERNS = [
+  /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i,
+  /^https?:\/\/(www\.)?vimeo\.com\//i,
+  /^https?:\/\/(www\.)?adilo\.bigcommand\.com\//i,
+];
+
+export function validateVideoUrl(url: string): { valid: boolean; error?: string } {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return { valid: false, error: 'Video URL is required' };
+  }
+  let toCheck = trimmed;
+  if (!/^https?:\/\//i.test(trimmed)) {
+    toCheck = `https://${trimmed}`;
+  }
+  try {
+    new URL(toCheck);
+  } catch {
+    return { valid: false, error: 'Invalid URL format' };
+  }
+  const allowed = VIDEO_URL_PATTERNS.some((p) => p.test(toCheck));
+  if (!allowed) {
+    return {
+      valid: false,
+      error: 'Allowed: YouTube, Vimeo, or Adilo (https://adilo.bigcommand.com/)',
+    };
+  }
+  return { valid: true };
+}
+
+/** Normalize video URL (trim, add https if missing). Use after validateVideoUrl. */
+export function normalizeVideoUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function getVideoStoragePath(slug: string, file: File): string {
+  const ext = getVideoFormatFromFile(file);
+  return `media/${slug}.${ext}`;
+}
+
+/**
+ * Upload a single video file to storage (no variants).
+ * Returns public URL and storage path.
+ */
+export async function uploadVideoFileToStorage(
+  bucket: string,
+  slug: string,
+  file: File
+): Promise<{ url: string; storagePath: string }> {
+  const storagePath = getVideoStoragePath(slug, file);
+  const url = await uploadFileToStorage(bucket, storagePath, file);
+  return { url, storagePath };
 }
 
 /**

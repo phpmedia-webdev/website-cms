@@ -7,6 +7,71 @@
 import { createClientSupabaseClient, createServerSupabaseClient } from "@/lib/supabase/client";
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 
+export type MediaViewMode = "images" | "videos" | "all";
+
+function termsForSection(
+  allTerms: TaxonomyTerm[],
+  configs: SectionTaxonomyConfig[],
+  sectionName: string
+): { categories: TaxonomyTerm[]; tags: TaxonomyTerm[] } {
+  const config = configs.find((c) => c.section_name === sectionName);
+  const categories = allTerms.filter((t) => t.type === "category");
+  const tags = allTerms.filter((t) => t.type === "tag");
+
+  const filterBySlugs = (terms: TaxonomyTerm[], slugs: string[] | null) => {
+    if (slugs == null) return terms;
+    if (slugs.length === 0) return [];
+    const set = new Set(slugs);
+    return terms.filter((t) => set.has(t.slug));
+  };
+
+  const filterBySuggested = (terms: TaxonomyTerm[], section: string) => {
+    return terms.filter(
+      (t) =>
+        Array.isArray(t.suggested_sections) &&
+        t.suggested_sections.some((s) => s?.toLowerCase() === section.toLowerCase())
+    );
+  };
+
+  if (!config) {
+    return { categories, tags };
+  }
+
+  const catSlugs = config.category_slugs;
+  const tagSlugs = config.tag_slugs;
+  const cats =
+    catSlugs == null ? filterBySuggested(categories, sectionName) : filterBySlugs(categories, catSlugs);
+  const tgs =
+    tagSlugs == null ? filterBySuggested(tags, sectionName) : filterBySlugs(tags, tagSlugs);
+  return { categories: cats, tags: tgs };
+}
+
+/**
+ * Derive categories and tags for media library view mode.
+ * Images/videos sections; "all" = union (deduped).
+ */
+export function getTermsForMediaViewMode(
+  allTerms: TaxonomyTerm[],
+  configs: SectionTaxonomyConfig[],
+  viewMode: MediaViewMode
+): { categories: TaxonomyTerm[]; tags: TaxonomyTerm[] } {
+  if (viewMode === "images") {
+    return termsForSection(allTerms, configs, "images");
+  }
+  if (viewMode === "videos") {
+    return termsForSection(allTerms, configs, "videos");
+  }
+  const img = termsForSection(allTerms, configs, "images");
+  const vid = termsForSection(allTerms, configs, "videos");
+  const byId = new Map<string, TaxonomyTerm>();
+  [...img.categories, ...vid.categories].forEach((t) => byId.set(t.id, t));
+  [...img.tags, ...vid.tags].forEach((t) => byId.set(t.id, t));
+  return {
+    categories: Array.from(byId.values()).filter((t) => t.type === "category"),
+    tags: Array.from(byId.values()).filter((t) => t.type === "tag"),
+  };
+}
+
 /**
  * Get all taxonomy terms
  * Uses RPC function to bypass PostgREST schema search issues
@@ -123,6 +188,32 @@ export async function getTaxonomyTermsClient(): Promise<TaxonomyTerm[]> {
       : String(error);
     console.error("Full error details:", errorDetails);
     throw error; // Re-throw so component can handle it
+  }
+}
+
+/**
+ * Fetch taxonomy relationships for media items (content_type = 'media').
+ * Returns { content_id, term_id }[] for filtering media by categories/tags.
+ */
+export async function getMediaTaxonomyRelationships(
+  mediaIds: string[]
+): Promise<{ content_id: string; term_id: string }[]> {
+  if (mediaIds.length === 0) return [];
+  try {
+    const supabase = createClientSupabaseClient();
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
+    const { data, error } = await supabase
+      .schema(schema)
+      .from("taxonomy_relationships")
+      .select("content_id, term_id")
+      .eq("content_type", "media")
+      .in("content_id", mediaIds);
+
+    if (error) throw error;
+    return (data as { content_id: string; term_id: string }[]) || [];
+  } catch (e) {
+    console.error("getMediaTaxonomyRelationships:", e);
+    return [];
   }
 }
 

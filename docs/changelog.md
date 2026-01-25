@@ -9,6 +9,33 @@ For planned work and backlog items, see [planlog.md](./planlog.md).
 
 ## [Unreleased]
 
+### 2026-01-24 23:30 CT - Media Library: Images/Videos, Taxonomy Filters, Upload Modal, Video Placeholder
+- **Context for Next Session:** Media library now supports images and videos end-to-end. View mode (Images/Videos/All), taxonomy filter row (Categories/Tags, Reset Filters), and Upload Media modal with file upload (images + video, auto-detect) and Add Video URL. Migration 040 adds `media_type` and `video_url`; RPCs updated (DROP then CREATE for return-type change). Grid shows Video icon placeholder when `media_type === 'video'` and no thumbnail. Optional follow-ups: ImagePreviewModal video-specific view, section configs for images/videos, UI to assign taxonomy to media.
+- Migration 040 fix and media type support
+  - Fixed "cannot change return type" error: DROP custom-schema wrappers and public RPCs before CREATE; recreate wrappers with `media_type`/`video_url` in return, re-grant execute
+  - `040_add_media_type_and_video_url.sql`: adds `media_type`, `video_url` to media; updates `get_media_with_variants`, `get_media_by_id`, `search_media` (public + wrappers)
+  - Types and `createMedia` already support `media_type`/`video_url`; RPC mapping in `media.ts` returns them
+- Step 2: View mode and Upload Media button
+  - Header: type dropdown (Images/Videos/All) same line as title, "Upload Media" button, stats use "images"/"videos"/"items" by mode
+  - Wrapper: `viewMode` state, filter by `media_type`, persist `mediaLibraryViewMode`, bulk delete "items" wording
+- Step 3: Taxonomy filter row
+  - Filter row above search: Categories multi-select, Tags multi-select, Reset Filters (clears categories, tags, search; not view mode)
+  - `getMediaTaxonomyRelationships(mediaIds)`, `getTermsForMediaViewMode(terms, configs, viewMode)` in taxonomy lib
+  - `TaxonomyMultiSelect` dropdown (checkboxes), filter media by selected terms via `taxonomy_relationships`
+- Step 4: Upload Media modal – two modes
+  - **Upload file:** `MediaFileUpload` – drop/browse, accept images + video (mp4, webm, mov). Auto-detect image vs video; images get variants, videos upload raw, `video_url` = storage URL
+  - **Add Video URL:** `AddVideoUrlForm` – URL + optional name, validate YouTube/Vimeo/Adilo, `normalizeVideoUrl`, create media with `video_url`
+  - Storage: `validateVideoFile`, `validateVideoUrl`, `uploadVideoFileToStorage`, `getVideoFormatFromFile`, `normalizeVideoUrl`
+  - Modal tabs: "Upload file" | "Add Video URL"; title switches by mode
+- Step 5: Grid video placeholder
+  - `ImageList`: when `media_type === 'video'` and no thumbnail, show Video icon + "Video" label in aspect-square cell; empty state "Upload media to get started"
+- **Files changed**
+  - `supabase/migrations/040_add_media_type_and_video_url.sql` (DROP+CREATE RPCs, wrappers, grants)
+  - `src/types/media.ts` (`MediaCreatePayload.original_format` extended for video/url)
+  - `src/lib/supabase/media.ts`, `src/lib/media/storage.ts` (video helpers, validation, upload)
+  - `src/lib/supabase/taxonomy.ts` (getMediaTaxonomyRelationships, getTermsForMediaViewMode)
+  - `src/components/media/`: MediaLibraryHeader, MediaLibraryWrapper, TaxonomyMultiSelect, AddVideoUrlForm, MediaFileUpload, ImageList
+
 ### 2026-01-24 22:45 CT - Taxonomy System: Search, Scroll & Section-Scoped Filtering Architecture
 - **Context for Next Session:** Taxonomy management UI is fully functional with search + scroll on all 3 tables (Sections, Categories, Tags). PRD updated with section-scoped filtering architecture explaining how sections act as filters over the shared taxonomy. All form submission issues fixed (no multiple submissions, forms don't disappear after save). Ready to integrate taxonomy into content editors (Posts, Pages, Media) - this is next phase.
 - Taxonomy System Documentation & Architecture Update

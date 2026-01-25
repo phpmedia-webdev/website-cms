@@ -95,7 +95,7 @@ export function MediaLibrary({ onSelect, type = "all" }: MediaLibraryProps) {
                     src={item.url}
                     alt={item.alt_text || item.filename || "Media"}
                     fill
-                    className="object-cover"
+                    className="object-cover object-center"
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
