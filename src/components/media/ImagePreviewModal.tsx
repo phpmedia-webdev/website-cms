@@ -10,6 +10,7 @@ import { MediaWithVariants } from "@/types/media";
 import { updateMedia, deleteMedia } from "@/lib/supabase/media";
 import { formatFileSize } from "@/lib/media/image-optimizer";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
+import { TaxonomyAssignment } from "@/components/taxonomy/TaxonomyAssignment";
 import Image from "next/image";
 
 interface ImagePreviewModalProps {
@@ -130,10 +131,15 @@ export function ImagePreviewModal({
           </div>
 
           {/* b. Original File Info */}
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded space-y-1">
-            <p className="text-xs font-medium text-blue-900">Original File</p>
+          <div className="p-2.5 bg-blue-50 border border-blue-200 rounded space-y-0.5">
+            <p className="text-xs text-blue-900">
+              <span className="font-medium">Original File: Section Type – {(media.media_type ?? "image") === "video" ? "Video" : "Image"}</span>
+            </p>
             <p className="text-xs text-blue-800">
-              {media.original_filename} • {formatFileSize(media.original_size_bytes)} • {media.original_width}×{media.original_height}px
+              {media.original_filename} • {formatFileSize(media.original_size_bytes)}
+              {media.original_width != null && media.original_height != null && (
+                <> • {media.original_width}×{media.original_height}px</>
+              )}
             </p>
           </div>
 
@@ -217,38 +223,52 @@ export function ImagePreviewModal({
               </div>
             </div>
           ) : (
-            <div className="space-y-2 p-4 bg-muted rounded-lg">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Name</p>
-                <p className="text-sm">{media.name}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">Slug</p>
-                <p className="text-sm font-mono">{media.slug}</p>
-              </div>
-              {media.alt_text && (
+            <div className="flex gap-4 p-3 bg-muted rounded-lg items-start">
+              <div className="min-w-0 flex-1 space-y-1.5">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Alt Text</p>
-                  <p className="text-sm">{media.alt_text}</p>
+                  <p className="text-xs font-medium text-muted-foreground">Name</p>
+                  <p className="text-sm truncate">{media.name}</p>
                 </div>
-              )}
-              {media.description && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Description</p>
-                  <p className="text-sm">{media.description}</p>
+                  <p className="text-xs font-medium text-muted-foreground">Slug</p>
+                  <p className="text-sm font-mono truncate">{media.slug}</p>
                 </div>
-              )}
+                {media.alt_text && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Alt Text</p>
+                    <p className="text-sm line-clamp-2">{media.alt_text}</p>
+                  </div>
+                )}
+                {media.description && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Description</p>
+                    <p className="text-sm line-clamp-2">{media.description}</p>
+                  </div>
+                )}
+              </div>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setIsEditing(true)}
-                className="w-full mt-2"
+                className="shrink-0"
               >
                 Edit Metadata
               </Button>
             </div>
           )}
 
-          {/* d. Variants Section */}
+          {/* d. Categories & Tags (section based on media_type: image → "image", video → "video") */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Categories & Tags</Label>
+            <TaxonomyAssignment
+              mediaId={media.id}
+              mediaType={(media.media_type ?? "image") as "image" | "video"}
+              onSaved={() => onUpdate?.(media)}
+              disabled={isSaving}
+            />
+          </div>
+
+          {/* e. Variants Section */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Variants ({media.variants.length})</Label>
             <div className="grid gap-1.5 max-h-64 overflow-y-auto overflow-x-hidden min-w-0">
@@ -319,7 +339,7 @@ export function ImagePreviewModal({
             </div>
           </div>
 
-          {/* e. Actions - smaller, centered */}
+          {/* f. Actions - smaller, centered */}
           <div className="flex justify-center gap-2 pt-2">
             <Button
               variant="destructive"

@@ -2,131 +2,15 @@
 
 This document tracks planned work, implementation phases, and backlog items for the Website-CMS project. Items are organized by priority and development phase.
 
----
-
-## 🚀 Quick Session Summary
-
-**Last Session:** Taxonomy System - Search & Scroll Implementation  
-**Status:** ✅ Complete - All items integrated into main tracking below.
-
-All completed work has been verified and checked off in the "Implementation Phases" section below.
+For session continuity (current focus, next up, handoff), see [sessionlog.md](./sessionlog.md). Planlog remains the priority development workflow; items are never deleted, only checked off.
 
 ---
 
-## Implementation Phases (Priority Order)
+## Completed / Reference
 
-### Phase 04: Taxonomy System (Completed This Session)
-
-**Status**: Complete - All taxonomy management UI with search/scroll implemented, PRD updated with section-scoped filtering
-
-- [x] Design unified taxonomy system (shared across posts, pages, and media)
-- [x] Create database migration (021_create_taxonomy_system.sql)
-- [x] Document taxonomy system in PRD (including **section-scoped filtering architecture**)
-- [x] Create taxonomy management UI (`/admin/settings/taxonomy` tab)
-  - [x] **Sections management** (table with search, CRUD, section-to-category/tag mapping)
-  - [x] **Categories management** (hierarchical tree, create/edit/delete with search + scroll)
-  - [x] **Tags management** (list with search + scroll, usage counts via badges)
-  - [x] **Search feature** on all 3 tables (real-time filtering by name/slug)
-  - [x] **Scroll feature** on all 3 tables (handles large datasets)
-  - [x] **Sticky headers** while scrolling through tables
-  - [x] **Empty state messaging** when search has no results
-- [ ] **Next: Integrate taxonomy into content editors**
-  - [ ] Post editor: Category multi-select (hierarchical) + tag autocomplete
-  - [ ] Page editor: Category multi-select (hierarchical) + tag autocomplete
-  - [ ] Media upload/edit: Category multi-select + tag autocomplete
-- [ ] Create taxonomy assignment components
-  - [ ] Category selector component (hierarchical dropdown)
-  - [ ] Tag input component (autocomplete with create-on-the-fly)
-- [ ] Add taxonomy filtering to admin content lists
-  - [ ] Filter posts by category/tag
-  - [ ] Filter pages by category/tag
-  - [ ] Filter media by category/tag
-- [ ] Implement public-facing taxonomy features
-  - [ ] Category archive pages (`/blog/category/[slug]`, `/category/[slug]`)
-  - [ ] Tag archive pages (`/blog/tag/[slug]`, `/tag/[slug]`)
-  - [ ] Category/tag links in content metadata
-  - [ ] Taxonomy filtering widgets for public pages
-- [ ] Handle "Uncategorized" default category
-  - [ ] Auto-assign when no category selected
-  - [ ] Prevent deletion of "Uncategorized"
-  - [ ] Reassign to "Uncategorized" when category deleted
-
-### Phase 05: Media Library
-
-**Status**: Pending - Media first, then content. As we develop content we will reference media files so they need to exist.
-
-- [ ] Review current media library implementation
-- [ ] **Storage Limits & Quotas:**
-  - [ ] Implement per-client storage quota system
-  - [ ] Add storage usage tracking (total GB used per client)
-  - [ ] Set configurable storage limits per tenant (default: e.g., 5GB, 10GB, 20GB)
-  - [ ] Display storage usage in media library UI (progress bar, usage stats)
-  - [ ] Block uploads when quota exceeded (with clear error message)
-  - [ ] Add storage quota management in superadmin panel
-  - [ ] Track storage usage in database (store total bytes used per client schema)
-- [ ] **Image Optimization:**
-  - [ ] Limit image variants to original + 2 optimized versions
-  - [ ] Implement threshold warning for oversized images to prevent database overload
-  - [ ] Research best practices for maximum resolution suitable for websites
-- [ ] **Video Hosting Research:**
-  - [ ] Investigate Supabase object bucket storage capabilities for small video files and GIF animations
-  - [ ] Determine if Supabase CDN is suitable for video playback or if external hosting (Vimeo, YouTube) is preferable
-  - [ ] Document findings and recommendations
-  - [ ] **Decision**: Use external video hosting (Vimeo/YouTube) for cost control and abuse prevention
-- [ ] Plan local copy workflow implementation
-
-### Phase 06: Super Admin Settings
-
-- [ ] Add captcha field to super admin panel
-- [ ] Include fields for Google Analytics keys
-- [ ] Add visitor tracking configuration
-- [ ] Add commenter settings
-- [ ] Integrate PHP BME email account for notifications
-- [ ] Implement programmable username and password storage for email account
-
-### 📝 Important Context for Next Session
-
-**Taxonomy System Status:**
-- Taxonomy management UI is complete (`/admin/settings/taxonomy`)
-- All 3 tables have search + scroll + sticky headers
-- Section-scoped filtering architecture documented in PRD (searches across posts, pages, media - shared terms but filtered per section)
-- Ready for integration into content editors (Posts, Pages, Media)
-
-**Implementation Pattern for Taxonomy Integration:**
-- Use `section_taxonomy_config` to filter which terms are available per section
-- Categories use hierarchical parent-child structure (show hierarchy in selectors)
-- Tags are flat (autocomplete with create-on-the-fly)
-- Both types share same database tables and relationships
-
-**Files Modified/Created This Session:**
-- `src/components/settings/TaxonomySettings.tsx` - All search/scroll/form management
-- `src/types/taxonomy.ts` - Type definitions
-- `src/lib/supabase/taxonomy.ts` - Client/server functions
-- `docs/prd.md` - Updated taxonomy system section with section-scoped filtering
-
-**Current Working State:**
-- Taxonomy management UI fully functional with search on all 3 tables
-- Real-time filtering working correctly
-- Sticky headers working while scrolling
-- Form state management prevents conflicts when editing different items
-- All migrations for taxonomy have been run (021-025)
-- Server is running and accessible
-
-**Files to Review:**
-- `src/components/settings/TaxonomySettings.tsx` - Main UI component with search/scroll on all 3 tables
-- `src/types/taxonomy.ts` - Taxonomy types including TaxonomyTerm, SectionTaxonomyConfig, filter functions
-- `src/lib/supabase/taxonomy.ts` - Client/server functions for loading terms and section configs
-- `supabase/migrations/021_create_taxonomy_system.sql` - Initial taxonomy tables
-- `supabase/migrations/023_create_taxonomy_rpc.sql` - RPC functions for taxonomy (pattern like color palettes)
-- `docs/prd.md` - Section 4: Taxonomy System (updated with section-scoped filtering)
-- `docs/prd.md` - Database schema section shows new `section_taxonomy_config` table
-
-**Git Status:**
-- All changes should be committed before switching devices
-- Documentation files are new and should be included
-- Migration files (016, 017, 018) should be committed
-- Test route removed (debug endpoint no longer needed)
-- Console.log statements cleaned up
+- **Taxonomy management UI** (Settings → Taxonomy): Phase 04 + 04b complete. Sections, Categories, Tags (modals, slug, cascade, section filter, section delete, "Apply to these Sections"); Media assignment + filter. Post/Page integration, public features, auto-assign Uncategorized — not done.
+- **Settings twirldown + sub-page routing:** Sidebar Settings is a twirldown (General, Fonts, Colors, Taxonomy, Content Types, Content Fields, Security, API). `/admin/settings` → redirect to General. Sub-pages for each; Fonts/Colors use design-system API. **Content Types** and **Content Fields** are full UIs (list, Add, Edit, Delete). Twirldown state persisted in localStorage; open when on any settings route.
+- **Content phase (unified model):** Steps 1–13 complete — schema, admin UI, Tiptap, Types/Fields, taxonomy, public routes, legacy redirects. `/admin/content` uses `ContentPageClient` + Suspense for `useSearchParams`. [sessionlog](./sessionlog.md) pruned.
 
 ---
 
@@ -238,7 +122,7 @@ All completed work has been verified and checked off in the "Implementation Phas
     - Created `src/components/superadmin/IntegrationsManager.tsx`:
       - Google Analytics: Input field for Measurement ID (e.g., `G-XXXXXXXXXX`)
       - VisitorTracking.com: Input field for Vendor UID
-      - SimpleCommenter.com: Input field for Vendor UID
+      - SimpleCommenter.com: Input field for Domain (dev/staging client feedback tool; disable in production)
       - Enable/disable checkboxes for each integration
       - Save/Update functionality with loading states
       - Status indicators (configured vs. not configured) with icons
@@ -248,7 +132,7 @@ All completed work has been verified and checked off in the "Implementation Phas
     - Updated `src/app/(public)/layout.tsx` to load integration settings
     - Inject Google Analytics script (gtag.js) with Measurement ID
     - Inject VisitorTracking.com script with Vendor UID
-    - Inject SimpleCommenter.com script with Vendor UID
+    - Inject SimpleCommenter.com script with Domain (dev/staging client feedback tool; disable in production; not blog comments)
     - Use Next.js `<Script>` component with appropriate loading strategies:
       - Google Analytics: `strategy="afterInteractive"`
       - VisitorTracking.com: `strategy="afterInteractive"`
@@ -431,8 +315,8 @@ All completed work has been verified and checked off in the "Implementation Phas
 
 - [ ] Create essential database schemas (as needed per phase)
   - [ ] **Note**: Schemas will be created incrementally as each phase is developed
-  - [ ] Phase 05 will create: `media` table
-  - [ ] Phase 06 will create: `posts`, `pages` tables
+  - [x] Phase 05 created: `media`, `media_variants` tables (migrations 026, 039, 040)
+  - [ ] Phase 06 creates: `content`, `content_types`, `content_type_fields` (unified model)
   - [ ] Phase 07 will create: CRM tables (`crm_contacts`, `crm_custom_fields`, `crm_contact_custom_fields`, `crm_contact_mags`, `crm_consents`, `forms`)
   - [ ] Phase 08 will use: `forms` table (from Phase 07)
   - [ ] Phase 09 will create: MAG tables (`mags`, `members`, `user_mags`, `menu_items`)
@@ -585,136 +469,67 @@ All completed work has been verified and checked off in the "Implementation Phas
 
 ### Phase 05: CMS - Media Library (Storage, Image Optimization, Local Copy)
 
-**Status**: Pending - Media first, then content. As we develop content we will reference media files so they need to exist.
+**Status**: Complete (core). Media Library is live: storage, variants, upload (file + video URL), taxonomy, view mode. **Deferred:** Local copy workflow, `createClientBucket`/`renameBucket`, `getImageUrl` helper, `POST /api/media/[id]/optimize`, video embed component.
 
-- [ ] Build storage utilities
-  - [ ] Create `src/lib/supabase/storage.ts`:
-    - `createClientBucket()` - Create client-specific bucket
-    - `renameBucket()` - Rename bucket for archiving
-    - Bucket configuration (public/private, policies)
+- [x] Build storage utilities
+  - [x] Bucket configuration (policies via `039_setup_storage_bucket_policies.sql`), `getClientBucket()` in `src/lib/supabase/schema.ts`
+  - [x] `src/lib/media/storage.ts`: upload, variant upload, `generateImageVariants`; path structure via `image-optimizer`
+  - [ ] **Deferred:** `createClientBucket()`, `renameBucket()` (bucket created via Dashboard; migrations assume it exists)
 
-- [ ] Integrate bucket setup
-  - [ ] Integrate bucket creation into schema setup
-  - [ ] Update migration utilities to include bucket creation
-  - [ ] Add bucket validation checks
+- [x] Integrate bucket setup
+  - [x] Migration `039` configures storage policies for client bucket
+  - [x] Bucket validation (039 checks bucket exists before applying policies)
+  - [x] Upload flows use `getClientBucket()` (MediaUpload, ImageUpload, MediaFileUpload, media API)
 
-- [ ] Image optimization system (Media Library enhancement)
-  - [ ] Create `src/lib/media/image-optimization.ts`:
-    - `generateImageVariants()` - Generate thumbnail, small, medium, large variants
-    - `uploadImageVariants()` - Upload variants to Supabase Storage
-    - `getImageUrl()` - Helper to get optimized image URL (CDN or local)
-    - Standard sizes: Thumbnail (150×150), Small (400px), Medium (800px), Large (1200px)
-    - WebP format conversion for variants (with fallback)
-    - Path structure: `/media/{id}/original.{ext}`, `/media/{id}/large.webp`, etc.
-  - [ ] Update media database schema:
-    - Add columns for variant paths (thumbnail_path, small_path, medium_path, large_path)
-    - Add metadata columns (width, height, format, file_size)
-    - Store original path and all variant paths
-  - [ ] Update `src/components/media/MediaUpload.tsx`:
-    - Trigger image optimization on upload
-    - Show upload progress for original + variants
-    - Store variant metadata in database
-  - [ ] Update `src/components/media/MediaLibrary.tsx`:
-    - Display variant options when selecting images
-    - Show image size information
-    - Allow selection of specific variant for use
-  - [ ] Create image optimization API route:
-    - `POST /api/media/[id]/optimize` - Re-optimize existing image (admin only)
-    - Handle optimization errors gracefully (fallback to original)
-  - [ ] Add developer guidance utilities:
-    - Create `src/lib/images/getImageUrl.ts` helper:
-      - Automatically determines CDN vs local based on path
-      - Supports size parameter (thumb, small, medium, large, original)
-      - Returns optimized URL for CDN images
-      - Returns local path for static assets
-    - Document usage in component development guidelines
-  - [ ] Update content components to use optimized images:
-    - Update `PostEditor` to use optimized featured images
-    - Update `GalleryEditor` to use optimized gallery images
-    - Update public-facing components to use appropriate sizes
+- [x] Image optimization system (Media Library)
+  - [x] `src/lib/media/image-optimizer.ts`: variant configs, dimensions, `generateStoragePath`, `getVariantsToGenerate`
+  - [x] `src/lib/media/storage.ts`: `generateImageVariants()`, upload variants to Supabase Storage; WebP conversion; standard sizes (thumbnail, small, medium, large, original)
+  - [x] `media_variants` table (026): variant paths, width, height, size_bytes, format; `media` stores original metadata
+  - [x] `MediaUpload` / `MediaFileUpload` / `ImageUpload`: trigger optimization on upload, store variant metadata
+  - [x] Media Library UI: variant display, image size info (e.g. `formatFileSize`), variant selection in ImagePreviewModal
+  - [ ] **Deferred:** `POST /api/media/[id]/optimize`; `src/lib/images/getImageUrl.ts` helper
+  - [ ] **N/A:** PostEditor (replaced by Content modal); Gallery uses media. Content `featured_image_id` references media.
 
-- [ ] Image Storage Strategy (CMS-First with Local Copy Workflow)
-  - [ ] Update media database schema for local copy tracking
-    - [ ] Add columns to `media` table:
-      - [ ] `copy_to_local BOOLEAN DEFAULT false`
-      - [ ] `local_path TEXT` (e.g., "/images/heroes/hero-image.jpg")
-      - [ ] `copied_at TIMESTAMPTZ`
-    - [ ] Migration: `supabase/migrations/007_image_local_copy.sql`
-  - [ ] Create local copy workflow utilities
-    - [ ] Create `src/lib/media/local-copy.ts`:
-      - [ ] `copyImageToLocal()` - Copy image variant to local `public/` folder
-      - [ ] `removeLocalCopy()` - Remove local copy (delete file, update database)
-      - [ ] `getLocalImagePath()` - Get local path for image
-      - [ ] `checkLocalCopyExists()` - Check if local copy exists
-      - [ ] `promptForLocalFolder()` - Prompt developer for folder path
-      - [ ] `validateLocalPath()` - Validate local path format
-      - [ ] `handleOverwrite()` - Handle file overwrite with confirmation
-  - [ ] Update media library UI for local copy workflow
-    - [ ] Update `src/components/media/MediaLibrary.tsx`:
-      - [ ] Display "Copy to Local" button for each image variant
-      - [ ] Show local copy status (if copied, show local path)
-      - [ ] Display "Remove Local Copy" button for copied images
-      - [ ] Show variant list with individual copy buttons
-    - [ ] Create `src/components/media/LocalCopyDialog.tsx`:
-      - [ ] Folder selection UI (base path: `public/images/` with subfolder input)
-      - [ ] File naming display (original filename preserved)
-      - [ ] Overwrite confirmation if file exists
-      - [ ] Copy action with progress indicator
-    - [ ] Create notification system:
-      - [ ] Toast notification on copy success
-      - [ ] Console log with code snippet for updating image reference
-      - [ ] Toast notification on remove success
-      - [ ] Console log with code snippet for reverting to CDN URL
-  - [ ] Create local copy API routes
-    - [ ] `POST /api/media/[id]/copy-to-local` - Copy image variant to local (admin only)
-    - [ ] `POST /api/media/[id]/remove-local-copy` - Remove local copy (admin only)
-    - [ ] Handle file operations (copy, delete)
-    - [ ] Update database records
-    - [ ] Return success with local path
-  - [ ] Update image helper utilities
-    - [ ] Update `src/lib/images/getImageUrl.ts`:
-      - [ ] Check `copy_to_local` flag
-      - [ ] Return local path if copied, CDN URL if not
-      - [ ] Support size parameter for variants
-      - [ ] Handle both CDN and local images seamlessly
+- [ ] **Deferred — Image Storage Strategy (Local Copy Workflow)**
+  - [ ] Update media database schema for local copy tracking (`copy_to_local`, `local_path`, `copied_at`)
+  - [ ] `src/lib/media/local-copy.ts`, `LocalCopyDialog.tsx`, copy/remove API routes, `getImageUrl` updates
+  - [ ] Local copy UI in Media Library (Copy to Local, Remove Local Copy, etc.)
 
-- [ ] Video URL management
-  - [ ] Add video URL field to media table
-  - [ ] Support for YouTube, Vimeo, and direct video URLs
-  - [ ] Video embed component for public pages
+- [x] Video URL management
+  - [x] `media_type`, `video_url` on media table (migration 040)
+  - [x] Support for YouTube, Vimeo, Adilo, direct video URLs; `AddVideoUrlForm`, `normalizeVideoUrl`, validation
+  - [x] View mode Images/Videos/All; video placeholder in grid when `media_type === 'video'`
+  - [ ] **Deferred:** Video embed component for public pages
 
 **Note**: Event Calendar feature has been removed from the priority list. Can be added back as a future enhancement if needed.
 
-### Phase 06: CMS - Content Management (Blogs, Pages, Text Editor)
+### Phase 06: CMS - Content Management (Unified Content Model)
 
-**Status**: Pending - Depends on Phase 01, 02, and 05 (Media Library)
+**Status**: In progress — unified content (single `content` table, `content_types`, `content_type_fields`) per [sessionlog](./sessionlog.md). Admin UI, taxonomy, public routes, and legacy redirects complete.
 
-- [ ] Build blog admin UI
-  - [ ] Create `src/app/admin/posts/page.tsx` (list posts, pagination, search/filter)
-  - [ ] Create `src/app/admin/posts/new/page.tsx` (create new post)
-  - [ ] Create `src/app/admin/posts/[id]/page.tsx` (edit post)
-  - [ ] Create `src/components/posts/PostEditor.tsx` (rich text editor integration)
-
-- [ ] Build pages admin UI
-  - [ ] Create `src/app/admin/pages/page.tsx` (list pages)
-  - [ ] Create `src/app/admin/pages/new/page.tsx` (create new page)
-  - [ ] Create `src/app/admin/pages/[id]/page.tsx` (edit page)
-  - [ ] Create `src/components/pages/PageEditor.tsx` (rich text editor integration)
-
-- [ ] Integrate rich text editor (Tiptap)
-  - [ ] Create `src/components/editor/RichTextEditor.tsx` (Tiptap integration)
-  - [ ] Add basic formatting toolbar
-  - [ ] Support for saving/loading content
-  - [ ] Prepare for MAG protection integration (Phase 09)
-
-- [ ] Build public-facing blog pages
-  - [ ] Create `src/app/(public)/blog/page.tsx` (list published posts, pagination, search/filter)
-  - [ ] Create `src/app/(public)/blog/[slug]/page.tsx` (single post, rich content, related posts, SEO)
-
-- [ ] Build public-facing pages
-  - [ ] Create dynamic page routing
-  - [ ] Create `src/app/(public)/[slug]/page.tsx` (dynamic page renderer)
-  - [ ] Support for page composition using reusable sections
+- [x] Unified content schema and migrations
+  - [x] `content_types`, `content_type_fields`, `content` tables (client schema); RLS; dynamic RPCs
+  - [x] Seed core types (post, page, snippet, quote, article); drop `posts`
+- [x] Admin content UI (unified list + modal)
+  - [x] `src/app/admin/content/page.tsx` — list all types, type filter, search, Add New, Edit, Delete
+  - [x] `ContentEditModal` — type selector, Name, Slug, Data (Tiptap), Excerpt, Status, custom fields, 70% width
+- [x] Integrate rich text editor (Tiptap)
+  - [x] `src/components/editor/RichTextEditor.tsx` — H1–H6, bold/italic, lists, blockquote, links, images, HTML code view, WYSIWYG (`prose`)
+  - [x] Saving/loading via `content.body` JSONB
+- [x] Settings → Content Types, Content Fields
+  - [x] Content Types: list (Label, Slug, Description), Add New, Edit, Delete (core protected)
+  - [x] Content Fields: list, filter by type, Add/Edit/Delete; key, label, type, config, display_order
+- [x] Taxonomy integration for content
+  - [x] Wire `taxonomy_relationships` (`content_type` = `content_types.slug`, `content_id` = `content.id`); migration 048 extends constraint
+  - [x] `TaxonomyAssignmentForContent` in Content edit modal (edit mode); Categories/Tags filter + Reset on list
+- [x] Build public-facing blog pages
+  - [x] `src/app/(public)/blog/page.tsx` (list posts from `content` type `post`)
+  - [x] `src/app/(public)/blog/[slug]/page.tsx` (single post, rich content, SEO)
+- [x] Build public-facing pages
+  - [x] Dynamic `[slug]` page (type `page`); homepage = page slug `/` (fallback if none); `RichTextDisplay` (Tiptap JSON → HTML)
+  - [ ] Page composition using reusable sections (future)
+- [x] Legacy admin routes
+  - [x] Redirect `/admin/posts`, `/admin/posts/new`, `/admin/posts/[id]` → `/admin/content?type=post`; `/admin/pages` → `/admin/content?type=page`; Content page reads `?type=` and sets type filter
 
 ### Phase 07: CRM-First Lightweight CRM
 

@@ -17,6 +17,65 @@ export interface Post {
   updated_at: string;
 }
 
+/** Content type (from content_types table). */
+export interface ContentType {
+  id: string;
+  slug: string;
+  label: string;
+  description: string | null;
+  is_core: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Content type field (from content_type_fields table). */
+export interface ContentTypeField {
+  id: string;
+  content_type_id: string;
+  key: string;
+  label: string;
+  type: string;
+  config: Record<string, unknown>;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** List row: content + type slug/label (from get_content_list_with_types_dynamic). */
+export interface ContentListItem {
+  id: string;
+  content_type_id: string;
+  type_slug: string;
+  type_label: string;
+  title: string;
+  slug: string;
+  status: string;
+  updated_at: string;
+}
+
+/** Full content row for edit (from content table / get_content_by_id_dynamic). */
+export interface ContentRow {
+  id: string;
+  content_type_id: string;
+  title: string;
+  slug: string;
+  body: Record<string, unknown> | null;
+  excerpt: string | null;
+  featured_image_id: string | null;
+  status: string;
+  published_at: string | null;
+  author_id: string | null;
+  custom_fields: Record<string, unknown>;
+  access_level: string | null;
+  required_mag_id: string | null;
+  visibility_mode: string | null;
+  restricted_message: string | null;
+  section_restrictions: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Gallery {
   id: string;
   name: string;

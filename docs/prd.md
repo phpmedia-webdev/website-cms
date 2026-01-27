@@ -62,9 +62,9 @@ This WordPress-style approach provides:
 - `/admin` - Redirects to `/admin/dashboard` or `/admin/login`
 - `/admin/login` - Admin login page
 - `/admin/dashboard` - Dashboard home
-- `/admin/content` - Content management (unified interface with tabs for Pages and Posts)
-- `/admin/posts` - Blog post management (legacy route, redirects to `/admin/content` with Posts tab active)
-- `/admin/pages` - Static page management (legacy route, redirects to `/admin/content` with Pages tab active)
+- `/admin/content` - Content management (unified list of all content types; search, filter by type, add/edit modal)
+- `/admin/posts` - Blog post management (legacy route, redirects to `/admin/content` with type filter "Post")
+- `/admin/pages` - Static page management (legacy route, redirects to `/admin/content` with type filter "Page")
 - `/admin/galleries` - Gallery management
 - `/admin/media` - Media library
 - `/admin/forms` - Form registry (developer helper) and CRM management
@@ -92,6 +92,18 @@ This WordPress-style approach provides:
 
 **Standby / Coming Soon Route (Optional):**
 - `/coming-soon` - Standby landing page used when the site is in "coming soon" mode (see Developer Workflow)
+
+### Third-Party Integrations
+
+Superadmin configures integrations at `/admin/super/integrations`. Scripts are injected on public routes only.
+
+- **Google Analytics** — Website analytics (GA4). Config: Measurement ID.
+- **VisitorTracking.com** — Visitor tracking and analytics. Config: Website ID.
+- **SimpleCommenter.com** — **Development/client feedback tool only.** Not a blog comment system.
+  - **Purpose:** During site development or staging, clients add pinpoint annotations and comments on the live site so developers can implement changes accurately.
+  - **Usage:** Enable only on dev/staging. **Turn off in production.**
+  - **Config:** Domain (e.g. project or staging domain). Script loads from SimpleCommenter.com when enabled.
+  - **Do not use** for blog post comments, article discussions, or any public-facing comment feature. Blog comments (if needed) are a separate, future consideration.
 
 ### Multi-Schema Strategy
 
@@ -279,23 +291,38 @@ The application uses a **CMS-first approach** where all images are initially sto
 
 ## Content Types
 
+All content types use the **site-wide taxonomy system** for categories and tags (see [Taxonomy System – Single Source of Truth](#single-source-of-truth--no-separate-taxonomy)). When adding new content types (e.g. properties, products), integrate with that system—do not build a separate tags/categories system.
+
+### Unified Content Model (Single-Table Storage)
+
+**Architecture:** Text-based content (posts, pages, snippets, quotes, articles, and custom types) is stored in a **single `content` table**. This keeps the system compact and scalable.
+
+- **Shared core fields:** All such content shares common fields: title, slug, body (Tiptap rich text), excerpt, status, timestamps, and optional access-control fields. Type-specific data lives in **custom fields**.
+- **Content type registry:** A `content_types` table defines each type (core and custom). Core types include **post**, **page**, **snippet**, **quote**, **article**. Custom types (e.g. portfolio, properties) are added via Settings → Content Types.
+- **Custom fields:** A `content_type_fields` table defines fields **per content type**. Each field applies to exactly one type. Values are stored in `content.custom_fields` (JSONB). Example: a "Price" field for "Properties" is separate from a "Price" field for "Portfolio."
+- **No per-type tables:** Do **not** create separate `posts`, `pages`, or type-specific tables for text-based content. Use the unified `content` table and `content_type_id` to distinguish types.
+
+**Benefits:** One place to query and manage all content, consistent list/modal UI, and new types added via configuration rather than new migrations.
+
+**Technical Details:** See [prd-technical.md - Database Schema Reference](./prd-technical.md#2-database-schema-reference) (Content Model).
+
 ### Pages
 
-**Static Pages:**
+**Static pages** are a **content type** in the unified model (slug `page`).
+
 - CMS-managed static pages (About, Services, Contact, etc.)
 - Homepage is a special page with slug "home" or "/"
-- Rich text content with Tiptap editor
+- Rich text body with Tiptap editor
 - SEO metadata (title, description, keywords)
 - Access control: public, members-only, or MAG-restricted
-- Section-level restrictions: Different sections of a page can have different access levels
+- Section-level restrictions: Different sections of a page can have different access levels (e.g. `section_restrictions` in custom fields or dedicated column)
 - Taxonomy: Categories and tags (section-scoped)
-
-**Technical Details:** See [prd-technical.md - Database Schema Reference](./prd-technical.md#2-database-schema-reference)
 
 ### Blog Posts
 
-**Post Management:**
-- Rich text content with Tiptap editor
+**Posts** are a **content type** in the unified model (slug `post`).
+
+- Rich text body with Tiptap editor
 - Featured image support
 - Excerpt/description
 - Publication date and status (placeholder/published/archived)
@@ -304,13 +331,17 @@ The application uses a **CMS-first approach** where all images are initially sto
 - Access control: public, members-only, or MAG-restricted
 - Taxonomy: Hierarchical categories and flat tags (section-scoped)
 
-**Blog Features:**
-- Blog listing page with pagination
-- Category and tag archive pages
-- Related posts
-- Author pages (optional)
+**Blog features:** Blog listing with pagination, category and tag archives, related posts, optional author pages.
 
-**Technical Details:** See [prd-technical.md - Database Schema Reference](./prd-technical.md#2-database-schema-reference)
+### Other Core Types (Snippet, Quote, Article)
+
+- **Snippet:** Short text (e.g. FAQs, micro-copy). Stored in `content` with minimal fields; no rich-text body if not needed.
+- **Quote:** Testimonial or quote. Same unified storage; type-specific fields as defined in Content Type Fields.
+- **Article:** Long-form editorial content. Same as post but distinct type for filtering and presentation.
+
+### Custom Content Types
+
+Custom types (e.g. **Portfolio**, **Properties**) use the same `content` table. Define the type in Settings → Content Types, add fields in Settings → Content Fields, and assign a taxonomy section. All managed via the unified Content list and add/edit modal.
 
 ### Galleries
 
@@ -560,8 +591,7 @@ The application supports two distinct user types:
 - `message` - Show restricted message to unauthorized users
 
 **Content Types with Access Control:**
-- Posts: access_level, required_mag_id, visibility_mode, restricted_message
-- Pages: access_level, required_mag_id, visibility_mode, restricted_message, section_restrictions (JSONB)
+- **Content** (posts, pages, etc.): access_level, required_mag_id, visibility_mode, restricted_message; pages may use section_restrictions (JSONB) for section-level control
 - Galleries: access_level, required_mag_id, visibility_mode, restricted_message
 - Events: access_level, required_mag_id
 
@@ -595,6 +625,22 @@ The application supports two distinct user types:
 ### Overview
 
 Taxonomy system manages categories and tags for organizing content. Categories are hierarchical, tags are flat. Both can be section-scoped for filtering.
+
+### Single Source of Truth – No Separate Taxonomy
+
+**Critical rule for developers and AI agents:** The taxonomy system is the **only** source for categories and tags used to organize content. All content types—existing (posts, pages, media, galleries) and future (e.g. properties, products, custom entities)—**must** use this site-wide system for categories, tags, and filtering.
+
+**Do not:**
+- Build a separate or parallel tags/categories system for any module (e.g. "Media Library tags", "Post categories" in isolation)
+- Add content-type-specific category or tag tables
+- Implement module-specific pickers that maintain their own term lists
+
+**Do:**
+- Use **sections** (Settings → Taxonomy → Sections) to scope terms per content type (e.g. "blog", "image", "video", "property")
+- Store relationships via `taxonomy_relationships` (`content_type`, `content_id`, `term_id`)
+- Reuse existing taxonomy helpers (`src/lib/supabase/taxonomy.ts`) and UI components (e.g. `TaxonomyAssignment`, `TaxonomyMultiSelect`) for assignment and filtering
+
+When adding a new content type, define a section for it in the taxonomy system and wire assignment and filtering through the shared taxonomy—**do not create a side taxonomy**.
 
 ### Categories
 
@@ -703,7 +749,7 @@ When launching a new site from the template, developers and clients work collabo
 
 ### Content Placeholders
 
-**Placeholder Status**: All content types (media, posts, pages) support a `status: 'placeholder'` to mark items needing completion before launch.
+**Placeholder Status**: All content types (media, and content items in the unified content table—posts, pages, etc.) support a `status: 'placeholder'` to mark items needing completion before launch.
 
 **Placeholder Features:**
 - Placeholder status indicates incomplete/required content that MUST be completed
@@ -719,7 +765,7 @@ When launching a new site from the template, developers and clients work collabo
 
 **Features:**
 - Displays all placeholder items needing completion
-- Grouped by content type (Media, Posts, Pages, etc.)
+- Grouped by content type (Media, and content types from the unified model: Posts, Pages, etc.)
 - Quick-link to each item for editing
 - Completion progress tracking
 - Marks items complete when status changes from placeholder to published
@@ -750,7 +796,7 @@ While site is being built, `/` shows a standby/coming-soon page (switchable in s
 **Use Case**: Reset a deployed instance to clean state for reuse as a new client template.
 
 **Features:**
-- Reset all content: Clear posts, galleries, forms, submissions
+- Reset all content: Clear content (unified table), galleries, forms, submissions
 - Reset design system: Restore fonts and colors to defaults
 - Reset media: Option to clear or keep media library
 - Full factory reset: Complete reset including settings

@@ -1,6 +1,9 @@
 /**
  * Integration management utilities for third-party scripts.
  * Handles Google Analytics, VisitorTracking.com, and SimpleCommenter.com configuration.
+ *
+ * SimpleCommenter is a development/client feedback tool (pinpoint annotations on the site
+ * during dev/staging). Turn off in production. It is not a blog comment system.
  */
 
 import { createServerSupabaseClient } from "./client";

@@ -50,23 +50,25 @@ async function executeSQL(supabase: any, sql: string, description: string): Prom
 
   for (const statement of statements) {
     if (statement.length === 0) continue;
-    
+
     try {
-      // Use RPC if available, otherwise try direct query
-      const { error } = await supabase.rpc("exec_sql", { sql: statement }).catch(async () => {
-        // If RPC doesn't exist, we'll need to use a different approach
-        // For now, log that we need manual execution
+      let execError: { message: string } | null = null;
+      try {
+        const res = await supabase.rpc("exec_sql", { sql: statement });
+        execError = res.error;
+      } catch {
         console.warn(`   ⚠️  Statement requires manual execution (RPC not available):`);
         console.warn(`   ${statement.substring(0, 100)}...`);
-        return { error: null };
-      });
-
-      if (error) {
-        console.error(`   ❌ Error: ${error.message}`);
-        throw error;
+        continue;
       }
-    } catch (error: any) {
-      console.error(`   ❌ Failed to execute statement: ${error.message}`);
+
+      if (execError) {
+        console.error(`   ❌ Error: ${execError.message}`);
+        throw execError;
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`   ❌ Failed to execute statement: ${msg}`);
       throw error;
     }
   }
@@ -83,7 +85,7 @@ async function setupClientSchema(schemaName: string) {
     process.exit(1);
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl!, serviceRoleKey!, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -93,18 +95,20 @@ async function setupClientSchema(schemaName: string) {
   try {
     // Step 1: Create schema
     console.log("📦 Step 1: Creating schema...");
-    const { error: schemaError } = await supabase.rpc("exec_sql", {
-      sql: `CREATE SCHEMA IF NOT EXISTS ${schemaName};`,
-    }).catch(async () => {
-      // If RPC doesn't work, we need manual creation
+    let schemaError: { message: string } | null = null;
+    try {
+      const res = await supabase.rpc("exec_sql", {
+        sql: `CREATE SCHEMA IF NOT EXISTS ${schemaName};`,
+      });
+      schemaError = res.error;
+    } catch {
       console.warn("   ⚠️  RPC exec_sql not available. Please create schema manually:");
       console.warn(`   CREATE SCHEMA IF NOT EXISTS ${schemaName};`);
-      return { error: null };
-    });
+    }
 
     if (schemaError) {
       console.error(`   ❌ Error creating schema: ${schemaError.message}`);
-      throw schemaError;
+      throw new Error(schemaError.message);
     }
     console.log("   ✅ Schema created");
 
@@ -212,23 +216,28 @@ async function setupClientSchema(schemaName: string) {
       `;
 
       // Enable RLS first
-      const { error: rlsError } = await supabase.rpc("exec_sql", {
-        sql: enableRLSSQL,
-      }).catch(() => ({ error: null }));
+      let rlsError: { message: string } | null = null;
+      try {
+        const rlsRes = await supabase.rpc("exec_sql", { sql: enableRLSSQL });
+        rlsError = rlsRes.error;
+      } catch {
+        /* RPC not available */
+      }
 
       if (rlsError) {
         console.warn(`   ⚠️  Could not enable RLS on storage.objects: ${rlsError.message}`);
       }
 
       // Create policies
-      const { error: policyError } = await supabase.rpc("exec_sql", {
-        sql: policySQL,
-      }).catch(async () => {
+      let policyError: { message: string } | null = null;
+      try {
+        const policyRes = await supabase.rpc("exec_sql", { sql: policySQL });
+        policyError = policyRes.error;
+      } catch {
         console.warn("   ⚠️  Could not set storage policies automatically (RPC not available)");
         console.warn("   Please configure storage policies manually in Supabase Dashboard:");
         console.warn(`   Storage → ${bucketName} → Policies`);
-        return { error: null };
-      });
+      }
 
       if (policyError) {
         console.warn(`   ⚠️  Could not set storage policies: ${policyError.message}`);
@@ -247,13 +256,16 @@ async function setupClientSchema(schemaName: string) {
 
     // Step 4: Refresh PostgREST cache
     console.log("\n🔄 Step 4: Refreshing PostgREST cache...");
-    const { error: notifyError } = await supabase.rpc("exec_sql", {
-      sql: `NOTIFY pgrst, 'reload schema';`,
-    }).catch(() => {
+    let notifyError: { message: string } | null = null;
+    try {
+      const notifyRes = await supabase.rpc("exec_sql", {
+        sql: `NOTIFY pgrst, 'reload schema';`,
+      });
+      notifyError = notifyRes.error;
+    } catch {
       console.warn("   ⚠️  Could not refresh cache automatically");
       console.warn("   Please run manually: NOTIFY pgrst, 'reload schema';");
-      return { error: null };
-    });
+    }
 
     if (!notifyError) {
       console.log("   ✅ PostgREST cache refresh notification sent");

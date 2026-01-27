@@ -156,6 +156,7 @@ export function ImageUpload({
         original_width: metadata.width,
         original_height: metadata.height,
         mime_type: file.type,
+        media_type: "image",
       });
 
       // Upload variants to storage

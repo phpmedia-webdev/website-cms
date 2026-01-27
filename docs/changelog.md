@@ -5,9 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-For planned work and backlog items, see [planlog.md](./planlog.md).
+For planned work and backlog items, see [planlog.md](./planlog.md). For session continuity (current focus, next up), see [sessionlog.md](./sessionlog.md).
 
 ## [Unreleased]
+
+### 2026-01-26 19:00 CT - Session wrap-up: Phase 05 check-off, build/runtime fixes, docs
+- **Context for Next Session:** Content phase (1–13) complete. Dev server runs clean; `/admin/content` loads without Fast Refresh full-reload errors. **Phase 05** (Media Library) checked off in planlog; **Phase 06** (Content, legacy redirects) done. **Fixes this session:** `@radix-ui/number` added as explicit dependency (resolve "Module not found" build error); Content page split into `ContentPageClient` + server `page` with `<Suspense>` around `useSearchParams` (fix "Fast Refresh had to perform a full reload due to a runtime error"). Sessionlog cleared; planlog and changelog updated.
+- **Updated:** `planlog.md` — Phase 05 marked complete (core), deferred items noted; "Phase 05 created: media, media_variants" in schemas section.
+- **Updated:** `package.json` — `@radix-ui/number` ^1.1.1.
+- **Updated:** `admin/content` — `ContentPageClient.tsx` (client, `useSearchParams`), `page.tsx` (server, `Suspense` wrapper).
+- **Updated:** `sessionlog.md` — pruned completed steps; Current Focus / Next Up reset for next session.
+
+### 2026-01-26 17:15 CT - Legacy routes redirect (Step 12)
+- **Context for Next Session:** Step 12 complete. `/admin/posts`, `/admin/posts/new`, `/admin/posts/[id]` redirect to `/admin/content?type=post`; `/admin/pages` redirects to `/admin/content?type=page`. Content page reads `?type=` and sets type filter. Phase 06 content work done. `PostEditor` unused (can remove later).
+- **Updated:** `admin/content/page.tsx` — `useSearchParams`, `useEffect` to set `typeFilter` from `?type=`.
+- **Replaced:** `admin/posts/page`, `admin/posts/new/page`, `admin/posts/[id]/page` — redirect to `/admin/content?type=post`.
+- **Added:** `admin/pages/page.tsx` — redirect to `/admin/content?type=page`.
+
+### 2026-01-26 16:45 CT - Public blog/page routes (Step 11)
+- **Context for Next Session:** Step 11 complete. Public routes: homepage `/` (page slug `/` or fallback), blog list `/blog`, single post `/blog/[slug]`, dynamic pages `/[slug]`. `RichTextDisplay` renders Tiptap JSON → HTML with prose. `generateMetadata` for post/page titles. Duplicate `app/page.tsx` removed; `(public)/page` is sole homepage. Added `@tiptap/core` for `generateHTML`. Next: legacy redirects (12).
+- **Added:** `RichTextDisplay` (StarterKit, Image, Link; `generateHTML` + prose), `(public)/blog/page`, `(public)/blog/[slug]/page`, `(public)/[slug]/page`.
+- **Updated:** `(public)/page` — fetch page `/`, render or fallback; `package.json` — `@tiptap/core`.
+- **Removed:** `app/page.tsx` (use `(public)/page` only).
+
+### 2026-01-26 15:30 CT - Settings twirldown, sub-page routing, Content Types/Fields placeholders
+- **Context for Next Session:** Settings is now a sidebar twirldown with sub-pages (General, Fonts, Colors, Taxonomy, Content Types, Content Fields, Security, API). Default settings page is General. Content Types and Content Fields are placeholders for the content phase. Sidebar + settings routing ready before building the content system.
+- **Sidebar**
+  - Settings is a twirldown: link to `/admin/settings` (redirects to General) + chevron to expand/collapse. Sub-links: General, Fonts, Colors, Taxonomy, Content Types, Content Fields, Security, API (order as specified).
+  - Persist open state in `localStorage` (`sidebar-settings-open`). When on any `/admin/settings` route, keep twirldown open and set stored state to open.
+- **Settings routing**
+  - `/admin/settings` redirects to `/admin/settings/general`. New sub-pages: `general`, `fonts`, `colors`, `taxonomy`, `content-types`, `content-fields`, `api`. `security` unchanged.
+  - Fonts/Colors: server page fetches `getDesignSystemConfig`, client wrapper holds state and saves via `POST /api/admin/settings/design-system`. Taxonomy remains `TaxonomySettings` on its own page.
+  - General and API: migrated from former tabs. Content Types and Content Fields: placeholder cards (manage types; manage custom fields per type).
+- **Removed** `SettingsTabs`; MFA enroll redirect when user has factors now goes to `/admin/settings/security`.
+- **Files:** `Sidebar.tsx`, `settings/page.tsx` (redirect), `settings/general|fonts|colors|taxonomy|content-types|content-fields|api/page.tsx`, `FontsSettingsPageClient`, `ColorsSettingsPageClient`, `api/api-base-url.tsx`, `mfa/enroll/page.tsx`.
+
+### 2026-01-26 14:00 CT - SimpleCommenter documented as dev feedback tool (not blog comments)
+- **Context for Next Session:** SimpleCommenter is explicitly documented as a development/client feedback tool for pinpoint annotations on the site during dev/staging. It must be disabled in production. It is not a blog comment system; blog comments are a separate, future consideration.
+- **Added:** `prd.md` — "Third-Party Integrations" section describing Google Analytics, VisitorTracking.com, and SimpleCommenter (purpose, when to enable/disable, "not blog comments").
+- **Added:** `prd-technical.md` — "SimpleCommenter (simple_commenter)" subsection under Integrations (purpose, config, script injection, blog comments clarification).
+- **Updated:** `IntegrationsManager.tsx` — SimpleCommenter description: "Client feedback tool for dev/staging: pinpoint annotations on the site. Disable in production. Not for blog comments."
+- **Updated:** `integrations.ts` — JSDoc; `(public)/layout.tsx` — comment above SimpleCommenter script.
+- **Updated:** `planlog.md` — Script injection bullet now states SimpleCommenter is dev feedback, disable in production, not blog comments.
 
 ### 2026-01-24 23:30 CT - Media Library: Images/Videos, Taxonomy Filters, Upload Modal, Video Placeholder
 - **Context for Next Session:** Media library now supports images and videos end-to-end. View mode (Images/Videos/All), taxonomy filter row (Categories/Tags, Reset Filters), and Upload Media modal with file upload (images + video, auto-detect) and Add Video URL. Migration 040 adds `media_type` and `video_url`; RPCs updated (DROP then CREATE for return-type change). Grid shows Video icon placeholder when `media_type === 'video'` and no thumbnail. Optional follow-ups: ImagePreviewModal video-specific view, section configs for images/videos, UI to assign taxonomy to media.

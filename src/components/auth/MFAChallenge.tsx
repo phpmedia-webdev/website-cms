@@ -109,6 +109,12 @@ export default function MFAChallenge() {
       return;
     }
 
+    if (!selectedFactorId) {
+      setError("No factor selected. Please refresh the page.");
+      setLoading(false);
+      return;
+    }
+
     if (code.length !== 6) {
       setError("Please enter a 6-digit code");
       setLoading(false);
@@ -118,6 +124,7 @@ export default function MFAChallenge() {
     try {
       // Verify the MFA code
       const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: selectedFactorId,
         challengeId,
         code,
       });

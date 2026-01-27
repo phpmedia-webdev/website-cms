@@ -50,7 +50,7 @@ export function AddVideoUrlForm({ onSuccess, onError }: AddVideoUrlFormProps) {
         original_size_bytes: 0,
         original_width: null,
         original_height: null,
-        mime_type: null,
+        mime_type: undefined,
         media_type: "video",
         video_url: normalizedUrl,
       });

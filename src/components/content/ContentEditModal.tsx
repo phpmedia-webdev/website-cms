@@ -1,0 +1,354 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSlug } from "@/hooks/useSlug";
+import { insertContent, updateContent, getContentTypeFieldsByContentType } from "@/lib/supabase/content";
+import { setTaxonomyForContent } from "@/lib/supabase/taxonomy";
+import { RichTextEditor } from "@/components/editor/RichTextEditor";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import type { ContentRow, ContentType } from "@/types/content";
+import type { ContentTypeField } from "@/types/content";
+import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
+import { Loader2 } from "lucide-react";
+
+export interface ContentEditModalProps {
+  open: boolean;
+  onClose: () => void;
+  item: ContentRow | null;
+  types: ContentType[];
+  onSaved: () => void;
+}
+
+/**
+ * Universal add/edit modal for content.
+ * Core fields: Type (create only), Name, Slug, Data (rich text), Excerpt, Status.
+ */
+export function ContentEditModal({
+  open,
+  onClose,
+  item,
+  types,
+  onSaved,
+}: ContentEditModalProps) {
+  const [contentTypeId, setContentTypeId] = useState("");
+  const [name, setName] = useState("");
+  const [slug, setSlug, slugFromTitle] = useSlug("");
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [excerpt, setExcerpt] = useState("");
+  const [status, setStatus] = useState<"draft" | "published">("draft");
+  const [saving, setSaving] = useState(false);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
+  const [fieldDefs, setFieldDefs] = useState<ContentTypeField[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+
+  const isEdit = !!item;
+  const postType = types.find((t) => t.slug === "post");
+  const currentType = types.find((t) => t.id === contentTypeId);
+
+  useEffect(() => {
+    if (!open) return;
+    if (item) {
+      setContentTypeId(item.content_type_id);
+      setName(item.title);
+      setSlug(item.slug);
+      setData(item.body);
+      setExcerpt(item.excerpt || "");
+      setStatus((item.status as "draft" | "published") || "draft");
+      setSlugManuallyEdited(false);
+      setCustomFields(item.custom_fields && typeof item.custom_fields === "object" ? { ...item.custom_fields } : {});
+      setSelectedCategoryIds(new Set());
+      setSelectedTagIds(new Set());
+    } else {
+      setContentTypeId(postType?.id ?? types[0]?.id ?? "");
+      setName("");
+      setSlug("");
+      setData(null);
+      setExcerpt("");
+      setStatus("draft");
+      setSlugManuallyEdited(false);
+      setCustomFields({});
+      setSelectedCategoryIds(new Set());
+      setSelectedTagIds(new Set());
+    }
+  }, [open, item, types, postType?.id, setSlug]);
+
+  useEffect(() => {
+    if (!open || !contentTypeId) {
+      setFieldDefs([]);
+      return;
+    }
+    let cancelled = false;
+    getContentTypeFieldsByContentType(contentTypeId).then((defs) => {
+      if (!cancelled) {
+        setFieldDefs(defs);
+        if (!isEdit) setCustomFields({});
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, contentTypeId, isEdit]);
+
+  useEffect(() => {
+    if (!open || isEdit || slugManuallyEdited) return;
+    if (name) slugFromTitle(name);
+  }, [open, isEdit, name, slugManuallyEdited, slugFromTitle]);
+
+  const handleClose = () => {
+    if (!saving) onClose();
+  };
+
+  const handleSave = async () => {
+    if (!name?.trim() || !slug?.trim()) {
+      alert("Name and slug are required.");
+      return;
+    }
+    if (!isEdit && !contentTypeId) {
+      alert("Please select a content type.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        title: name.trim(),
+        slug: slug.trim(),
+        excerpt: excerpt.trim() || null,
+        body: data,
+        status,
+        published_at: status === "published" ? new Date().toISOString() : null,
+        featured_image_id: item?.featured_image_id ?? null,
+        custom_fields: customFields,
+      };
+
+      if (isEdit && item) {
+        const ok = await updateContent(item.id, payload);
+        if (!ok) throw new Error("Update failed");
+        if (currentType) {
+          const allIds = [...selectedCategoryIds, ...selectedTagIds];
+          await setTaxonomyForContent(item.id, currentType.slug, allIds);
+        }
+      } else {
+        const inserted = await insertContent({
+          ...payload,
+          content_type_id: contentTypeId,
+          featured_image_id: null,
+          custom_fields: customFields,
+        });
+        if (!inserted) throw new Error("Create failed");
+      }
+      onSaved();
+      handleClose();
+    } catch (e) {
+      console.error("Content save failed:", e);
+      alert("Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent
+        className="w-[95vw] sm:w-[70vw] sm:max-w-[min(70vw,1200px)] max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => saving && e.preventDefault()}
+        onEscapeKeyDown={(e) => saving && e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit content" : "Add content"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {isEdit ? (
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <p className="text-sm text-muted-foreground">
+                {currentType?.label ?? "—"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="content-type">Content type</Label>
+              <select
+                id="content-type"
+                value={contentTypeId}
+                onChange={(e) => setContentTypeId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select type…</option>
+                {types.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="content-name">Name</Label>
+            <Input
+              id="content-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Title"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="content-slug">Slug</Label>
+            <Input
+              id="content-slug"
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value);
+                setSlugManuallyEdited(true);
+              }}
+              placeholder="url-slug"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Data</Label>
+            <RichTextEditor content={data} onChange={setData} placeholder="Body content…" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="content-excerpt">Excerpt</Label>
+            <Input
+              id="content-excerpt"
+              value={excerpt}
+              onChange={(e) => setExcerpt(e.target.value)}
+              placeholder="Brief description"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="content-status">Status</Label>
+            <select
+              id="content-status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as "draft" | "published")}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+            </select>
+          </div>
+
+          {fieldDefs.length > 0 && (
+            <div className="space-y-4 pt-2 border-t">
+              <h3 className="text-sm font-medium">Custom fields</h3>
+              <div className="space-y-4">
+                {fieldDefs.map((f) => (
+                  <div key={f.id} className="space-y-2">
+                    <Label htmlFor={`cf-${f.key}`}>{f.label}</Label>
+                    {f.type === "textarea" ? (
+                      <textarea
+                        id={`cf-${f.key}`}
+                        value={String(customFields[f.key] ?? "")}
+                        onChange={(e) =>
+                          setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
+                        }
+                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    ) : f.type === "checkbox" ? (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`cf-${f.key}`}
+                          checked={!!customFields[f.key]}
+                          onCheckedChange={(v) =>
+                            setCustomFields((prev) => ({ ...prev, [f.key]: !!v }))
+                          }
+                        />
+                      </div>
+                    ) : f.type === "number" ? (
+                      <Input
+                        id={`cf-${f.key}`}
+                        type="number"
+                        value={customFields[f.key] != null ? String(customFields[f.key]) : ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setCustomFields((prev) => ({
+                            ...prev,
+                            [f.key]: v === "" ? null : Number(v),
+                          }));
+                        }}
+                      />
+                    ) : (
+                      <Input
+                        id={`cf-${f.key}`}
+                        value={String(customFields[f.key] ?? "")}
+                        onChange={(e) =>
+                          setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isEdit && item && currentType && (
+            <div className="space-y-2 pt-2 border-t">
+              <h3 className="text-sm font-medium">Categories &amp; Tags</h3>
+              <TaxonomyAssignmentForContent
+                contentId={item.id}
+                contentTypeSlug={currentType.slug}
+                sectionLabel={currentType.label}
+                disabled={saving}
+                embedded
+                selectedCategoryIds={selectedCategoryIds}
+                selectedTagIds={selectedTagIds}
+                onCategoryToggle={(id, checked) => {
+                  setSelectedCategoryIds((prev) => {
+                    const next = new Set(prev);
+                    if (checked) next.add(id);
+                    else next.delete(id);
+                    return next;
+                  });
+                }}
+                onTagToggle={(id, checked) => {
+                  setSelectedTagIds((prev) => {
+                    const next = new Set(prev);
+                    if (checked) next.add(id);
+                    else next.delete(id);
+                    return next;
+                  });
+                }}
+                onInitialLoad={({ categoryIds, tagIds }) => {
+                  setSelectedCategoryIds(new Set(categoryIds));
+                  setSelectedTagIds(new Set(tagIds));
+                }}
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving…
+              </>
+            ) : isEdit ? (
+              "Update"
+            ) : (
+              "Create"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

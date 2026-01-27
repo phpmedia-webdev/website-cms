@@ -60,7 +60,8 @@ export async function getMediaWithVariants(): Promise<MediaWithVariants[]> {
 
     // Transform RPC response to MediaWithVariants
     // Handle NULL variants (should be fixed by migration 031, but keep this as fallback)
-    return (data || []).map((item) => ({
+    const list = (data as MediaBulkResponse[] | null) ?? [];
+    return list.map((item) => ({
       id: item.media_id,
       name: item.name,
       slug: item.slug,
@@ -96,7 +97,6 @@ export async function getMediaById(mediaId: string): Promise<MediaWithVariants |
 
     const { data, error } = await supabase
       .rpc('get_media_by_id', { media_id_param: mediaId })
-      .returns<MediaBulkResponse[]>()
       .single();
 
     if (error) {
@@ -111,23 +111,24 @@ export async function getMediaById(mediaId: string): Promise<MediaWithVariants |
 
     if (!data) return null;
 
+    const row = data as MediaBulkResponse;
     return {
-      id: data.media_id,
-      name: data.name,
-      slug: data.slug,
-      description: data.description,
-      alt_text: data.alt_text,
-      original_filename: data.original_filename,
-      original_format: data.original_format,
-      original_size_bytes: data.original_size_bytes,
-      original_width: data.original_width,
-      original_height: data.original_height,
-      mime_type: data.mime_type,
-      media_type: (data.media_type ?? 'image') as 'image' | 'video',
-      video_url: data.video_url ?? null,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      variants: Array.isArray(data.variants) ? data.variants : [],
+      id: row.media_id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      alt_text: row.alt_text,
+      original_filename: row.original_filename,
+      original_format: row.original_format,
+      original_size_bytes: row.original_size_bytes,
+      original_width: row.original_width,
+      original_height: row.original_height,
+      mime_type: row.mime_type,
+      media_type: (row.media_type ?? 'image') as 'image' | 'video',
+      video_url: row.video_url ?? null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      variants: Array.isArray(row.variants) ? row.variants : [],
     };
   } catch (error) {
     const schema = getClientSchema();
@@ -173,9 +174,10 @@ export async function getMediaStats(): Promise<{ totalCount: number; totalSizeBy
       };
     }
 
+    const row = data as { total_count?: number; total_size_bytes?: number };
     return {
-      totalCount: Number(data.total_count) || 0,
-      totalSizeBytes: Number(data.total_size_bytes) || 0,
+      totalCount: Number(row.total_count) || 0,
+      totalSizeBytes: Number(row.total_size_bytes) || 0,
     };
   } catch (error) {
     const schema = getClientSchema();
@@ -285,7 +287,12 @@ export async function updateMedia(
   try {
     const supabase = createClientSupabaseClient();
 
-    const updateData: Partial<MediaCreatePayload> = {};
+    const updateData: {
+      name?: string;
+      slug?: string;
+      description?: string | null;
+      alt_text?: string | null;
+    } = {};
     if (payload.name !== undefined) updateData.name = payload.name;
     if (payload.slug !== undefined) updateData.slug = payload.slug;
     if (payload.description !== undefined) updateData.description = payload.description || null;
@@ -364,9 +371,7 @@ export async function searchMedia(query: string): Promise<MediaWithVariants[]> {
     const schema = getClientSchema();
 
     // Use RPC function for server-side search (more efficient than client-side filtering)
-    const { data, error } = await supabase.rpc('search_media', {
-      search_query: query,
-    });
+    const { data, error } = await supabase.rpc('search_media', { search_query: query });
 
     if (error) {
       console.error(`Error searching media [schema: ${schema}]:`, error);
@@ -386,7 +391,8 @@ export async function searchMedia(query: string): Promise<MediaWithVariants[]> {
     }
 
     // Transform RPC response to MediaWithVariants
-    return (data || []).map((item) => ({
+    const list = (data as MediaBulkResponse[] | null) ?? [];
+    return list.map((item) => ({
       id: item.media_id,
       name: item.name,
       slug: item.slug,

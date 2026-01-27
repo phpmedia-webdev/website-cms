@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { createClientSupabaseClient } from "@/lib/supabase/client";
 import { getTaxonomyTermsClient, getSectionConfigsClient } from "@/lib/supabase/taxonomy";
 import { Plus, Edit, Trash2, Tag, FolderTree, List, Settings, Loader2, Search } from "lucide-react";
@@ -27,6 +35,7 @@ export function TaxonomySettings() {
   const [sectionSearch, setSectionSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
+  const [termListSectionFilter, setTermListSectionFilter] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -38,10 +47,11 @@ export function TaxonomySettings() {
   const [sectionFormData, setSectionFormData] = useState({
     section_name: "",
     display_name: "",
-    content_type: "post" as "post" | "page" | "media" | "gallery",
+    // Removed: content_type - not functionally used
     category_slugs: [] as string[],
     tag_slugs: [] as string[],
   });
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -170,7 +180,21 @@ export function TaxonomySettings() {
     try {
       const supabase = createClientSupabaseClient();
       const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
-      
+
+      // Uniqueness: same type, same slug, excluding current when editing
+      const { data: existing } = await supabase
+        .schema(schema)
+        .from("taxonomy_terms")
+        .select("id")
+        .eq("type", type)
+        .eq("slug", slug);
+      const duplicate = (existing || []).find((r) => !editingTerm || r.id !== editingTerm.id);
+      if (duplicate) {
+        alert(`A ${type} with slug "${slug}" already exists. Use a different slug.`);
+        setSaving(false);
+        return;
+      }
+
       const termData = {
         name: formData.name.trim(),
         slug,
@@ -180,6 +204,8 @@ export function TaxonomySettings() {
         suggested_sections: formData.suggested_sections.length > 0 ? formData.suggested_sections : null,
       };
 
+      const oldSlug = editingTerm?.slug ?? null;
+
       if (editingTerm) {
         const { error } = await supabase
           .schema(schema)
@@ -187,6 +213,25 @@ export function TaxonomySettings() {
           .update(termData)
           .eq("id", editingTerm.id);
         if (error) throw error;
+
+        // Cascade: update section_taxonomy_config when slug changed
+        if (oldSlug && oldSlug !== slug) {
+          const { data: configs } = await supabase
+            .schema(schema)
+            .from("section_taxonomy_config")
+            .select("id, category_slugs, tag_slugs");
+          for (const row of configs || []) {
+            const isCat = type === "category";
+            const arr = isCat ? row.category_slugs : row.tag_slugs;
+            if (!Array.isArray(arr) || !arr.includes(oldSlug)) continue;
+            const next = arr.map((s) => (s === oldSlug ? slug : s));
+            await supabase
+              .schema(schema)
+              .from("section_taxonomy_config")
+              .update(isCat ? { category_slugs: next } : { tag_slugs: next })
+              .eq("id", row.id);
+          }
+        }
       } else {
         const { error } = await supabase
           .schema(schema)
@@ -195,9 +240,30 @@ export function TaxonomySettings() {
         if (error) throw error;
       }
 
+      // Apply to these Sections: add this term's slug to each selected section's
+      // category_slugs / tag_slugs so it appears in Sections tab count and edit checkboxes.
+      if (formData.suggested_sections.length > 0) {
+        const { data: configs } = await supabase
+          .schema(schema)
+          .from("section_taxonomy_config")
+          .select("id, section_name, category_slugs, tag_slugs")
+          .in("section_name", formData.suggested_sections);
+        const isCat = type === "category";
+        for (const row of configs || []) {
+          const arr = isCat ? row.category_slugs : row.tag_slugs;
+          const base = Array.isArray(arr) && arr.length > 0 ? arr : [];
+          if (base.includes(slug)) continue;
+          const next = [...base, slug];
+          await supabase
+            .schema(schema)
+            .from("section_taxonomy_config")
+            .update(isCat ? { category_slugs: next } : { tag_slugs: next })
+            .eq("id", row.id);
+        }
+      }
+
       resetForm();
       setShowTermForm(false);
-      // Reload data without showing full loading state
       await loadAllData(false);
     } catch (error) {
       console.error("Error saving term:", error);
@@ -299,23 +365,69 @@ export function TaxonomySettings() {
     try {
       const supabase = createClientSupabaseClient();
       const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
-      
+
+      const newSectionName = sectionFormData.section_name.trim();
       const configData = {
-        section_name: sectionFormData.section_name.trim(),
+        section_name: newSectionName,
         display_name: sectionFormData.display_name.trim(),
-        content_type: sectionFormData.content_type,
+        content_type: "section", // Default value - not used functionally, but required by DB
         category_slugs: sectionFormData.category_slugs.length > 0 ? sectionFormData.category_slugs : null,
         tag_slugs: sectionFormData.tag_slugs.length > 0 ? sectionFormData.tag_slugs : null,
       };
 
       if (editingSection) {
+        // Uniqueness: another section with same section_name, excluding current
+        const { data: existing } = await supabase
+          .schema(schema)
+          .from("section_taxonomy_config")
+          .select("id")
+          .eq("section_name", newSectionName);
+        const duplicate = (existing || []).find((r) => r.id !== editingSection.id);
+        if (duplicate) {
+          alert(`A section with slug "${newSectionName}" already exists. Use a different section name.`);
+          setSaving(false);
+          return;
+        }
+
+        const oldSectionName = editingSection.section_name;
+
         const { error } = await supabase
           .schema(schema)
           .from("section_taxonomy_config")
           .update(configData)
           .eq("id", editingSection.id);
         if (error) throw error;
+
+        // Cascade: update taxonomy_terms.suggested_sections when section_name changed
+        if (oldSectionName !== newSectionName) {
+          const { data: terms } = await supabase
+            .schema(schema)
+            .from("taxonomy_terms")
+            .select("id, suggested_sections");
+          for (const row of terms || []) {
+            const arr = row.suggested_sections;
+            if (!Array.isArray(arr) || !arr.includes(oldSectionName)) continue;
+            const next = arr.map((s) => (s === oldSectionName ? newSectionName : s));
+            await supabase
+              .schema(schema)
+              .from("taxonomy_terms")
+              .update({ suggested_sections: next })
+              .eq("id", row.id);
+          }
+        }
       } else {
+        // Uniqueness for create
+        const { data: existing } = await supabase
+          .schema(schema)
+          .from("section_taxonomy_config")
+          .select("id")
+          .eq("section_name", newSectionName);
+        if ((existing || []).length > 0) {
+          alert(`A section with slug "${newSectionName}" already exists. Use a different section name.`);
+          setSaving(false);
+          return;
+        }
+
         const { error } = await supabase
           .schema(schema)
           .from("section_taxonomy_config")
@@ -324,7 +436,6 @@ export function TaxonomySettings() {
       }
 
       resetSectionForm();
-      // Reload data without showing full loading state
       await loadAllData(false);
     } catch (error) {
       console.error("Error saving section config:", error);
@@ -339,9 +450,61 @@ export function TaxonomySettings() {
     }
   };
 
+  const handleDeleteSection = async (section: SectionTaxonomyConfig) => {
+    if (!confirm(`Are you sure you want to delete section "${section.display_name}"? Its category/tag assignments will be removed.`)) {
+      return;
+    }
+
+    if (editingSection?.id === section.id) {
+      resetSectionForm();
+    }
+
+    setSaving(true);
+    try {
+      const supabase = createClientSupabaseClient();
+      const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
+      const sectionName = section.section_name;
+
+      const { data: terms } = await supabase
+        .schema(schema)
+        .from("taxonomy_terms")
+        .select("id, suggested_sections");
+      for (const row of terms || []) {
+        const arr = row.suggested_sections;
+        if (!Array.isArray(arr) || !arr.includes(sectionName)) continue;
+        const next = arr.filter((s) => s !== sectionName);
+        await supabase
+          .schema(schema)
+          .from("taxonomy_terms")
+          .update({ suggested_sections: next.length > 0 ? next : null })
+          .eq("id", row.id);
+      }
+
+      const { error } = await supabase
+        .schema(schema)
+        .from("section_taxonomy_config")
+        .delete()
+        .eq("id", section.id);
+      if (error) throw error;
+
+      await loadAllData(false);
+    } catch (error) {
+      console.error("Error deleting section:", error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'object' && error !== null
+        ? JSON.stringify(error, Object.getOwnPropertyNames(error))
+        : String(error);
+      alert(`Failed to delete section: ${errorMessage}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const resetForm = () => {
     setEditingTerm(null);
     setShowTermForm(false);
+    setSlugManuallyEdited(false);
     setFormData({
       name: "",
       slug: "",
@@ -358,7 +521,7 @@ export function TaxonomySettings() {
     setSectionFormData({
       section_name: "",
       display_name: "",
-      content_type: "post",
+      // Removed: content_type
       category_slugs: [],
       tag_slugs: [],
     });
@@ -400,7 +563,8 @@ export function TaxonomySettings() {
     const result: TaxonomyTerm[] = [];
     const traverse = (items: TaxonomyTermWithChildren[]) => {
       items.forEach((item) => {
-        result.push({ ...item, children: undefined });
+        const { children: _c, ...rest } = item;
+        result.push(rest);
         if (item.children && item.children.length > 0) {
           traverse(item.children);
         }
@@ -441,31 +605,56 @@ export function TaxonomySettings() {
   };
 
   const getFilteredCategories = () => {
-    if (!categorySearch.trim()) return flattenCategories(categories);
+    let flatCats = flattenCategories(categories);
+
+    if (termListSectionFilter) {
+      const sec = sections.find((s) => s.section_name === termListSectionFilter);
+      const slugs = sec?.category_slugs;
+      if (Array.isArray(slugs) && slugs.length > 0) {
+        const set = new Set(slugs);
+        flatCats = flatCats.filter((cat) => set.has(cat.slug));
+      } else {
+        flatCats = [];
+      }
+    }
+
+    if (!categorySearch.trim()) return flatCats;
     const query = categorySearch.toLowerCase();
-    const flatCats = flattenCategories(categories);
-    
-    // Filter categories that match the query
     const matches = flatCats.filter((cat) =>
       cat.name.toLowerCase().includes(query) ||
       cat.slug.toLowerCase().includes(query)
     );
-    
-    // If any child matches, also include its parents
     const matchIds = new Set(matches.map((m) => m.id));
-    flatCats.forEach((cat) => {
-      if (cat.parent_id && matchIds.has(cat.parent_id)) {
-        matchIds.add(cat.parent_id);
-      }
-    });
-    
+    let added = true;
+    while (added) {
+      added = false;
+      flatCats.forEach((cat) => {
+        if (cat.parent_id && matchIds.has(cat.id) && !matchIds.has(cat.parent_id)) {
+          matchIds.add(cat.parent_id);
+          added = true;
+        }
+      });
+    }
     return flatCats.filter((cat) => matchIds.has(cat.id));
   };
 
   const getFilteredTags = () => {
-    if (!tagSearch.trim()) return tags;
+    let list = tags;
+
+    if (termListSectionFilter) {
+      const sec = sections.find((s) => s.section_name === termListSectionFilter);
+      const slugs = sec?.tag_slugs;
+      if (Array.isArray(slugs) && slugs.length > 0) {
+        const set = new Set(slugs);
+        list = list.filter((tag) => set.has(tag.slug));
+      } else {
+        list = [];
+      }
+    }
+
+    if (!tagSearch.trim()) return list;
     const query = tagSearch.toLowerCase();
-    return tags.filter((tag) =>
+    return list.filter((tag) =>
       tag.name.toLowerCase().includes(query) ||
       tag.slug.toLowerCase().includes(query)
     );
@@ -510,134 +699,6 @@ export function TaxonomySettings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Section Form */}
-                {(showSectionForm || editingSection) && (
-                  <div className="p-4 border rounded-lg space-y-4">
-                    <div>
-                      <Label>Section Name (slug) *</Label>
-                      <Input
-                        value={sectionFormData.section_name}
-                        onChange={(e) =>
-                          setSectionFormData({ ...sectionFormData, section_name: e.target.value })
-                        }
-                        placeholder="blog"
-                        disabled={!!editingSection}
-                      />
-                    </div>
-                    <div>
-                      <Label>Display Name *</Label>
-                      <Input
-                        value={sectionFormData.display_name}
-                        onChange={(e) =>
-                          setSectionFormData({ ...sectionFormData, display_name: e.target.value })
-                        }
-                        placeholder="Blog"
-                      />
-                    </div>
-                    <div>
-                      <Label>Content Type</Label>
-                      <select
-                        className="w-full px-3 py-2 border rounded-md"
-                        value={sectionFormData.content_type}
-                        onChange={(e) =>
-                          setSectionFormData({
-                            ...sectionFormData,
-                            content_type: e.target.value as typeof sectionFormData.content_type,
-                          })
-                        }
-                      >
-                        <option value="post">Post</option>
-                        <option value="page">Page</option>
-                        <option value="media">Media</option>
-                        <option value="gallery">Gallery</option>
-                      </select>
-                    </div>
-                    <div>
-                      <Label>Categories</Label>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Select specific categories (leave empty to use suggested sections from terms)
-                      </p>
-                      <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
-                        {allTerms
-                          .filter((t) => t.type === "category")
-                          .map((term) => (
-                            <label key={term.id} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={sectionFormData.category_slugs.includes(term.slug)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSectionFormData({
-                                      ...sectionFormData,
-                                      category_slugs: [...sectionFormData.category_slugs, term.slug],
-                                    });
-                                  } else {
-                                    setSectionFormData({
-                                      ...sectionFormData,
-                                      category_slugs: sectionFormData.category_slugs.filter(
-                                        (s) => s !== term.slug
-                                      ),
-                                    });
-                                  }
-                                }}
-                                className="rounded"
-                              />
-                              <span className="text-sm">{term.name}</span>
-                            </label>
-                          ))}
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Tags</Label>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Select specific tags (leave empty to use suggested sections from terms)
-                      </p>
-                      <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
-                        {allTerms
-                          .filter((t) => t.type === "tag")
-                          .map((term) => (
-                            <label key={term.id} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={sectionFormData.tag_slugs.includes(term.slug)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSectionFormData({
-                                      ...sectionFormData,
-                                      tag_slugs: [...sectionFormData.tag_slugs, term.slug],
-                                    });
-                                  } else {
-                                    setSectionFormData({
-                                      ...sectionFormData,
-                                      tag_slugs: sectionFormData.tag_slugs.filter((s) => s !== term.slug),
-                                    });
-                                  }
-                                }}
-                                className="rounded"
-                              />
-                              <span className="text-sm">{term.name}</span>
-                            </label>
-                          ))}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={handleSaveSectionConfig} disabled={saving}>
-                        {saving ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          editingSection ? "Update" : "Create"
-                        )} Section
-                      </Button>
-                      <Button variant="outline" onClick={resetSectionForm} disabled={saving}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Sections List - Compact Table Style */}
                 <div>
                   <div className="space-y-3">
@@ -660,7 +721,7 @@ export function TaxonomySettings() {
                             <tr>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Display Name</th>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Slug</th>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Content Type</th>
+                              {/* REMOVED: Content Type column */}
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Categories</th>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Tags</th>
                               <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">Actions</th>
@@ -669,7 +730,7 @@ export function TaxonomySettings() {
                           <tbody>
                             {getFilteredSections().length === 0 ? (
                               <tr>
-                                <td colSpan={6} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
                                   {sectionSearch ? "No sections match your search" : "No sections configured"}
                                 </td>
                               </tr>
@@ -678,7 +739,7 @@ export function TaxonomySettings() {
                                 <tr key={section.id} className="border-t hover:bg-accent">
                                   <td className="px-3 py-1.5 text-sm">{section.display_name}</td>
                                   <td className="px-3 py-1.5 text-xs text-muted-foreground">{section.section_name}</td>
-                                  <td className="px-3 py-1.5 text-xs text-muted-foreground">{section.content_type}</td>
+                                  {/* REMOVED: content_type display */}
                                   <td className="px-3 py-1.5 text-xs text-muted-foreground">
                                     {section.category_slugs?.length || "Use suggested"}
                                   </td>
@@ -686,28 +747,35 @@ export function TaxonomySettings() {
                                     {section.tag_slugs?.length || "Use suggested"}
                                   </td>
                                   <td className="px-3 py-1.5 text-right">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => {
-                                        // Reset term form if it's open
-                                        if (editingTerm || showTermForm) {
-                                          resetForm();
-                                        }
-                                        setEditingSection(section);
-                                        setShowSectionForm(true);
-                                        setSectionFormData({
-                                          section_name: section.section_name,
-                                          display_name: section.display_name,
-                                          content_type: section.content_type,
-                                          category_slugs: section.category_slugs || [],
-                                          tag_slugs: section.tag_slugs || [],
-                                        });
-                                      }}
-                                    >
-                                      <Edit className="h-3.5 w-3.5" />
-                                    </Button>
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() => {
+                                          if (editingTerm || showTermForm) resetForm();
+                                          setEditingSection(section);
+                                          setShowSectionForm(true);
+                                          setSectionFormData({
+                                            section_name: section.section_name,
+                                            display_name: section.display_name,
+                                            category_slugs: section.category_slugs || [],
+                                            tag_slugs: section.tag_slugs || [],
+                                          });
+                                        }}
+                                      >
+                                        <Edit className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() => handleDeleteSection(section)}
+                                        disabled={saving}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
                                   </td>
                                 </tr>
                               ))
@@ -721,6 +789,133 @@ export function TaxonomySettings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Section Form Modal */}
+          <Dialog
+            open={showSectionForm || !!editingSection}
+            onOpenChange={(open) => {
+              if (!open) {
+                resetSectionForm();
+              }
+            }}
+          >
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingSection ? "Edit Section" : "Add New Section"}
+                </DialogTitle>
+                <DialogDescription>
+                  Configure which categories and tags this section uses
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label>Display Name *</Label>
+                  <Input
+                    value={sectionFormData.display_name}
+                    onChange={(e) =>
+                      setSectionFormData({ ...sectionFormData, display_name: e.target.value })
+                    }
+                    placeholder="Blog"
+                  />
+                </div>
+                <div>
+                  <Label>Section Name (slug) *</Label>
+                  <Input
+                    value={sectionFormData.section_name}
+                    onChange={(e) =>
+                      setSectionFormData({ ...sectionFormData, section_name: e.target.value })
+                    }
+                    placeholder="blog"
+                  />
+                </div>
+                {/* REMOVED: Content Type field - not functionally used */}
+                <div>
+                  <Label>Categories</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Select specific categories (leave empty to use suggested sections from terms)
+                  </p>
+                  <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
+                    {allTerms
+                      .filter((t) => t.type === "category")
+                      .map((term) => (
+                        <label key={term.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={sectionFormData.category_slugs.includes(term.slug)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSectionFormData({
+                                  ...sectionFormData,
+                                  category_slugs: [...sectionFormData.category_slugs, term.slug],
+                                });
+                              } else {
+                                setSectionFormData({
+                                  ...sectionFormData,
+                                  category_slugs: sectionFormData.category_slugs.filter(
+                                    (s) => s !== term.slug
+                                  ),
+                                });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{term.name}</span>
+                        </label>
+                      ))}
+                  </div>
+                </div>
+                <div>
+                  <Label>Tags</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Select specific tags (leave empty to use suggested sections from terms)
+                  </p>
+                  <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
+                    {allTerms
+                      .filter((t) => t.type === "tag")
+                      .map((term) => (
+                        <label key={term.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={sectionFormData.tag_slugs.includes(term.slug)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSectionFormData({
+                                  ...sectionFormData,
+                                  tag_slugs: [...sectionFormData.tag_slugs, term.slug],
+                                });
+                              } else {
+                                setSectionFormData({
+                                  ...sectionFormData,
+                                  tag_slugs: sectionFormData.tag_slugs.filter((s) => s !== term.slug),
+                                });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{term.name}</span>
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={resetSectionForm} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveSectionConfig} disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    editingSection ? "Update" : "Create"
+                  )} Section
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Categories Tab */}
@@ -740,121 +935,32 @@ export function TaxonomySettings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Category Form */}
-                {(showTermForm || editingTerm) && (activeTab === "categories" || editingTerm?.type === "category") && (
-                  <div className="p-4 border rounded-lg space-y-4">
-                    <div>
-                      <Label>Name *</Label>
-                      <Input
-                        value={formData.name}
-                        onChange={(e) => {
-                          setFormData({ ...formData, name: e.target.value });
-                          if (!editingTerm && !formData.slug) {
-                            setFormData((prev) => ({
-                              ...prev,
-                              slug: generateTaxonomySlug(e.target.value),
-                            }));
-                          }
-                        }}
-                        placeholder="Category name"
-                      />
-                    </div>
-                    <div>
-                      <Label>Slug *</Label>
-                      <Input
-                        value={formData.slug}
-                        onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                        placeholder="category-slug"
-                      />
-                    </div>
-                    <div>
-                      <Label>Parent Category (optional)</Label>
-                      <select
-                        className="w-full px-3 py-2 border rounded-md"
-                        value={formData.parent_id}
-                        onChange={(e) => setFormData({ ...formData, parent_id: e.target.value })}
-                        disabled={editingTerm?.id === formData.parent_id}
-                      >
-                        <option value="">None (Top Level)</option>
-                        {flattenCategories(categories)
-                          .filter((cat) => cat.id !== editingTerm?.id)
-                          .map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label>Description (optional)</Label>
-                      <Input
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Description"
-                      />
-                    </div>
-                    <div>
-                      <Label>Suggested Sections</Label>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Select which sections this category should be available in by default
-                      </p>
-                      <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
-                        {sections.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No sections configured.</p>
-                        ) : (
-                          sections.map((section) => (
-                            <label key={section.id} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={formData.suggested_sections.includes(section.section_name)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setFormData({
-                                      ...formData,
-                                      suggested_sections: [...formData.suggested_sections, section.section_name],
-                                    });
-                                  } else {
-                                    setFormData({
-                                      ...formData,
-                                      suggested_sections: formData.suggested_sections.filter(
-                                        (s) => s !== section.section_name
-                                      ),
-                                    });
-                                  }
-                                }}
-                                className="rounded"
-                              />
-                              <span className="text-sm">
-                                {section.display_name} ({section.content_type})
-                              </span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={handleCreateOrUpdateTerm}>
-                        {editingTerm ? "Update" : "Create"} Category
-                      </Button>
-                      <Button variant="outline" onClick={resetForm}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Categories List - Compact Table Style */}
                 <div>
                   <div className="space-y-3">
-                    {/* Search Input */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        placeholder="Search categories by name or slug..."
-                        value={categorySearch}
-                        onChange={(e) => setCategorySearch(e.target.value)}
-                        className="pl-10"
-                      />
+                    {/* Search + Section filter */}
+                    <div className="flex gap-2 items-center">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          placeholder="Search categories by name or slug..."
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <select
+                        value={termListSectionFilter}
+                        onChange={(e) => setTermListSectionFilter(e.target.value)}
+                        className="w-[180px] px-3 py-2 border border-input rounded-md bg-background text-sm"
+                      >
+                        <option value="">All sections</option>
+                        {sections.map((s) => (
+                          <option key={s.id} value={s.section_name}>
+                            {s.display_name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Scrollable Table */}
@@ -874,7 +980,9 @@ export function TaxonomySettings() {
                             {getFilteredCategories().length === 0 ? (
                               <tr>
                                 <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                                  {categorySearch ? "No categories match your search" : "No categories found"}
+                                  {categorySearch || termListSectionFilter
+                                    ? "No categories match your search and filters"
+                                    : "No categories found"}
                                 </td>
                               </tr>
                             ) : (
@@ -906,6 +1014,7 @@ export function TaxonomySettings() {
                                           if (editingSection || showSectionForm) {
                                             resetSectionForm();
                                           }
+                                          setSlugManuallyEdited(false);
                                           setEditingTerm(term);
                                           setShowTermForm(true);
                                           // Switch to appropriate tab
@@ -964,110 +1073,32 @@ export function TaxonomySettings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Tag Form */}
-                {(showTermForm || editingTerm) && (activeTab === "tags" || editingTerm?.type === "tag") && (
-                  <div className="p-4 border rounded-lg space-y-4">
-                    <div>
-                      <Label>Name *</Label>
-                      <Input
-                        value={formData.name}
-                        onChange={(e) => {
-                          setFormData({ ...formData, name: e.target.value });
-                          if (!editingTerm && !formData.slug) {
-                            setFormData((prev) => ({
-                              ...prev,
-                              slug: generateTaxonomySlug(e.target.value),
-                            }));
-                          }
-                        }}
-                        placeholder="Tag name"
-                      />
-                    </div>
-                    <div>
-                      <Label>Slug *</Label>
-                      <Input
-                        value={formData.slug}
-                        onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                        placeholder="tag-slug"
-                      />
-                    </div>
-                    <div>
-                      <Label>Description (optional)</Label>
-                      <Input
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Description"
-                      />
-                    </div>
-                    <div>
-                      <Label>Suggested Sections</Label>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Select which sections this tag should be available in by default
-                      </p>
-                      <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
-                        {sections.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No sections configured.</p>
-                        ) : (
-                          sections.map((section) => (
-                            <label key={section.id} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={formData.suggested_sections.includes(section.section_name)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setFormData({
-                                      ...formData,
-                                      suggested_sections: [...formData.suggested_sections, section.section_name],
-                                    });
-                                  } else {
-                                    setFormData({
-                                      ...formData,
-                                      suggested_sections: formData.suggested_sections.filter(
-                                        (s) => s !== section.section_name
-                                      ),
-                                    });
-                                  }
-                                }}
-                                className="rounded"
-                              />
-                              <span className="text-sm">
-                                {section.display_name} ({section.content_type})
-                              </span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={handleCreateOrUpdateTerm} disabled={saving}>
-                        {saving ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          editingTerm ? "Update" : "Create"
-                        )} Tag
-                      </Button>
-                      <Button variant="outline" onClick={resetForm} disabled={saving}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Tags List - Compact Table Style */}
                 <div>
                   <div className="space-y-3">
-                    {/* Search Input */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        placeholder="Search tags by name or slug..."
-                        value={tagSearch}
-                        onChange={(e) => setTagSearch(e.target.value)}
-                        className="pl-10"
-                      />
+                    {/* Search + Section filter */}
+                    <div className="flex gap-2 items-center">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          placeholder="Search tags by name or slug..."
+                          value={tagSearch}
+                          onChange={(e) => setTagSearch(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <select
+                        value={termListSectionFilter}
+                        onChange={(e) => setTermListSectionFilter(e.target.value)}
+                        className="w-[180px] px-3 py-2 border border-input rounded-md bg-background text-sm"
+                      >
+                        <option value="">All sections</option>
+                        {sections.map((s) => (
+                          <option key={s.id} value={s.section_name}>
+                            {s.display_name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Scrollable Table */}
@@ -1086,7 +1117,9 @@ export function TaxonomySettings() {
                             {getFilteredTags().length === 0 ? (
                               <tr>
                                 <td colSpan={4} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                                  {tagSearch ? "No tags match your search" : "No tags found"}
+                                  {tagSearch || termListSectionFilter
+                                    ? "No tags match your search and filters"
+                                    : "No tags found"}
                                 </td>
                               </tr>
                             ) : (
@@ -1108,6 +1141,7 @@ export function TaxonomySettings() {
                                           if (editingSection || showSectionForm) {
                                             resetSectionForm();
                                           }
+                                          setSlugManuallyEdited(false);
                                           setEditingTerm(term);
                                           setShowTermForm(true);
                                           // Switch to appropriate tab
@@ -1148,6 +1182,147 @@ export function TaxonomySettings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Term (Category / Tag) Form Modal */}
+      <Dialog
+        open={showTermForm || !!editingTerm}
+        onOpenChange={(open) => {
+          if (!open) resetForm();
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {formData.type === "category"
+                ? editingTerm
+                  ? "Edit Category"
+                  : "Add New Category"
+                : editingTerm
+                  ? "Edit Tag"
+                  : "Add New Tag"}
+            </DialogTitle>
+            <DialogDescription>
+              {formData.type === "category"
+                ? "Hierarchical categories for organizing content"
+                : "Tags for organizing and filtering content"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Name *</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  if (!editingTerm && !slugManuallyEdited) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      slug: generateTaxonomySlug(e.target.value),
+                    }));
+                  }
+                }}
+                placeholder={formData.type === "category" ? "Category name" : "Tag name"}
+              />
+            </div>
+            <div>
+              <Label>Slug *</Label>
+              <Input
+                value={formData.slug}
+                onChange={(e) => {
+                  setSlugManuallyEdited(true);
+                  setFormData({ ...formData, slug: e.target.value });
+                }}
+                placeholder={formData.type === "category" ? "category-slug" : "tag-slug"}
+                disabled={editingTerm?.slug === "uncategorized"}
+              />
+            </div>
+            {formData.type === "category" && (
+              <div>
+                <Label>Parent Category (optional)</Label>
+                <select
+                  className="w-full px-3 py-2 border rounded-md bg-background"
+                  value={formData.parent_id}
+                  onChange={(e) => setFormData({ ...formData, parent_id: e.target.value })}
+                  disabled={editingTerm?.id === formData.parent_id}
+                >
+                  <option value="">None (Top Level)</option>
+                  {flattenCategories(categories)
+                    .filter((cat) => cat.id !== editingTerm?.id)
+                    .map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <Label>Description (optional)</Label>
+              <Input
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Description"
+              />
+            </div>
+            <div>
+              <Label>Apply to these Sections</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                {formData.type === "category"
+                  ? "Add this category to the selected sections. It will be assigned to those sections."
+                  : "Add this tag to the selected sections. It will be assigned to those sections."}
+              </p>
+              <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
+                {sections.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No sections configured.</p>
+                ) : (
+                  sections.map((section) => (
+                    <label key={section.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.suggested_sections.includes(section.section_name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({
+                              ...formData,
+                              suggested_sections: [...formData.suggested_sections, section.section_name],
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              suggested_sections: formData.suggested_sections.filter(
+                                (s) => s !== section.section_name
+                              ),
+                            });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{section.display_name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetForm} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateOrUpdateTerm} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : formData.type === "category" ? (
+                editingTerm ? "Update Category" : "Create Category"
+              ) : (
+                editingTerm ? "Update Tag" : "Create Tag"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

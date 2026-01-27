@@ -7,14 +7,17 @@
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
 import { getClientSchema } from "./schema";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const _supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const _supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!_supabaseUrl || !_supabaseAnonKey) {
   throw new Error(
     "Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required"
   );
 }
+
+const supabaseUrl = _supabaseUrl;
+const supabaseAnonKey = _supabaseAnonKey;
 
 /**
  * Create a Supabase client for client-side usage (browser).
@@ -101,10 +104,10 @@ export async function createServerSupabaseClientSSR() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: { name: string; value: string; options?: { path?: string } }[]) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
+          cookiesToSet.forEach((c: { name: string; value: string; options?: { path?: string } }) =>
+            cookieStore.set(c.name, c.value, c.options)
           );
         } catch {
           // The `setAll` method was called from a Server Component.

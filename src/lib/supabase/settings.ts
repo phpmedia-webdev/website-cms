@@ -155,7 +155,7 @@ export async function getSettings(
     }
 
     const result: Record<string, unknown> = {};
-    data?.forEach((item) => {
+    (data as { key: string; value: unknown }[] | null)?.forEach((item: { key: string; value: unknown }) => {
       result[item.key] = item.value;
     });
 

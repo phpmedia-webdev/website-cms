@@ -307,7 +307,7 @@ export function MediaUpload({ onUploadComplete, accept = "image/*" }: MediaUploa
             <div className="flex gap-2">
               <Button
                 onClick={handleUpload}
-                disabled={uploading || (validation && !validation.canUpload)}
+                disabled={uploading || !!(validation && !validation.canUpload)}
                 size="sm"
               >
                 {uploading ? "Uploading..." : "Upload"}

@@ -261,14 +261,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-primary"
                     type="color"
-                    value={config.colors.primary}
-                    onChange={(e) => updateColor("primary", e.target.value)}
+                    value={config.colors.color01}
+                    onChange={(e) => updateColor("color01", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.primary}
-                    onChange={(e) => updateColor("primary", e.target.value)}
+                    value={config.colors.color01}
+                    onChange={(e) => updateColor("color01", e.target.value)}
                     placeholder="#3b82f6"
                     className="flex-1"
                   />
@@ -280,14 +280,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-secondary"
                     type="color"
-                    value={config.colors.secondary}
-                    onChange={(e) => updateColor("secondary", e.target.value)}
+                    value={config.colors.color02}
+                    onChange={(e) => updateColor("color02", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.secondary}
-                    onChange={(e) => updateColor("secondary", e.target.value)}
+                    value={config.colors.color02}
+                    onChange={(e) => updateColor("color02", e.target.value)}
                     placeholder="#8b5cf6"
                     className="flex-1"
                   />
@@ -299,14 +299,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-accent"
                     type="color"
-                    value={config.colors.accent}
-                    onChange={(e) => updateColor("accent", e.target.value)}
+                    value={config.colors.color03}
+                    onChange={(e) => updateColor("color03", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.accent}
-                    onChange={(e) => updateColor("accent", e.target.value)}
+                    value={config.colors.color03}
+                    onChange={(e) => updateColor("color03", e.target.value)}
                     placeholder="#06b6d4"
                     className="flex-1"
                   />
@@ -319,14 +319,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-background"
                     type="color"
-                    value={config.colors.background}
-                    onChange={(e) => updateColor("background", e.target.value)}
+                    value={config.colors.color04}
+                    onChange={(e) => updateColor("color04", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.background}
-                    onChange={(e) => updateColor("background", e.target.value)}
+                    value={config.colors.color04}
+                    onChange={(e) => updateColor("color04", e.target.value)}
                     placeholder="#ffffff"
                     className="flex-1"
                   />
@@ -338,14 +338,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-background-alt"
                     type="color"
-                    value={config.colors.backgroundAlt}
-                    onChange={(e) => updateColor("backgroundAlt", e.target.value)}
+                    value={config.colors.color05}
+                    onChange={(e) => updateColor("color05", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.backgroundAlt}
-                    onChange={(e) => updateColor("backgroundAlt", e.target.value)}
+                    value={config.colors.color05}
+                    onChange={(e) => updateColor("color05", e.target.value)}
                     placeholder="#f9fafb"
                     className="flex-1"
                   />
@@ -357,14 +357,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-foreground"
                     type="color"
-                    value={config.colors.foreground}
-                    onChange={(e) => updateColor("foreground", e.target.value)}
+                    value={config.colors.color06}
+                    onChange={(e) => updateColor("color06", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.foreground}
-                    onChange={(e) => updateColor("foreground", e.target.value)}
+                    value={config.colors.color06}
+                    onChange={(e) => updateColor("color06", e.target.value)}
                     placeholder="#111827"
                     className="flex-1"
                   />
@@ -377,14 +377,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-foreground-muted"
                     type="color"
-                    value={config.colors.foregroundMuted}
-                    onChange={(e) => updateColor("foregroundMuted", e.target.value)}
+                    value={config.colors.color07}
+                    onChange={(e) => updateColor("color07", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.foregroundMuted}
-                    onChange={(e) => updateColor("foregroundMuted", e.target.value)}
+                    value={config.colors.color07}
+                    onChange={(e) => updateColor("color07", e.target.value)}
                     placeholder="#6b7280"
                     className="flex-1"
                   />
@@ -396,14 +396,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-border"
                     type="color"
-                    value={config.colors.border}
-                    onChange={(e) => updateColor("border", e.target.value)}
+                    value={config.colors.color08}
+                    onChange={(e) => updateColor("color08", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.border}
-                    onChange={(e) => updateColor("border", e.target.value)}
+                    value={config.colors.color08}
+                    onChange={(e) => updateColor("color08", e.target.value)}
                     placeholder="#e5e7eb"
                     className="flex-1"
                   />
@@ -415,14 +415,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-link"
                     type="color"
-                    value={config.colors.link}
-                    onChange={(e) => updateColor("link", e.target.value)}
+                    value={config.colors.color09}
+                    onChange={(e) => updateColor("color09", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.link}
-                    onChange={(e) => updateColor("link", e.target.value)}
+                    value={config.colors.color09}
+                    onChange={(e) => updateColor("color09", e.target.value)}
                     placeholder="#3b82f6"
                     className="flex-1"
                   />
@@ -441,14 +441,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-alternate-1"
                     type="color"
-                    value={config.colors.alternate1}
-                    onChange={(e) => updateColor("alternate1", e.target.value)}
+                    value={config.colors.color10}
+                    onChange={(e) => updateColor("color10", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.alternate1}
-                    onChange={(e) => updateColor("alternate1", e.target.value)}
+                    value={config.colors.color10}
+                    onChange={(e) => updateColor("color10", e.target.value)}
                     placeholder="#10b981"
                     className="flex-1"
                   />
@@ -460,14 +460,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-alternate-2"
                     type="color"
-                    value={config.colors.alternate2}
-                    onChange={(e) => updateColor("alternate2", e.target.value)}
+                    value={config.colors.color11}
+                    onChange={(e) => updateColor("color11", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.alternate2}
-                    onChange={(e) => updateColor("alternate2", e.target.value)}
+                    value={config.colors.color11}
+                    onChange={(e) => updateColor("color11", e.target.value)}
                     placeholder="#f59e0b"
                     className="flex-1"
                   />
@@ -479,14 +479,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-alternate-3"
                     type="color"
-                    value={config.colors.alternate3}
-                    onChange={(e) => updateColor("alternate3", e.target.value)}
+                    value={config.colors.color12}
+                    onChange={(e) => updateColor("color12", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.alternate3}
-                    onChange={(e) => updateColor("alternate3", e.target.value)}
+                    value={config.colors.color12}
+                    onChange={(e) => updateColor("color12", e.target.value)}
                     placeholder="#ef4444"
                     className="flex-1"
                   />
@@ -498,14 +498,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-alternate-4"
                     type="color"
-                    value={config.colors.alternate4}
-                    onChange={(e) => updateColor("alternate4", e.target.value)}
+                    value={config.colors.color13}
+                    onChange={(e) => updateColor("color13", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.alternate4}
-                    onChange={(e) => updateColor("alternate4", e.target.value)}
+                    value={config.colors.color13}
+                    onChange={(e) => updateColor("color13", e.target.value)}
                     placeholder="#3b82f6"
                     className="flex-1"
                   />
@@ -517,14 +517,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-alternate-5"
                     type="color"
-                    value={config.colors.alternate5}
-                    onChange={(e) => updateColor("alternate5", e.target.value)}
+                    value={config.colors.color14}
+                    onChange={(e) => updateColor("color14", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.alternate5}
-                    onChange={(e) => updateColor("alternate5", e.target.value)}
+                    value={config.colors.color14}
+                    onChange={(e) => updateColor("color14", e.target.value)}
                     placeholder="#2563eb"
                     className="flex-1"
                   />
@@ -536,14 +536,14 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
                   <Input
                     id="color-alternate-6"
                     type="color"
-                    value={config.colors.alternate6}
-                    onChange={(e) => updateColor("alternate6", e.target.value)}
+                    value={config.colors.color15}
+                    onChange={(e) => updateColor("color15", e.target.value)}
                     className="h-10 w-20"
                   />
                   <Input
                     type="text"
-                    value={config.colors.alternate6}
-                    onChange={(e) => updateColor("alternate6", e.target.value)}
+                    value={config.colors.color15}
+                    onChange={(e) => updateColor("color15", e.target.value)}
                     placeholder="#8b5a2b"
                     className="flex-1"
                   />
@@ -569,27 +569,27 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
           <div
             className="rounded-lg border p-6 space-y-4"
             style={{
-              backgroundColor: config.colors.background,
-              color: config.colors.foreground,
+              backgroundColor: config.colors.color04,
+              color: config.colors.color06,
               fontFamily: `"${config.fonts.primary.family}", sans-serif`,
             }}
           >
             <h2
               style={{
                 fontFamily: `"${config.fonts.primary.family}", sans-serif`,
-                color: config.colors.foreground,
+                color: config.colors.color06,
               }}
               className="text-2xl font-bold"
             >
               Sample Heading
             </h2>
-            <p style={{ color: config.colors.foregroundMuted }}>
+            <p style={{ color: config.colors.color07 }}>
               This is sample body text using your primary font and colors.
             </p>
             <div className="flex gap-2">
               <button
                 style={{
-                  backgroundColor: config.colors.primary,
+                  backgroundColor: config.colors.color01,
                   color: "#ffffff",
                 }}
                 className="px-4 py-2 rounded-md font-medium"
@@ -598,7 +598,7 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
               </button>
               <button
                 style={{
-                  backgroundColor: config.colors.secondary,
+                  backgroundColor: config.colors.color02,
                   color: "#ffffff",
                 }}
                 className="px-4 py-2 rounded-md font-medium"
@@ -608,7 +608,7 @@ export function DesignSystemSettings({ initialConfig }: DesignSystemSettingsProp
             </div>
             <a
               href="#"
-              style={{ color: config.colors.link }}
+              style={{ color: config.colors.color09 }}
               className="underline"
             >
               Sample Link

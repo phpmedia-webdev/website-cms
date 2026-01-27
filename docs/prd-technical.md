@@ -11,7 +11,8 @@ This document contains all technical implementation details, patterns, and solut
 1. [Database Architecture & Schema Management](#1-database-architecture--schema-management)
 2. [Database Schema Reference](#2-database-schema-reference)
 3. [Client Setup Process](#3-client-setup-process)
-4. [Development Patterns & Solutions](#4-development-patterns--solutions)
+4. [Development Patterns & Solutions](#4-development-patterns--solutions)  
+   - [Taxonomy Integration for New Content Types](#taxonomy-integration-for-new-content-types)
 5. [API Endpoints Reference](#5-api-endpoints-reference)
 6. [Authentication & Security](#6-authentication--security)
 7. [Testing & Troubleshooting](#7-testing--troubleshooting)
@@ -127,17 +128,30 @@ Each client deployment uses a dedicated Supabase schema (e.g., `client_abc123`) 
 
 ### Core Content Tables
 
-**Posts Table:**
-- Content: title, slug, content (rich text), excerpt, featured_image_id
-- Metadata: status (placeholder/published/archived), published_at, author_id
-- Access Control: access_level (public/members/mag), required_mag_id, visibility_mode, restricted_message
-- Taxonomy: Categories (hierarchical), Tags (flat)
-- Indexes: slug, published_at, status
+**Content Model (Unified Single-Table Storage)**
 
-**Pages Table:**
-- Similar structure to posts
-- Additional: section_restrictions (JSONB) for section-level access control
-- Homepage: Special page with slug "home" or "/"
+All text-based content types (posts, pages, snippets, quotes, articles, custom) share one table. This replaces separate `posts` and `pages` tables.
+
+**Content Table:**
+- `id`, `content_type_id` (FK → `content_types`), `title`, `slug`, `body` (Tiptap JSONB), `excerpt`, `featured_image_id`
+- Metadata: `status` (placeholder/draft/published/archived), `published_at`, `author_id`
+- Access control: `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message`
+- `custom_fields` (JSONB): type-specific field values keyed by field `key` from `content_type_fields`
+- Optional: `section_restrictions` (JSONB) for page-level section access
+- Indexes: `content_type_id`, `slug`, `status`, `published_at`; unique `(content_type_id, slug)` per type if needed
+
+**Content Types Table:**
+- `id`, `slug` (unique, e.g. `post`, `page`, `snippet`, `quote`, `article`, `portfolio`, `properties`), `label`, `description`, `is_core` (boolean), `display_order`
+- Core types are seeded; custom types added via Settings → Content Types.
+
+**Content Type Fields Table:**
+- `id`, `content_type_id` (FK → `content_types`), `key`, `label`, `type`, `config` (JSONB), `display_order`
+- Each field applies to **one** content type. Values stored in `content.custom_fields[key]`.
+- Managed via Settings → Content Fields.
+
+**Taxonomy:** Use `taxonomy_relationships` with `content_type` = `content_types.slug` and `content_id` = `content.id` for content rows. Media and galleries continue to use `content_type` `'media'` / `'gallery'` and their own table IDs.
+
+**Migration note:** Existing `posts` data will be migrated into `content` with appropriate `content_type_id`. No separate `pages` table; pages live in `content`.
 
 **Media Table:**
 - Metadata: name, slug, description, alt_text
@@ -228,6 +242,13 @@ Each client deployment uses a dedicated Supabase schema (e.g., `client_abc123`) 
 **Integrations Table:**
 - Third-party integrations: name (google_analytics, visitor_tracking, simple_commenter)
 - Configuration: enabled flag, config (JSONB) for vendor-specific settings
+
+**SimpleCommenter (simple_commenter) — development/client feedback tool:**
+- **Purpose:** Clients add pinpoint annotations and comments on the site during development or staging so developers can implement changes accurately. **Not** a blog or article comment system.
+- **Config:** `domain` (e.g. staging or project domain). Script: `https://simplecommenter.com/js/comments.min.js?domain={domain}`.
+- **When to enable:** Dev/staging only. **Disable in production.**
+- **Script injection:** Public layout loads the script when `simple_commenter` is enabled and `config.domain` is set. Uses `strategy="lazyOnload"`.
+- **Blog comments:** A separate feature (native or third-party) if ever needed. SimpleCommenter is unrelated.
 
 ### Archive & Lifecycle
 
@@ -458,6 +479,18 @@ Use sequential numbering:
 - `XXX_create_{table}_rpc.sql` (CRITICAL)
 
 **Note:** RPC migration can come after other migrations, but must be run before using table in code.
+
+### Taxonomy Integration for New Content Types
+
+When creating **any** new content type (e.g. properties, products, custom storage entities), **always** use the existing taxonomy system for categories and tags. **Do not** build a separate tags/categories system. (A past implementation built a separate taxonomy for the Media Library; that was corrected by wiring media to the site-wide taxonomy.)
+
+**Steps:**
+1. **Define a section** in Settings → Taxonomy → Sections (e.g. `property`, `product`) for the new content type.
+2. **Use `taxonomy_relationships`** to link content to terms: `content_type` = your type (e.g. `'property'`), `content_id` = record ID, `term_id` = taxonomy term UUID. Ensure `content_type` is allowed in the table check constraint; add a migration if needed. For rows in the unified **content** table, use `content_type` = `content_types.slug` and `content_id` = `content.id`.
+3. **Use taxonomy helpers** in `src/lib/supabase/taxonomy.ts`: e.g. `getTermsForSection`, `getTermsForMediaSection`-style helpers, and `getTaxonomyForMedia` / `setTaxonomyForMedia`-style helpers for your entity.
+4. **Reuse UI:** `TaxonomyAssignment`, `TaxonomyMultiSelect`, and section-scoped term fetching for assignment and filtering in admin and public UIs.
+
+**Reference:** `src/lib/supabase/taxonomy.ts`, `src/types/taxonomy.ts`, `/admin/settings/taxonomy`. See also [prd.md – Taxonomy System](./prd.md#taxonomy-system) and **Single Source of Truth – No Separate Taxonomy**.
 
 ---
 

@@ -1,5 +1,5 @@
-import { PostEditor } from "@/components/posts/PostEditor";
+import { redirect } from "next/navigation";
 
-export default function NewPostPage() {
-  return <PostEditor />;
+export default function NewPostRedirectPage() {
+  redirect("/admin/content?type=post");
 }

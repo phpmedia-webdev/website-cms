@@ -180,6 +180,7 @@ export function MediaFileUpload({
         original_width: metadata.width,
         original_height: metadata.height,
         mime_type: file.type,
+        media_type: "image",
       });
       const uploadResults = await uploadVariantsToStorage(bucket, slug, variants);
       for (const [variantType, result] of uploadResults) {

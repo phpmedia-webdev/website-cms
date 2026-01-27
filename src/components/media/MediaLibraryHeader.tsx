@@ -15,6 +15,8 @@ import { TaxonomyMultiSelect, type TaxonomyMultiSelectOption } from "./TaxonomyM
 
 export type ViewMode = "images" | "videos" | "all";
 
+export type SortType = "name-asc" | "name-desc" | "date-newest" | "date-oldest" | "size-smallest" | "size-largest";
+
 interface MediaLibraryHeaderProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
@@ -22,8 +24,8 @@ interface MediaLibraryHeaderProps {
   onViewChange: (view: "list" | "grid") => void;
   search: string;
   onSearchChange: (search: string) => void;
-  sort: "name-asc" | "name-desc" | "date-newest" | "date-oldest" | "size-smallest" | "size-largest";
-  onSortChange: (sort: typeof sort) => void;
+  sort: SortType;
+  onSortChange: (sort: SortType) => void;
   totalSize: number;
   totalItems: number;
   isLoadingStats: boolean;

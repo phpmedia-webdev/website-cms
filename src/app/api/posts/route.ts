@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
+import { withRateLimit } from "@/lib/api/middleware";
 
 /**
  * GET /api/posts
  * List published blog posts
  * Query params: page, limit, search
  */
-export async function GET(request: Request) {
+async function handler(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");

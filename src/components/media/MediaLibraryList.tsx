@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2, Loader2, Eye, Checkbox } from "lucide-react";
+import { Trash2, Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox as CheckboxComponent } from "@/components/ui/checkbox";
 import { MediaWithVariants } from "@/types/media";

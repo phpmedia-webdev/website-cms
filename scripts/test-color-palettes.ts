@@ -37,13 +37,16 @@ async function testColorPalettes() {
     
     // Test 1: Check if table exists via raw SQL
     console.log("\n1. Checking if table exists in schema...");
-    const { data: tableExists, error: tableCheckError } = await supabase.rpc("exec_sql", {
-      sql: `SELECT COUNT(*) as count FROM ${schema}.color_palettes;`,
-    }).catch(() => {
+    let tableExists: unknown = null;
+    try {
+      const res = await supabase.rpc("exec_sql", {
+        sql: `SELECT COUNT(*) as count FROM ${schema}.color_palettes;`,
+      });
+      tableExists = res.data;
+    } catch {
       console.log("   exec_sql RPC not available, trying direct query...");
-      return { data: null, error: null };
-    });
-    
+    }
+
     if (tableExists) {
       console.log("   ✅ Table exists! Count:", tableExists);
     }

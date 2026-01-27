@@ -48,6 +48,33 @@ alwaysApply: true
 - Don't install packages unless asked
 - Prefer iteration and modularization over code duplication
 
+## PowerShell Command Limitations
+- **CRITICAL: Do NOT attempt to run PowerShell commands through the agent terminal**
+- **Current Cursor IDE limitation:** The agent cannot reliably execute PowerShell commands for:
+  - Starting/stopping the dev server
+  - Managing GitHub operations (git push, pull, commit, etc.)
+  - Installing/updating packages (pnpm install, pnpm add, etc.)
+- **Instead, provide a clear list of commands** for the developer to copy/paste into their PowerShell terminal
+- **Format commands clearly:**
+  - Use code blocks with `powershell` syntax highlighting
+  - Number the commands in sequence
+  - Include brief explanations for each command
+  - Provide alternative approaches if applicable
+- **Example format:**
+  ```powershell
+  # Step 1: Stop the dev server (Ctrl+C if running)
+  # Step 2: Install the new package
+  pnpm install
+  # Step 3: Restart the dev server
+  pnpm dev
+  ```
+- **When to provide commands:**
+  - After adding dependencies to package.json
+  - When git operations are needed
+  - When server restart is required
+  - When package updates are needed
+- **Do NOT waste time** attempting multiple terminal command variations - immediately provide the command list instead
+
 ## Debug Code Guidelines
 - **Always comment out debug code** for easy cleanup later
 - Use clear comment markers: `// DEBUG:` or `/* DEBUG: ... */`

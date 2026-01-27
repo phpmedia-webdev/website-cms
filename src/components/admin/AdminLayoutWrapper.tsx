@@ -19,7 +19,7 @@ export function AdminLayoutWrapper({
   isSuperadmin,
 }: AdminLayoutWrapperProps) {
   const pathname = usePathname();
-  const isLoginPage = pathname === "/admin/login" || pathname.startsWith("/admin/login");
+  const isLoginPage = pathname === "/admin/login" || pathname?.startsWith("/admin/login");
 
   // Apply admin theme class to body element
   useEffect(() => {

@@ -23,7 +23,7 @@ async function testSettingsQuery() {
   console.log("Schema:", schema);
   console.log("Supabase URL:", supabaseUrl);
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl!, serviceRoleKey!, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -70,12 +70,17 @@ async function testSettingsQuery() {
 
   // Test 3: List all tables in schema (if possible)
   console.log("\n--- Test 3: Check if table exists ---");
-  const { data: tables, error: tablesError } = await supabase.rpc("exec_sql", {
-    sql: `SELECT table_name FROM information_schema.tables WHERE table_schema = '${schema}' AND table_name = 'settings'`,
-  }).catch(() => {
-    // RPC might not be available, try alternative
-    return { data: null, error: { message: "RPC not available" } };
-  });
+  let tables: unknown = null;
+  let tablesError: { message: string } | null = null;
+  try {
+    const res = await supabase.rpc("exec_sql", {
+      sql: `SELECT table_name FROM information_schema.tables WHERE table_schema = '${schema}' AND table_name = 'settings'`,
+    });
+    tables = res.data;
+    tablesError = res.error;
+  } catch {
+    tablesError = { message: "RPC not available" };
+  }
 
   if (tablesError) {
     console.log("Could not check table existence (RPC not available)");
