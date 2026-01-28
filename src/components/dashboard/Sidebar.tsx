@@ -24,6 +24,9 @@ import {
   Layers,
   ListTree,
   Code,
+  Building2,
+  Mail,
+  ListChecks,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -33,13 +36,20 @@ interface SidebarProps {
   isSuperadmin?: boolean;
 }
 
-const baseNavigation = [
-  { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  { name: "Contacts", href: "/admin/contacts", icon: Users },
-  { name: "Forms", href: "/admin/forms", icon: ClipboardList },
+const baseNavigationAfterCrm = [
   { name: "Media", href: "/admin/media", icon: Image },
   { name: "Galleries", href: "/admin/galleries", icon: Folder },
   { name: "Content", href: "/admin/content", icon: FileText },
+];
+
+const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
+
+const crmSubNav = [
+  { name: "Contacts", href: "/admin/crm/contacts", icon: Users },
+  { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList },
+  { name: "Marketing", href: "/admin/crm/marketing", icon: Mail },
+  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks },
+  { name: "Memberships", href: "/admin/crm/memberships", icon: Folder },
 ];
 
 const settingsSubNav = [
@@ -49,6 +59,7 @@ const settingsSubNav = [
   { name: "Taxonomy", href: "/admin/settings/taxonomy", icon: Tags },
   { name: "Content Types", href: "/admin/settings/content-types", icon: Layers },
   { name: "Content Fields", href: "/admin/settings/content-fields", icon: ListTree },
+  { name: "CRM", href: "/admin/settings/crm", icon: Users },
   { name: "Security", href: "/admin/settings/security", icon: Shield },
   { name: "API", href: "/admin/settings/api", icon: Code },
 ];
@@ -62,37 +73,81 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
   const router = useRouter();
   const supabase = getSupabaseClient();
   const isSettings = pathname === "/admin/settings" || pathname?.startsWith("/admin/settings/");
+  const isCrm = pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/");
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [crmOpen, setCrmOpen] = useState(false);
 
+  // Pathname-driven sidebar: Dashboard collapses all; only one section open at a time
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const isDashboard = pathname === "/admin/dashboard";
     try {
+      if (isDashboard) {
+        setCrmOpen(false);
+        setSettingsOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        return;
+      }
+      if (isCrm) {
+        setCrmOpen(true);
+        setSettingsOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "true");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        return;
+      }
       if (isSettings) {
+        setCrmOpen(false);
         setSettingsOpen(true);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "true");
         return;
       }
-      const stored = localStorage.getItem(SIDEBAR_SETTINGS_OPEN);
-      setSettingsOpen(stored === "true");
+      // Media, Galleries, Content, etc.: collapse all
+      setCrmOpen(false);
+      setSettingsOpen(false);
+      localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+      localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
     } catch {
+      if (isCrm) setCrmOpen(true);
       if (isSettings) setSettingsOpen(true);
     }
-  }, [isSettings]);
+  }, [pathname, isCrm, isSettings]);
 
   const toggleSettings = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const next = !settingsOpen;
     setSettingsOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+      } catch { /* ignore */ }
+    }
     try {
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, next ? "true" : "false");
     } catch { /* ignore */ }
   };
 
-  const navigation = isSuperadmin
-    ? [...baseNavigation, ...superadminNavigation]
-    : baseNavigation;
+  const toggleCrm = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !crmOpen;
+    setCrmOpen(next);
+    if (next) {
+      setSettingsOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_CRM_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
+  const navigation = baseNavigationAfterCrm;
 
   const handleLogout = async () => {
     try {
@@ -142,7 +197,74 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           Back to Website
         </button>
       </div>
-      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
+      <nav className="flex-1 flex flex-col min-h-0 p-4">
+        <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
+        {/* Dashboard first */}
+        <Link
+          href="/admin/dashboard"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+            pathname === "/admin/dashboard"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+        >
+          <LayoutDashboard className="h-5 w-5" />
+          Dashboard
+        </Link>
+        {/* CRM twirldown (right after Dashboard) */}
+        <div className="pt-1">
+          <div
+            className={cn(
+              "flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium",
+              isCrm && "bg-primary text-primary-foreground"
+            )}
+          >
+            <Link
+              href="/admin/crm/contacts"
+              className={cn(
+                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
+                isCrm ? "text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <Building2 className="h-5 w-5" />
+              CRM
+            </Link>
+            <button
+              type="button"
+              onClick={toggleCrm}
+              className={cn(
+                "p-1 rounded transition-colors",
+                isCrm ? "text-primary-foreground hover:bg-primary/80" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+              aria-expanded={crmOpen}
+            >
+              {crmOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          </div>
+          {crmOpen && (
+            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+              {crmSubNav.map((sub) => {
+                const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                const SubIcon = sub.icon;
+                return (
+                  <Link
+                    key={sub.href}
+                    href={sub.href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      isSubActive ? "font-medium bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    <SubIcon className="h-4 w-4" />
+                    {sub.name}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {/* Media, Galleries, Content */}
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
           const IconComponent = item.icon;
@@ -215,6 +337,24 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
             </div>
           )}
         </div>
+        </div>
+        {/* Superadmin: last in nav, only for superadmin users */}
+        {isSuperadmin && (
+          <div className="pt-1 mt-2 border-t border-border" style={{ borderColor: 'hsl(220, 13%, 80%)' }}>
+            <Link
+              href="/admin/super"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname === "/admin/super" || pathname?.startsWith("/admin/super/")
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <Shield className="h-5 w-5" />
+              Superadmin
+            </Link>
+          </div>
+        )}
       </nav>
       <div className="border-t p-4" style={{
         borderColor: 'hsl(220, 13%, 80%)',

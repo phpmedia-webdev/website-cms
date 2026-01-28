@@ -610,22 +610,20 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 08: Forms Management
 
-**Status**: Pending - Virtual component to organize form structure and CRM field mapping
+**Status**: In Progress - Form registry at `/admin/crm/forms` (Custom Fields + Forms tabs) done; form-field assignment next.
 
-**Note**: Forms are developer-authored components that map to CRM fields. Form registry is a virtual component to organize form structure and CRM field mapping and outline the intended workflow to update tags/mags.
+**Note**: Forms are developer-authored components that map to CRM fields. Form registry at `/admin/crm/forms` organizes custom field definitions and form definitions (name, slug). Forms = logical grouping of custom fields; assign fields to forms next. Submit API and submissions view pending.
 
-- [ ] Create form registry UI (developer helper)
-  - [ ] Create `src/app/admin/forms/page.tsx` (form registry list)
-  - [ ] Create `src/app/admin/forms/new/page.tsx` (create form registry entry)
-  - [ ] Create `src/app/admin/forms/[id]/page.tsx` (edit form registry entry)
-  - [ ] Create `src/components/forms/FormRegistryEditor.tsx`:
-    - [ ] Display available CRM fields (standard + custom) with copy/paste field references
-    - [ ] Field mappings JSONB editor (for developer reference)
-    - [ ] Form settings (success_message, redirect_url, notifications)
-    - [ ] Auto-assign tags configuration
-    - [ ] Auto-assign MAGs configuration
-    - [ ] Suggested field combinations for common form types
-    - [ ] Field validation rules display
+- [x] Create form registry UI (developer helper)
+  - [x] Create `src/app/admin/crm/forms/page.tsx` (server: fetch custom fields + forms) and `CrmFormsClient.tsx` (tabs: Custom Fields, Forms)
+  - [x] Custom Fields tab: list/add/edit/delete definitions (name, label, type); types include text, number, email, url, tel, checkbox, textarea, **select**, **multiselect** (options in `validation_rules.options`)
+  - [x] Forms tab: list/add/edit/delete form definitions (name, slug). API: `GET/POST /api/crm/custom-fields`, `GET/POST /api/crm/forms`, PATCH/DELETE by id
+  - [x] Migrations 059 (add `auto_assign_tags`, `auto_assign_mag_ids` to `forms`), 060 (make `forms.fields` nullable). `formatSupabaseError` in crm.ts for RPC errors
+- [ ] Assign form fields to form (form = logical grouping of custom fields)
+  - [ ] Migration: add `form_custom_fields` junction (form_id, custom_field_id, display_order, required?) or store `custom_field_ids` on forms (e.g. `settings` or dedicated column)
+  - [ ] RPC / `crm.ts`: `getFormFields(formId)` or extend form payload with `field_ids`; `updateForm` for writes
+  - [ ] Forms UI: in Forms add/edit modal, multi-select custom fields for this form; optional display order. PATCH `/api/crm/forms/[id]`
+  - [ ] Optional later: filter Custom Fields tab on contact detail by form (All | Contact's form | specific); persist in sessionStorage
 
 - [ ] Create form submission API
   - [ ] Create `POST /api/forms/[formId]/submit` route:
@@ -852,6 +850,23 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Unified customer view (form submissions + memberships) - **Requires Phase 07 (CRM)**
   - [ ] Simple interface for client admins to manage memberships easily
   - [ ] **Note**: Full CRM features (companies, consents, DND, duplicate detection) come in Phase 10B
+
+### Phase 9B: Marketing (Email / Resend / Vbout)
+
+**Status**: Pending - Comes before Phase 10 (API Development). CRM → Marketing UI exists as placeholder; integrations TBD.
+
+- [ ] Define Marketing scope and integrations
+  - [ ] Resend API: transactional/campaign email; API key in integrations/settings
+  - [ ] Vbout API: email marketing (lists, segments, campaigns); reference https://developers.vbout.com/
+  - [ ] External email: connections and sync (per PRD: lists/segments per contact, search contacts by list)
+- [ ] Marketing UI (CRM → Marketing page)
+  - [ ] Lists/segments management (as far as provider API supports)
+  - [ ] Campaign management (as far as provider API supports)
+  - [ ] Link contacts to lists/segments; search/filter contacts by list
+- [ ] API and backend
+  - [ ] Integration config (Resend/Vbout keys, webhooks if needed)
+  - [ ] Sync or push contacts to provider lists (respect DND/consent)
+  - [ ] Unsubscribe handling: set contact DND when unsubscribe event received
 
 ### Phase 10: API Development
 

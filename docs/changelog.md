@@ -9,6 +9,15 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-01-28 17:30 CT - Session wrap-up: Forms page fixes, custom field types, form-field assignment plan
+- **Context for Next Session:** Forms page (`/admin/crm/forms`) fixed and extended. **Error fetching forms** resolved: `forms` table lacked `auto_assign_tags` / `auto_assign_mag_ids`; migration 059 added those columns. `forms.fields` NOT NULL caused "null value in column fields" on create; migration 060 made `fields` nullable + default `[]`. Removed `.from()` fallback in `getForms` (prd-technical: reads via RPC only). Added `formatSupabaseError` in crm.ts for clearer RPC errors. Custom field types: **select** and **multiselect**; options in `validation_rules.options` (one per line in UI). Forms tab: add/edit/delete form definitions (name, slug). **Next up:** **Assign form fields to form** — Form = logical grouping of custom fields. Steps in `sessionlog.md` §3 (migration for form–field link, RPC/crm.ts, Forms UI multi-select, API). **Filter by form on contact Custom Fields tab** deferred until form-field assignment is done.
+- **Updated:** `sessionlog.md` — Form registry (list, new, edit) marked done and pruned; added "Assign form fields to form" (migration, RPC, UI, API) and "Filter by form on contact Custom Fields tab (later)". Context for next session.
+- **Updated:** `planlog.md` — Phase 08 form registry UI marked done (Custom Fields + Forms tabs, select/multiselect, migrations 059/060); added "Assign form fields to form" and optional contact-filter steps.
+- **Updated:** `src/lib/supabase/crm.ts` — `formatSupabaseError`, `getForms` RPC-only (no `.from()` fallback).
+- **Updated:** `src/app/admin/crm/forms/CrmFormsClient.tsx` — Custom field types select/multiselect; options textarea in modal; `validation_rules.options` on save.
+- **Added:** `supabase/migrations/059_add_missing_forms_columns.sql` — add `auto_assign_tags`, `auto_assign_mag_ids` to `forms`.
+- **Added:** `supabase/migrations/060_fix_forms_fields_column.sql` — make `forms.fields` nullable, default `[]`.
+
 ### 2026-01-26 19:00 CT - Session wrap-up: Phase 05 check-off, build/runtime fixes, docs
 - **Context for Next Session:** Content phase (1–13) complete. Dev server runs clean; `/admin/content` loads without Fast Refresh full-reload errors. **Phase 05** (Media Library) checked off in planlog; **Phase 06** (Content, legacy redirects) done. **Fixes this session:** `@radix-ui/number` added as explicit dependency (resolve "Module not found" build error); Content page split into `ContentPageClient` + server `page` with `<Suspense>` around `useSearchParams` (fix "Fast Refresh had to perform a full reload due to a runtime error"). Sessionlog cleared; planlog and changelog updated.
 - **Updated:** `planlog.md` — Phase 05 marked complete (core), deferred items noted; "Phase 05 created: media, media_variants" in schemas section.

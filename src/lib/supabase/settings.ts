@@ -307,3 +307,21 @@ export async function updateSiteMetadata(
     return false;
   }
 }
+
+// Default CRM note types
+const DEFAULT_CRM_NOTE_TYPES = ["call", "task", "email", "meeting"];
+
+/**
+ * Get CRM note types
+ */
+export async function getCrmNoteTypes(): Promise<string[]> {
+  const types = await getSetting<string[]>("crm.note_types");
+  return types || DEFAULT_CRM_NOTE_TYPES;
+}
+
+/**
+ * Set CRM note types
+ */
+export async function setCrmNoteTypes(types: string[]): Promise<boolean> {
+  return setSetting("crm.note_types", types);
+}

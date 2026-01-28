@@ -119,7 +119,10 @@ export function getTermsForContentSection(
 export async function getAllTaxonomyTerms(): Promise<TaxonomyTerm[]> {
   try {
     const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase.rpc("get_taxonomy_terms");
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
+    const { data, error } = await supabase.rpc("get_taxonomy_terms_dynamic", {
+      schema_name: schema,
+    });
 
     if (error) {
       console.error("Error fetching taxonomy terms:", {
@@ -146,7 +149,10 @@ export async function getAllTaxonomyTerms(): Promise<TaxonomyTerm[]> {
 export async function getSectionTaxonomyConfigs(): Promise<SectionTaxonomyConfig[]> {
   try {
     const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase.rpc("get_section_taxonomy_configs");
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
+    const { data, error } = await supabase.rpc("get_section_taxonomy_configs_dynamic", {
+      schema_name: schema,
+    });
 
     if (error) {
       console.error("Error fetching section configs:", {

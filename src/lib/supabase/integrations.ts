@@ -4,9 +4,14 @@
  *
  * SimpleCommenter is a development/client feedback tool (pinpoint annotations on the site
  * during dev/staging). Turn off in production. It is not a blog comment system.
+ *
+ * Per prd-technical: read operations use RPC (not .from()); RPCs in public schema query client schema.
  */
 
 import { createServerSupabaseClient } from "./client";
+
+const INTEGRATIONS_SCHEMA =
+  process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
 
 export interface IntegrationConfig {
   google_analytics?: {
@@ -34,28 +39,29 @@ export interface Integration {
 
 /**
  * Get all integration settings.
- * 
+ * Uses RPC per prd-technical (read operations use .rpc(), not .from()).
+ *
  * @returns Array of integration configurations
  */
 export async function getIntegrations(): Promise<Integration[]> {
   const supabase = createServerSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("integrations")
-    .select("*")
-    .order("name");
+  const { data, error } = await supabase.rpc("get_integrations_dynamic", {
+    schema_name: INTEGRATIONS_SCHEMA,
+  });
 
   if (error) {
-    console.error("Error fetching integrations:", error);
+    console.error("Error fetching integrations:", { message: error.message, code: error.code });
     return [];
   }
 
-  return data || [];
+  return (data as Integration[]) || [];
 }
 
 /**
  * Get a specific integration by name.
- * 
+ * Uses RPC per prd-technical (read operations use .rpc(), not .from()).
+ *
  * @param name - Integration name (e.g., 'google_analytics')
  * @returns Integration configuration or null
  */
@@ -64,18 +70,18 @@ export async function getIntegrationConfig(
 ): Promise<Integration | null> {
   const supabase = createServerSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("integrations")
-    .select("*")
-    .eq("name", name)
-    .single();
+  const { data, error } = await supabase.rpc("get_integration_by_name_dynamic", {
+    schema_name: INTEGRATIONS_SCHEMA,
+    name_param: name,
+  });
 
   if (error) {
-    console.error(`Error fetching integration ${name}:`, error);
+    console.error(`Error fetching integration ${name}:`, { message: error.message, code: error.code });
     return null;
   }
 
-  return data;
+  const rows = (data as Integration[] | null) ?? [];
+  return rows[0] ?? null;
 }
 
 /**
@@ -103,6 +109,7 @@ export async function updateIntegration(
   }
 
   const { data, error } = await supabase
+    .schema(INTEGRATIONS_SCHEMA)
     .from("integrations")
     .update(updateData)
     .eq("name", name)
@@ -110,7 +117,7 @@ export async function updateIntegration(
     .single();
 
   if (error) {
-    console.error(`Error updating integration ${name}:`, error);
+    console.error(`Error updating integration ${name}:`, { message: error.message, code: error.code });
     return { integration: null, error: new Error(error.message) };
   }
 

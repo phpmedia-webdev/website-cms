@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { createClientSupabaseClient } from "@/lib/supabase/client";
 import { getTaxonomyTermsClient, getSectionConfigsClient } from "@/lib/supabase/taxonomy";
+import { cn } from "@/lib/utils";
 import { Plus, Edit, Trash2, Tag, FolderTree, List, Settings, Loader2, Search } from "lucide-react";
 import type { TaxonomyTerm, TaxonomyTermWithChildren, TaxonomyType, SectionTaxonomyConfig } from "@/types/taxonomy";
 import { generateTaxonomySlug } from "@/types/taxonomy";
@@ -451,6 +452,10 @@ export function TaxonomySettings() {
   };
 
   const handleDeleteSection = async (section: SectionTaxonomyConfig) => {
+    if (section.is_staple) {
+      alert("Template sections cannot be removed.");
+      return;
+    }
     if (!confirm(`Are you sure you want to delete section "${section.display_name}"? Its category/tag assignments will be removed.`)) {
       return;
     }
@@ -769,9 +774,10 @@ export function TaxonomySettings() {
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 w-7 p-0"
+                                        className={cn("h-7 w-7 p-0", section.is_staple && "opacity-40 cursor-not-allowed")}
                                         onClick={() => handleDeleteSection(section)}
-                                        disabled={saving}
+                                        disabled={saving || section.is_staple}
+                                        title={section.is_staple ? "Template sections cannot be removed" : "Delete section"}
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
                                       </Button>

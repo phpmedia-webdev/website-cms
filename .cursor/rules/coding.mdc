@@ -37,8 +37,31 @@ alwaysApply: true
 5. User reviews and approves
 6. AI continues: "Now I'll create the authentication API route..."
 
+## SQL Scripts (Supabase / Migrations)
+- **Always fully explain the script** before or when delivering it: what it does, which objects it changes, and why (e.g. "adds column X so that …", "drops function Y because return type changed").
+- **Do NOT run the script without permission.** Never execute migrations or ad-hoc SQL (e.g. `supabase db push`, `psql`, or pasting into SQL Editor) unless the user explicitly asks to run it. Deliver the script and explanation; the user runs it (or explicitly approves running it).
+- **Running migrations:** If the user approves, Cursor may run `supabase db push` (or `supabase db reset` / `supabase migration up` for local) in the terminal. Prefer migration-based workflow over one-off SQL execution.
+
+## Terminal Usage
+- **Cursor can use the terminal** to run commands when needed
+- **Dev server:** Start or restart the dev server (e.g. `pnpm run dev`) when the user asks or when testing requires it
+- **Git:** Run git commands (status, diff, commit, push, pull, etc.) when the user asks or as part of session workflow (e.g. commit and push at session end)
+- Prefer the terminal for server, git, and build/script execution instead of assuming the server is already running or avoiding git
+
+## Developer Feedback (Learning Mode)
+
+When the developer is in learning mode or asks for explanation, provide feedback that helps them learn:
+
+- **Assume general programming experience** but not necessarily deep expertise in JavaScript, Next.js, or the current stack. Explain in plain language; avoid jargon unless you define it.
+- **Expand acronyms on first use** (e.g. "RPC (Remote Procedure Call)", "RLS (Row Level Security)").
+- **Explain the "why" briefly** (1–2 sentences) when making changes or recommendations—what problem it solves or why the approach was chosen.
+- **Point out common pitfalls** and how to avoid them when relevant (e.g. "PostgREST caches schema; that's why we use RPC for reads").
+- **Use scannable format** when explaining: short sections, bullet points, or numbered steps. Use backticks for commands, file paths, and code identifiers.
+- **Summarize at stopping points**: what was done, what it means, and what the next step is. This reinforces learning and keeps context clear.
+- **Offer clarity before big changes**: if a task touches architecture or many files, briefly state what we're doing and how it fits the plan (e.g. "This is a fix for the current site, not CRM work").
+
 ## Additional Rules
-- The server is always running on port 3000
+- The dev server runs on port 3000 when started (`pnpm run dev`)
 - Use available MCP servers for knowledgebase and understanding
 - Place components in the root `/components` directory and combine by usecase in subdirectories
 - Always use `/components/ui` for shadcn/ui base components when building new UI components
@@ -48,32 +71,6 @@ alwaysApply: true
 - Don't install packages unless asked
 - Prefer iteration and modularization over code duplication
 
-## PowerShell Command Limitations
-- **CRITICAL: Do NOT attempt to run PowerShell commands through the agent terminal**
-- **Current Cursor IDE limitation:** The agent cannot reliably execute PowerShell commands for:
-  - Starting/stopping the dev server
-  - Managing GitHub operations (git push, pull, commit, etc.)
-  - Installing/updating packages (pnpm install, pnpm add, etc.)
-- **Instead, provide a clear list of commands** for the developer to copy/paste into their PowerShell terminal
-- **Format commands clearly:**
-  - Use code blocks with `powershell` syntax highlighting
-  - Number the commands in sequence
-  - Include brief explanations for each command
-  - Provide alternative approaches if applicable
-- **Example format:**
-  ```powershell
-  # Step 1: Stop the dev server (Ctrl+C if running)
-  # Step 2: Install the new package
-  pnpm install
-  # Step 3: Restart the dev server
-  pnpm dev
-  ```
-- **When to provide commands:**
-  - After adding dependencies to package.json
-  - When git operations are needed
-  - When server restart is required
-  - When package updates are needed
-- **Do NOT waste time** attempting multiple terminal command variations - immediately provide the command list instead
 
 ## Debug Code Guidelines
 - **Always comment out debug code** for easy cleanup later

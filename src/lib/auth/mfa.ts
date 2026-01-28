@@ -264,8 +264,7 @@ export async function requiresAAL2(
   if (user.metadata.type === "admin") {
     const sensitiveRoutes = [
       "/admin/settings",
-      "/admin/members",
-      "/admin/memberships",
+      "/admin/crm/memberships",
       "/admin/settings/archive",
       "/admin/settings/reset",
     ];

@@ -46,6 +46,7 @@ export interface SectionTaxonomyConfig {
   content_type: ContentType;
   category_slugs: string[] | null; // null = use suggested, [] = none, ['slug1'] = specific
   tag_slugs: string[] | null;
+  is_staple?: boolean; // template section; cannot be deleted
   created_at: string;
   updated_at: string;
 }

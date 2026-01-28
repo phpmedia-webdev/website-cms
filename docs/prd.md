@@ -67,14 +67,17 @@ This WordPress-style approach provides:
 - `/admin/pages` - Static page management (legacy route, redirects to `/admin/content` with type filter "Page")
 - `/admin/galleries` - Gallery management
 - `/admin/media` - Media library
-- `/admin/forms` - Form registry (developer helper) and CRM management
-- `/admin/crm` - CRM contacts and companies management
+- **CRM** (sidebar parent; expandable)
+  - `/admin/crm/contacts` - Contacts list (spreadsheet-like; search/filter by name, email, phone, categories, tags)
+  - `/admin/crm/contacts/[id]` - Contact detail (sub-page; standard + custom fields, notes log, tags, MAGs, marketing lists)
+  - `/admin/crm/forms` - Form registry (virtual form definitions; developer reference; not a visual form builder)
+  - `/admin/crm/memberships` - Membership Access Groups (MAGs): create/edit MAGs (name, UID, description); protected content
+    - `/admin/members` - Member user management (member accounts; MAG assignments)
+    - `/admin/members/[id]` - View member details and MAG assignments
+  - `/admin/crm/marketing` - Email marketing (lists/segments, campaign management; Resend or Vbout API)
 - `/admin/events` - Event calendar management
-- `/admin/mags` - MAG (Membership Access Groups) management
-- `/admin/members` - Member user management
-- `/admin/members/[id]` - View member details and MAG assignments
 - `/admin/settings` - Site settings (including theme selection, design system: fonts and color palette)
-- `/admin/settings/taxonomy` - Taxonomy management (categories and tags for posts, pages, and media)
+- `/admin/settings/taxonomy` - Taxonomy management (categories and tags for posts, pages, media, and CRM)
 - `/admin/settings/cookies` - Cookie consent configuration and policy management
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
@@ -394,21 +397,94 @@ Custom types (e.g. **Portfolio**, **Properties**) use the same `content` table. 
 
 **Form System:**
 - Developer-authored form components (not auto-generated)
-- Forms map to CRM fields
-- Form submissions create/update CRM contacts
+- Forms are **virtual** (named field sets); form registry is a developer reference—**not** a visual form builder
+- Forms map to CRM fields; submissions create/update CRM contacts (match by email or phone)
+- **Validation:** Field validation runs **before** any data is written to the CRM. Invalid submissions are rejected; no contact record is created or updated until validation passes.
 - Consent management (GDPR compliance)
-- Duplicate detection (email-based)
+- Duplicate detection (email or phone)
 - Email notifications via Nodemailer (SMTP)
-- Form registry in admin (developer helper)
+- Form registry at `/admin/crm/forms` (developer helper)
 
 **Form Features:**
-- Custom field mapping to CRM
+- Custom field mapping to CRM (standard + tenant custom fields)
+- Validation rules per field (required, format, max length, etc.) enforced at submission time
 - Consent checkboxes
 - File uploads (optional)
 - Spam protection (future)
 - Submission tracking
 
 **Technical Details:** See [prd-technical.md - Database Schema Reference](./prd-technical.md#2-database-schema-reference)
+
+---
+
+## CRM Module
+
+### Overview
+
+The CRM accepts contact data from public forms, stores standard and custom fields per tenant, supports taxonomy (categories/tags), memberships (MAGs) via a separate table system, a notes log, and email marketing lists. Admin uses the CRM as the primary interface for contacts, forms, memberships, and marketing. Sidebar navigation: **CRM** (parent) → **Contacts**, **Forms**, **Memberships** (including Member user management), **Marketing**.
+
+### Form submissions → contacts
+
+- Site visitors submit forms (developer-built components) that post to the form submission API.
+- Submission creates a **new** contact or **updates** an existing one when **email or phone** matches.
+- New or updated records are **marked for review** (e.g. red badge) until an admin clears the state.
+- **Validation** runs before any data is written to the CRM: form payload is validated against field rules (required, format, custom rules); invalid submissions are rejected and no contact record is created or updated.
+- Data that passes validation maps to CRM standard fields and tenant-specific custom fields as configured for the form.
+
+### Virtual forms (form registry)
+
+- Forms are **virtual objects**: a named collection of fields, grouped for reference—**not** a visual form builder.
+- All forms are **built in code** and reference form fields by name when submitting.
+- The form registry lists these form definitions (name, slug, field set, validation rules, settings) so developers can reference them and map submissions to CRM fields.
+- Form registry supports optional auto-assign rules (tags, MAGs) on submit.
+- **Field validation:** Each form definition includes validation rules (e.g. required, email format, max length). Validation is applied at submission time **before** data is added to the CRM record; failed validation returns errors to the client and does not create or update the contact.
+
+### Contact record structure
+
+- **Standard fields** (on the contact table): e.g. name, email, phone, company, address, status, DND, source, timestamps (exact list TBD).
+- **Custom fields** (per tenant): stored in a related table; definitions in a custom-fields table (name, label, type, validation).
+- **Contact detail view:** standard fields in an upper block; custom field values in a table below; notes log; taxonomy (categories/tags); MAG assignments; marketing lists.
+
+### Notes (log)
+
+- Notes are **relational** (e.g. contact_notes or crm_notes table), displayed as a **log** on the contact detail.
+- Admins add entries for cultivation and work history.
+- Some entries are **automated** (e.g. "Contact created", "Added to campaign X").
+
+### Contacts list
+
+- **Compact, spreadsheet-like** table: common fields (name, email, phone, etc.).
+- **Search:** name, email, phone.
+- **Filter:** categories and tags (taxonomy), status, DND, **memberships** (MAGs), marketing lists (when implemented).
+- Clicking a row opens the **contact detail sub-page** (not a modal).
+
+### Taxonomy integration
+
+- CRM uses the **site taxonomy** with a dedicated **CRM section** (staple section; see Taxonomy System).
+- Categories and tags from that section can be assigned to contacts and used for filtering in the list and detail.
+- **Membership** is **not** represented as taxonomy tags—membership is managed via a separate table system (MAGs, contact–MAG junction) to avoid sync issues between tags and membership status. Contacts are searchable/filterable by membership via the membership tables.
+
+### Memberships (MAGs)
+
+- **Membership management page** (`/admin/crm/memberships`): create and edit MAG definitions (name, UID, description); configure protected content. This page is for **developing the actual membership** and **drilling backwards** to see which members belong to which memberships.
+- **Assigning memberships to contacts:** done on the **CRM contact detail view** only. Admin adds/removes MAGs for that contact from the detail page.
+- **Member user management** (`/admin/members`, `/admin/members/[id]`) is a sub-link under CRM → Memberships: manage member accounts (logged-in users) and their MAG assignments.
+- **Search/filter contacts by membership:** the contacts list supports filtering by MAG (via the separate membership tables; no taxonomy tag sync).
+
+### Email marketing
+
+- Integration with a **light email marketing** provider (e.g. Resend, Vbout) via API.
+- **CRM as interface:** lists/segments and campaign management (as far as the API supports) are operated from CRM → Marketing.
+- **Lists/segments:** stored per contact (relational table or array TBD); **search contacts by list** is required.
+- Reference: Vbout API https://developers.vbout.com/ ; Resend and others via provider docs.
+
+### Sidebar navigation
+
+- **CRM** (top-level, expandable).
+  - **Contacts** – list and detail.
+  - **Forms** – form registry.
+  - **Memberships** – MAG management; Member user management (Members, Members/[id]) as sub-links.
+  - **Marketing** – email lists and campaigns.
 
 ---
 
@@ -624,7 +700,7 @@ The application supports two distinct user types:
 
 ### Overview
 
-Taxonomy system manages categories and tags for organizing content. Categories are hierarchical, tags are flat. Both can be section-scoped for filtering.
+Taxonomy system manages categories and tags for organizing content and CRM records. Categories are hierarchical, tags are flat. Both can be section-scoped for filtering. The template includes **staple sections** (CRM, PAGE, BLOG, ARTICLE, SNIPPET, and media) that cannot be deleted; see Section-Scoped Filtering below.
 
 ### Single Source of Truth – No Separate Taxonomy
 
@@ -674,9 +750,10 @@ When adding a new content type, define a section for it in the taxonomy system a
 - Configures which sections use categories/tags
 - Allows filtering taxonomy items by section
 
-**Suggested Sections:**
-- Predefined section suggestions (blog, pages, media)
-- Can be customized per client
+**Staple Sections (Template Defaults; Not Deletable):**
+- **CRM**, **PAGE**, **BLOG**, **ARTICLE**, **SNIPPET** — inherent to web application operation; part of the template and cannot be removed.
+- **Media** (or equivalent) for media library taxonomy.
+- These staple sections are always present; admins can add additional sections per client as needed.
 
 **Technical Details:** See [prd-technical.md - Database Schema Reference](./prd-technical.md#2-database-schema-reference)
 

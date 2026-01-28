@@ -15,8 +15,12 @@ import type { TaxonomyTerm } from "@/types/taxonomy";
 
 interface TaxonomyAssignmentForContentProps {
   contentId: string;
+  /** Stored in taxonomy_relationships.content_type (e.g. post, crm_contact). */
   contentTypeSlug: string;
+  /** Section for term filtering (section_taxonomy_config.section_name). If omitted, contentTypeSlug is used. */
+  section?: string;
   sectionLabel?: string;
+  compact?: boolean;
   onSaved?: () => void;
   disabled?: boolean;
   /**
@@ -39,7 +43,9 @@ interface TaxonomyAssignmentForContentProps {
 export function TaxonomyAssignmentForContent({
   contentId,
   contentTypeSlug,
+  section: sectionProp,
   sectionLabel,
+  compact = false,
   onSaved,
   disabled = false,
   embedded = false,
@@ -57,7 +63,7 @@ export function TaxonomyAssignmentForContent({
   const [internalTagIds, setInternalTagIds] = useState<Set<string>>(new Set());
   const initialLoadDoneRef = useRef<string | null>(null);
 
-  const section = contentTypeSlug;
+  const section = sectionProp ?? contentTypeSlug;
   const displaySection = sectionLabel ?? section;
   const { categories, tags } = getTermsForContentSection(terms, configs, section);
 

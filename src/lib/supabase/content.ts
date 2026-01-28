@@ -8,7 +8,8 @@
 import { createClientSupabaseClient, createServerSupabaseClient } from "@/lib/supabase/client";
 import type { ContentType, ContentListItem, ContentRow, ContentTypeField } from "@/types/content";
 
-const CONTENT_SCHEMA = "website_cms_template_dev";
+const CONTENT_SCHEMA =
+  process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
 
 export async function getContentTypes(): Promise<ContentType[]> {
   const supabase = createClientSupabaseClient();
@@ -166,58 +167,53 @@ export async function getContentById(id: string): Promise<ContentRow | null> {
   return data as ContentRow;
 }
 
-/** Server-only: fetch published page or post by type slug and URL slug. Used for public routes. */
+/**
+ * Server-only: fetch published page or post by type slug and URL slug. Used for public routes.
+ * Per prd-technical: uses RPC (get_published_content_by_slug_dynamic), not .from().
+ */
 export async function getPublishedContentByTypeAndSlug(
   typeSlug: "page" | "post",
   slug: string
 ): Promise<ContentRow | null> {
   const supabase = createServerSupabaseClient();
-  type Row = ContentRow & { content_types: { slug: string } | { slug: string }[] | null };
-  const { data, error } = await supabase
-    .schema(CONTENT_SCHEMA)
-    .from("content")
-    .select("*, content_types!content_type_id(slug)")
-    .eq("slug", slug)
-    .eq("status", "published")
-    .limit(10);
+
+  const { data, error } = await supabase.rpc("get_published_content_by_slug_dynamic", {
+    schema_name: CONTENT_SCHEMA,
+    type_slug: typeSlug,
+    slug_param: slug,
+  });
 
   if (error) {
-    console.error("getPublishedContentByTypeAndSlug:", error);
+    console.error("getPublishedContentByTypeAndSlug:", {
+      message: error.message,
+      code: error.code,
+    });
     return null;
   }
-  const rows = (data as Row[]) ?? [];
-  const found = rows.find((r) => {
-    const ct = Array.isArray(r.content_types) ? r.content_types[0] : r.content_types;
-    return ct?.slug === typeSlug;
-  });
-  if (!found) return null;
-  const { content_types: _ct, ...rest } = found;
-  return rest as ContentRow;
+  const rows = (data as ContentRow[] | null) ?? [];
+  return rows[0] ?? null;
 }
 
-/** Server-only: fetch published posts for blog list. Ordered by published_at desc. */
+/**
+ * Server-only: fetch published posts for blog list. Ordered by published_at desc.
+ * Per prd-technical: uses RPC (get_published_posts_dynamic), not .from().
+ */
 export async function getPublishedPosts(limit = 50): Promise<ContentRow[]> {
   const supabase = createServerSupabaseClient();
-  type Row = ContentRow & { content_types: { slug: string } | { slug: string }[] | null };
-  const { data, error } = await supabase
-    .schema(CONTENT_SCHEMA)
-    .from("content")
-    .select("*, content_types!content_type_id(slug)")
-    .eq("status", "published")
-    .order("published_at", { ascending: false })
-    .limit(limit * 2);
+
+  const { data, error } = await supabase.rpc("get_published_posts_dynamic", {
+    schema_name: CONTENT_SCHEMA,
+    limit_param: limit,
+  });
 
   if (error) {
-    console.error("getPublishedPosts:", error);
+    console.error("getPublishedPosts:", {
+      message: error.message,
+      code: error.code,
+    });
     return [];
   }
-  const rows = (data as Row[]) ?? [];
-  const posts = rows.filter((r) => {
-    const ct = Array.isArray(r.content_types) ? r.content_types[0] : r.content_types;
-    return ct?.slug === "post";
-  });
-  const trimmed = posts.slice(0, limit);
-  return trimmed.map(({ content_types: _ct, ...rest }) => rest as ContentRow);
+  return (data as ContentRow[]) ?? [];
 }
 
 export async function insertContent(row: {

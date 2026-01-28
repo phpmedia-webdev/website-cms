@@ -39,10 +39,21 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const { createServerSupabaseClientSSR } = await import("@/lib/supabase/client");
     const supabase = await createServerSupabaseClientSSR();
     
-    // Get user from Supabase Auth
-    // The service role client can validate JWT tokens
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
+    // Get user from Supabase Auth (may throw if refresh token is invalid/expired)
+    let user: { id: string; email?: string; user_metadata?: UserMetadata } | null = null;
+    let error: { message?: string } | null = null;
+    try {
+      const result = await supabase.auth.getUser();
+      user = result.data.user;
+      error = result.error;
+    } catch (authError) {
+      const msg = (authError as Error)?.message ?? "";
+      if (!msg.includes("Refresh Token") && !msg.includes("refresh_token")) {
+        console.error("Error getting current user:", authError);
+      }
+      return null;
+    }
+
     if (error || !user) {
       return null;
     }
@@ -65,8 +76,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
         allowed_schemas: metadata.allowed_schemas,
       },
     };
-  } catch (error) {
-    console.error("Error getting current user:", error);
+  } catch (err) {
+    const msg = (err as Error)?.message ?? "";
+    if (!msg.includes("Refresh Token") && !msg.includes("refresh_token")) {
+      console.error("Error getting current user:", err);
+    }
     return null;
   }
 }
@@ -111,9 +125,22 @@ export async function getCurrentUserFromRequest(
       },
     });
     
-    // Get user from session
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
+    // Get user from session (may throw AuthApiError if refresh token is invalid/expired)
+    let user: { id: string; email?: string; user_metadata?: UserMetadata } | null = null;
+    let error: { message?: string } | null = null;
+    try {
+      const result = await supabase.auth.getUser();
+      user = result.data.user;
+      error = result.error;
+    } catch (authError) {
+      // Invalid/expired refresh token: treat as no session, don't log to avoid console noise
+      const msg = (authError as Error)?.message ?? "";
+      if (!msg.includes("Refresh Token") && !msg.includes("refresh_token")) {
+        console.error("Error getting current user from request:", authError);
+      }
+      return null;
+    }
+
     if (error || !user) {
       return null;
     }
@@ -136,8 +163,11 @@ export async function getCurrentUserFromRequest(
         allowed_schemas: metadata.allowed_schemas,
       },
     };
-  } catch (error) {
-    console.error("Error getting current user from request:", error);
+  } catch (err) {
+    const msg = (err as Error)?.message ?? "";
+    if (!msg.includes("Refresh Token") && !msg.includes("refresh_token")) {
+      console.error("Error getting current user from request:", err);
+    }
     return null;
   }
 }

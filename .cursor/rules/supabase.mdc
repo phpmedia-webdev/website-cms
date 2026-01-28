@@ -1,0 +1,20 @@
+---
+description: Supabase project and CLI usage for this repo. Project ref is safe to store; never put keys or secrets here.
+globs:
+alwaysApply: true
+---
+
+# Supabase (this project)
+
+## Project ref (safe to store here)
+
+- **Project ref for this repo:** `sjmhierrkokthcpmyzxw`
+- Get it from: Supabase Dashboard → Project Settings → General → Reference ID.
+- Use only for: `supabase link --project-ref <ref>` and `supabase db push`. Never put service role key, database password, or JWT secret in rules or in the repo.
+
+## Running migrations (manual)
+
+- **Do not use Supabase CLI for migrations.** Run SQL manually.
+- **Where:** Supabase Dashboard → SQL Editor.
+- **How:** Copy the contents of each migration file from `supabase/migrations/` (in filename order: 023, 024, …, 052, 053, etc.) and paste into the SQL Editor, then Run. Run one migration at a time, or batch in order if you prefer.
+- When adding new migrations: (1) List `supabase/migrations/` to find the latest numeric prefix (e.g. 053), increment by one (054). (2) Create the file as `XXX_description.sql`. (3) In the **top comment header** of the script, include a line: `-- File: XXX_description.sql` so you can scan Supabase SQL Editor run history and match by filename. (4) Direct the user: "Copy the contents of `supabase/migrations/XXX_name.sql` and run in Supabase SQL Editor."
