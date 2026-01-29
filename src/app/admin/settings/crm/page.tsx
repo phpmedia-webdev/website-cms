@@ -1,8 +1,11 @@
-import { getCrmNoteTypes } from "@/lib/supabase/settings";
+import { getCrmNoteTypes, getCrmContactStatuses } from "@/lib/supabase/settings";
 import { CrmSettingsClient } from "./CrmSettingsClient";
 
 export default async function CrmSettingsPage() {
-  const noteTypes = await getCrmNoteTypes();
+  const [noteTypes, contactStatuses] = await Promise.all([
+    getCrmNoteTypes(),
+    getCrmContactStatuses(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -12,7 +15,10 @@ export default async function CrmSettingsPage() {
           Configure CRM-related settings
         </p>
       </div>
-      <CrmSettingsClient initialNoteTypes={noteTypes} />
+      <CrmSettingsClient
+        initialNoteTypes={noteTypes}
+        initialContactStatuses={contactStatuses}
+      />
     </div>
   );
 }

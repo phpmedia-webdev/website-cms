@@ -93,6 +93,9 @@ export default async function PublicLayout({
               <Link href="/blog" className="text-sm hover:underline">
                 Blog
               </Link>
+              <Link href="/forms/contact" className="text-sm hover:underline">
+                Contact
+              </Link>
               <Link href="/admin" className="text-xs text-muted-foreground opacity-50 hover:opacity-100">
                 Admin
               </Link>

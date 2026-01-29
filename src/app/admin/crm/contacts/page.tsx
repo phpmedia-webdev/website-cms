@@ -1,6 +1,7 @@
 import { getContacts, getMags, getMarketingLists, getAllContactMags, getAllContactMarketingLists } from "@/lib/supabase/crm";
 import { getAllTaxonomyTerms, getSectionTaxonomyConfigs } from "@/lib/supabase/taxonomy";
 import { getContactTaxonomyTermIds } from "@/lib/supabase/crm-taxonomy";
+import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { ContactsListClient } from "./ContactsListClient";
 
 export default async function ContactsPage() {
@@ -12,6 +13,7 @@ export default async function ContactsPage() {
     contactLists,
     taxonomyTerms,
     sectionConfigs,
+    contactStatuses,
   ] = await Promise.all([
     getContacts(),
     getMags(),
@@ -20,6 +22,7 @@ export default async function ContactsPage() {
     getAllContactMarketingLists(),
     getAllTaxonomyTerms(),
     getSectionTaxonomyConfigs(),
+    getCrmContactStatuses(),
   ]);
 
   const contactIds = contacts.map((c) => c.id);
@@ -35,6 +38,7 @@ export default async function ContactsPage() {
       marketingLists={marketingLists}
       taxonomyTerms={taxonomyTerms}
       sectionConfigs={sectionConfigs}
+      contactStatuses={contactStatuses}
     />
   );
 }

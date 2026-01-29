@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,8 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { CrmCustomField, Form } from "@/lib/supabase/crm";
-import { Plus, Pencil, Trash2, ListTree, ClipboardList } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import type {
+  CrmCustomField,
+  Form,
+  FormFieldAssignment,
+} from "@/lib/supabase/crm";
+import { CORE_FORM_FIELDS } from "@/lib/supabase/crm";
+import { Plus, Pencil, Trash2, ListTree, ClipboardList, ChevronUp, ChevronDown, Inbox } from "lucide-react";
 
 const CUSTOM_FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -60,6 +67,8 @@ export function CrmFormsClient({
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [formEditing, setFormEditing] = useState<Form | null>(null);
   const [formForm, setFormForm] = useState({ name: "", slug: "" });
+  const [formFieldAssignments, setFormFieldAssignments] = useState<FormFieldAssignment[]>([]);
+  const [formFieldsLoading, setFormFieldsLoading] = useState(false);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -164,15 +173,83 @@ export function CrmFormsClient({
   const openFormAdd = () => {
     setFormEditing(null);
     setFormForm({ name: "", slug: "" });
+    setFormFieldAssignments([]);
     setFormError(null);
     setFormModalOpen(true);
   };
 
-  const openFormEdit = (form: Form) => {
+  const openFormEdit = async (form: Form) => {
     setFormEditing(form);
     setFormForm({ name: form.name, slug: form.slug });
     setFormError(null);
     setFormModalOpen(true);
+    setFormFieldsLoading(true);
+    try {
+      const res = await fetch(`/api/crm/forms/${form.id}/fields`);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setFormFieldAssignments(data as FormFieldAssignment[]);
+      } else {
+        setFormFieldAssignments([]);
+      }
+    } catch {
+      setFormFieldAssignments([]);
+    } finally {
+      setFormFieldsLoading(false);
+    }
+  };
+
+  const getFieldLabel = (a: FormFieldAssignment): string => {
+    if (a.field_source === "core" && a.core_field_key) {
+      return CORE_FORM_FIELDS.find((c) => c.key === a.core_field_key)?.label ?? a.core_field_key;
+    }
+    if (a.field_source === "custom" && a.custom_field_id) {
+      return customFields.find((c) => c.id === a.custom_field_id)?.label ?? "Custom";
+    }
+    return "—";
+  };
+
+  const addCoreField = (key: string) => {
+    if (!key || key === "_none") return;
+    const nextOrder = formFieldAssignments.length;
+    setFormFieldAssignments((prev) => [
+      ...prev,
+      { field_source: "core", core_field_key: key, custom_field_id: null, display_order: nextOrder, required: false },
+    ]);
+  };
+
+  const addCustomField = (id: string) => {
+    if (!id || id === "_none") return;
+    const nextOrder = formFieldAssignments.length;
+    setFormFieldAssignments((prev) => [
+      ...prev,
+      { field_source: "custom", core_field_key: null, custom_field_id: id, display_order: nextOrder, required: false },
+    ]);
+  };
+
+  const removeFormField = (index: number) => {
+    setFormFieldAssignments((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.map((f, i) => ({ ...f, display_order: i }));
+    });
+  };
+
+  const moveFormFieldUp = (index: number) => {
+    if (index <= 0) return;
+    setFormFieldAssignments((prev) => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next.map((f, i) => ({ ...f, display_order: i }));
+    });
+  };
+
+  const moveFormFieldDown = (index: number) => {
+    if (index >= formFieldAssignments.length - 1) return;
+    setFormFieldAssignments((prev) => {
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next.map((f, i) => ({ ...f, display_order: i }));
+    });
   };
 
   const slugFromName = (name: string) =>
@@ -190,6 +267,13 @@ export function CrmFormsClient({
     setFormSaving(true);
     setFormError(null);
     try {
+      const field_assignments = formFieldAssignments.map((f, i) => ({
+        field_source: f.field_source,
+        core_field_key: f.field_source === "core" ? f.core_field_key : null,
+        custom_field_id: f.field_source === "custom" ? f.custom_field_id : null,
+        display_order: i,
+        required: f.required ?? false,
+      }));
       if (formEditing) {
         const res = await fetch(`/api/crm/forms/${formEditing.id}`, {
           method: "PATCH",
@@ -197,6 +281,7 @@ export function CrmFormsClient({
           body: JSON.stringify({
             name: formForm.name.trim(),
             slug: formForm.slug.trim(),
+            field_assignments,
           }),
         });
         const data = await res.json();
@@ -222,6 +307,13 @@ export function CrmFormsClient({
           return;
         }
         setForms((prev) => [...prev, data as Form]);
+        if (field_assignments.length > 0 && data?.id) {
+          await fetch(`/api/crm/forms/${data.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field_assignments }),
+          });
+        }
       }
       setFormModalOpen(false);
       router.refresh();
@@ -257,17 +349,89 @@ export function CrmFormsClient({
         </p>
       </div>
 
-      <Tabs defaultValue="fields" className="space-y-4">
+      <Tabs defaultValue="forms" className="space-y-4">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="fields" className="flex items-center gap-2">
-            <ListTree className="h-4 w-4" />
-            Custom Fields
-          </TabsTrigger>
           <TabsTrigger value="forms" className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
             Forms
           </TabsTrigger>
+          <TabsTrigger value="fields" className="flex items-center gap-2">
+            <ListTree className="h-4 w-4" />
+            Custom Fields
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="forms" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={openFormAdd} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add form
+            </Button>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              {forms.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  No forms. Add form definitions for developer reference and submission mapping.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left font-medium p-3">Name</th>
+                        <th className="text-left font-medium p-3">Slug</th>
+                        <th className="text-left font-medium p-3">Created</th>
+                        <th className="text-right font-medium p-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {forms.map((f) => (
+                        <tr key={f.id} className="border-b hover:bg-muted/30">
+                          <td className="p-3 font-medium">{f.name}</td>
+                          <td className="p-3 font-mono text-xs text-muted-foreground">{f.slug}</td>
+                          <td className="p-3 text-muted-foreground">
+                            {f.created_at
+                              ? new Date(f.created_at).toLocaleDateString()
+                              : "—"}
+                          </td>
+                          <td className="p-3 text-right">
+                            <Link href={`/admin/crm/forms/${f.id}/submissions`}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                title="View submissions"
+                              >
+                                <Inbox className="h-3.5 w-3.5" />
+                              </Button>
+                            </Link>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openFormEdit(f)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => deleteForm(f.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="fields" className="space-y-4">
           <div className="flex justify-end">
@@ -313,68 +477,6 @@ export function CrmFormsClient({
                               size="sm"
                               className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                               onClick={() => deleteCustomField(f.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="forms" className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={openFormAdd} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add form
-            </Button>
-          </div>
-          <Card>
-            <CardContent className="p-0">
-              {forms.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground text-sm">
-                  No forms. Add form definitions for developer reference and submission mapping.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left font-medium p-3">Name</th>
-                        <th className="text-left font-medium p-3">Slug</th>
-                        <th className="text-left font-medium p-3">Created</th>
-                        <th className="text-right font-medium p-3">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {forms.map((f) => (
-                        <tr key={f.id} className="border-b hover:bg-muted/30">
-                          <td className="p-3 font-medium">{f.name}</td>
-                          <td className="p-3 font-mono text-xs text-muted-foreground">{f.slug}</td>
-                          <td className="p-3 text-muted-foreground">
-                            {f.created_at
-                              ? new Date(f.created_at).toLocaleDateString()
-                              : "—"}
-                          </td>
-                          <td className="p-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => openFormEdit(f)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => deleteForm(f.id)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -516,6 +618,154 @@ export function CrmFormsClient({
                 placeholder="e.g. contact-us"
                 className="font-mono text-sm"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Form fields</Label>
+              <p className="text-xs text-muted-foreground">
+                Add core contact fields and/or custom fields. Order and required flag are used when referencing this form on public pages.
+              </p>
+              {formFieldsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading fields…</p>
+              ) : (
+                <>
+                  <ul className="border rounded-md divide-y max-h-48 overflow-y-auto">
+                    {formFieldAssignments.map((a, index) => (
+                      <li
+                        key={
+                          a.field_source === "core"
+                            ? `core-${a.core_field_key}`
+                            : `custom-${a.custom_field_id}`
+                        }
+                        className="flex items-center gap-2 p-2 text-sm"
+                      >
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => moveFormFieldUp(index)}
+                            disabled={index === 0}
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => moveFormFieldDown(index)}
+                            disabled={index === formFieldAssignments.length - 1}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <span className="flex-1 truncate">{getFieldLabel(a)}</span>
+                        <Checkbox
+                          checked={a.required ?? false}
+                          onCheckedChange={(checked) => {
+                            setFormFieldAssignments((prev) =>
+                              prev.map((f, i) =>
+                                i === index ? { ...f, required: !!checked } : f
+                              )
+                            );
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground w-14">Required</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive shrink-0"
+                          onClick={() => removeFormField(index)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </li>
+                    ))}
+                    {formFieldAssignments.length === 0 && (
+                      <li className="p-3 text-sm text-muted-foreground">
+                        No fields assigned. Add core or custom fields below.
+                      </li>
+                    )}
+                  </ul>
+                  <div className="flex flex-wrap gap-2" key={`add-fields-${formFieldAssignments.length}`}>
+                    <Select
+                      value=""
+                      onValueChange={(v) => addCoreField(v)}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Add core field…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CORE_FORM_FIELDS.filter(
+                          (c) =>
+                            !formFieldAssignments.some(
+                              (a) =>
+                                a.field_source === "core" &&
+                                a.core_field_key === c.key
+                            )
+                        ).map((c) => (
+                          <SelectItem key={c.key} value={c.key}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                        {CORE_FORM_FIELDS.every((c) =>
+                          formFieldAssignments.some(
+                            (a) =>
+                              a.field_source === "core" &&
+                              a.core_field_key === c.key
+                          )
+                        ) && (
+                          <SelectItem value="_none" disabled>
+                            All core fields added
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value=""
+                      onValueChange={(v) => addCustomField(v)}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Add custom field…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customFields.filter(
+                          (c) =>
+                            !formFieldAssignments.some(
+                              (a) =>
+                                a.field_source === "custom" &&
+                                a.custom_field_id === c.id
+                            )
+                        ).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                        {customFields.length === 0 && (
+                          <SelectItem value="_none" disabled>
+                            No custom fields defined
+                          </SelectItem>
+                        )}
+                        {customFields.length > 0 &&
+                          customFields.every((c) =>
+                            formFieldAssignments.some(
+                              (a) =>
+                                a.field_source === "custom" &&
+                                a.custom_field_id === c.id
+                            )
+                          ) && (
+                            <SelectItem value="_none" disabled>
+                              All custom fields added
+                            </SelectItem>
+                          )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <DialogFooter>

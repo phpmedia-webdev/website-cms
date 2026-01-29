@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const STATUS_OPTIONS = ["new", "contacted", "archived"] as const;
-
-export function NewContactForm() {
+export function NewContactForm({
+  contactStatuses,
+}: {
+  contactStatuses: CrmContactStatusOption[];
+}) {
   const router = useRouter();
+  const defaultStatus = contactStatuses[0]?.slug ?? "new";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -20,7 +24,7 @@ export function NewContactForm() {
     email: "",
     phone: "",
     company: "",
-    status: "new" as string,
+    status: defaultStatus,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,7 +42,7 @@ export function NewContactForm() {
           email: form.email || null,
           phone: form.phone || null,
           company: form.company || null,
-          status: form.status || "new",
+          status: form.status || defaultStatus,
         }),
       });
       const data = await res.json();
@@ -123,8 +127,8 @@ export function NewContactForm() {
               value={form.status}
               onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
             >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {contactStatuses.map((s) => (
+                <option key={s.slug} value={s.slug}>{s.label}</option>
               ))}
             </select>
           </div>

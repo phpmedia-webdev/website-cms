@@ -2,12 +2,14 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Plus, Users, Search, X } from "lucide-react";
 import type { CrmContact, ContactMag, ContactMarketingList, Mag, MarketingList } from "@/lib/supabase/crm";
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
+import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 import { getTermsForContentSection } from "@/lib/supabase/taxonomy";
 
 interface ContactWithRelations extends CrmContact {
@@ -25,6 +27,7 @@ interface ContactsListClientProps {
   marketingLists: MarketingList[];
   taxonomyTerms: TaxonomyTerm[];
   sectionConfigs: SectionTaxonomyConfig[];
+  contactStatuses: CrmContactStatusOption[];
 }
 
 export function ContactsListClient({
@@ -36,12 +39,15 @@ export function ContactsListClient({
   marketingLists,
   taxonomyTerms,
   sectionConfigs,
+  contactStatuses,
 }: ContactsListClientProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [selectedMagId, setSelectedMagId] = useState<string>("");
   const [selectedListId, setSelectedListId] = useState<string>("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedTagId, setSelectedTagId] = useState<string>("");
+  const router = useRouter();
 
   const { categories, tags } = useMemo(
     () => getTermsForContentSection(taxonomyTerms, sectionConfigs, "crm"),
@@ -70,6 +76,9 @@ export function ContactsListClient({
         return name.includes(q) || email.includes(q) || phone.includes(q) || magNames.includes(q) || listNames.includes(q);
       });
     }
+    if (selectedStatus) {
+      list = list.filter((c) => c.status === selectedStatus);
+    }
     if (selectedMagId) {
       list = list.filter((c) => c.mags.some((m) => m.mag_id === selectedMagId));
     }
@@ -82,12 +91,21 @@ export function ContactsListClient({
     if (selectedTagId) {
       list = list.filter((c) => c.termIds.includes(selectedTagId));
     }
-    return list;
-  }, [enrichedContacts, searchQuery, selectedMagId, selectedListId, selectedCategoryId, selectedTagId]);
+    return [...list].sort((a, b) => {
+      const lnA = (a.last_name ?? "").toLowerCase();
+      const lnB = (b.last_name ?? "").toLowerCase();
+      if (lnA !== lnB) return lnA.localeCompare(lnB);
+      const fnA = (a.first_name ?? "").toLowerCase();
+      const fnB = (b.first_name ?? "").toLowerCase();
+      if (fnA !== fnB) return fnA.localeCompare(fnB);
+      return (a.email ?? "").toLowerCase().localeCompare((b.email ?? "").toLowerCase());
+    });
+  }, [enrichedContacts, searchQuery, selectedStatus, selectedMagId, selectedListId, selectedCategoryId, selectedTagId]);
 
-  const hasFilters = Boolean(selectedMagId || selectedListId || selectedCategoryId || selectedTagId);
+  const hasFilters = Boolean(selectedStatus || selectedMagId || selectedListId || selectedCategoryId || selectedTagId || searchQuery);
 
   const resetFilters = () => {
+    setSelectedStatus("");
     setSelectedMagId("");
     setSelectedListId("");
     setSelectedCategoryId("");
@@ -101,8 +119,9 @@ export function ContactsListClient({
         <div>
           <h1 className="text-2xl font-bold">Contacts</h1>
           <p className="text-muted-foreground text-sm">
-            Manage CRM contacts ({filteredContacts.length}
-            {contacts.length !== filteredContacts.length ? ` / ${contacts.length}` : ""})
+            {hasFilters
+              ? `Showing ${filteredContacts.length} of ${contacts.length} contacts`
+              : `${contacts.length} contact${contacts.length === 1 ? "" : "s"}`}
           </p>
         </div>
         <Link href="/admin/crm/contacts/new">
@@ -113,63 +132,77 @@ export function ContactsListClient({
         </Link>
       </div>
 
-      {/* Search + Filter row */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search name, email, phone…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-7 h-8 text-sm"
-          />
+      {/* Line 1: Filter selectors + Clear all far right */}
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            {contactStatuses.map((s) => (
+              <option key={s.slug} value={s.slug}>{s.label}</option>
+            ))}
+          </select>
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            value={selectedMagId}
+            onChange={(e) => setSelectedMagId(e.target.value)}
+          >
+            <option value="">All Memberships</option>
+            {mags.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            value={selectedListId}
+            onChange={(e) => setSelectedListId(e.target.value)}
+          >
+            <option value="">All Lists</option>
+            {marketingLists.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            value={selectedCategoryId}
+            onChange={(e) => setSelectedCategoryId(e.target.value)}
+          >
+            <option value="">All Categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <select
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            value={selectedTagId}
+            onChange={(e) => setSelectedTagId(e.target.value)}
+          >
+            <option value="">All Tags</option>
+            {tags.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
         </div>
-        <select
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          value={selectedMagId}
-          onChange={(e) => setSelectedMagId(e.target.value)}
-        >
-          <option value="">All Memberships</option>
-          {mags.map((m) => (
-            <option key={m.id} value={m.id}>{m.name}</option>
-          ))}
-        </select>
-        <select
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          value={selectedListId}
-          onChange={(e) => setSelectedListId(e.target.value)}
-        >
-          <option value="">All Lists</option>
-          {marketingLists.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
-        <select
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          value={selectedCategoryId}
-          onChange={(e) => setSelectedCategoryId(e.target.value)}
-        >
-          <option value="">All Categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        <select
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          value={selectedTagId}
-          onChange={(e) => setSelectedTagId(e.target.value)}
-        >
-          <option value="">All Tags</option>
-          {tags.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-        {(hasFilters || searchQuery) && (
-          <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 text-xs">
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 text-xs shrink-0">
             <X className="h-3 w-3 mr-1" />
-            Reset
+            Clear all
           </Button>
         )}
+      </div>
+
+      {/* Line 2: Search bar */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+        <Input
+          placeholder="Search name, email, phone…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-7 h-8 text-sm"
+        />
       </div>
 
       {/* Table */}
@@ -194,7 +227,8 @@ export function ContactsListClient({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left font-medium py-2 px-3">Name</th>
+                    <th className="text-left font-medium py-2 px-3">Last name</th>
+                    <th className="text-left font-medium py-2 px-3">First name</th>
                     <th className="text-left font-medium py-2 px-3">Email</th>
                     <th className="text-left font-medium py-2 px-3">Phone</th>
                     <th className="text-left font-medium py-2 px-3">Status</th>
@@ -202,33 +236,65 @@ export function ContactsListClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredContacts.map((c) => (
+                  {filteredContacts.map((c) => {
+                    const rowLabel =
+                      [c.last_name, c.first_name].filter(Boolean).join(", ") ||
+                      c.full_name ||
+                      c.email ||
+                      "Contact";
+                    return (
                     <tr
                       key={c.id}
-                      className="border-b hover:bg-muted/30 transition-colors"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View ${rowLabel}`}
+                      onClick={() => router.push(`/admin/crm/contacts/${c.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/admin/crm/contacts/${c.id}`);
+                        }
+                      }}
+                      className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
                     >
-                      <td className="py-2 px-3">
-                        <Link
-                          href={`/admin/crm/contacts/${c.id}`}
-                          className="font-medium text-primary hover:underline"
-                        >
-                          {c.full_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}
-                        </Link>
-                      </td>
+                      <td className="py-2 px-3 font-medium">{c.last_name ?? "—"}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{c.first_name ?? "—"}</td>
                       <td className="py-2 px-3 text-muted-foreground">{c.email ?? "—"}</td>
                       <td className="py-2 px-3 text-muted-foreground">{c.phone ?? "—"}</td>
                       <td className="py-2 px-3">
-                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted">
-                          {c.status}
-                        </span>
+                        {(() => {
+                          const config = contactStatuses.find((s) => s.slug === c.status);
+                          const label = config?.label ?? c.status;
+                          if (config?.color) {
+                            return (
+                              <span
+                                className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium text-white"
+                                style={{ backgroundColor: config.color }}
+                              >
+                                {label}
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted">
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-2 px-3 text-muted-foreground">
                         {c.updated_at ? new Date(c.updated_at).toLocaleDateString() : "—"}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
+            </div>
+            <div className="border-t px-3 py-2 text-sm text-muted-foreground text-right shrink-0">
+              {hasFilters
+                ? `${filteredContacts.length} of ${contacts.length} contacts`
+                : `${contacts.length} contact${contacts.length === 1 ? "" : "s"}`}
             </div>
           </CardContent>
         </Card>

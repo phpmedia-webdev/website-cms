@@ -11,6 +11,7 @@ import {
   Image,
   Folder,
   ClipboardList,
+  Inbox,
   Settings,
   Shield,
   LogOut,
@@ -47,6 +48,7 @@ const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 const crmSubNav = [
   { name: "Contacts", href: "/admin/crm/contacts", icon: Users },
   { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList },
+  { name: "Form submissions", href: "/admin/crm/forms/submissions", icon: Inbox },
   { name: "Marketing", href: "/admin/crm/marketing", icon: Mail },
   { name: "Lists", href: "/admin/crm/lists", icon: ListChecks },
   { name: "Memberships", href: "/admin/crm/memberships", icon: Folder },
@@ -77,6 +79,35 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
+  const [newContactsCount, setNewContactsCount] = useState(0);
+
+  const fetchNewContactsCount = async () => {
+    try {
+      const res = await fetch("/api/crm/contacts/new-count");
+      if (res.ok) {
+        const { count } = await res.json();
+        setNewContactsCount(typeof count === "number" ? count : 0);
+      } else {
+        setNewContactsCount(0);
+      }
+    } catch {
+      setNewContactsCount(0);
+    }
+  };
+
+  // Load badge count on mount and whenever the user navigates within admin (auth is ready then).
+  useEffect(() => {
+    if (pathname?.startsWith("/admin")) {
+      fetchNewContactsCount();
+    }
+  }, [pathname]);
+
+  // Refresh when the user returns to the tab (e.g. after updating a contact elsewhere).
+  useEffect(() => {
+    const onFocus = () => fetchNewContactsCount();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   // Pathname-driven sidebar: Dashboard collapses all; only one section open at a time
   useEffect(() => {
@@ -216,20 +247,28 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
         <div className="pt-1">
           <div
             className={cn(
-              "flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium",
+              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium",
               isCrm && "bg-primary text-primary-foreground"
             )}
           >
             <Link
               href="/admin/crm/contacts"
               className={cn(
-                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
+                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
                 isCrm ? "text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
-              <Building2 className="h-5 w-5" />
+              <Building2 className="h-5 w-5 flex-shrink-0" />
               CRM
             </Link>
+            {newContactsCount > 0 && (
+              <span
+                className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white"
+                title={`${newContactsCount} contact(s) with status New`}
+              >
+                {newContactsCount > 99 ? "99+" : newContactsCount}
+              </span>
+            )}
             <button
               type="button"
               onClick={toggleCrm}
@@ -245,7 +284,11 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           {crmOpen && (
             <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
               {crmSubNav.map((sub) => {
-                const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                const isSubActive =
+                  sub.href === "/admin/crm/forms"
+                    ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
+                      !pathname?.startsWith("/admin/crm/forms/submissions")
+                    : pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                 const SubIcon = sub.icon;
                 return (
                   <Link

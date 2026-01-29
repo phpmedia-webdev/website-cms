@@ -3,15 +3,21 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmContact } from "@/lib/supabase/crm";
+import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const STATUS_OPTIONS = ["new", "contacted", "archived"] as const;
 const DND_OPTIONS = ["none", "email", "phone", "all"] as const;
 
-export function ContactEditForm({ contact }: { contact: CrmContact }) {
+export function ContactEditForm({
+  contact,
+  contactStatuses,
+}: {
+  contact: CrmContact;
+  contactStatuses: CrmContactStatusOption[];
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +33,8 @@ export function ContactEditForm({ contact }: { contact: CrmContact }) {
     state: contact.state ?? "",
     postal_code: contact.postal_code ?? "",
     country: contact.country ?? "",
-    status: contact.status ?? "new",
+    message: contact.message ?? "",
+    status: contact.status ?? (contactStatuses[0]?.slug ?? "new"),
     dnd_status: contact.dnd_status ?? "none",
   });
 
@@ -44,10 +51,11 @@ export function ContactEditForm({ contact }: { contact: CrmContact }) {
       state: contact.state ?? "",
       postal_code: contact.postal_code ?? "",
       country: contact.country ?? "",
-      status: contact.status ?? "new",
+      message: contact.message ?? "",
+      status: contact.status ?? (contactStatuses[0]?.slug ?? "new"),
       dnd_status: contact.dnd_status ?? "none",
     });
-  }, [contact]);
+  }, [contact, contactStatuses]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +77,7 @@ export function ContactEditForm({ contact }: { contact: CrmContact }) {
           state: form.state || null,
           postal_code: form.postal_code || null,
           country: form.country || null,
+          message: form.message.trim() ? form.message.trim() : null,
           status: form.status || "new",
           dnd_status: form.dnd_status === "none" ? null : form.dnd_status,
         }),
@@ -187,6 +196,27 @@ export function ContactEditForm({ contact }: { contact: CrmContact }) {
               onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
             />
           </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="message">Message</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                onClick={() => setForm((f) => ({ ...f, message: "" }))}
+              >
+                Clear all
+              </Button>
+            </div>
+            <textarea
+              id="message"
+              className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={form.message}
+              onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+              placeholder="Form submission or quick notes…"
+            />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
@@ -196,8 +226,8 @@ export function ContactEditForm({ contact }: { contact: CrmContact }) {
                 value={form.status}
                 onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
               >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                {contactStatuses.map((s) => (
+                  <option key={s.slug} value={s.slug}>{s.label}</option>
                 ))}
               </select>
             </div>

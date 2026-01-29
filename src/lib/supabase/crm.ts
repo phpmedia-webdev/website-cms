@@ -1,9 +1,12 @@
 /**
- * CRM utilities: contacts, notes, custom fields, forms, MAGs.
+ * CRM utilities: contacts, notes, custom fields, forms, form_submissions, MAGs.
  * Per prd-technical: read operations use RPC (not .from()); writes use .schema().from().
+ * All CRM tables live in the tenant schema only. Schema name comes from NEXT_PUBLIC_CLIENT_SCHEMA;
+ * each fork sets this to its own tenant schema (e.g. template dev uses website_cms_template_dev).
  */
 
 import { createServerSupabaseClient } from "./client";
+import { CRM_STATUS_SLUG_NEW } from "./settings";
 
 const CRM_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -38,6 +41,7 @@ export interface CrmContact {
   form_id: string | null;
   external_crm_id: string | null;
   external_crm_synced_at: string | null;
+  message: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +66,41 @@ export interface Form {
   created_at: string;
   updated_at: string;
 }
+
+export interface FormSubmission {
+  id: string;
+  form_id: string;
+  contact_id: string | null;
+  submitted_at: string;
+  payload: Record<string, unknown>;
+}
+
+/** Single form–field assignment (core contact field or custom field). */
+export interface FormFieldAssignment {
+  id?: string;
+  form_id?: string;
+  field_source: "core" | "custom";
+  core_field_key?: string | null;
+  custom_field_id?: string | null;
+  display_order: number;
+  required: boolean;
+}
+
+/** Core (standard contact) fields that can be attached to a form. Key = column/key for storage. */
+export const CORE_FORM_FIELDS: { key: string; label: string }[] = [
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "first_name", label: "First name" },
+  { key: "last_name", label: "Last name" },
+  { key: "full_name", label: "Full name" },
+  { key: "company", label: "Company" },
+  { key: "address", label: "Address" },
+  { key: "city", label: "City" },
+  { key: "state", label: "State" },
+  { key: "postal_code", label: "Postal code" },
+  { key: "country", label: "Country" },
+  { key: "message", label: "Message" },
+];
 
 export interface Mag {
   id: string;
@@ -162,6 +201,38 @@ export async function getContactById(id: string): Promise<CrmContact | null> {
   return rows[0] ?? null;
 }
 
+/** Get one contact by email (direct read for form submit matching). */
+export async function getContactByEmail(email: string | null | undefined): Promise<CrmContact | null> {
+  if (!email || typeof email !== "string" || !email.trim()) return null;
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("*")
+    .eq("email", email.trim())
+    .maybeSingle();
+  if (error) {
+    console.error("Error fetching contact by email:", { message: error.message, code: error.code });
+    return null;
+  }
+  return (data as CrmContact | null) ?? null;
+}
+
+/** Count contacts with status "New" (work-to-do indicator for sidebar badge). Status is stored as slug (e.g. "new"). */
+export async function getNewContactsCount(): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  const { count, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("*", { count: "exact", head: true })
+    .ilike("status", CRM_STATUS_SLUG_NEW);
+  if (error) {
+    console.error("Error counting New contacts:", formatSupabaseError(error));
+    return 0;
+  }
+  return typeof count === "number" ? count : 0;
+}
+
 /** Get form registry (RPC). */
 export async function getForms(): Promise<Form[]> {
   const supabase = createServerSupabaseClient();
@@ -173,6 +244,40 @@ export async function getForms(): Promise<Form[]> {
     return [];
   }
   return (data as Form[]) || [];
+}
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Get one form by id or slug (for submit route). Uses slug when value is not a valid UUID. */
+export async function getFormByIdOrSlug(idOrSlug: string): Promise<Form | null> {
+  const supabase = createServerSupabaseClient();
+  const byId = UUID_REGEX.test(idOrSlug.trim());
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("forms")
+    .select("*")
+    .eq(byId ? "id" : "slug", idOrSlug.trim())
+    .maybeSingle();
+  if (error) {
+    console.error("Error fetching form:", formatSupabaseError(error));
+    return null;
+  }
+  return (data as Form | null) ?? null;
+}
+
+/** Get field assignments for a form (RPC). */
+export async function getFormFields(formId: string): Promise<FormFieldAssignment[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_form_fields_dynamic", {
+    schema_name: CRM_SCHEMA,
+    form_id_param: formId,
+  });
+  if (error) {
+    console.error("Error fetching form fields:", formatSupabaseError(error));
+    return [];
+  }
+  return (data as FormFieldAssignment[]) || [];
 }
 
 /** Get MAGs (RPC). */
@@ -586,6 +691,27 @@ export async function deleteCrmCustomField(id: string): Promise<{ success: boole
   return { success: true, error: null };
 }
 
+/** Set or update one custom field value for a contact (upsert). Used by form submit. */
+export async function upsertContactCustomFieldValue(
+  contactId: string,
+  customFieldId: string,
+  value: string | null
+): Promise<{ error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_custom_fields")
+    .upsert(
+      { contact_id: contactId, custom_field_id: customFieldId, value: value ?? null },
+      { onConflict: "contact_id,custom_field_id" }
+    );
+  if (error) {
+    console.error("Error upserting contact custom field:", { message: error.message, code: error.code });
+    return { error: new Error(error.message) };
+  }
+  return { error: null };
+}
+
 // ==================== Form registry ====================
 
 /** Create a form definition (write). */
@@ -608,6 +734,8 @@ export async function createForm(
       auto_assign_tags: payload.auto_assign_tags ?? null,
       auto_assign_mag_ids: payload.auto_assign_mag_ids ?? null,
       settings: payload.settings ?? {},
+      // Legacy column: some schemas have forms.fields NOT NULL; we use form_fields table instead.
+      fields: [],
     })
     .select()
     .single();
@@ -618,7 +746,48 @@ export async function createForm(
   return { form: data as Form, error: null };
 }
 
-/** Update a form definition (write). */
+/** Replace all field assignments for a form (write). */
+export async function setFormFields(
+  formId: string,
+  fields: Array<{
+    field_source: "core" | "custom";
+    core_field_key?: string | null;
+    custom_field_id?: string | null;
+    display_order: number;
+    required: boolean;
+  }>
+): Promise<{ error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const { error: delError } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("form_fields")
+    .delete()
+    .eq("form_id", formId);
+  if (delError) {
+    console.error("Error clearing form fields:", { message: delError.message, code: delError.code });
+    return { error: new Error(delError.message) };
+  }
+  if (fields.length === 0) return { error: null };
+  const rows = fields.map((f) => ({
+    form_id: formId,
+    field_source: f.field_source,
+    core_field_key: f.field_source === "core" ? f.core_field_key ?? null : null,
+    custom_field_id: f.field_source === "custom" ? f.custom_field_id ?? null : null,
+    display_order: f.display_order,
+    required: f.required ?? false,
+  }));
+  const { error: insError } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("form_fields")
+    .insert(rows);
+  if (insError) {
+    console.error("Error inserting form fields:", { message: insError.message, code: insError.code });
+    return { error: new Error(insError.message) };
+  }
+  return { error: null };
+}
+
+/** Update a form definition (write). Optionally replace field_assignments. */
 export async function updateForm(
   id: string,
   payload: Partial<{
@@ -627,19 +796,31 @@ export async function updateForm(
     auto_assign_tags: string[] | null;
     auto_assign_mag_ids: string[] | null;
     settings: Record<string, unknown>;
+    field_assignments: Array<{
+      field_source: "core" | "custom";
+      core_field_key?: string | null;
+      custom_field_id?: string | null;
+      display_order: number;
+      required: boolean;
+    }>;
   }>
 ): Promise<{ form: Form | null; error: Error | null }> {
+  const { field_assignments, ...formPayload } = payload;
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .schema(CRM_SCHEMA)
     .from("forms")
-    .update({ ...payload, updated_at: new Date().toISOString() })
+    .update({ ...formPayload, updated_at: new Date().toISOString() })
     .eq("id", id)
     .select()
     .single();
   if (error) {
     console.error("Error updating form:", { message: error.message, code: error.code });
     return { form: null, error: new Error(error.message) };
+  }
+  if (field_assignments !== undefined) {
+    const { error: fieldsError } = await setFormFields(id, field_assignments);
+    if (fieldsError) return { form: null, error: fieldsError };
   }
   return { form: data as Form, error: null };
 }
@@ -657,4 +838,74 @@ export async function deleteForm(id: string): Promise<{ success: boolean; error:
     return { success: false, error: new Error(error.message) };
   }
   return { success: true, error: null };
+}
+
+/** Insert a form submission (write). Used by POST /api/forms/[formId]/submit. Tenant schema only. */
+export async function insertFormSubmission(
+  formId: string,
+  payload: Record<string, unknown>,
+  contactId?: string | null
+): Promise<{ submission: FormSubmission | null; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const payloadValue = payload ?? {};
+  const baseRow = {
+    form_id: formId,
+    contact_id: contactId ?? null,
+    payload: payloadValue,
+  };
+  const withData = { ...baseRow, data: payloadValue };
+
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("form_submissions")
+    .insert(withData)
+    .select()
+    .single();
+  if (error) {
+    const isMissingDataColumn =
+      error.code === "42703" || /column "data" does not exist/i.test(error.message ?? "");
+    if (isMissingDataColumn) {
+      const { data: data2, error: error2 } = await supabase
+        .schema(CRM_SCHEMA)
+        .from("form_submissions")
+        .insert(baseRow)
+        .select()
+        .single();
+      if (error2) {
+        console.error("Error inserting form submission:", formatSupabaseError(error2));
+        return { submission: null, error: new Error(error2.message) };
+      }
+      return { submission: data2 as FormSubmission, error: null };
+    }
+    console.error("Error inserting form submission:", formatSupabaseError(error));
+    return { submission: null, error: new Error(error.message) };
+  }
+  return { submission: data as FormSubmission, error: null };
+}
+
+function normalizeSubmissionRow(row: Record<string, unknown>): FormSubmission {
+  return {
+    id: row.id as string,
+    form_id: row.form_id as string,
+    contact_id: (row.contact_id as string | null) ?? null,
+    submitted_at: (row.submitted_at ?? row.created_at) as string,
+    payload: (row.payload ?? row.data ?? {}) as Record<string, unknown>,
+  };
+}
+
+/** List submissions for a form (direct read). Tenant schema only. */
+export async function getFormSubmissions(formId: string): Promise<FormSubmission[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("form_submissions")
+    .select("*")
+    .eq("form_id", formId)
+    .order("submitted_at", { ascending: false });
+  if (error) {
+    console.error("Error fetching form submissions:", formatSupabaseError(error));
+    return [];
+  }
+  const rows = (data as Record<string, unknown>[] | null) ?? [];
+  return rows.map(normalizeSubmissionRow);
 }

@@ -325,3 +325,50 @@ export async function getCrmNoteTypes(): Promise<string[]> {
 export async function setCrmNoteTypes(types: string[]): Promise<boolean> {
   return setSetting("crm.note_types", types);
 }
+
+/** Contact status option for picklist (slug stored on contact, label + color for UI). */
+export interface CrmContactStatusOption {
+  slug: string;
+  label: string;
+  color: string;
+}
+
+/** Fixed slug for "New" status; required for sidebar badge (work-to-do count). Cannot be deleted. */
+export const CRM_STATUS_SLUG_NEW = "new";
+
+const DEFAULT_CRM_CONTACT_STATUSES: CrmContactStatusOption[] = [
+  { slug: CRM_STATUS_SLUG_NEW, label: "New", color: "#22c55e" },
+  { slug: "contacted", label: "Contacted", color: "#3b82f6" },
+  { slug: "archived", label: "Archived", color: "#6b7280" },
+];
+
+/**
+ * Get CRM contact statuses (ordered picklist with colors).
+ */
+export async function getCrmContactStatuses(): Promise<CrmContactStatusOption[]> {
+  const raw = await getSetting<CrmContactStatusOption[]>("crm.contact_statuses");
+  if (Array.isArray(raw) && raw.length > 0) return raw;
+  return DEFAULT_CRM_CONTACT_STATUSES;
+}
+
+/**
+ * Set CRM contact statuses. The status with slug "new" is always kept (required for sidebar badge).
+ */
+export async function setCrmContactStatuses(
+  statuses: CrmContactStatusOption[]
+): Promise<boolean> {
+  const normalized = statuses
+    .filter((s) => s && typeof s.slug === "string" && typeof s.label === "string" && typeof s.color === "string")
+    .map((s) => ({
+      slug: s.slug.trim().toLowerCase(),
+      label: s.label.trim(),
+      color: s.color,
+    }));
+  const hasNew = normalized.some((s) => s.slug === CRM_STATUS_SLUG_NEW);
+  if (!hasNew) {
+    const current = await getCrmContactStatuses();
+    const newOption = current.find((s) => s.slug === CRM_STATUS_SLUG_NEW) ?? DEFAULT_CRM_CONTACT_STATUSES[0];
+    normalized.unshift(newOption);
+  }
+  return setSetting("crm.contact_statuses", normalized);
+}

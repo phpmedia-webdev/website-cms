@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { NewContactForm } from "./NewContactForm";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
-export default function NewContactPage() {
+export default async function NewContactPage() {
+  const contactStatuses = await getCrmContactStatuses();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -17,7 +20,7 @@ export default function NewContactPage() {
           <p className="text-muted-foreground mt-1">Add a contact to the CRM</p>
         </div>
       </div>
-      <NewContactForm />
+      <NewContactForm contactStatuses={contactStatuses} />
     </div>
   );
 }

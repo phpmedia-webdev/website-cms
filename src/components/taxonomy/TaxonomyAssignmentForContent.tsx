@@ -22,6 +22,8 @@ interface TaxonomyAssignmentForContentProps {
   sectionLabel?: string;
   compact?: boolean;
   onSaved?: () => void;
+  /** Called before saving taxonomy (e.g. to persist contact status). */
+  onBeforeSave?: () => Promise<void>;
   disabled?: boolean;
   /**
    * Embedded mode: no separate Save button. Parent saves taxonomy with main Update.
@@ -47,6 +49,7 @@ export function TaxonomyAssignmentForContent({
   sectionLabel,
   compact = false,
   onSaved,
+  onBeforeSave,
   disabled = false,
   embedded = false,
   selectedCategoryIds: controlledCategoryIds,
@@ -133,6 +136,7 @@ export function TaxonomyAssignmentForContent({
     if (embedded) return;
     setSaving(true);
     try {
+      if (onBeforeSave) await onBeforeSave();
       const allIds = [...selectedCategoryIds, ...selectedTagIds];
       await setTaxonomyForContent(contentId, contentTypeSlug, allIds);
       onSaved?.();
@@ -153,14 +157,20 @@ export function TaxonomyAssignmentForContent({
     );
   }
 
+  const listClass = compact
+    ? "space-y-1.5 border rounded-md p-2 max-h-44 overflow-y-auto"
+    : "space-y-2 border rounded-md p-3 max-h-44 overflow-y-auto";
+
   return (
-    <div className="space-y-4">
+    <div className={compact ? "space-y-3" : "space-y-4"}>
       <div>
         <Label className="text-sm font-medium">Categories</Label>
-        <p className="text-xs text-muted-foreground mb-2">
-          Section &quot;{displaySection}&quot; — select categories for this item.
-        </p>
-        <div className="space-y-2 border rounded-md p-3 max-h-36 overflow-y-auto">
+        {!compact && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Section &quot;{displaySection}&quot; — select categories for this item.
+          </p>
+        )}
+        <div className={listClass}>
           {categories.length === 0 ? (
             <p className="text-sm text-muted-foreground">No categories defined for this section.</p>
           ) : (
@@ -181,7 +191,7 @@ export function TaxonomyAssignmentForContent({
       </div>
       <div>
         <Label className="text-sm font-medium">Tags</Label>
-        <div className="space-y-2 border rounded-md p-3 max-h-36 overflow-y-auto">
+        <div className={listClass}>
           {tags.length === 0 ? (
             <p className="text-sm text-muted-foreground">No tags defined for this section.</p>
           ) : (
@@ -201,21 +211,23 @@ export function TaxonomyAssignmentForContent({
         </div>
       </div>
       {!embedded && (
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleSave}
-          disabled={saving || disabled}
-        >
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving…
-            </>
-          ) : (
-            "Save Categories & Tags"
-          )}
-        </Button>
+        <div className="flex justify-end pt-1">
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || disabled}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              "Save"
+            )}
+          </Button>
+        </div>
       )}
     </div>
   );
