@@ -107,6 +107,9 @@ export interface Mag {
   name: string;
   uid: string;
   description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: "active" | "draft";
   created_at: string;
   updated_at: string;
 }
@@ -280,8 +283,8 @@ export async function getFormFields(formId: string): Promise<FormFieldAssignment
   return (data as FormFieldAssignment[]) || [];
 }
 
-/** Get MAGs (RPC). */
-export async function getMags(): Promise<Mag[]> {
+/** Get MAGs (RPC). Pass includeDraft true for admin (show all), false or omit for public (active only). */
+export async function getMags(includeDraft = false): Promise<Mag[]> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase.rpc("get_mags_dynamic", {
     schema_name: CRM_SCHEMA,
@@ -290,7 +293,110 @@ export async function getMags(): Promise<Mag[]> {
     console.error("Error fetching mags:", { message: error.message, code: error.code });
     return [];
   }
-  return (data as Mag[]) || [];
+  const list = (data as Mag[]) || [];
+  if (!includeDraft) return list.filter((m) => m.status === "active");
+  return list;
+}
+
+/** Get a single MAG by id (RPC). */
+export async function getMagById(magId: string): Promise<Mag | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_mag_by_id_dynamic", {
+    schema_name: CRM_SCHEMA,
+    mag_id_param: magId,
+  });
+  if (error) {
+    console.error("Error fetching MAG by id:", { message: error.message, code: error.code });
+    return null;
+  }
+  const rows = (data as Mag[]) || [];
+  return rows[0] ?? null;
+}
+
+/** Get contacts in a MAG (RPC). */
+export interface ContactInMag {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  company: string | null;
+  status: string;
+  assigned_at: string;
+}
+export async function getContactsByMag(magId: string): Promise<ContactInMag[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_contacts_by_mag_dynamic", {
+    schema_name: CRM_SCHEMA,
+    mag_id_param: magId,
+  });
+  if (error) {
+    console.error("Error fetching contacts by MAG:", { message: error.message, code: error.code });
+    return [];
+  }
+  return (data as ContactInMag[]) || [];
+}
+
+/** Create a MAG (write). */
+export async function createMag(
+  payload: { name: string; uid: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: "active" | "draft" }
+): Promise<{ mag: Mag | null; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const row = {
+    name: payload.name,
+    uid: payload.uid,
+    description: payload.description ?? null,
+    start_date: payload.start_date ?? null,
+    end_date: payload.end_date ?? null,
+    status: payload.status ?? "active",
+  };
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("mags")
+    .insert(row)
+    .select()
+    .single();
+  if (error) {
+    console.error("Error creating MAG:", { message: error.message, code: error.code });
+    return { mag: null, error: new Error(error.message) };
+  }
+  return { mag: data as Mag, error: null };
+}
+
+/** Update a MAG (write). */
+export async function updateMag(
+  id: string,
+  payload: Partial<{ name: string; uid: string; description: string | null; start_date: string | null; end_date: string | null; status: "active" | "draft" }>
+): Promise<{ mag: Mag | null; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("mags")
+    .update({ ...payload, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) {
+    console.error("Error updating MAG:", { message: error.message, code: error.code });
+    return { mag: null, error: new Error(error.message) };
+  }
+  return { mag: data as Mag, error: null };
+}
+
+/** Delete a MAG (write). Cascade removes crm_contact_mags. */
+export async function deleteMag(id: string): Promise<{ success: boolean; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("mags")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    console.error("Error deleting MAG:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
 }
 
 /** Get notes for a contact (RPC). */

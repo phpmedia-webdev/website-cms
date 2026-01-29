@@ -619,35 +619,33 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [x] Custom Fields tab: list/add/edit/delete definitions (name, label, type); types include text, number, email, url, tel, checkbox, textarea, **select**, **multiselect** (options in `validation_rules.options`)
   - [x] Forms tab: list/add/edit/delete form definitions (name, slug). API: `GET/POST /api/crm/custom-fields`, `GET/POST /api/crm/forms`, PATCH/DELETE by id
   - [x] Migrations 059 (add `auto_assign_tags`, `auto_assign_mag_ids` to `forms`), 060 (make `forms.fields` nullable). `formatSupabaseError` in crm.ts for RPC errors
-- [ ] Assign form fields to form (form = logical grouping of custom fields)
-  - [ ] Migration: add `form_custom_fields` junction (form_id, custom_field_id, display_order, required?) or store `custom_field_ids` on forms (e.g. `settings` or dedicated column)
-  - [ ] RPC / `crm.ts`: `getFormFields(formId)` or extend form payload with `field_ids`; `updateForm` for writes
-  - [ ] Forms UI: in Forms add/edit modal, multi-select custom fields for this form; optional display order. PATCH `/api/crm/forms/[id]`
-  - [ ] Optional later: filter Custom Fields tab on contact detail by form (All | Contact's form | specific); persist in sessionStorage
+- [x] Assign form fields to form (form = logical grouping of custom fields)
+  - [x] Migration: form_fields table (061), RPC (062); getFormFields(formId), PATCH with field_assignments
+  - [x] Forms UI: in Forms add/edit modal, multi-select custom fields for this form; display order, required. PATCH `/api/crm/forms/[id]`, GET `/api/crm/forms/[id]/fields`
+  - [x] Optional later: filter Custom Fields tab on contact detail by form (All | Contact's form | specific); persist in sessionStorage
 
-- [ ] Create form submission API
-  - [ ] Create `POST /api/forms/[formId]/submit` route:
-    - [ ] Validate form data against CRM field validation rules
-    - [ ] Create/update CRM contact record
-    - [ ] Store custom field values in relational table
-    - [ ] Auto-assign tags (if configured)
-    - [ ] Auto-assign MAGs (if configured)
-    - [ ] Process consents
-    - [ ] Set DND status based on consent
-    - [ ] Return success/error response
+- [x] Custom Fields section (contact detail): filter, persist open, edit (see sessionlog §3b)
+  - [x] Form filter in Custom Fields section: All | Contact's form | specific form; persist in sessionStorage
+  - [x] Persist twirldown open state (sessionStorage, per contact) so Custom Fields stays open when returning from Edit or another contact
+  - [x] API: PATCH /api/crm/contacts/[id]/custom-fields (single or batch); use upsertContactCustomFieldValue
+  - [x] Inline edit per row: pencil/click → input by type (text, select, multiselect); Save/Cancel; single-line layout (label | value | pencil)
+  - [ ] Optional: "Edit all" mode in section header; Save all / Cancel
 
-- [ ] Create form submissions view
-  - [ ] Create `src/app/admin/forms/[id]/submissions/page.tsx` (view form submissions)
-  - [ ] Link submissions to CRM contacts
-  - [ ] Filter and search submissions
+- [x] Create form submission API
+  - [x] Create `POST /api/forms/[formId]/submit` route: validate, match/create/update contact, fill-in-blanks, append message; form_submissions table (066)
+  - [x] Store custom field values; new contact status from picklist
+
+- [x] Create form submissions view
+  - [x] Create `/admin/crm/forms/submissions` (list submissions, filter by form, link to contact)
 
 ### Phase 09: Membership System / MAG Manager (Tied to CRM)
 
-**Status**: Pending - Core feature for protected content, depends on Phase 00, 06, and 07 (CRM)
+**Status**: Complete - Core MAG management and CRM integration complete. Contact detail UI restructured. Next: mag-tag restriction for media/galleries.
 
-- [ ] Create MAG (Membership Access Groups) database schema
+- [x] Create MAG (Membership Access Groups) database schema
   - [ ] Create migration `supabase/migrations/005_mag_schema.sql`:
-    - [ ] `mags` table (id, code TEXT UNIQUE, name, slug, description, tier, default_message, ecommerce_tag, auto_assign_on_payment, created_at, updated_at)
+    - [ ] `mags` table (id, code TEXT UNIQUE, name, slug, description, tier, default_message, ecommerce_tag, auto_assign_on_payment, start_date, end_date [nullable = lifetime], status [active | draft], created_at, updated_at)
+    - [ ] **Draft MAGs:** Assignable in admin so developers can work on pages/sections/content; hidden from all users (public and member-facing). Only active MAGs appear in public/member UI.
     - [ ] `members` table (id UUID REFERENCES auth.users, email, display_name, status, created_at, updated_at)
     - [ ] `user_mags` junction table (id, member_id, mag_id, expires_at, assigned_via, created_at, updated_at)
     - [ ] Note: No payment transaction tracking - all payment details stay in ecommerce platform
@@ -662,7 +660,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Add `menu_items` table with `access_level` and `required_mag_id` columns
   - [ ] Add indexes for performance (code for shortcode lookups, ecommerce_tag for webhook lookups, member_id)
 
-- [ ] Build MAG utilities
+- [x] Build MAG utilities
   - [ ] Create `src/lib/supabase/mags.ts`:
     - `getMAGs()` - List all MAGs
     - `getMemberMAGs()` - Get member's active MAGs
@@ -718,6 +716,8 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Create `src/app/admin/mags/[id]/page.tsx` (edit MAG):
     - [ ] Code field (unique, for shortcode references)
     - [ ] Name, slug, description
+    - [ ] Start date, end date (nullable = lifetime)
+    - [ ] Status: active vs draft (draft = in development, hidden from all users; assignable in admin for dev testing)
     - [ ] Default message field (site-wide default message)
     - [ ] Simple ecommerce tag field (text input for tag reference)
     - [ ] Auto-assign toggle checkbox

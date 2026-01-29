@@ -16,7 +16,7 @@ export default async function ContactsPage() {
     contactStatuses,
   ] = await Promise.all([
     getContacts(),
-    getMags(),
+    getMags(true),
     getMarketingLists(),
     getAllContactMags(),
     getAllContactMarketingLists(),

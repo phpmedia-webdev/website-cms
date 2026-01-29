@@ -1,0 +1,171 @@
+https://feedback.boei.help/f/knowledge-base/call-me-back
+https://feedback.boei.help/f/knowledge-base/newsletter-signup
+https://feedback.boei.help/f/knowledge-base/contact-form
+https://feedback.boei.help/f/knowledge-base/feedback-form
+
+Membership QA Response - answers following
+Membership development Q&A (non‑payment scope)
+Use these to decide what to build in this app vs. leave to ecommerce, and what to support via API vs. in‑app.
+1. Membership models and plans (structure only; no billing)
+Q1.1 How many membership tiers/plans do we need to support (e.g. one per “product” from ecomm, or do we need unlimited configurable plans in this app)? 
+A1.1 We need unlimited memberships capability.
+
+Q1.2 Can one member have multiple active memberships (e.g. “Newsletter” + “Premium”)? If yes, how do we combine access (additive vs. highest tier)?
+A1.2 Yes multiple active memberships need to be possible. My use case is to assign a membership to an object (like a video title) and display a gallery of protected content made accessible by the membership(s). Other clients may have the need for the traditional tiered structure. As we create membership objects, we can incorporate a "Is this membership part of a tier" option and supply the membership with an "Order" field to determine where the membership falls in a tiered plan.
+
+Q1.3 Do we need add‑on capabilities (e.g. “downloads,” “forum access”) that can be granted independently of a plan, or is “plan = one MAG” enough?
+A1.3 Since we are designing each web application (client website) as a custom application, we can use the shortcodes and page and section protection methods we plan to implement to manage this feature. there should not be a need to track this in a separate table.
+
+Q1.4 Do we need fixed‑term vs rolling vs lifetime in our model? (Ecomm may send expires_at or “lifetime”; we only need to store and respect it.)
+A1.4 memberships should have a field for expiration date. this determine if the membership is active or expired (membership not active so access to protected content not allowed). this field can be set to unlimted for lifetime access. this field can be edited by an admin and set by API from the external ecomm app. rather than constant cron job checking status, a check can be made on launch to determine if memberhip status is active? discuss CPU load for managing this.
+
+Q1.5 Do we need delayed/scheduled start (access starts on a future date)? If ecomm sends “starts_at,” do we enforce it here or assume ecomm only sends when access should start?
+A1.5 Ecomm and external automations will manage - however we should include a start date field for memberships as will as the exiration date as discussed from Q1.4.
+
+Q1.6 Do we need group/team/sponsored memberships (one buyer, many members; seats; invite flow)? Or is every member tied to their own purchase?
+A1.6 I plan to incorporate a sign-up code that can be used on the login page or on a member portal page. the code will allow access to a membership access group (mag) which should suffice for this purpose. 
+
+Q1.7 Do we support gifting/comped access (granted by admin or by ecomm “gift” event)? If yes, do we need a distinct “grant source” (purchase vs. admin vs. gift)?
+A1.7 My signin code or code apply on member profile page can accomplish this
+We need a code system that can track code use so it can be finite or unlimited. also a code generator that can generate multiple (100s of unique codes) that can apply to a membership. we will need a tracking table for these codes as a unique code cannot be used again or on a different membership.
+
+Q1.8 Do we need plan‑specific limits in this app (e.g. download caps, rate limits, “X posts per month”)? Or are limits enforced only in ecomm/other systems?
+A1.8 no need to track this now
+
+2. Access control and content protection
+Q2.1 What content types must we restrict? (e.g. posts, pages, custom content types, galleries, media?) — Match to your content/taxonomy and media model.
+A2.1 all of the above and the use of inline code shortcodes as already documented in prd. 
+
+Q2.2 Restriction level: whole item only, or also partial (excerpt vs. full, shortcode/block gating, “teaser + CTA”)?
+A2.2 based on Q2.1 content types. some are whole items, others are inline blocks by shortcode. also at the location of the block it needs to be determined if the block is invisible (no warning message) or a CTA or message is provide because of the block. 
+ 
+Q2.3 Do we need drip content (unlock by days since join or by calendar date)? If yes, is that driven by ecomm (e.g. “day 7 product”) or by rules we store (e.g. “unlock 7 days after MAG assignment”)?
+A2.3 add this as a nice-to-have feature toward end of the development for this module. clients need will determine. 
+ 
+Q2.4 Do we need taxonomy‑based rules (e.g. “Category X is Premium only”) in addition to per‑item rules?
+A2.4 yes this would be good to implement. i used woocommerce memberships that had this feature.
+
+Q2.5 Do we need URL/route‑level rules (e.g. /members/*, /courses/*) or is “per content item + taxonomy” enough?
+A2.5 i do not see a need for route level restrictions. we can use content level for now.
+
+Q2.6 File/download protection: do we serve protected files from this app (e.g. signed/expiring URLs) or only link to them (e.g. ecomm/LMS handles delivery)?
+A2.6 We will be offering protected file downloads. i would like a way to obscure the download link in the URL (to prevent sharing the link) or have time limited URL redirects. Some method of URL protection for downloads.
+
+Q2.7 Do we need menu/nav filtering (hide or show items by MAG) on the public site?
+A2.7 Yes memberships need to protect and hide certain nav links to make them invisible. as menus are custom code, we can implement as we code but we need the back end membership assignment ability to offer this.
+On the detail page when creating / updating the membership there can be assignment areas for where the membership applies.
+
+Q2.8 Do we need search/RSS filtering (exclude restricted content from results/feeds for non‑members)?
+A2.8 Absolutely yes. non-members should not be able to find an item accidently or intentional without membership access grant. 
+
+Q2.9 Visibility mode: when access is denied, do we show hidden (nothing) or message (e.g. “Upgrade to Premium”)? Per content type or global default?
+A2.9 This can be set at the membership object to be global (per membership) but also overridden at the content level. the default operation is to hide any warnings, messages or CTA so memberships appear silent but have the ability per content (page, section, shortcode) to override and add a message.
+
+3. Subscription lifecycle (events from ecomm API; no billing logic)
+Q3.1 Which membership statuses do we need? (e.g. pending, active, trialing, paused, cancelled, expired, past_due). Which of these will ecomm send?
+A3.1 Use Pending (based on start and end date or payment), Active, paused, cancelled, expired. These need to be managed in a superadmin area in a table that can be tenant scoped. different clients may have different needs 
+ 
+Q3.2 Do we need grace period (e.g. “past_due” but still allow access for N days)? If yes, do we enforce it here or does ecomm send a final “revoke” at end of grace?
+A3.2 We will let ecomm send reminders and manage the automation to revoke or expire membership. no need to track in the module.
+
+Q3.3 Webhook/API contract: what events will ecomm send? (e.g. grant, revoke, renew, expire, pause, cancel, upgrade, downgrade.) Do we need to support all of these in our schema and handlers?
+A3.3 Yes. if this requires Q3.1 subscription lifecycles and status's to be fixed, then we can decide on the exact permanent field names to use and eliminate the custom - per tenant table for membership statuses. 
+
+Q3.4 Do we need delayed start (ecomm sends “starts_at” and we only grant access from that time)?
+A3.4 we can use the start date / end date feature of the membership to enforce. Set membership as active but the date range will override.
+
+Q3.5 For renewals, does ecomm send “renewed until &lt;date&gt;” and we just update expires_at, or do we need to track “renewal windows”/reminders in this app?
+A3.5 no reminder tracking. external ecomm and automations will track
+
+Q3.6 Do we need to expose webhooks from this app (e.g. “membership activated/expired”) for CRM, ESP, or analytics?
+4. Member management (beyond auth)
+A3.6 YES, APIs are needed so the external ecomm can trigger membership control. Set member access, expire dates etc.
+
+Q4.1 Member profile: what fields do we store here? (e.g. name, email, MAGs, status, expires_at.) Do we need custom profile fields beyond what ecomm sends?
+A4.1 the web app crm can track a user profile with all fields needed and the crm also tracks related memberships
+
+Q4.2 Do we need a member dashboard/portal in this app (view plans, expiry, links to content), or is “ecomm customer portal + this site for content” enough?
+A4.2 Yes but these can be build in code by dev for each tenant client. we should have the fields in the CRM already to expose and allow member to update 
+
+Q4.3 Self‑service: should members be able to change plan, pause, or cancel in this app, or only in ecomm (we just reflect state from API)?
+A4.3 for now, this can be controlled externally by API. we can develop internal portal for this based on tenant client interest. 
+
+Q4.4 Do we need approval/vetting (e.g. manual approval before access)? If yes, is that triggered from this app or from ecomm?
+A4.4 no, ecomm/automation handles and will send API
+
+Q4.5 Admin notes and history: do we need an audit trail of “MAG assigned/removed, by whom, when” and admin‑only notes on the member?
+A4.5 we have the crm notes field we can use for this if required. for now, leave this off, add mention as a nice-to-have later featre.
+
+Q4.6 Bulk operations: import/export members (or MAG assignments), bulk assign/revoke MAGs? If yes, CSV/API or both?
+A4.6 not now - add to future dev idea
+
+Q4.7 Corporate/group admin: if we have group/team plans, do admins in this app manage “seats” and invites, or does ecomm handle that and we only receive “user X has MAG Y”?
+A4.7 we will manage with the code feature we implement.
+
+5. Integrations and APIs (inbound from ecomm; outbound to others)
+Q5.1 Inbound: exact API contract from ecomm (payload for “grant access,” “revoke,” “renew,” “expire”). Do we support idempotency (e.g. idempotency key or id) to avoid duplicate processing?
+A5.1 we should support idempotency as a user (using a free signup form) may apply more than once and the outcome should be the same by keeping current state of membership and not changing.
+
+
+Q5.2 Auth for webhooks: how does ecomm authenticate (API key, HMAC, JWT)? We need to validate before updating memberships.
+A5.2 probabl API key? using HighLevel CRM and it has robust webhook system.
+
+Q5.3 Do we need to sync members to an ESP (e.g. tags/segments by MAG)? If yes, do we push from this app or does ecomm/CRM handle it?
+A5.3 our web app CRM will be all that is needed. the CRM manages the email etc.
+
+Q5.4 CRM: we already have contacts and MAGs on contacts. When ecomm sends “member X,” do we match by email and attach MAG to the same contact record, or keep “member” and “contact” separate and link by email?
+A5.4 use the email as the primary match for the contact and update membership based on that info. 
+
+Q5.5 Do we need REST APIs from this app for external systems (e.g. “list members of MAG,” “check if user has MAG”)?
+A5.5 No not yet. defer development on this. add to future dev.
+
+6. Communications (non‑payment)
+Q6.1 Who sends welcome / access‑granted emails? (This app, ecomm, or ESP triggered by webhook?)
+A6.1 the ecomm/automation manages this
+
+Q6.2 Who sends expiry/renewal reminders? If this app sends them, do we need scheduled jobs that read expires_at and send (or trigger ESP)?
+A6.2 the external ecomm/automation
+
+Q6.3 Do we need templated emails in this app (e.g. “Your access to X expires on Y”) or is “ecomm + ESP” enough?
+A6.3 no, part of ecomm
+
+Q6.4 Do we need in‑app notifications (e.g. banner “Your plan expires in 7 days”) in addition to email?
+A6.4 no, part of ecomm
+
+7. Reporting and analytics (non‑payment)
+Q7.1 Do we need membership metrics in this app? (e.g. active members by MAG, signups in period, expirations, churn.) Or is reporting in ecomm/BI enough?
+A7.1 yes a good dashboard for the membership management page in the admin section of the web app. it would be helpful to select a membership in the list and review the stats for it.
+
+Q7.2 If yes, what level? (Counts only, or cohorts, retention, “members by MAG over time”?)
+A7.2 just basic count. oldest/most recent user
+
+Q7.3 Do we need exports (CSV/API) of members and MAG assignments for analysis?
+A7.3 not at this time
+
+Q7.4 Revenue/MRR/failed payments: confirm these stay in ecomm only and we do not duplicate.
+A7.4 keep in ecomm - no need to track here
+
+8. Security and compliance
+Q8.1 Audit trail: do we log “who assigned/revoked MAG, when” and “who changed member status” for compliance?
+A8.1 leave off for now.
+
+Q8.2 GDPR: do we need export/erasure of member data (and MAG history) from this app, or is ecomm the source of truth and we just purge on request?
+A8.2 we are not GDPR in USA. we can easily purge contact/membership data if requested. 
+
+Q8.3 Admin roles: do we need role‑based permissions (e.g. only some admins can assign/revoke MAGs or see member lists)?
+A8.3 right now we only have admin and superadmin as part of the web app specs. leave off for now but add to future development. this will involve the need for managing roles in general as part of the web app which is not developed yet.
+
+9. Multisite / multi‑tenant / i18n
+Q9.1 Are we multi‑tenant (one deployment, many client schemas)? If yes, members and MAGs are per‑tenant; ecomm webhooks must include tenant/schema or we derive it from config.
+A9.1 this will definitely be multi-tenant scope. each web application (client website) is its own membership platform. the API will need to reference the web app URL and that should map to the client schema.
+
+Q9.2 Do we need localized member‑facing strings (e.g. “Upgrade to Premium”) or is one language enough for now?
+A9.2 one language (English) and terms is good for now
+
+Summary: what we’re not building (handled by ecomm)
+Payment gateways, checkout, SCA/3DS, wallets
+Pricing, coupons, taxes, multi‑currency, invoices, receipts
+Dunning, retries, saved payment methods
+Revenue/MRR/failed‑payment reporting
+We are defining: MAGs (plans), access rules, content protection, lifecycle state from ecomm API, member management UX, and optional reporting/communications that don’t duplicate billing.
+You can paste this into a doc (e.g. docs/membership-features-qa.md) or into planlog/sessionlog as a checklist and tick answers as you decide. If you tell me which areas you want to prioritize first (e.g. “access control only” or “lifecycle + member list”), I can turn that into a minimal Phase 09 scope list next.

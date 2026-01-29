@@ -1,0 +1,168 @@
+# Developer Cheatsheet
+
+Quick reference for common commands and useful links. Copy this file between projects.
+
+---
+
+## Local Dev Server
+
+### Default Ports
+- **Primary:** http://localhost:3000
+- **Fallback:** http://localhost:3001, http://localhost:3002, etc.
+
+### Start Dev Server
+```bash
+pnpm run dev
+```
+
+---
+
+## Process Management (Windows PowerShell)
+
+### Kill All Node.js Processes
+```powershell
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+### Check What's Using a Port
+```powershell
+netstat -ano | findstr ":3000"
+```
+
+### Kill Process by PID
+```powershell
+taskkill /PID <pid> /F
+```
+
+### List All Node Processes with Details
+```powershell
+Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime, @{Name='Memory(MB)';Expression={[math]::Round($_.WorkingSet64/1MB,2)}}
+```
+
+### Find Process by Port and Kill It
+```powershell
+# Find PID on port 3000
+$pid = (netstat -ano | findstr ":3000" | findstr "LISTENING")[0] -replace '.*\s+(\d+)$','$1'
+taskkill /PID $pid /F
+```
+
+---
+
+## Git Commands
+
+### Undo Last Commit (keep changes)
+```bash
+git reset --soft HEAD~1
+```
+
+### Discard All Local Changes
+```bash
+git checkout -- .
+```
+
+### Stash Changes
+```bash
+git stash
+git stash pop
+```
+
+### View Recent Commits
+```bash
+git log --oneline -10
+```
+
+---
+
+## pnpm Commands
+
+### Clear Cache
+```bash
+pnpm store prune
+```
+
+### Update All Dependencies
+```bash
+pnpm update
+```
+
+### Check for Outdated
+```bash
+pnpm outdated
+```
+
+---
+
+## Next.js / Dev Server
+
+### Clear Next.js Cache
+```powershell
+Remove-Item -Recurse -Force .next\cache -ErrorAction SilentlyContinue
+```
+
+### Full Clean Restart
+```powershell
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+pnpm run dev
+```
+
+---
+
+## Useful Links
+
+### Documentation
+- [Next.js Docs](https://nextjs.org/docs)
+- [React Docs](https://react.dev)
+- [TypeScript Docs](https://www.typescriptlang.org/docs/)
+- [Tailwind CSS Docs](https://tailwindcss.com/docs)
+- [shadcn/ui Components](https://ui.shadcn.com/docs/components)
+
+### Supabase
+- [Supabase Dashboard](https://supabase.com/dashboard)
+- [Supabase Docs](https://supabase.com/docs)
+- [PostgreSQL Docs](https://www.postgresql.org/docs/)
+
+### Tools
+- [Lucide Icons](https://lucide.dev/icons/) - Icon library used in this project
+- [Regex101](https://regex101.com/) - Test regex patterns
+- [JSON Formatter](https://jsonformatter.org/)
+- [Base64 Encode/Decode](https://www.base64encode.org/)
+
+### AI / Dev Tools
+- [Claude](https://claude.ai)
+- [GitHub](https://github.com)
+- [Vercel Dashboard](https://vercel.com/dashboard)
+
+### Reference
+- [MDN Web Docs](https://developer.mozilla.org/)
+- [Can I Use](https://caniuse.com/) - Browser compatibility
+- [HTTP Status Codes](https://httpstatuses.com/)
+
+---
+
+## Project-Specific
+
+### This Project's Supabase
+- Project Ref: `sjmhierrkokthcpmyzxw`
+- [SQL Editor](https://supabase.com/dashboard/project/sjmhierrkokthcpmyzxw/sql)
+
+---
+
+## Troubleshooting
+
+### "Port 3000 is in use"
+```powershell
+# Kill whatever is using port 3000
+netstat -ano | findstr ":3000" | findstr "LISTENING"
+# Note the PID (last column), then:
+taskkill /PID <pid> /F
+```
+
+### Browser Not Showing Changes
+1. Hard refresh: `Ctrl + Shift + R`
+2. Clear Next.js cache: `Remove-Item -Recurse -Force .next\cache`
+3. Restart dev server
+
+### Cursor Browser Suppressing Dialogs
+Native `window.confirm()` and `window.alert()` are suppressed by Cursor browser.
+Use custom modal dialogs instead (see ContactDetailClient.tsx for example).

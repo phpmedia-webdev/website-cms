@@ -4,7 +4,8 @@ import { searchMags } from "@/lib/supabase/crm";
 
 /**
  * GET /api/crm/mags/search?q=...
- * Search MAGs by name/uid (authenticated).
+ * Search MAGs by name/uid (authenticated, admin context).
+ * Returns all MAGs including draft so admin can assign draft for dev testing.
  */
 export async function GET(request: Request) {
   try {

@@ -381,13 +381,15 @@ Custom types (e.g. **Portfolio**, **Properties**) use the same `content` table. 
 
 ### Events
 
-**Event Calendar:**
+**Event Calendar (dual purpose):**
+- **Public events:** Publish events (e.g. webinars, workshops) for the site; visible with full details on the public calendar and in the ICS feed.
+- **Scheduling and booking backend:** The same calendar supports scheduling and booking private meetings (e.g. client calls). Private meetings are visible in full only in the admin calendar; on the public side they appear only as blocked/unavailable time (no title or details).
 - Event creation and management
 - Date/time with timezone support
 - Location information
 - Recurrence patterns (daily, weekly, monthly, yearly)
 - Event descriptions
-- Access control: public, members-only, or MAG-restricted
+- Access control: public, members-only, or MAG-restricted (for public events); private (meetings) visible only as availability blocks to the public
 - Calendar views: day, week, month, agenda
 - iCalendar (ICS) subscription feed
 

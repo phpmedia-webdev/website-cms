@@ -18,3 +18,10 @@ alwaysApply: true
 - **Where:** Supabase Dashboard → SQL Editor.
 - **How:** Copy the contents of each migration file from `supabase/migrations/` (in filename order: 023, 024, …, 052, 053, etc.) and paste into the SQL Editor, then Run. Run one migration at a time, or batch in order if you prefer.
 - When adding new migrations: (1) List `supabase/migrations/` to find the latest numeric prefix (e.g. 053), increment by one (054). (2) Create the file as `XXX_description.sql`. (3) In the **top comment header** of the script, include a line: `-- File: XXX_description.sql` so you can scan Supabase SQL Editor run history and match by filename. (4) Direct the user: "Copy the contents of `supabase/migrations/XXX_name.sql` and run in Supabase SQL Editor."
+
+## Database security at session end (wrap-up)
+
+- **Before ending a session** (or before commit/push): Confirm no database tables were left in a vulnerable state.
+- **Check:** Did we disable RLS (Row Level Security), relax policies, or add temporary bypasses for testing? If yes, re-enable RLS or revert before wrapping up.
+- **Why:** Temporary changes (e.g. "disable RLS for testing") can remain for hours or days between sessions and leave exposed schemas open to unconstrained access.
+- **Action:** Re-enable RLS, restore policies, or add a migration to fix and run it before session end. Do not leave tables with RLS disabled in exposed schemas.

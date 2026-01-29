@@ -9,6 +9,37 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-01-29 22:45 CT - Contact Detail UI Restructure & Memberships Complete
+
+**Context for Next Session:**
+- **Memberships (CRM MAG management):** Complete and tested. List/detail/create/edit MAGs, assign from MAG detail and from contact detail, draft visibility, search with auto-suggest, confirmation dialogs.
+- **Contact Detail UI:** Restructured following design reference. Main card: name+company top left, clickable status badge + Edit top right, two columns (Contact Info with Person icon row | Address), Form Submission Message with Copy to Notes. Tabbed section below: Notes | Taxonomy | Custom Fields | Marketing Lists | Memberships. Tab content cards sized appropriately.
+- **Developer Cheatsheet:** Created `.cursor/rules/cheatsheet.mdc` with common commands (kill Node processes, port management, Next.js cache clearing) and useful links (docs, Supabase, tools). Localhost section at top for quick access.
+- **Ready for:** Mag-tag restriction for media/galleries (auto-create `mag-{uid}` tags, filter gallery by user's MAGs).
+
+**Key Files Changed:**
+- `src/app/admin/crm/contacts/[id]/page.tsx` - Restructured layout, added Person icon row with last name + full name
+- `src/app/admin/crm/contacts/[id]/ContactDetailTabs.tsx` - New tabbed interface component
+- `src/app/admin/crm/contacts/[id]/ContactDetailClient.tsx` - Added `activeSection` prop, modal confirmation for MAG removal, clear button for search, useEffect to sync notes on refresh
+- `src/app/admin/crm/contacts/[id]/ContactCardStatusBadge.tsx` - Clickable status badge with modal
+- `src/app/admin/crm/contacts/[id]/CopyMessageToNotesButton.tsx` - Already had router.refresh()
+- `.cursor/rules/cheatsheet.mdc` - New developer reference file
+- `docs/sessionlog.md` - Pruned completed items, updated for next session
+- `docs/planlog.md` - Phase 09 status updated to Complete
+
+**Changes:**
+- **Contact Detail Layout:** Name + company at top left; clickable status badge (opens modal) + Edit button at top right; two columns: Contact Information (Person icon with last name, full name | Email | Phone | Company) and Address (Street | City, State, ZIP); Form Submission Message section below with Copy to Notes button.
+- **Tabbed Interface:** Notes, Taxonomy, Custom Fields, Marketing Lists, Memberships tabs. Each tab renders in a card (min-height 450px). State preserved when switching tabs (one ContactDetailClient instance with activeSection prop).
+- **Memberships Tab:** Search bar with clear button (X when text entered), auto-suggest dropdown, modal confirmation dialog when removing membership (not suppressed by Cursor browser).
+- **Copy to Notes:** Added useEffect to sync notes state when initialNotes changes, so Notes tab updates immediately after copy.
+- **Cheatsheet:** Commands for killing Node processes, checking ports, clearing Next.js cache, full clean restart. Links to Next.js, React, TypeScript, Tailwind, shadcn/ui, Supabase, Lucide icons, dev tools.
+
+### 2026-01-29 - CRM wrap-up; sessionlog pruned; next: memberships
+- **Context for Next Session:** CRM Custom Fields section is complete (form filter, persist accordion open state, PATCH custom-fields API, inline edit per row). Sessionlog synced to planlog and pruned; items that will be implemented with memberships remain in sessionlog. **Next:** Membership code — Memberships page (`/admin/crm/memberships`), MAG list/select/contacts, list/create/edit MAGs; then Review walk-through; Boei integration in a future session.
+- **Updated:** `docs/sessionlog.md` — Wrapped up CRM (Custom Fields form filter, persist open, inline edit, API). Checked off and removed completed items; kept §4 Memberships (MAG tables/RPCs, mags.ts, Admin Memberships page), §5 Review, §6 Boei for next work. Current focus set to memberships.
+- **Synced:** Completed sessionlog steps matched and checked in `docs/planlog.md` (Phase 08 Custom Fields already marked done).
+- **Note:** Doc(s) moved to `docs/archived` to keep root clean (per user).
+
 ### 2026-01-28 (session wrap-up) - CRM/forms evaluation; Boei next session
 - **Context for Next Session:** CRM and forms in good shape. This session: evaluation and sessionlog update (sidebar "New" badge, fixed "New" status, status on Taxonomy card, contact list columns/sort/clickable row, form submit API and submissions list). **Next up:** Optional Custom Fields form filter; Phase 09 Memberships; full review walk-through. **Next session:** Review [Boei](https://boei.help/) docs—page widget (forms, links, chatbot); use Boei API to add forms/submissions into CRM. Sessionlog §6 has the Boei review task.
 - **Updated:** `docs/sessionlog.md` — Added §6 Next session: Boei integration (review); Context updated for handoff.

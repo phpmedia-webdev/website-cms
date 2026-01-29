@@ -1,8 +1,11 @@
-export default function MembershipsPage() {
+import { getMags } from "@/lib/supabase/crm";
+import { MembershipsListClient } from "./MembershipsListClient";
+
+export default async function MembershipsPage() {
+  const mags = await getMags(true);
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold">Memberships</h1>
-      <p className="text-muted-foreground mt-1">Coming soon.</p>
+      <MembershipsListClient mags={mags} />
     </div>
   );
 }

@@ -170,10 +170,12 @@ All text-based content types (posts, pages, snippets, quotes, articles, custom) 
 - Access Control: access_level, required_mag_id, visibility_mode, restricted_message
 - Related: `gallery_items` table for gallery images
 
-**Events Table:**
+**Events Table (calendar dual purpose):**
+- **Public events:** Published events (e.g. webinars) shown with full details on the public calendar and ICS feed.
+- **Scheduling/booking backend:** Private meetings use the same calendar; full details only in admin; public API exposes only time blocks as unavailable (no title/details). Free-busy and booking flows respect both public events and private meetings.
 - Event details: title, description, start_date, end_date, location
 - Recurrence: recurrence_pattern (JSONB), timezone
-- Access Control: access_level, required_mag_id
+- Access Control: access_level, required_mag_id; visibility (e.g. public vs private) determines what is exposed to the public calendar
 
 ### Taxonomy Tables
 
@@ -506,7 +508,8 @@ When creating **any** new content type (e.g. properties, products, custom storag
 - `GET /api/galleries` - List all galleries
 - `GET /api/galleries/[id]` - Get gallery with items by ID or slug
 - `GET /api/media/[id]` - Get media item details
-- `GET /api/events` - List events (supports date range filtering)
+- **Events (calendar dual purpose: public events + scheduling/booking backend):**
+- `GET /api/events` - List events (supports date range filtering; public events only, or unavailable blocks for private meetings as configured)
 - `GET /api/events/[id]` - Get event by ID (or slug)
 - `GET /api/events/ics` - iCalendar (ICS) subscription feed
 
@@ -521,8 +524,8 @@ When creating **any** new content type (e.g. properties, products, custom storag
 
 ### Authenticated Admin API
 
-**Event Management:**
-- `POST /api/events` - Create event
+**Event Management (calendar dual purpose: public events + private meetings/booking):**
+- `POST /api/events` - Create event (public event or private meeting)
 - `PUT /api/events/[id]` - Update event
 - `DELETE /api/events/[id]` - Delete event
 
