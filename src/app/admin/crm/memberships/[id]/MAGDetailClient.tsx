@@ -74,20 +74,12 @@ export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) 
   };
 
   const [assignOpen, setAssignOpen] = useState(false);
+  const [uidChangeWarningOpen, setUidChangeWarningOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [allContacts, setAllContacts] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
   const [assigning, setAssigning] = useState(false);
 
-  const handleSave = async () => {
-    const uidChanged = uid !== mag.uid;
-    const tagChanged = magTag !== `mag-${mag.uid}`;
-    if (uidChanged || tagChanged) {
-      const ok = window.confirm(
-        "Changing UID or MAG-TAG can affect existing content, media tags, and integrations. Continue?"
-      );
-      if (!ok) return;
-    }
-
+  const performSave = async () => {
     setSaving(true);
     try {
       const res = await fetch(`/api/crm/mags/${mag.id}`, {
@@ -107,10 +99,21 @@ export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) 
         alert(data.error || "Failed to update");
         return;
       }
+      setUidChangeWarningOpen(false);
       router.refresh();
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    const uidChanged = uid !== mag.uid;
+    const tagChanged = magTag !== `mag-${mag.uid}`;
+    if (uidChanged || tagChanged) {
+      setUidChangeWarningOpen(true);
+      return;
+    }
+    await performSave();
   };
 
   const handleRemoveContact = async (contactId: string) => {
@@ -333,6 +336,33 @@ export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) 
                     ))
                   )}
                 </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={uidChangeWarningOpen} onOpenChange={setUidChangeWarningOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>UID or MAG-TAG changed</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Changing the UID or MAG-TAG will create a new taxonomy tag. Existing relations will not be updated automatically.
+                </p>
+                <p>
+                  <strong>You will need to manually update</strong> any media or content that currently uses the old tag (e.g. in Media Library → edit item → Taxonomy). References to the old tag will become unsynced.
+                </p>
+                <p>
+                  Continue to save with the new UID/TAG?
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setUidChangeWarningOpen(false)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={() => performSave()} disabled={saving}>
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                  Continue
+                </Button>
               </div>
             </DialogContent>
           </Dialog>

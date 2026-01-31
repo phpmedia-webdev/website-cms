@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getMagById, updateMag, deleteMag } from "@/lib/supabase/crm";
+import { ensureMagTagExists } from "@/lib/supabase/taxonomy";
 
 /**
  * GET /api/crm/mags/[id]
@@ -72,6 +73,13 @@ export async function PUT(
         { error: error.message || "Failed to update MAG" },
         { status: 500 }
       );
+    }
+
+    if (updated?.uid) {
+      const { error: tagErr } = await ensureMagTagExists(updated.uid, updated.name);
+      if (tagErr) {
+        console.warn("MAG updated but mag-tag ensure failed:", tagErr);
+      }
     }
 
     return NextResponse.json(updated);

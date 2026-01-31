@@ -53,6 +53,90 @@ function termsForSection(
 export const MEDIA_SECTION_IMAGE = "image";
 export const MEDIA_SECTION_VIDEO = "video";
 
+async function addMagTagSlugToSections(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  schema: string,
+  slug: string
+): Promise<void> {
+  const { data: configs } = await supabase
+    .schema(schema)
+    .from("section_taxonomy_config")
+    .select("id, tag_slugs")
+    .in("section_name", ["image", "video", "membership"]);
+
+  for (const row of configs || []) {
+    const arr = Array.isArray(row.tag_slugs) ? row.tag_slugs : [];
+    if (arr.includes(slug)) continue;
+    const next = [...arr, slug];
+    await supabase
+      .schema(schema)
+      .from("section_taxonomy_config")
+      .update({ tag_slugs: next })
+      .eq("id", row.id);
+  }
+}
+
+/**
+ * Ensure a mag-tag exists in taxonomy for a MAG.
+ * Called when creating or updating a MAG (when uid changes).
+ * Creates tag with slug `mag-{uid}`, adds to image, video, and membership sections.
+ * Idempotent: if tag already exists, ensures it's in sections and returns.
+ */
+export async function ensureMagTagExists(
+  magUid: string,
+  magName: string
+): Promise<{ termId: string | null; created: boolean; error: string | null }> {
+  if (!magUid?.trim()) return { termId: null, created: false, error: "UID is required" };
+  const slug = `mag-${magUid.trim().toLowerCase()}`;
+  const supabase = createServerSupabaseClient();
+  const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+
+  try {
+    const { data: existing } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .select("id")
+      .eq("type", "tag")
+      .eq("slug", slug)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      await addMagTagSlugToSections(supabase, schema, slug);
+      return { termId: existing.id, created: false, error: null };
+    }
+
+    const termData = {
+      name: `MAG: ${magName || magUid}`,
+      slug,
+      type: "tag" as const,
+      parent_id: null,
+      description: null,
+      suggested_sections: ["image", "video", "membership"],
+    };
+
+    const { data: inserted, error: insertErr } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .insert(termData)
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      console.error("ensureMagTagExists insert:", insertErr);
+      return { termId: null, created: false, error: insertErr.message };
+    }
+
+    await addMagTagSlugToSections(supabase, schema, slug);
+
+    return { termId: inserted.id, created: true, error: null };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("ensureMagTagExists:", msg);
+    return { termId: null, created: false, error: msg };
+  }
+}
+
 /**
  * Map media_type to taxonomy section name.
  * Used when assigning taxonomy to a media item.

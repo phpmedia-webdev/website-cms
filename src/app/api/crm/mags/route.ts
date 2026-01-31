@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getMags, createMag } from "@/lib/supabase/crm";
+import { ensureMagTagExists } from "@/lib/supabase/taxonomy";
 
 /**
  * GET /api/crm/mags
@@ -56,6 +57,11 @@ export async function POST(request: Request) {
         { error: error.message || "Failed to create MAG" },
         { status: 500 }
       );
+    }
+
+    const { error: tagErr } = await ensureMagTagExists(created.uid, created.name);
+    if (tagErr) {
+      console.warn("MAG created but mag-tag creation failed:", tagErr);
     }
 
     return NextResponse.json(created);

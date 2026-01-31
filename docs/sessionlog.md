@@ -15,24 +15,21 @@
 
 ## Current Focus
 
-**Ready for next session** — Memberships (CRM MAG management) complete. Contact detail UI restructured. Cheatsheet created.
+Galleries first (schema, assignment, shortcode, renderer) — then membership protection. Protecting gallery items is a primary membership use case; galleries must be functional before we can test MAG protection on them.
 
 ---
 
 ## Next Up
 
-### Mag-tag restriction for media/galleries
+### 1. Gallery Enhancement (see planlog — Gallery Enhancement phase)
+- [ ] Phase 1: Schema (status, access_level, required_mag_id) + GalleryEditor status
+- [ ] Phase 2: ImagePreviewModal — assign media to one or more galleries
+- [ ] Phase 3: GalleryEditor — media picker with taxonomy filter
+- [ ] Phase 4: Shortcode spec, parser, GalleryRenderer
+- [ ] Phase 5: Shortcode builder (post editor Insert gallery; gallery edit page "Use this gallery")
+- [ ] Phase 6: Public gallery page + API for developers
 
-**Use case:** Per-media MAG restriction via tags. Gallery of video titles by category; not every member has access to every title; use a "mag-tag" on media so only members with that MAG see the item.
-
-**Design:**
-- Tag slug `mag-{mag.uid}` = "restricted to this MAG"
-- Auto-create mag-tag when MAG is created
-- Admin assigns mag-tag to media items via taxonomy
-- Gallery filters: show media if (no mag-tag) OR (user has matching MAG)
-
-**To build:**
-- [ ] On MAG create: auto-create taxonomy tag with slug `mag-{uid}` in media sections
-- [ ] Helper: resolve mag-tags on media items; check user's MAGs for visibility
-- [ ] Gallery/media list: filter by mag-tag visibility for authenticated members
-- [ ] (Optional) Media detail: show assigned mag-tags (read-only)
+### 2. Membership protection (after galleries)
+- [ ] Member auth, checkContentAccess
+- [ ] Gallery: check access_level; filter items by mag-tag
+- [ ] End-to-end testing with protected gallery items

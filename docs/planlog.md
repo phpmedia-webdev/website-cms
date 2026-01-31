@@ -703,12 +703,41 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Create `src/components/memberships/MemberProfile.tsx`
 
 - [ ] Content protection implementation
-  - [ ] Update `src/app/(public)/blog/[slug]/page.tsx` to check access_level
-  - [ ] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level
-  - [ ] Create `src/components/public/ProtectedContent.tsx` wrapper component
-  - [ ] Create middleware/utility for checking content access before rendering
-  - [ ] Implement redirect to `/login` for unauthenticated access attempts
-  - [ ] Add teaser/preview content for non-members
+  - [ ] **Security principle (CRITICAL):** Server-side enforcement only. Restricted content body must NEVER be sent in the HTTP response for unauthorized users. Check access BEFORE rendering; do not fetch or include restricted body in HTML/JSON. Next.js Server Components enable this — gate at data layer.
+  - [ ] Create `checkContentAccess(content, memberSession)` in `src/lib/mags/content-protection.ts` — returns `{ hasAccess: boolean; visibilityMode?: string; message?: string }`. Used by all public page routes.
+  - [ ] Update `src/app/(public)/blog/[slug]/page.tsx`:
+    - [ ] Fetch content (metadata + body). Run `checkContentAccess(post, session)` BEFORE rendering.
+    - [ ] If no access: render `<RestrictedMessage />` or redirect to `/login`; do NOT pass `post.body` to any component.
+    - [ ] If access: render full content. Body never reaches client when unauthorized.
+  - [ ] Update `src/app/(public)/[slug]/page.tsx` (dynamic pages): same pattern — check access before rendering body.
+  - [ ] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level; filter gallery items by mag-tag visibility for members.
+  - [ ] Update blog list `src/app/(public)/blog/page.tsx`: filter out restricted posts user cannot access; optionally show teaser (title/excerpt only, no body) for restricted items when visibility_mode = message.
+  - [ ] Create `src/components/public/ProtectedContent.tsx` — server component wrapper; checks access, renders children or restricted message. Used for section-level and inline protection.
+  - [ ] Implement redirect to `/login` for unauthenticated access when access_level requires member (with return URL).
+  - [ ] **Never use client-side hiding** (CSS display:none, JS show/hide) for restricted content — insecure; content would still be in HTML source.
+
+- [ ] **Protected video/media delivery** (prevent URL copy-and-share)
+  - [ ] **Problem:** Direct video URLs in HTML (e.g. `<video src="https://storage.../video.mp4">`) can be copied from view source and shared; anyone with the URL could watch after membership ends or share with friends.
+  - [ ] **Solution: Proxy streaming** — Do NOT expose raw Supabase Storage URLs. Use authenticated API route that streams video to authorized users only.
+  - [ ] Create `src/app/api/stream/media/[id]/route.ts` (or `/api/stream/video/[id]`):
+    - [ ] Verify member session and MAG access (check media item's mag-tags against user's MAGs)
+    - [ ] If unauthorized: return 403
+    - [ ] If authorized: fetch from Supabase Storage (use signed URL with short expiry for internal fetch, or service role) and stream bytes to response
+    - [ ] Set appropriate headers: `Content-Type`, `Content-Length` or chunked, `Accept-Ranges` for seeking
+  - [ ] Gallery/video player: use `<video src="/api/stream/media/{id}">` — URL in view source points to proxy; requires valid session; shared link returns 403 for others
+  - [ ] **Optional:** Short-lived signed URLs for internal Supabase fetch (e.g. 2–4 hours) so even server-side fetch uses time-limited URLs
+  - [ ] **Cannot prevent:** Screen recording, account sharing. Protection stops casual URL sharing.
+
+- [ ] **Protected video/media downloads** (expiring links)
+  - [ ] **Problem:** Download links can be copied and shared; a permanent URL allows access after membership ends.
+  - [ ] **Option A — Proxy download (preferred):** Create `src/app/api/download/media/[id]/route.ts` — verifies session + MAG, streams file with `Content-Disposition: attachment`. No shareable URL; every download goes through auth. Same pattern as streaming proxy.
+  - [ ] **Option B — Expiring signed URLs:** When user clicks Download, call API that verifies access, generates Supabase signed URL with short expiry (e.g. 5–15 min), returns or redirects to it. User downloads within window; shared link expires quickly. Store nothing; generate on demand.
+  - [ ] Prefer Option A for strongest protection (no URL ever exposed). Option B if proxy is impractical for very large files.
+  - [ ] Download button: link to `/api/download/media/{id}` (proxy) or trigger fetch to get expiring URL then `window.location` / `<a download href={url}>`.
+
+- [ ] **Vimeo hosting & domain restriction**
+  - [ ] Plan to host videos on Vimeo; use Vimeo's domain restriction to allow playback only on allowed domains (reduces embed theft to other sites)
+  - [ ] **Consideration — Roku/OTT apps:** Domain restriction may block Roku or other streaming apps (they don't run on a web domain). Before building Roku app: verify Vimeo's options for app/OTT playback (signed embeds, API, token-based auth). May need different config for web vs app, or hybrid hosting.
 
 - [ ] Admin UI for MAG management (Easy CRM interface)
   - [ ] Create `src/app/admin/mags/page.tsx` (list all MAGs)
@@ -807,9 +836,10 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Create `src/app/api/members/verify/route.ts` (POST verify MAG - API key auth)
   - [ ] Create `src/app/api/member/profile/route.ts` (GET current member profile)
   - [ ] Update existing content API routes to respect access_level:
-    - [ ] Update `src/app/api/posts/[id]/route.ts` to check MAG access
-    - [ ] Update `src/app/api/galleries/[id]/route.ts` to check MAG access
+    - [ ] Update `src/app/api/posts/[id]/route.ts` to check MAG access; do NOT return body for unauthorized requests (return 403 or limited metadata only)
+    - [ ] Update `src/app/api/galleries/[id]/route.ts` to check MAG access; filter media by mag-tag visibility
     - [ ] Update `src/app/api/pages/[id]/route.ts` to check MAG access (page + section level)
+  - [ ] Search/RSS filtering: exclude restricted content from public search results and feeds for non-members
 
 - [ ] Ecommerce Integration API (simple tag-based system)
   - [ ] Create API key management system:
@@ -850,6 +880,108 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Unified customer view (form submissions + memberships) - **Requires Phase 07 (CRM)**
   - [ ] Simple interface for client admins to manage memberships easily
   - [ ] **Note**: Full CRM features (companies, consents, DND, duplicate detection) come in Phase 10B
+
+### Gallery Enhancement (prerequisite for membership protection testing)
+
+**Status**: In progress - Galleries must be fully functional before testing MAG protection on gallery items.
+
+**Design**: Galleries are virtual groupings of media. No taxonomy on gallery; media items have taxonomy. Shortcode method: style options in shortcode attributes; no schema for presentation. Two-way assignment: media ↔ galleries. Developer use: `GET /api/galleries/[id]` returns JSON; custom styling in code.
+
+- [ ] Phase 1: Schema & core
+  - [ ] Migration: add `status` (draft | published), `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message` to galleries
+  - [ ] Update Gallery type and types
+  - [ ] GalleryEditor: add status field
+  - [ ] Gallery list: filter by status (published default)
+
+- [ ] Phase 2: Assignment — Media → Galleries
+  - [ ] ImagePreviewModal: add "Assign to galleries" section
+  - [ ] Multi-select picklist of active (published) galleries
+  - [ ] Load current gallery assignments for media item
+  - [ ] Add/remove via gallery_items; show which galleries item is in
+  - [ ] API/helper: get galleries for media; add/remove media from galleries
+
+- [ ] Phase 3: Assignment — Gallery → Media
+  - [ ] MediaLibrary (or variant): add taxonomy filter (categories, tags) for GalleryEditor
+  - [ ] GalleryEditor: wire media picker to taxonomy-filtered media
+  - [ ] Search + taxonomy filter when adding items to gallery
+
+- [ ] Phase 4: Shortcode system
+  - [ ] Create `src/lib/shortcodes/gallery.ts`: GALLERY_SHORTCODE_SPEC (attributes, defaults, example)
+  - [ ] Shortcode parser: parse `[gallery slug="x" layout="grid" columns="4"]`
+  - [ ] GalleryRenderer component: takes gallery data + parsed attributes, renders layout (grid, masonry, slider)
+  - [ ] Integrate parser into content renderer (blog post body, page body)
+
+- [ ] Phase 5: Shortcode builder UIs
+  - [ ] Post editor: "Insert gallery" button → modal (pick gallery, options) → insert shortcode at cursor
+  - [ ] Gallery edit page: "Use this gallery" section — options form, live shortcode, copy button
+  - [ ] Optional: gallery list quick "Copy shortcode" (defaults)
+  - [ ] Cheat sheet: collapsible in editor footer or in modal; generated from GALLERY_SHORTCODE_SPEC
+
+- [ ] Phase 6: Public gallery & developer API
+  - [ ] Create `(public)/gallery/[slug]/page.tsx` — fetch gallery, render with header taxonomy filter for media
+  - [ ] Confirm `GET /api/galleries/[id]` returns JSON (items with media) for developer use
+  - [ ] Gallery display: filter media by categories/tags in header (media taxonomy)
+
+- [ ] Phase 7: Content–gallery linking (future)
+  - [ ] `content_galleries(content_id, gallery_id)` junction if posts link to galleries
+  - [ ] Content editor UI to link galleries
+
+### Phase 9A: Membership Code Generator & Redemption
+
+**Status**: Planned - Essential for membership module. Enables visitor signup with code (login/register), group/bulk MAG access, and gifting/comped access.
+
+**Purpose**: Two code types — (1) single-use redemption codes: unique codes, one use each, tracked; (2) multi-use codes: one shared code, finite or unlimited uses. Two-table design: `membership_code_batches` + `membership_codes`.
+
+- [ ] Schema: membership code tables (client schema)
+  - [ ] Create `membership_code_batches` table:
+    - [ ] id, mag_id (FK → mags), name, use_type (single_use | multi_use)
+    - [ ] For multi_use: code_hash TEXT, max_uses INT, use_count INT DEFAULT 0, expires_at TIMESTAMPTZ
+    - [ ] For single_use: num_codes INT, expires_at TIMESTAMPTZ
+    - [ ] Pattern fields (optional): code_prefix TEXT, code_middle TEXT, code_suffix TEXT, random_length INT
+    - [ ] Charset: exclude_chars TEXT (e.g., "oO0iIlL1") or preset (no_ambiguous)
+    - [ ] created_at, created_by (admin user id optional)
+  - [ ] Create `membership_codes` table (single-use only):
+    - [ ] id, batch_id (FK → membership_code_batches), code_hash TEXT UNIQUE
+    - [ ] status (available | redeemed), redeemed_at, redeemed_by_member_id (FK → members)
+  - [ ] Optional: `code_redemption_log` for multi-use "who used when" (or add columns to batch)
+  - [ ] RLS, indexes, RPC functions per project pattern
+
+- [ ] Code generation utilities
+  - [ ] Create `src/lib/mags/code-generator.ts`:
+    - [ ] `generateSingleUseCodes(batchId, count, options?)` — generate unique codes with pattern and charset, hash and insert into membership_codes
+    - [ ] `createMultiUseCode(magId, code, maxUses, expiresAt)` — create batch with one code
+    - [ ] `generateCodeString(options)` — crypto-safe random string with:
+      - [ ] Pattern: prefix, middle, suffix (fixed text) + random segment(s)
+      - [ ] Character exclusion: preset "no ambiguous" (omit o,O,0,i,I,l,L,1) or custom exclude list
+      - [ ] Configurable length for random segment(s)
+    - [ ] `hashCode(code)` — normalize (trim, lowercase) and hash for lookup
+    - [ ] `redeemCode(code, memberId)` — validate, mark used, assign MAG
+
+- [ ] Redemption flow
+  - [ ] Validate: not expired, not already used (single-use), under max_uses (multi-use)
+  - [ ] Assign MAG to member via `user_mags`
+  - [ ] Update membership_codes or batch use_count
+  - [ ] Idempotency: same member + same code = no double-assign (check existing user_mags)
+
+- [ ] Admin UI: Code Generator
+  - [ ] Add to CRM → Memberships (or MAG detail): "Code Generator" / "Codes" section
+  - [ ] Create batch form: MAG selector, use_type (single_use | multi_use), num_codes or max_uses, expires_at
+  - [ ] Pattern config: prefix, middle, suffix (optional text inputs); random segment length
+  - [ ] Character exclusion: preset "No ambiguous" (o,O,0,i,I,l,L,1) or custom exclude list (input or checkbox set)
+  - [ ] For multi-use: input code string (or auto-generate), save
+  - [ ] For single-use: "Generate N codes" button, show count, export CSV (plain codes for distribution)
+  - [ ] Batch list: name, MAG, type, usage stats (e.g., 45/100 redeemed), expires, actions
+
+- [ ] Public/member UI: Code entry
+  - [ ] Login/register page: optional "Have an access code?" field; on submit, if code provided, validate and assign MAG after auth
+  - [ ] Member profile/account page: "Apply code" section — input code, submit; validate and assign MAG to current member
+
+- [ ] API routes
+  - [ ] `POST /api/admin/membership-codes/batches` — Create batch (admin)
+  - [ ] `GET /api/admin/membership-codes/batches` — List batches (admin)
+  - [ ] `POST /api/admin/membership-codes/batches/[id]/generate` — Generate single-use codes (admin)
+  - [ ] `GET /api/admin/membership-codes/batches/[id]/codes` — List codes in batch, export (admin)
+  - [ ] `POST /api/members/redeem-code` — Redeem code (authenticated member or during signup flow)
 
 ### Phase 9B: Marketing (Email / Resend / Vbout)
 
@@ -1604,6 +1736,40 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] `POST /api/super/clients/[id]/admins` - Create admin for client
   - [ ] `PUT /api/super/clients/[id]/site-mode` - Change site mode (with lock check)
   - [ ] `PUT /api/super/clients/[id]/site-mode/lock` - Lock/unlock site mode
+
+### Phase 18: Admin Sidebar Feature Gating & Custom Links
+
+**Status**: Planned - Superadmin controls feature visibility per tenant; custom links per fork
+
+**Purpose**: Enable tiered feature offerings. Some clients don't get all features. Disabled features show as ghosted (visible but greyed out); optionally route to preview/upsell page. Custom links per tenant (not in template) for client-specific navigation.
+
+- [ ] Schema and storage for sidebar configuration
+  - [ ] Create `sidebar_features` (or tenant config) — template feature IDs with enabled/disabled per tenant
+  - [ ] Create `sidebar_custom_links` — per-tenant custom links (label, href, icon, display_order, open_in_new_tab)
+  - [ ] Store in tenant schema (client_xxx) or tenant config table
+
+- [ ] Superadmin UI: Sidebar feature gating
+  - [ ] Add Sidebar section to client detail (`/admin/super/clients/[id]` or sub-page `/admin/super/clients/[id]/sidebar`)
+  - [ ] List all template sidebar features (Content, Galleries, Media, CRM, Events, Settings, etc.)
+  - [ ] Toggle each feature on/off per tenant
+  - [ ] Optional: Set upsell URL per disabled feature (when disabled, link goes to preview offer page instead of greyed-out)
+
+- [ ] Superadmin UI: Custom links
+  - [ ] Add/Edit/Delete custom sidebar links per tenant
+  - [ ] Fields: label, href (internal path or external URL), icon (optional), display_order, open_in_new_tab
+  - [ ] Custom links are not part of template — stored per fork/tenant
+
+- [ ] Sidebar component updates
+  - [ ] Load sidebar config from API/settings (per tenant)
+  - [ ] Render enabled features as normal links
+  - [ ] Render disabled features as ghosted (greyed out, non-clickable) OR link to upsell URL if configured
+  - [ ] Render custom links in correct order (merge with template features)
+  - [ ] Middleware/route protection: block access to disabled feature routes (403 or redirect to upsell)
+
+- [ ] API routes
+  - [ ] `GET /api/super/clients/[id]/sidebar` - Get sidebar config for tenant
+  - [ ] `PUT /api/super/clients/[id]/sidebar` - Update sidebar feature gating and custom links
+  - [ ] `GET /api/admin/sidebar-config` - Get current tenant's sidebar config (for Sidebar component)
 
 ## Notes
 

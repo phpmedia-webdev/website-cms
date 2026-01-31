@@ -9,6 +9,31 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-01-30 CT - MAG mag-tag creation, content-protection helper, Gallery Enhancement plan
+
+**Context for Next Session:**
+- **Gallery Enhancement** is the priority. Start with Phase 1: migration for galleries (status, access_level, required_mag_id), GalleryEditor status field. Then Phase 2: ImagePreviewModal assign media to galleries; Phase 3: taxonomy filter in gallery media picker; Phase 4–6: shortcode, builder UIs, public page. Full plan in planlog "Gallery Enhancement" section.
+- **Membership protection testing** depends on galleries being functional. After galleries: member auth, checkContentAccess, filter gallery items by mag-tag, end-to-end testing.
+- **MAG mag-tags:** On MAG create/update, taxonomy tag `mag-{uid}` auto-created in image, video, membership sections. Existing MAGs: save on detail view creates tag.
+- **content-protection.ts:** Helper to resolve mag-tags on media, check user MAGs for visibility. Ready for gallery API integration once member auth exists.
+
+**Key Files Changed:**
+- `src/lib/supabase/taxonomy.ts` — ensureMagTagExists, addMagTagSlugToSections, membership section
+- `src/lib/mags/content-protection.ts` — getMagTagSlugsOnMedia, canAccessMediaByMagTags, filterMediaByMagTagAccess, getMagUidsForContact
+- `src/app/api/crm/mags/route.ts` — call ensureMagTagExists after create
+- `src/app/api/crm/mags/[id]/route.ts` — call ensureMagTagExists after update
+- `src/app/admin/crm/memberships/[id]/MAGDetailClient.tsx` — Dialog warning when UID/MAG-TAG changed (unsync relations, manual update)
+- `supabase/migrations/070_add_membership_taxonomy_section.sql` — membership section for mag-tag grouping
+- `docs/planlog.md` — Gallery Enhancement phase (7 phases)
+- `docs/sessionlog.md` — focus galleries first, then membership
+
+**Changes:**
+- MAG create/update: auto-create taxonomy tag `mag-{uid}` in image, video, membership sections. Idempotent.
+- Membership taxonomy section: new staple section for filtering mag-tags in Taxonomy Settings.
+- MAGDetailClient: UID/MAG-TAG change warning dialog (relations unsync, manual update needed).
+- content-protection: resolve mag-tags on media, filter by user MAGs for visibility.
+- Gallery Enhancement plan: schema, assignment (media↔galleries), shortcode (spec, parser, renderer), builder UIs, public page.
+
 ### 2026-01-29 22:45 CT - Contact Detail UI Restructure & Memberships Complete
 
 **Context for Next Session:**
