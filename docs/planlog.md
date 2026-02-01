@@ -1202,6 +1202,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Photo from Media Library or URL
 - [ ] Documentation
   - [ ] How to add team members, customize cards, interpret analytics
+    [ ] Team members complete a form and upload a photo.
 
 **Note**: Tenant "org" card can be a special team_member (e.g. `is_primary` or slug `company`) for the client’s main business card.
 
