@@ -44,6 +44,11 @@ export interface Database {
           slug: string;
           description: string | null;
           cover_image_id: string | null;
+          status: string;
+          access_level: string | null;
+          required_mag_id: string | null;
+          visibility_mode: string | null;
+          restricted_message: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -189,6 +194,39 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["section_taxonomy_config"]["Insert"]>;
+      };
+      members: {
+        Row: {
+          id: string;
+          contact_id: string;
+          user_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["members"]["Row"], "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["members"]["Insert"]>;
+      };
+      user_licenses: {
+        Row: {
+          id: string;
+          member_id: string;
+          content_type: "media" | "course";
+          content_id: string;
+          granted_via: string | null;
+          granted_at: string;
+          expires_at: string | null;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["user_licenses"]["Row"], "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["user_licenses"]["Insert"]>;
       };
     };
   };

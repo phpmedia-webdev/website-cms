@@ -1,9 +1,11 @@
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
+import { getClientSchema } from "@/lib/supabase/schema";
 import { FileText, Folder, Image, ClipboardList } from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
 
   // Fetch stats with error handling
   let stats = {
@@ -15,10 +17,10 @@ export default async function DashboardPage() {
 
   try {
     const [postsResult, galleriesResult, mediaResult, formsResult] = await Promise.all([
-      supabase.from("posts").select("id", { count: "exact", head: true }),
-      supabase.from("galleries").select("id", { count: "exact", head: true }),
-      supabase.from("media").select("id", { count: "exact", head: true }),
-      supabase.from("forms").select("id", { count: "exact", head: true }),
+      supabase.schema(schema).from("posts").select("id", { count: "exact", head: true }),
+      supabase.schema(schema).from("galleries").select("id", { count: "exact", head: true }),
+      supabase.schema(schema).from("media").select("id", { count: "exact", head: true }),
+      supabase.schema(schema).from("forms").select("id", { count: "exact", head: true }),
     ]);
 
     stats = {

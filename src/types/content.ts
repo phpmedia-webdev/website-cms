@@ -82,6 +82,11 @@ export interface Gallery {
   slug: string;
   description: string | null;
   cover_image_id: string | null;
+  status: "draft" | "published";
+  access_level: string | null;
+  required_mag_id: string | null;
+  visibility_mode: string | null;
+  restricted_message: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +98,40 @@ export interface GalleryItem {
   position: number;
   caption: string | null;
   created_at: string;
+}
+
+/** Gallery cell display scale (physical size of cells in the grid) */
+export type GalleryCellSize = "xsmall" | "small" | "medium" | "large" | "xlarge";
+
+/** Sort order for gallery items (custom = use gallery_items.position) */
+export type GallerySortOrder =
+  | "as_added"
+  | "name_asc"
+  | "name_desc"
+  | "date_newest"
+  | "date_oldest"
+  | "custom";
+
+/** Display style preset for a gallery (from gallery_display_styles table) */
+export interface GalleryDisplayStyle {
+  id: string;
+  gallery_id: string;
+  name: string;
+  layout: "grid" | "masonry" | "slider";
+  columns: number;
+  gap: "sm" | "md" | "lg";
+  size: "thumbnail" | "small" | "medium" | "large" | "original";
+  cell_size?: GalleryCellSize | null;
+  captions: boolean;
+  lightbox: boolean;
+  border: "none" | "subtle" | "frame";
+  sort_order?: GallerySortOrder | null;
+  slider_animation: "slide" | "fade" | null;
+  slider_autoplay: boolean | null;
+  slider_delay: number | null;
+  slider_controls: "arrows" | "dots" | "both" | "none" | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export type MediaType = "image" | "video";

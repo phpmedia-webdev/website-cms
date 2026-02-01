@@ -74,6 +74,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - Integrations link (placeholder for next step)
   - [x] Ensure page is accessible only to `type="superadmin"` + `role="superadmin"` (middleware updated)
   - [x] Update Sidebar to show Superadmin link only for superadmins
+  - [ ] Add Site URL field to superadmin page (when page is fully developed): single input for true site domain (e.g. https://example.com). Store in settings (site.url). Use as prefix for gallery standalone URL (Gallery Details → Standalone URL). Fallback: NEXT_PUBLIC_APP_URL or request origin if not set.
 
 - [ ] Test Automated Client Setup Script
   - [ ] Test `pnpm setup-client <test-schema-name>` script with a test schema (e.g., `test_client_setup`)
@@ -689,7 +690,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - `hasMAG()` - Check if member has specific MAG
 
 - [ ] Member authentication flow
-  - [ ] Create `src/app/(public)/login/page.tsx` (member login/registration)
+  - [x] Create `src/app/(public)/login/page.tsx` (member login/registration)
   - [ ] Create `src/app/(public)/register/page.tsx` (or combine with login)
   - [ ] Create API route `src/app/api/auth/member/login/route.ts` (Supabase Auth for members)
   - [ ] Create API route `src/app/api/auth/member/register/route.ts` (member registration with user_metadata.type = "member")
@@ -710,7 +711,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - [ ] If no access: render `<RestrictedMessage />` or redirect to `/login`; do NOT pass `post.body` to any component.
     - [ ] If access: render full content. Body never reaches client when unauthorized.
   - [ ] Update `src/app/(public)/[slug]/page.tsx` (dynamic pages): same pattern — check access before rendering body.
-  - [ ] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level; filter gallery items by mag-tag visibility for members.
+  - [x] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level; filter gallery items by mag-tag visibility for members.
   - [ ] Update blog list `src/app/(public)/blog/page.tsx`: filter out restricted posts user cannot access; optionally show teaser (title/excerpt only, no body) for restricted items when visibility_mode = message.
   - [ ] Create `src/components/public/ProtectedContent.tsx` — server component wrapper; checks access, renders children or restricted message. Used for section-level and inline protection.
   - [ ] Implement redirect to `/login` for unauthenticated access when access_level requires member (with return URL).
@@ -803,17 +804,25 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
       - [ ] Access level dropdown per menu item
       - [ ] MAG selector per menu item (when access_level = "mag")
 
+- [x] **Multi-MAG protection schema (galleries & content)** — *per membershipQAdiscussion: "assign membership(s) to an object... display gallery of protected content made accessible by the membership(s)"*
+  - [x] **Decision:** Junction table vs array column (see options below)
+  - [x] **Option A (junction):** Create `gallery_mags(gallery_id, mag_id)` junction; deprecate `required_mag_id` on galleries. Access = user has ANY assigned MAG. Same pattern for content: `content_mags(content_id, mag_id)`.
+  - [ ] **Option B (array):** Add `required_mag_ids UUID[]` to galleries; keep `access_level`. Query: `WHERE required_mag_ids && ARRAY[user's mag ids]`. Same for content if desired.
+  - [x] **GalleryEditor UI:** "Membership Protection" section — access level dropdown; **multi-select MAG picker** (when "Specific Memberships"); visibility mode; restricted message.
+  - [ ] **Content (posts/pages):** Apply same multi-MAG pattern for consistency (TBD in planning).
+
 - [ ] Content editor integration
   - [ ] Update `src/components/posts/PostEditor.tsx`:
     - [ ] Add access level dropdown (public, members, mag)
-    - [ ] Add MAG selector (when access_level = "mag")
+    - [ ] Add MAG selector — **multi-select** when multi-MAG schema adopted
     - [ ] Add visibility mode toggle (hidden/message)
     - [ ] Add restricted message input (optional override)
-  - [ ] Update `src/components/galleries/GalleryEditor.tsx`:
-    - [ ] Add access level dropdown
-    - [ ] Add MAG selector
-    - [ ] Add visibility mode toggle
-    - [ ] Add restricted message input
+  - [x] Update `src/components/galleries/GalleryEditor.tsx`:
+    - [x] Add "Membership Protection" section
+    - [x] Add access level dropdown (public, members, specific memberships)
+    - [x] Add **multi-select MAG picker** (when access_level = "mag") — user can access if they have ANY of the assigned MAGs
+    - [x] Add visibility mode toggle (hidden/message)
+    - [x] Add restricted message input (optional override)
   - [ ] Update `src/components/pages/PageEditor.tsx`:
     - [ ] Add page-level protection (same as posts)
     - [ ] Add section restrictions UI
@@ -887,29 +896,41 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 **Design**: Galleries are virtual groupings of media. No taxonomy on gallery; media items have taxonomy. Shortcode method: style options in shortcode attributes; no schema for presentation. Two-way assignment: media ↔ galleries. Developer use: `GET /api/galleries/[id]` returns JSON; custom styling in code.
 
-- [ ] Phase 1: Schema & core
-  - [ ] Migration: add `status` (draft | published), `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message` to galleries
-  - [ ] Update Gallery type and types
-  - [ ] GalleryEditor: add status field
-  - [ ] Gallery list: filter by status (published default)
+- [x] Phase 1: Schema & core
+  - [x] Migration: add `status` (draft | published), `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message` to galleries
+  - [x] Update Gallery type and types
+  - [x] GalleryEditor: add status field
+  - [x] Gallery list: filter by status (All | Published | Draft), status badge on cards
 
-- [ ] Phase 2: Assignment — Media → Galleries
-  - [ ] ImagePreviewModal: add "Assign to galleries" section
-  - [ ] Multi-select picklist of active (published) galleries
-  - [ ] Load current gallery assignments for media item
-  - [ ] Add/remove via gallery_items; show which galleries item is in
-  - [ ] API/helper: get galleries for media; add/remove media from galleries
+- [x] Phase 2: Assignment — Media → Galleries
+  - [x] ImagePreviewModal: add "Assign to galleries" section
+  - [x] Multi-select picklist of active (published) galleries (checkbox badges)
+  - [x] Load current gallery assignments for media item
+  - [x] Add/remove via gallery_items; show which galleries item is in
+  - [x] API/helper: get galleries for media; add/remove media from galleries (galleries.ts)
 
-- [ ] Phase 3: Assignment — Gallery → Media
-  - [ ] MediaLibrary (or variant): add taxonomy filter (categories, tags) for GalleryEditor
-  - [ ] GalleryEditor: wire media picker to taxonomy-filtered media
-  - [ ] Search + taxonomy filter when adding items to gallery
+- [x] Phase 3: Assignment — Gallery → Media
+  - [x] MediaLibrary (or variant): add taxonomy filter (categories, tags) for GalleryEditor
+  - [x] GalleryEditor: wire media picker to taxonomy-filtered media
+  - [x] Search + taxonomy filter when adding items to gallery
+  - [x] Extract shared `MediaFilterBar` component (Categories, Tags, Reset; Search, Sort, View toggle)
+  - [x] GalleryMediaPicker uses same filter/sort/view UI as Media Library
 
 - [ ] Phase 4: Shortcode system
   - [ ] Create `src/lib/shortcodes/gallery.ts`: GALLERY_SHORTCODE_SPEC (attributes, defaults, example)
   - [ ] Shortcode parser: parse `[gallery slug="x" layout="grid" columns="4"]`
   - [ ] GalleryRenderer component: takes gallery data + parsed attributes, renders layout (grid, masonry, slider)
   - [ ] Integrate parser into content renderer (blog post body, page body)
+
+- [ ] Phase 4.5: Mixed media gallery preview modal
+  - [ ] Create `GalleryPreviewModal` component — lightbox for viewing gallery items
+  - [ ] Mixed media support: detect `media_type` (image vs video) per item
+  - [ ] Image viewer: full-size display with zoom/pan controls
+  - [ ] Video player: embed player for uploaded videos (variants) and external videos (YouTube/Vimeo/Adilo via `video_url` + `provider`)
+  - [ ] Navigation: Previous/Next arrows, keyboard support (arrows, ESC to close)
+  - [ ] Seamless transitions between image and video items in same gallery
+  - [ ] Thumbnail strip (optional): show all gallery items for quick jump
+  - [ ] Caption display: show `gallery_items.caption` or `media.alt_text`
 
 - [ ] Phase 5: Shortcode builder UIs
   - [ ] Post editor: "Insert gallery" button → modal (pick gallery, options) → insert shortcode at cursor
@@ -918,13 +939,68 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Cheat sheet: collapsible in editor footer or in modal; generated from GALLERY_SHORTCODE_SPEC
 
 - [ ] Phase 6: Public gallery & developer API
-  - [ ] Create `(public)/gallery/[slug]/page.tsx` — fetch gallery, render with header taxonomy filter for media
+  - [x] Create `(public)/gallery/[slug]/page.tsx` — standalone gallery page by slug
   - [ ] Confirm `GET /api/galleries/[id]` returns JSON (items with media) for developer use
   - [ ] Gallery display: filter media by categories/tags in header (media taxonomy)
+  - [ ] Integrate `GalleryPreviewModal` (Phase 4.5) — click item opens lightbox with mixed media support
+  - [x] Handle MAG protection: check access_level before showing items; filter by mag-tag visibility for members (checkGalleryAccess, standalone page + API)
+  - [ ] **Note:** Gallery membership assignment uses **multi-select MAGs** — see "Multi-MAG protection schema" in Membership Protection phase.
+  - [ ] **Note:** Gallery Details Standalone URL prefix comes from superadmin Site URL setting (when added). See planlog superadmin section.
 
 - [ ] Phase 7: Content–gallery linking (future)
   - [ ] `content_galleries(content_id, gallery_id)` junction if posts link to galleries
   - [ ] Content editor UI to link galleries
+
+- [ ] **Phase 8: Gallery style templates & presets (production-ready future feature)**
+  - [ ] **Template styles (public library):** Global library of predefined styles (e.g. "Compact Grid", "Full-Width Slider", "Masonry Lightbox")
+  - [ ] Create `gallery_style_templates` table (shared/public schema) — id, name, layout, columns, gap, size, captions, lightbox, border, slider_*, display_order
+  - [ ] Seed templates via migration; superadmin can add/edit (optional)
+  - [ ] Display Style modal: "Start from template" → pick from library → form pre-filled; "Start from scratch" → current behavior
+  - [ ] **Presets (optional, per-tenant):** Save current form values as user/tenant preset; "Start from my preset" when creating style
+  - [ ] Add `gallery_style_presets` table (tenant schema) if presets desired — id, tenant_id, name, layout, columns, ...
+  - [ ] Benefits: faster workflow, consistency, easier onboarding; additive to existing per-gallery display styles
+
+### Phase 9C: Members Table & Ownership (User Licenses)
+
+**Status**: Planned - Prerequisite for Phase 9A (Code Generator) and LMS ownership. See [members-and-ownership-summary.md](./reference/members-and-ownership-summary.md).
+
+**Design**: Members = qualified contacts (MAG + auth). Simple signup = contact only. Ownership = per-item licenses for media and courses (iTunes-style "My Library").
+
+- [x] Schema: members table
+  - [x] Create `members` table (id, contact_id UNIQUE FK → crm_contacts, user_id UNIQUE FK → auth.users nullable, created_at, updated_at)
+  - [x] Existence of row = contact is a member; user_id nullable until they register
+  - [x] Indexes: contact_id, user_id
+  - [x] RLS, grants per project pattern (migration 072)
+
+- [x] Schema: user_licenses table
+  - [x] Create `user_licenses` table (id, member_id FK → members, content_type CHECK IN ('media','course'), content_id UUID, granted_via, granted_at, expires_at, metadata JSONB, created_at)
+  - [x] UNIQUE(member_id, content_type, content_id)
+  - [x] Indexes: member_id, content_type+content_id
+  - [x] RLS, grants per project pattern (migration 073)
+
+- [x] Members utilities
+  - [x] Create `src/lib/supabase/members.ts`:
+    - [x] `getMemberByContactId(contactId)` — get member row by contact
+    - [x] `getMemberByUserId(userId)` — get member row by auth user
+    - [x] `createMemberForContact(contactId, userId?)` — elevate contact to member (idempotent)
+    - [x] `resolveMemberFromAuth()` — auth.uid() → members.id for current user
+
+- [x] Licenses utilities
+  - [x] Create `src/lib/supabase/licenses.ts`:
+    - [x] `hasLicense(memberId, contentType, contentId)` — check ownership
+    - [x] `grantLicense(memberId, contentType, contentId, options)` — grant license
+    - [x] `revokeLicense(memberId, contentType, contentId)` — revoke
+    - [x] `getMemberLicenses(memberId, contentType?)` — list owned items
+    - [x] `filterMediaByOwnership(mediaIds, memberId)` — filter to owned only
+
+- [ ] Elevation flow documentation
+  - [ ] Document: simple signup = contact only; member = purchase OR admin grant OR signup code
+  - [ ] Form auto_assign_mag_ids: only for qualifying forms (not every form)
+  - [ ] When to create members row: admin grant MAG, purchase webhook, signup code redemption
+
+- [x] Types
+  - [x] Add Member, UserLicense types to database.ts
+  - [ ] Update LMS Phase 17 plan: use user_licenses for course enrollment alongside course_mags
 
 ### Phase 9A: Membership Code Generator & Redemption
 
@@ -1002,7 +1078,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 10: API Development
 
-**Status**: Pending - Enhancements to existing APIs
+**Status**: Deferred - Move after Phase 11 (Deployment Tools) and component library structure. See sessionlog for priority.
 
 - [ ] Enhance public API routes
   - [ ] Improve error handling in existing API routes
@@ -1028,7 +1104,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 11: CLI Deployment Tools
 
-**Status**: Pending - Useful for deployment/setup
+**Status**: Active priority (swapped with Phase 10) - Focus before API dev. Enables deployment and structure for public pages.
 
 - [ ] Create setup script
   - [ ] Create `scripts/setup-new-client.ts`:

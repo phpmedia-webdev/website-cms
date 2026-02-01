@@ -33,9 +33,11 @@ import {
   Redo,
   Link as LinkIcon,
   Image as ImageIcon,
+  ImagePlus,
   Code,
   FileText,
 } from "lucide-react";
+import { GalleryPickerModal } from "./GalleryPickerModal";
 
 interface RichTextEditorProps {
   content?: Record<string, unknown> | null;
@@ -65,6 +67,7 @@ export function RichTextEditor({
   const [linkSelection, setLinkSelection] = useState<{ from: number; to: number } | null>(null);
   const [codeView, setCodeView] = useState(false);
   const [codeViewHtml, setCodeViewHtml] = useState("");
+  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -162,6 +165,12 @@ export function RichTextEditor({
     setLinkSelection(null);
     setLinkUrl("");
     setLinkOpenInNewTab(false);
+  };
+
+  const handleGallerySelect = (shortcode: string) => {
+    if (!editor) return;
+    editor.chain().focus().insertContent(`<p>${shortcode}</p>`).run();
+    forceToolbarUpdate();
   };
 
   const switchToCodeView = () => {
@@ -302,6 +311,19 @@ export function RichTextEditor({
             >
               <ImageIcon className="h-4 w-4" />
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setGalleryPickerOpen(true);
+              }}
+              aria-label="Insert gallery"
+              title="Insert gallery"
+            >
+              <ImagePlus className="h-4 w-4" />
+            </Button>
             <div className="w-px h-6 bg-border mx-1" />
             <Button
               type="button"
@@ -408,6 +430,12 @@ export function RichTextEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <GalleryPickerModal
+        open={galleryPickerOpen}
+        onClose={() => setGalleryPickerOpen(false)}
+        onSelect={handleGallerySelect}
+      />
     </div>
   );
 }

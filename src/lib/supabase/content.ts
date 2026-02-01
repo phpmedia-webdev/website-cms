@@ -169,19 +169,38 @@ export async function getContentById(id: string): Promise<ContentRow | null> {
 
 /**
  * Server-only: fetch published page or post by type slug and URL slug. Used for public routes.
- * Per prd-technical: uses RPC (get_published_content_by_slug_dynamic), not .from().
+ * Uses direct query (same pattern as verify script) to ensure body is returned.
  */
 export async function getPublishedContentByTypeAndSlug(
   typeSlug: "page" | "post",
   slug: string
 ): Promise<ContentRow | null> {
-  const supabase = createServerSupabaseClient();
+  const { createClient } = await import("@supabase/supabase-js");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
 
-  const { data, error } = await supabase.rpc("get_published_content_by_slug_dynamic", {
-    schema_name: CONTENT_SCHEMA,
-    type_slug: typeSlug,
-    slug_param: slug,
+  const supabase = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
+
+  const { data: pageType } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content_types")
+    .select("id")
+    .eq("slug", typeSlug)
+    .maybeSingle();
+
+  if (!pageType) return null;
+
+  const { data, error } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at")
+    .eq("content_type_id", pageType.id)
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
 
   if (error) {
     console.error("getPublishedContentByTypeAndSlug:", {
@@ -190,8 +209,8 @@ export async function getPublishedContentByTypeAndSlug(
     });
     return null;
   }
-  const rows = (data as ContentRow[] | null) ?? [];
-  return rows[0] ?? null;
+
+  return data as ContentRow | null;
 }
 
 /**

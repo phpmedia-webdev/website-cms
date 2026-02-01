@@ -106,9 +106,14 @@ export default async function PublicLayout({
         <footer className="border-t mt-auto">
           <div className="container mx-auto px-4 py-8 text-center text-sm text-muted-foreground">
             <p>&copy; {new Date().getFullYear()} My Website. All rights reserved.</p>
-            <Link href="/admin" className="text-xs opacity-50 hover:opacity-100 mt-2 inline-block">
-              Admin
-            </Link>
+            <div className="flex justify-center gap-4 mt-2">
+              <Link href="/login" className="text-xs opacity-50 hover:opacity-100">
+                Member login
+              </Link>
+              <Link href="/admin" className="text-xs opacity-50 hover:opacity-100">
+                Admin
+              </Link>
+            </div>
           </div>
         </footer>
       </div>

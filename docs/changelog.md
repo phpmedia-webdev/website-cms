@@ -9,6 +9,56 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-01-30 CT - Session wrap: Membership, Code Generator, Phase 11 priority
+
+**Context for Next Session:**
+- **Synced to planlog:** Multi-MAG schema (gallery_mags junction), GalleryEditor Membership Protection, gallery MAG access (checkGalleryAccess, standalone + API), Member login page.
+- **Phase reorder:** Phase 11 (Deployment Tools) before Phase 10 (API). API dev deferred until component structure exists.
+- **Next priorities:** (1) Membership wrap-up (items not requiring public pages), (2) Phase 9A Code Generator, (3) Phase 11 Deployment Tools, (4) Reusable components + component library for public pages.
+- **Deferred:** End-to-end membership testing until public pages exist for reliable testing.
+- **Sessionlog** pruned and updated with new focus.
+
+**Key Files Changed:**
+- `docs/sessionlog.md` — rewritten with new priorities
+- `docs/planlog.md` — checked off completed items, Phase 10/11 status updated
+
+### 2026-01-30 CT - Gallery Phase 2: ImagePreviewModal assign media to galleries
+
+**Context for Next Session:**
+- **Gallery Phase 2** complete. ImagePreviewModal has "Assign to galleries" section: checkbox badges for published galleries, add/remove media via gallery_items. Migrations 071–073 ran successfully.
+- **Next:** Gallery Phase 3 (GalleryEditor media picker with taxonomy filter), or Phase 4 (shortcode spec, parser, GalleryRenderer).
+
+**Key Files Changed:**
+- `src/lib/supabase/galleries.ts` — getPublishedGalleries, getGalleriesForMedia, addMediaToGallery, removeMediaFromGallery
+- `src/components/media/ImagePreviewModal.tsx` — Assign to galleries section with checkbox badges
+
+**Changes:**
+- Galleries lib: getPublishedGalleries, getGalleriesForMedia (with gallery name/slug), addMediaToGallery, removeMediaFromGallery.
+- ImagePreviewModal: Assign to galleries section; load published galleries and current assignments; toggle to add/remove media from galleries.
+
+### 2026-01-30 CT - Members Table & Ownership (User Licenses)
+
+**Context for Next Session:**
+- **Phase 9C (Members & Ownership)** implemented: `members` and `user_licenses` tables, utilities, types. Migrations 072, 073 ready to run in Supabase SQL Editor. See `docs/reference/members-and-ownership-summary.md` for design.
+- **Elevation flow:** Simple signup = contact only. Member = purchase OR admin grant OR signup code. Form `auto_assign_mag_ids` only for qualifying forms.
+- **Next:** Run migrations 072 and 073 in Supabase; continue Gallery Enhancement Phase 2 (ImagePreviewModal assign media to galleries) or Phase 9A Code Generator (requires members table).
+
+**Key Files Changed:**
+- `supabase/migrations/072_members_table.sql` — members(contact_id, user_id nullable), RLS
+- `supabase/migrations/073_user_licenses_table.sql` — user_licenses(member_id, content_type, content_id), RLS
+- `src/lib/supabase/members.ts` — getMemberByContactId, getMemberByUserId, createMemberForContact, resolveMemberFromAuth
+- `src/lib/supabase/licenses.ts` — hasLicense, grantLicense, revokeLicense, getMemberLicenses, filterMediaByOwnership
+- `src/types/database.ts` — members, user_licenses types
+- `docs/reference/members-and-ownership-summary.md` — design summary
+- `docs/planlog.md` — Phase 9C added and items checked off
+- `docs/sessionlog.md` — Phase 9C items completed
+
+**Changes:**
+- Members table: qualified contacts (MAG + auth). Existence of row = member; user_id nullable until register.
+- User licenses table: per-item ownership for media and courses (iTunes-style "My Library"). Access: MAG OR ownership.
+- Members utilities: getMemberByContactId, getMemberByUserId, createMemberForContact (idempotent), resolveMemberFromAuth.
+- Licenses utilities: hasLicense, grantLicense, revokeLicense, getMemberLicenses, filterMediaByOwnership.
+
 ### 2026-01-30 CT - MAG mag-tag creation, content-protection helper, Gallery Enhancement plan
 
 **Context for Next Session:**

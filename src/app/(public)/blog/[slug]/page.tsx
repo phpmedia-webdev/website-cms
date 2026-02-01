@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getPublishedContentByTypeAndSlug } from "@/lib/supabase/content";
-import { RichTextDisplay } from "@/components/editor/RichTextDisplay";
+import { PublicContentRenderer } from "@/components/public/content/PublicContentRenderer";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -33,7 +33,7 @@ export default async function BlogPostPage({ params }: Props) {
           </time>
         )}
         {post.excerpt && <p className="text-lg text-muted-foreground mb-8">{post.excerpt}</p>}
-        <RichTextDisplay content={post.body} />
+        <PublicContentRenderer content={post.body} />
       </article>
     </main>
   );

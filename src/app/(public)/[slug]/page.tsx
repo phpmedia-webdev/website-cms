@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublishedContentByTypeAndSlug } from "@/lib/supabase/content";
-import { RichTextDisplay } from "@/components/editor/RichTextDisplay";
+import { PublicContentRenderer } from "@/components/public/content/PublicContentRenderer";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -21,7 +21,7 @@ export default async function DynamicPageRoute({ params }: Props) {
   return (
     <main className="container mx-auto px-4 py-16 max-w-3xl">
       <h1 className="text-4xl font-bold mb-6">{page.title}</h1>
-      <RichTextDisplay content={page.body} />
+      <PublicContentRenderer content={page.body} />
     </main>
   );
 }

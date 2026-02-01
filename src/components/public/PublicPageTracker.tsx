@@ -12,11 +12,12 @@ export function PublicPageTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Only track public pages (not admin or API routes)
+    // Only track public pages (not admin, API, or login)
     const isPublicPage = 
       pathname && 
       !pathname.startsWith("/admin") && 
-      !pathname.startsWith("/api");
+      !pathname.startsWith("/api") &&
+      pathname !== "/login";
 
     if (isPublicPage) {
       // Store the full URL including pathname and search params

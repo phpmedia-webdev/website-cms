@@ -1,0 +1,123 @@
+---
+alwaysApply: true
+---
+
+# Sessions and documentation
+
+This document defines (1) how project documentation is structured and (2) how work sessions are defined and executed.
+
+---
+
+## Part 1: Documentation structure
+
+All project documentation lives in the `docs/` folder. The root directory stays clean (no README or docs at project root).
+
+### Core documentation files
+
+These files live in the root of `docs/`.
+
+#### `docs/prd.md` — Product Requirements Document
+
+- **Purpose:** Product specification and architecture.
+- **Contents:** Overview, goals, tech stack, architecture (single app, routing, multi-schema), component architecture, archive/restore, CI/CD, content types, design system, auth, API, getting started, deployment, structure, guidelines, differentiators, future work.
+- **Update when:** Major architecture or feature changes, tech stack or deployment changes.
+
+#### `docs/prd-technical.md` — Technical specifications
+
+- **Purpose:** Implementation patterns and technical specs. Consult with `prd.md` to understand what we are building.
+
+#### `docs/changelog.md` — Change history
+
+- **Purpose:** Completed changes, fixes, and releases only (no planning).
+- **Format:** [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), [Semantic Versioning](https://semver.org/spec/v2.0.0.html), reverse chronological, date-stamped `YYYY-MM-DD`.
+- **Contents:** Completed changes, version releases, bug fixes, new features, breaking changes, deprecations, security updates.
+- **Writing style:** Concise. What changed, not how. Key files only. Minimal code. **Always include a "Context for Next Session" section** at the top of each entry (current state, what’s ready to test, where to continue, key files, important decisions).
+- **Changelog pattern:**
+  - Entry format: `### YYYY-MM-DD HH:MM CT - Description` (24-hour, Central Time).
+  - Version format: `## [VERSION] - YYYY-MM-DD`.
+  - Multiple entries per day allowed (use different times).
+- **Update when:** After features/fixes, at end of each session, on release or deprecation.
+- **Cross-reference:** Links to `planlog.md` for planned work.
+
+**Example structure:**
+```markdown
+# Changelog
+## [Unreleased]
+### YYYY-MM-DD HH:MM CT - Feature/Fix Description
+- Context for Next Session: ...
+- Change item 1
+### YYYY-MM-DD HH:MM CT - Another (same day)
+- ...
+## [Version] - YYYY-MM-DD
+### Added / Changed / Fixed / Removed
+- ...
+```
+
+#### `docs/planlog.md` — Planning and backlog
+
+- **Purpose:** Planned work, phases, backlog, technical debt, future enhancements.
+- **Format:** Checkboxes `- [ ]` / `- [x]`, organized by phase/priority. **Items are never deleted** — only checked off when done.
+- **Writing style:** Concise, task-oriented. What to do, not how. Link to `prd-technical.md` for patterns.
+- **Workflow:** Add items → check off as done → keep completed items in planlog; add summaries to changelog at session end.
+- **Update when:** New work, planning, or when items are completed (check off only).
+- **Cross-reference:** `changelog.md`, `sessionlog.md`.
+
+#### `docs/sessionlog.md` — Session continuity
+
+- **Purpose:** Handoff for the next session. **Kept lean** — not a living archive.
+- **Contents:** Current focus, next up (often pointing to planlog), and context used to write changelog "Context for Next Session" (remove that block after it’s in changelog).
+- **Update when:** Start of session (read; optionally adjust Next up). End of session (check off, sync to planlog, delete completed items from sessionlog, use context for changelog).
+- **Cross-reference:** Planlog for next up and sync; changelog receives context at session end.
+
+### Documentation principles
+
+**Separation of concerns**
+
+- **Planning vs. history:** `planlog.md` = what we plan; `changelog.md` = what we did (+ context for next session).
+- **Session handoff:** `sessionlog.md` = focus, next up, handoff context; lean; items removed after sync to planlog. Session context lives in changelog.
+- **Spec vs. history:** `prd.md` = what the system is; `changelog.md` = how we got here.
+- **Structure vs. content:** `.cursor/rules/sessions.mdc` = how docs are organized; other docs = content.
+
+**Versioning**
+
+- Changelog: semantic versioning (MAJOR.MINOR.PATCH). PRD: when specs change. Planlog: no versioning.
+
+**Cross-references**
+
+- Changelog → planlog; planlog → changelog, sessionlog; sessionlog → planlog; all reference `prd.md` for specs.
+
+**File naming and location**
+
+- Lowercase with hyphens: `planlog.md`, `changelog.md`, `sessionlog.md`. All in `docs/`:
+  - `docs/prd.md`, `docs/prd-technical.md`, `docs/changelog.md`, `docs/planlog.md`, `docs/sessionlog.md`
+- Keep docs updated with code; avoid duplication; consistent formatting; dates required in changelog; checkboxes in planlog.
+
+---
+
+## Part 2: How sessions are defined and executed
+
+The developer announces the **start** and **end** of work sessions. Sessions are short sprints focused on a phase (from `planlog.md`).
+
+### Starting a new work session.
+
+A developer typically starts a new chat when context becomes too large, to prevent performance degradation and keep responses focused.
+
+1. Get today’s date and time for reference.
+2. Read the docs in the `.cursor` folder.
+3. Read the root documents in the `docs` folder.
+4. Consult `prd.md` and `prd-technical.md` to see what we are building.
+5. Consult the **last entry** in `changelog.md` for previous context to carry into this session.
+6. Consult `sessionlog.md` for any open items to complete.
+7. Review `planlog.md` to set the next development focus.
+
+### Ending a work session
+
+1. Use the current chat/session to **check off** completed items in `sessionlog.md`.
+2. **Sync** those completions to `planlog.md` (check off the same items there). Do not delete items from planlog.
+3. **Remove** completed items from `sessionlog.md` to keep it lean.
+4. **Add a changelog entry:** Write a concise summary of session work and a **"Context for Next Session"** section (current state, what’s ready to test, where to continue, key files, important decisions). Use the sessionlog context, then clear that context block from sessionlog.
+5. Update `prd.md` if architecture or specs changed.
+6. Pause and allow developer to review update to documents.
+7. **Commit and push** all changes (code + docs) in a single commit and push; e.g. message: `Session wrapup: [brief summary]`.
+
+Do documentation updates **before** the final commit and push so context is captured once and the next session can pick up from changelog and sessionlog.

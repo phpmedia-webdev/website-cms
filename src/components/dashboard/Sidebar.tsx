@@ -37,11 +37,12 @@ interface SidebarProps {
   isSuperadmin?: boolean;
 }
 
-const baseNavigationAfterCrm = [
-  { name: "Media", href: "/admin/media", icon: Image },
+const mediaSubNav = [
+  { name: "Library", href: "/admin/media", icon: Image },
   { name: "Galleries", href: "/admin/galleries", icon: Folder },
-  { name: "Content", href: "/admin/content", icon: FileText },
 ];
+
+const SIDEBAR_MEDIA_OPEN = "sidebar-media-open";
 
 const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 
@@ -76,9 +77,11 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
   const supabase = getSupabaseClient();
   const isSettings = pathname === "/admin/settings" || pathname?.startsWith("/admin/settings/");
   const isCrm = pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/");
+  const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
 
   const fetchNewContactsCount = async () => {
@@ -116,51 +119,53 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
     try {
       if (isDashboard) {
         setCrmOpen(false);
+        setMediaOpen(false);
         setSettingsOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         return;
       }
       if (isCrm) {
         setCrmOpen(true);
+        setMediaOpen(false);
         setSettingsOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "true");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        return;
+      }
+      if (isMedia) {
+        setCrmOpen(false);
+        setMediaOpen(true);
+        setSettingsOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "true");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         return;
       }
       if (isSettings) {
         setCrmOpen(false);
+        setMediaOpen(false);
         setSettingsOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "true");
         return;
       }
-      // Media, Galleries, Content, etc.: collapse all
+      // Content, etc.: collapse all
       setCrmOpen(false);
+      setMediaOpen(false);
       setSettingsOpen(false);
       localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+      localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
     } catch {
       if (isCrm) setCrmOpen(true);
+      if (isMedia) setMediaOpen(true);
       if (isSettings) setSettingsOpen(true);
     }
-  }, [pathname, isCrm, isSettings]);
-
-  const toggleSettings = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const next = !settingsOpen;
-    setSettingsOpen(next);
-    if (next) {
-      setCrmOpen(false);
-      try {
-        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
-      } catch { /* ignore */ }
-    }
-    try {
-      localStorage.setItem(SIDEBAR_SETTINGS_OPEN, next ? "true" : "false");
-    } catch { /* ignore */ }
-  };
+  }, [pathname, isCrm, isMedia, isSettings]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -168,8 +173,10 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
     const next = !crmOpen;
     setCrmOpen(next);
     if (next) {
+      setMediaOpen(false);
       setSettingsOpen(false);
       try {
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
       } catch { /* ignore */ }
     }
@@ -178,7 +185,41 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
     } catch { /* ignore */ }
   };
 
-  const navigation = baseNavigationAfterCrm;
+  const toggleMedia = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !mediaOpen;
+    setMediaOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setSettingsOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_MEDIA_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
+  const toggleSettings = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !settingsOpen;
+    setSettingsOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMediaOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_SETTINGS_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
 
   const handleLogout = async () => {
     try {
@@ -215,12 +256,11 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           onClick={() => {
             // Get the last visited public page from localStorage
             const lastPublicPage = localStorage.getItem("lastPublicPage");
-            if (lastPublicPage) {
-              router.push(lastPublicPage);
-            } else {
-              // Fallback to homepage if no public page stored
-              router.push("/");
-            }
+            const path = lastPublicPage?.split("?")[0] ?? "";
+            // Never go back to login page (would redirect to admin anyway)
+            const isLoginPage = path === "/login" || path === "/login/";
+            const target = lastPublicPage && !isLoginPage ? lastPublicPage : "/";
+            router.push(target);
           }}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full text-left"
         >
@@ -234,9 +274,9 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
         <Link
           href="/admin/dashboard"
           className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
             pathname === "/admin/dashboard"
-              ? "bg-primary text-primary-foreground"
+              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           )}
         >
@@ -247,15 +287,15 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
         <div className="pt-1">
           <div
             className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium",
-              isCrm && "bg-primary text-primary-foreground"
+              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+              isCrm && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
             )}
           >
             <Link
               href="/admin/crm/contacts"
               className={cn(
                 "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
-                isCrm ? "text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                isCrm ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
               <Building2 className="h-5 w-5 flex-shrink-0" />
@@ -274,7 +314,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
               onClick={toggleCrm}
               className={cn(
                 "p-1 rounded transition-colors",
-                isCrm ? "text-primary-foreground hover:bg-primary/80" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                isCrm ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
               aria-expanded={crmOpen}
             >
@@ -296,7 +336,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
                     href={sub.href}
                     className={cn(
                       "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      isSubActive ? "font-medium bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                   >
                     <SubIcon className="h-4 w-4" />
@@ -307,40 +347,88 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
             </div>
           )}
         </div>
-        {/* Media, Galleries, Content */}
-        {navigation.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
-          const IconComponent = item.icon;
-          return (
+        {/* Media twirldown (Library, Galleries) */}
+        <div className="pt-1">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+              isMedia && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
+            )}
+          >
             <Link
-              key={item.name}
-              href={item.href}
+              href="/admin/media"
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                isMedia ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
-              {IconComponent ? <IconComponent className="h-5 w-5" /> : null}
-              {item.name}
+              <Image className="h-5 w-5 flex-shrink-0" />
+              Media
             </Link>
-          );
-        })}
+            <button
+              type="button"
+              onClick={toggleMedia}
+              className={cn(
+                "p-1 rounded transition-colors",
+                isMedia ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+              aria-expanded={mediaOpen}
+            >
+              {mediaOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          </div>
+          {mediaOpen && (
+            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+              {mediaSubNav.map((sub) => {
+                const isSubActive =
+                  pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                const SubIcon = sub.icon;
+                return (
+                  <Link
+                    key={sub.href}
+                    href={sub.href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      isSubActive
+                        ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    <SubIcon className="h-4 w-4" />
+                    {sub.name}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {/* Content */}
+        <Link
+          href="/admin/content"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            (pathname === "/admin/content" || pathname?.startsWith("/admin/content/"))
+              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 font-medium pl-[10px]"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+        >
+          <FileText className="h-5 w-5" />
+          Content
+        </Link>
 
         {/* Settings twirldown */}
         <div className="pt-1">
           <div
             className={cn(
-              "flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium",
-              isSettings && "bg-primary text-primary-foreground"
+              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
+              isSettings && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
             )}
           >
             <Link
               href="/admin/settings"
               className={cn(
                 "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
-                isSettings ? "text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                isSettings ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
               <Settings className="h-5 w-5" />
@@ -351,7 +439,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
               onClick={toggleSettings}
               className={cn(
                 "p-1 rounded transition-colors",
-                isSettings ? "text-primary-foreground hover:bg-primary/80" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                isSettings ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
               aria-expanded={settingsOpen}
             >
@@ -369,7 +457,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
                     href={sub.href}
                     className={cn(
                       "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      isSubActive ? "font-medium bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                   >
                     <SubIcon className="h-4 w-4" />
@@ -387,9 +475,9 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
             <Link
               href="/admin/super"
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                 pathname === "/admin/super" || pathname?.startsWith("/admin/super/")
-                  ? "bg-primary text-primary-foreground"
+                  ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >

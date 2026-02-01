@@ -271,16 +271,28 @@ export async function updateDesignSystemConfig(
 }
 
 /**
- * Get site metadata
+ * Get site metadata (name, description, url)
  */
 export async function getSiteMetadata(): Promise<SiteMetadata> {
-  const keys = ["site.name", "site.description"];
+  const keys = ["site.name", "site.description", "site.url"];
   const settings = await getSettings(keys);
 
   return {
     name: (settings["site.name"] as string) || "Website CMS",
     description: (settings["site.description"] as string) || "",
+    url: (settings["site.url"] as string) || undefined,
   };
+}
+
+/**
+ * Get site URL for links (standalone gallery URL, etc.).
+ * Priority: site.url from DB → NEXT_PUBLIC_APP_URL → empty (caller may use window.location.origin as fallback).
+ */
+export async function getSiteUrl(): Promise<string> {
+  const meta = await getSiteMetadata();
+  const fromDb = meta.url?.trim();
+  if (fromDb) return fromDb.replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "") || "";
 }
 
 /**
@@ -298,6 +310,10 @@ export async function updateSiteMetadata(
 
     if (metadata.description !== undefined) {
       updates.push(setSetting("site.description", metadata.description));
+    }
+
+    if (metadata.url !== undefined) {
+      updates.push(setSetting("site.url", metadata.url));
     }
 
     const results = await Promise.all(updates);

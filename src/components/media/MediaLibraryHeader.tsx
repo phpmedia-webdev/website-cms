@@ -1,8 +1,7 @@
 "use client";
 
-import { Layout, LayoutGrid, Loader2, Upload, RotateCcw } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -11,11 +10,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatFileSize } from "@/lib/media/image-optimizer";
-import { TaxonomyMultiSelect, type TaxonomyMultiSelectOption } from "./TaxonomyMultiSelect";
+import type { TaxonomyMultiSelectOption } from "./TaxonomyMultiSelect";
+import { MediaFilterBar, type SortType } from "./MediaFilterBar";
 
 export type ViewMode = "images" | "videos" | "all";
 
-export type SortType = "name-asc" | "name-desc" | "date-newest" | "date-oldest" | "size-smallest" | "size-largest";
+export type { SortType } from "./MediaFilterBar";
 
 interface MediaLibraryHeaderProps {
   viewMode: ViewMode;
@@ -67,9 +67,6 @@ export function MediaLibraryHeader({
   onTagToggle,
   onResetFilters,
 }: MediaLibraryHeaderProps) {
-  const hasFilters =
-    selectedCategoryIds.size > 0 || selectedTagIds.size > 0 || search.trim().length > 0;
-
   return (
     <div className="space-y-4 pb-4 border-b">
       {/* Title, View Mode, Upload Media — same line */}
@@ -107,93 +104,22 @@ export function MediaLibraryHeader({
         )}
       </p>
 
-      {/* Filter row: Categories, Tags, Reset Filters — above search */}
-      {(filterCategories.length > 0 || filterTags.length > 0 || onResetFilters) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {filterCategories.length > 0 && onCategoryToggle && (
-            <TaxonomyMultiSelect
-              label="Categories"
-              options={filterCategories}
-              selectedIds={selectedCategoryIds}
-              onToggle={onCategoryToggle}
-              placeholder="All categories"
-            />
-          )}
-          {filterTags.length > 0 && onTagToggle && (
-            <TaxonomyMultiSelect
-              label="Tags"
-              options={filterTags}
-              selectedIds={selectedTagIds}
-              onToggle={onTagToggle}
-              placeholder="All tags"
-            />
-          )}
-          {onResetFilters && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={onResetFilters}
-              disabled={!hasFilters}
-              title="Reset categories, tags, and search"
-            >
-              <RotateCcw className="h-4 w-4 mr-1" />
-              Reset Filters
-            </Button>
-          )}
-        </div>
-      )}
-
-      {/* Controls */}
-      <div className="flex items-center gap-3">
-        {/* Search */}
-        <div className="flex-1">
-          <Input
-            placeholder="Search by name, slug, or filename..."
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="h-9"
-          />
-        </div>
-
-        {/* Sort */}
-        <Select value={sort} onValueChange={onSortChange}>
-          <SelectTrigger className="w-40 h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name-asc">Name (A → Z)</SelectItem>
-            <SelectItem value="name-desc">Name (Z → A)</SelectItem>
-            <SelectItem value="date-newest">Newest First</SelectItem>
-            <SelectItem value="date-oldest">Oldest First</SelectItem>
-            <SelectItem value="size-smallest">Smallest First</SelectItem>
-            <SelectItem value="size-largest">Largest First</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* View Toggle */}
-        <div className="flex gap-1 border rounded-md p-1 bg-muted">
-          <Button
-            variant={view === "list" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => onViewChange("list")}
-            title="List view"
-          >
-            <Layout className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={view === "grid" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => onViewChange("grid")}
-            title="Grid view"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      {/* Filter bar: Line 1 = Categories, Tags, Reset; Line 2 = Search, Sort, View */}
+      <MediaFilterBar
+        search={search}
+        onSearchChange={onSearchChange}
+        sort={sort}
+        onSortChange={onSortChange}
+        view={view}
+        onViewChange={onViewChange}
+        filterCategories={filterCategories}
+        filterTags={filterTags}
+        selectedCategoryIds={selectedCategoryIds}
+        selectedTagIds={selectedTagIds}
+        onCategoryToggle={onCategoryToggle}
+        onTagToggle={onTagToggle}
+        onResetFilters={onResetFilters}
+      />
     </div>
   );
 }

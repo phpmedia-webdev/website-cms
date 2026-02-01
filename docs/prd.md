@@ -92,9 +92,32 @@ This WordPress-style approach provides:
 - `/admin/super/clients/[id]/admins` - Manage client admins
 - `/admin/super/clients/[id]/admins/new` - Create new admin for client
 - `/admin/super/admins` - Global admin list (view all admins across all sites)
+- `/admin/super/clients/[id]/sidebar` - Sidebar feature gating and custom links for tenant (see Admin Sidebar Feature Gating below)
 
 **Standby / Coming Soon Route (Optional):**
 - `/coming-soon` - Standby landing page used when the site is in "coming soon" mode (see Developer Workflow)
+
+### Admin Sidebar Feature Gating & Custom Links
+
+The admin sidebar displays links to CMS features (Content, Galleries, Media, CRM, Events, Settings, etc.). Not all clients receive access to all features. Superadmin can configure the feature set per tenant to support tiered offerings and upsell.
+
+**Feature Visibility Control (per tenant):**
+- Each sidebar item (template feature) can be enabled or disabled per tenant via Superadmin
+- Disabled features remain **visible** but **ghosted** (greyed out, non-clickable) so clients see what is available at higher tiers
+- Optional: Ghosted links can route to a **preview/upsell page** instead of being non-clickable, encouraging upgrade
+
+**Superadmin Configuration:**
+- Superadmin configures sidebar feature set at `/admin/super/clients/[id]/sidebar` (or within client detail)
+- Toggle each template feature on/off per tenant
+- Optionally set a custom upsell URL per feature (when disabled, link goes to preview offer page)
+
+**Custom Links (per fork/client):**
+- Superadmin can add **custom sidebar links** that are not part of the global template
+- Custom links are stored per tenant (in client schema or tenant config) — not in the template repo
+- Each client fork can have different custom links (e.g., "Reports", "Inventory", client-specific tools)
+- Custom links support: label, href (internal or external), icon, display order, open-in-new-tab
+
+**Technical Notes:** See [prd-technical.md](./prd-technical.md) for schema and API details when implemented.
 
 ### Third-Party Integrations
 
@@ -678,6 +701,14 @@ The application supports two distinct user types:
 - Stored in `section_restrictions` JSONB field
 - Allows granular control within a single page
 
+**Content Restriction Security (Server-Side Enforcement):**
+- Restricted content must **never** be sent in the HTTP response for unauthorized users. Check access on the server **before** rendering; do not include restricted body in HTML or API responses.
+- Next.js Server Components enable this: gate at the data layer. If the user lacks access, render a restricted message or redirect—do not pass restricted content to any component.
+- **Never use client-side hiding** (CSS `display:none`, JavaScript show/hide) for restricted content—insecure; content would remain in the page source.
+- API routes must not return restricted content body for unauthorized requests (return 403 or metadata only).
+- **Protected video/media:** Do not expose direct storage URLs in HTML. Use an authenticated proxy route (e.g. `/api/stream/media/[id]`) that verifies MAG access, then streams from storage. The URL in view source points to the proxy—shared links return 403 for others. Prevents casual URL copy-and-share; does not prevent screen recording.
+- **Protected downloads:** For downloadable media (e.g. video files), use (a) proxy route (`/api/download/media/[id]`) that streams with `Content-Disposition: attachment` — no shareable URL; or (b) expiring signed URLs — generate on demand with short expiry (5–15 min); shared links stop working quickly.
+
 **Technical Details:** See [prd-technical.md - Database Schema Reference](./prd-technical.md#2-database-schema-reference)
 
 ### Ecommerce Integration
@@ -695,6 +726,59 @@ The application supports two distinct user types:
 - Other platforms via generic webhook handler
 
 **Technical Details:** See [prd-technical.md - API Endpoints Reference](./prd-technical.md#5-api-endpoints-reference)
+
+### Membership Code Generator & Redemption
+
+The membership module supports **signup codes** and **redemption codes** so visitors can gain MAG access without payment. Essential for group/bulk access (one buyer, many members), gifting, and self-service signup flows.
+
+**Use Cases:**
+- Visitor enters code on login/register or member profile page → gains MAG access
+- Admin generates 100s of unique codes for a campaign (e.g., event tickets, promo)
+- Group access: one shared code (multi-use) allows many members (e.g., family plan, team access)
+- Gifting/comped access: admin or partner distributes codes for free MAG assignment
+
+**Two Code Types:**
+
+1. **Single-use redemption codes** — Each code is unique, used once, cannot be reused. Admin generates batches (e.g., 500 codes); each code grants one member access to a MAG. Tracked so a code cannot be used again or on a different membership.
+
+2. **Multi-use codes** — One shared code (like a password) that multiple people can use. Use is finite (e.g., max 50 redemptions) or unlimited. Useful for group signup, event access, or partner distribution.
+
+**Two-Table Design:**
+
+- **`membership_code_batches`** — Defines batches/campaigns. Fields: mag_id, name, use_type (single_use | multi_use), for multi-use: code_hash, max_uses, use_count; for single-use: num_codes, expires_at, created_at, created_by.
+
+- **`membership_codes`** — For single-use only: one row per generated code. Fields: batch_id, code_hash, status (available | redeemed), redeemed_at, redeemed_by_member_id. For multi-use, the single code and use tracking live in the batch table; optional redemption log for "who used when" can be added.
+
+**Code Generator — Patterns and Character Set:**
+- **Pattern support:** Codes can be built with configurable segments:
+  - **Prefix** — Fixed text at the start (e.g., `PROMO-`, `EVENT2024-`)
+  - **Middle** — Fixed text between random segments (e.g., `-VIP-`)
+  - **Suffix** — Fixed text at the end (e.g., `-MEMBER`)
+  - Admin defines pattern when creating a batch (e.g., prefix + random + suffix).
+- **Character exclusion:** Generator can omit easily confused characters to improve readability and reduce errors:
+  - Commonly excluded: `o`, `O`, `0` (look alike); `i`, `I`, `l`, `L`, `1` (look alike)
+  - codes can be limited to alpha, numeric, or allow both alphanumeric.
+  - Admin can choose a preset (e.g., "No ambiguous") or customize exclusions
+  - Default charset for random segment: alphanumeric minus excluded characters
+
+**Admin UI:**
+- CRM → Memberships → Code Generator (or sub-section under MAG detail)
+- Create batch: select MAG, choose single-use (with count) or multi-use (with max uses), set expiry, configure pattern (prefix/middle/suffix), set character exclusions
+- Generate single-use codes: bulk generate (e.g., 100–500 codes), export as CSV or copy
+- View batch: list codes, redemption status, usage stats
+- Multi-use: create one code, view use count and optional redemption history
+
+**Public/Member UI:**
+- Login/register page: optional "Have a code?" field; enter code to gain MAG on signup
+- Member profile/account page: "Apply code" — enter code to add MAG to existing account
+
+**Validation:**
+- Code checked case-insensitively (normalize before hash lookup)
+- Expired codes rejected
+- Single-use: already-redeemed codes rejected
+- Multi-use: reject when use_count >= max_uses
+
+**Technical Details:** See [prd-technical.md](./prd-technical.md) for schema and API when implemented.
 
 ---
 

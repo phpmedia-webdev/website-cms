@@ -918,3 +918,51 @@ $$;
 - User authentication (superadmin role check)
 
 **Status**: Nice-to-have feature for future phase (after core CMS features are complete)
+
+---
+
+## Roku App Development (Planned Feature — Not MVP)
+
+### Overview
+
+A Roku channel (streaming app) to deliver member video content on TV. Roku apps are native channels built with BrightScript and SceneGraph, not web applications. This is a post-MVP enhancement.
+
+### Platform Details
+
+**Technology:**
+- **Languages:** BrightScript (logic) + SceneGraph (XML for UI)
+- **Model:** Standalone channel app; does not run in a browser
+- **Video playback:** Roku's native video player nodes; content served via HLS/DASH from your backend or CDN
+
+**Key Documentation & Resources:**
+- [Roku Developer Program](https://developer.roku.com)
+- [Getting Started](https://developer.roku.com/docs/developer-program/getting-started/roku-dev-prog.md)
+- [Development Environment](https://developer.roku.com/docs/developer-program/getting-started/architecture/dev-environment.md)
+- [Sample Apps](https://developer.roku.com/docs/developer-program/getting-started/samples.md)
+- [Roku SDK Documentation Archive](https://sdkdocs-archive.roku.com/)
+
+**Development Tools:**
+- BrightScript extension for VS Code
+- Roku device or emulator for testing
+- Layout editor, resource monitoring, test framework
+
+### Vimeo Domain Restriction Consideration
+
+- **Web:** Vimeo domain restriction (allow playback only on your domains) helps prevent embed theft on other sites.
+- **Roku:** Domain restriction may block Roku playback—Roku apps don't run on a web domain. Before building the Roku channel, verify Vimeo's options for app/OTT playback (signed embeds, token-based auth, or API). May need different config for web vs app, or hybrid hosting (Vimeo for web, Supabase/CDN for Roku).
+
+### Video Delivery for Roku
+
+- Roku plays streams directly from URLs (HLS, DASH); it does not use browser-based embeds.
+- Options: (a) Proxy or signed URLs from your backend that verify member MAG, then serve stream; (b) Vimeo OTT/API if supported; (c) Self-hosted streams (Supabase, CDN) with auth-checking proxy.
+- See planlog Phase 09 for protected video streaming and expiring download links.
+
+### Implementation Phases (Future)
+
+1. **Research:** Verify Vimeo app/OTT support; decide hosting strategy (Vimeo vs self-hosted for Roku)
+2. **Auth:** Member authentication for Roku (device linking, OAuth, or token-based)
+3. **API:** Backend endpoints for Roku to fetch catalog and stream URLs (with MAG verification)
+4. **Channel:** Build Roku channel (BrightScript, SceneGraph); integrate video player
+5. **Testing:** Test on Roku device; validate protected content access
+
+**Status**: Planned post-MVP; not part of core CMS development

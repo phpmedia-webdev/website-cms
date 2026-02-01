@@ -78,6 +78,8 @@ export interface DesignSystemConfig {
 export interface SiteMetadata {
   name: string;
   description: string;
+  /** Site domain/URL for links (e.g. https://example.com). WordPress-style. */
+  url?: string;
 }
 
 /**
@@ -91,6 +93,7 @@ export interface DesignSystemSettings {
   "design_system.colorLabels"?: ColorLabels; // Optional user-defined color labels
   "site.name": string;
   "site.description": string;
+  "site.url"?: string;
 }
 
 /**
