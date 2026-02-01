@@ -19,6 +19,7 @@ import {
 import type { ContentRow, ContentType } from "@/types/content";
 import type { ContentTypeField } from "@/types/content";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
 export interface ContentEditModalProps {
@@ -52,6 +53,16 @@ export function ContentEditModal({
   const [fieldDefs, setFieldDefs] = useState<ContentTypeField[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  // Membership protection
+  const [accessLevel, setAccessLevel] = useState<"public" | "members" | "mag">(
+    (item?.access_level as "public" | "members" | "mag") || "public"
+  );
+  const [visibilityMode, setVisibilityMode] = useState<"hidden" | "message">(
+    (item?.visibility_mode as "hidden" | "message") || "hidden"
+  );
+  const [restrictedMessage, setRestrictedMessage] = useState(item?.restricted_message || "");
+  const [requiredMagId, setRequiredMagId] = useState<string>(item?.required_mag_id || "");
+  const [availableMags, setAvailableMags] = useState<{ id: string; name: string; uid: string }[]>([]);
 
   const isEdit = !!item;
   const postType = types.find((t) => t.slug === "post");
@@ -70,6 +81,10 @@ export function ContentEditModal({
       setCustomFields(item.custom_fields && typeof item.custom_fields === "object" ? { ...item.custom_fields } : {});
       setSelectedCategoryIds(new Set());
       setSelectedTagIds(new Set());
+      setAccessLevel((item.access_level as "public" | "members" | "mag") || "public");
+      setVisibilityMode((item.visibility_mode as "hidden" | "message") || "hidden");
+      setRestrictedMessage(item.restricted_message || "");
+      setRequiredMagId(item.required_mag_id || "");
     } else {
       setContentTypeId(postType?.id ?? types[0]?.id ?? "");
       setName("");
@@ -81,8 +96,19 @@ export function ContentEditModal({
       setCustomFields({});
       setSelectedCategoryIds(new Set());
       setSelectedTagIds(new Set());
+      setAccessLevel("public");
+      setVisibilityMode("hidden");
+      setRestrictedMessage("");
+      setRequiredMagId("");
     }
   }, [open, item, types, postType?.id, setSlug]);
+
+  useEffect(() => {
+    fetch("/api/crm/mags")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setAvailableMags(data ?? []))
+      .catch(() => setAvailableMags([]));
+  }, []);
 
   useEffect(() => {
     if (!open || !contentTypeId) {
@@ -130,6 +156,10 @@ export function ContentEditModal({
         published_at: status === "published" ? new Date().toISOString() : null,
         featured_image_id: item?.featured_image_id ?? null,
         custom_fields: customFields,
+        access_level: accessLevel,
+        visibility_mode: visibilityMode,
+        restricted_message: restrictedMessage.trim() || null,
+        required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
       };
 
       if (isEdit && item) {
@@ -241,6 +271,75 @@ export function ContentEditModal({
               <option value="published">Published</option>
             </select>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Membership Protection</CardTitle>
+              <CardDescription>
+                Control who can view this content on the public site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Access Level</label>
+                <select
+                  value={accessLevel}
+                  onChange={(e) => setAccessLevel(e.target.value as "public" | "members" | "mag")}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="public">Public</option>
+                  <option value="members">Members only</option>
+                  <option value="mag">Specific membership(s)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  When restricted (visibility)
+                </label>
+                <select
+                  value={visibilityMode}
+                  onChange={(e) => setVisibilityMode(e.target.value as "hidden" | "message")}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  disabled={accessLevel === "public"}
+                >
+                  <option value="hidden">Hide content</option>
+                  <option value="message">Show message</option>
+                </select>
+              </div>
+              {accessLevel === "mag" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Required Membership
+                  </label>
+                  <select
+                    value={requiredMagId}
+                    onChange={(e) => setRequiredMagId(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select membership…</option>
+                    {availableMags.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.uid})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {accessLevel !== "public" && visibilityMode === "message" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Restricted Message
+                  </label>
+                  <Input
+                    value={restrictedMessage}
+                    onChange={(e) => setRestrictedMessage(e.target.value)}
+                    placeholder="e.g. Sign in to view this content"
+                    className="w-full"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {fieldDefs.length > 0 && (
             <div className="space-y-4 pt-2 border-t">

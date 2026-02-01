@@ -21,22 +21,12 @@ Wrap membership (without public pages), build Code Generator, then Phase 11 (Dep
 
 ## Next Up
 
-### 1. Membership wrap-up (no public pages)
-- [ ] Any remaining membership items that don't require public pages (see planlog Membership Protection phase)
-- [ ] End-to-end testing deferred until public pages exist
-
-### 2. Phase 9A: Code Generator
-- [ ] Schema: `membership_code_batches`, `membership_codes` (see planlog)
-- [ ] Code generation utilities (`src/lib/mags/code-generator.ts`)
-- [ ] Admin UI: Code Generator section (CRM → Memberships or MAG detail)
-- [ ] Redemption flow + API
-
-### 3. Phase 11: Deployment Tools (swapped with Phase 10)
+### 1. Phase 11: Deployment Tools (swapped with Phase 10)
 - [ ] Setup script (`scripts/setup-new-client.ts`) — interactive CLI
 - [ ] Reset script (`scripts/reset-content.ts`)
 - [ ] Archive script (`scripts/archive-project.ts`)
 
-### 4. Reusable components & component library
+### 2. Reusable components & component library
 - [ ] Build reusable components for public pages (testing + client sites)
 - [ ] Component library structure (Phase 12 — scanner, catalog)
 - [ ] Public page templates for reliable membership testing
@@ -45,5 +35,4 @@ Wrap membership (without public pages), build Code Generator, then Phase 11 (Dep
 
 ## Context for handoff
 
-- **Completed (synced to planlog):** Gallery enhancements (shortcodes, styles, standalone page, sort order, drag/drop), MAG protection (gallery_mags, GalleryEditor UI, checkGalleryAccess, API enforcement), Member login page, footer link, Back-to-Website fix.
 - **Phase order:** Phase 11 (Deployment) before Phase 10 (API). API dev after component structure.

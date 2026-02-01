@@ -416,21 +416,21 @@ export function ContactDetailClient({
 
   return (
     <>
-      {/* Notes — compact block, no Card; clickable rows */}
+      {/* Activity Stream — compact block, no Card; clickable rows */}
       {showNotes && (
       <div className="rounded-lg border bg-card">
         <div className="flex items-center justify-between py-2 px-4 border-b">
-          <span className="text-sm font-semibold">Notes</span>
+          <span className="text-sm font-semibold">Activity Stream</span>
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={openAddNoteModal}>
             <Plus className="h-3.5 w-3.5 mr-1" />
-            Add
+            Add Custom Note
           </Button>
         </div>
         <div className="p-3 space-y-2">
           <div className="relative">
             <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search notes..."
+              placeholder="Search activity..."
               value={noteSearch}
               onChange={(e) => setNoteSearch(e.target.value)}
               className="pl-7 h-8 text-sm"
@@ -439,7 +439,7 @@ export function ContactDetailClient({
           <div className="max-h-64 overflow-y-auto space-y-1">
             {filteredNotes.length === 0 ? (
               <p className="text-xs text-muted-foreground py-3 text-center">
-                {notes.length === 0 ? "No notes yet" : "No notes match your search"}
+                {notes.length === 0 ? "No activity yet" : "No activity matches your search"}
               </p>
             ) : (
               filteredNotes.map((n) => (
@@ -473,7 +473,7 @@ export function ContactDetailClient({
       {noteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6 space-y-4">
-            <h2 className="text-lg font-semibold">{editingNote ? "Edit Note" : "Add Note"}</h2>
+            <h2 className="text-lg font-semibold">{editingNote ? "Edit Note" : "Add Custom Note"}</h2>
             <div className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="noteBody">Note</Label>

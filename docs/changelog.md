@@ -9,6 +9,25 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-01-30 CT - Session wrap: Code Generator Explore page, RAG + Digicards planning
+
+**Context for Next Session:**
+- **Code Generator complete** (admin-side): Create batches, generate codes, redeem via API. "Explore" button opens dedicated batch detail page (`/admin/crm/memberships/code-generator/batches/[id]`) with redemption table and contact links. Testing pending: create a batch and redeem to verify.
+- **Next priorities:** (1) Phase 11 Deployment Tools (setup, reset, archive scripts), (2) Reusable components + component library for public pages.
+- **Planning added:** Phase 16a (RAG Knowledge Document for external AI agents), Phase 11b (Digicards).
+- **Deferred:** End-to-end membership testing until public pages exist.
+
+**Key Files Changed:**
+- `src/app/admin/crm/memberships/code-generator/batches/[id]/page.tsx` — new batch detail page
+- `src/app/admin/crm/memberships/code-generator/batches/[id]/BatchExploreClient.tsx` — client component for redemption table
+- `src/app/admin/crm/memberships/code-generator/CodeGeneratorClient.tsx` — "Explore" button, removed codes modal
+- `src/app/api/admin/membership-codes/batches/[id]/codes/route.ts` — added contact_id to response
+- `docs/planlog.md` — Phase 9A codes API checked off; Phase 16a, 11b added
+
+**Changes:**
+- Code Generator: "View table" → "Explore" button; dedicated page with Code, Status, Contact/Email (link to contact), Redeemed timestamp.
+- Planlog: Phase 16a (RAG Knowledge Document Export), Phase 11b (Digicards).
+
 ### 2026-01-30 CT - Session wrap: Membership, Code Generator, Phase 11 priority
 
 **Context for Next Session:**

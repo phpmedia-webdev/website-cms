@@ -245,6 +245,10 @@ export async function insertContent(row: {
   status: string;
   published_at: string | null;
   custom_fields?: Record<string, unknown>;
+  access_level?: string | null;
+  required_mag_id?: string | null;
+  visibility_mode?: string | null;
+  restricted_message?: string | null;
 }): Promise<{ id: string } | null> {
   const supabase = createClientSupabaseClient();
   const { data, error } = await supabase
@@ -274,6 +278,10 @@ export async function updateContent(
     status: string;
     published_at: string | null;
     custom_fields: Record<string, unknown>;
+    access_level: string | null;
+    required_mag_id: string | null;
+    visibility_mode: string | null;
+    restricted_message: string | null;
   }>
 ): Promise<boolean> {
   const supabase = createClientSupabaseClient();

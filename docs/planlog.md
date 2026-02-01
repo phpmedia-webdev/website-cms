@@ -596,6 +596,15 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - [ ] Display status (new, contacted, archived)
     - [ ] Display external CRM sync status
     - [ ] "Manual push to external CRM" button/action
+  - [x] Contact detail: Activity Stream (renamed from Notes)
+    - [x] Rename "Notes" tab/section to "Activity Stream" — timestamped list of activities for the contact
+    - [x] Change "+Add" button to "+Add Custom Note" (custom notes remain one activity type)
+    - [x] When a membership code is redeemed by a user, add entry to contact's activity stream (note_type: code_redemption, body: "Membership code redeemed: [MAG name]")
+  - [ ] Combined Activity Stream (admin dashboard)
+    - [ ] Dashboard widget: merged, timestamp-sorted view of all contact activities (manual notes + automatic events)
+    - [ ] Source: crm_notes across all contacts; future: form submissions, MAG assignments, etc.
+    - [ ] Display: contact name/link, activity type, snippet, timestamp; link to contact detail
+    - [ ] Optional: filter by contact, activity type, date range
   - [ ] Create `src/components/crm/TagManager.tsx` (tag assignment UI)
   - [ ] Create `src/components/crm/MAGAssignment.tsx` (MAG assignment UI)
   - [ ] Create `src/components/crm/ExternalCRMPush.tsx` (manual push UI)
@@ -812,20 +821,20 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] **Content (posts/pages):** Apply same multi-MAG pattern for consistency (TBD in planning).
 
 - [ ] Content editor integration
-  - [ ] Update `src/components/posts/PostEditor.tsx`:
-    - [ ] Add access level dropdown (public, members, mag)
-    - [ ] Add MAG selector — **multi-select** when multi-MAG schema adopted
-    - [ ] Add visibility mode toggle (hidden/message)
-    - [ ] Add restricted message input (optional override)
+  - [x] Update content editor (ContentEditModal — unified model for post/page):
+    - [x] Add access level dropdown (public, members, mag)
+    - [x] Add MAG selector (single required_mag_id for now; multi-MAG TBD)
+    - [x] Add visibility mode toggle (hidden/message)
+    - [x] Add restricted message input (optional override)
+  - [ ] Update `src/components/posts/PostEditor.tsx` (if still used): same as above
   - [x] Update `src/components/galleries/GalleryEditor.tsx`:
     - [x] Add "Membership Protection" section
     - [x] Add access level dropdown (public, members, specific memberships)
     - [x] Add **multi-select MAG picker** (when access_level = "mag") — user can access if they have ANY of the assigned MAGs
     - [x] Add visibility mode toggle (hidden/message)
     - [x] Add restricted message input (optional override)
-  - [ ] Update `src/components/pages/PageEditor.tsx`:
-    - [ ] Add page-level protection (same as posts)
-    - [ ] Add section restrictions UI
+  - [ ] Update `src/components/pages/PageEditor.tsx` (if still used): same as above
+  - [ ] Add section-level restrictions UI (page editor)
   - [ ] Update Tiptap editor:
     - [ ] Protected text toolbar button
     - [ ] MAG selector when inserting protected text
@@ -1008,56 +1017,57 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 **Purpose**: Two code types — (1) single-use redemption codes: unique codes, one use each, tracked; (2) multi-use codes: one shared code, finite or unlimited uses. Two-table design: `membership_code_batches` + `membership_codes`.
 
-- [ ] Schema: membership code tables (client schema)
-  - [ ] Create `membership_code_batches` table:
-    - [ ] id, mag_id (FK → mags), name, use_type (single_use | multi_use)
+- [x] Schema: membership code tables (client schema)
+  - [x] Create `membership_code_batches` table:
+    - [x] id, mag_id (FK → mags), name, use_type (single_use | multi_use)
     - [ ] For multi_use: code_hash TEXT, max_uses INT, use_count INT DEFAULT 0, expires_at TIMESTAMPTZ
     - [ ] For single_use: num_codes INT, expires_at TIMESTAMPTZ
     - [ ] Pattern fields (optional): code_prefix TEXT, code_middle TEXT, code_suffix TEXT, random_length INT
     - [ ] Charset: exclude_chars TEXT (e.g., "oO0iIlL1") or preset (no_ambiguous)
     - [ ] created_at, created_by (admin user id optional)
-  - [ ] Create `membership_codes` table (single-use only):
-    - [ ] id, batch_id (FK → membership_code_batches), code_hash TEXT UNIQUE
-    - [ ] status (available | redeemed), redeemed_at, redeemed_by_member_id (FK → members)
+  - [x] Create `membership_codes` table (single-use only):
+    - [x] id, batch_id (FK → membership_code_batches), code_hash TEXT UNIQUE
+    - [x] status (available | redeemed), redeemed_at, redeemed_by_member_id (FK → members)
   - [ ] Optional: `code_redemption_log` for multi-use "who used when" (or add columns to batch)
-  - [ ] RLS, indexes, RPC functions per project pattern
+  - [x] RLS, indexes per project pattern
 
-- [ ] Code generation utilities
-  - [ ] Create `src/lib/mags/code-generator.ts`:
-    - [ ] `generateSingleUseCodes(batchId, count, options?)` — generate unique codes with pattern and charset, hash and insert into membership_codes
-    - [ ] `createMultiUseCode(magId, code, maxUses, expiresAt)` — create batch with one code
-    - [ ] `generateCodeString(options)` — crypto-safe random string with:
+- [x] Code generation utilities
+  - [x] Create `src/lib/mags/code-generator.ts`:
+    - [x] `generateSingleUseCodes(batchId, count, options?)` — generate unique codes with pattern and charset, hash and insert into membership_codes
+    - [x] `createMultiUseCode(magId, code, maxUses, expiresAt)` — create batch with one code
+    - [x] `generateCodeString(options)` — crypto-safe random string with:
       - [ ] Pattern: prefix, middle, suffix (fixed text) + random segment(s)
       - [ ] Character exclusion: preset "no ambiguous" (omit o,O,0,i,I,l,L,1) or custom exclude list
       - [ ] Configurable length for random segment(s)
-    - [ ] `hashCode(code)` — normalize (trim, lowercase) and hash for lookup
-    - [ ] `redeemCode(code, memberId)` — validate, mark used, assign MAG
+    - [x] `hashCode(code)` — normalize (trim, lowercase) and hash for lookup
+    - [x] `redeemCode(code, memberId)` — validate, mark used, assign MAG
 
-- [ ] Redemption flow
+- [x] Redemption flow
   - [ ] Validate: not expired, not already used (single-use), under max_uses (multi-use)
   - [ ] Assign MAG to member via `user_mags`
   - [ ] Update membership_codes or batch use_count
   - [ ] Idempotency: same member + same code = no double-assign (check existing user_mags)
 
-- [ ] Admin UI: Code Generator
-  - [ ] Add to CRM → Memberships (or MAG detail): "Code Generator" / "Codes" section
-  - [ ] Create batch form: MAG selector, use_type (single_use | multi_use), num_codes or max_uses, expires_at
-  - [ ] Pattern config: prefix, middle, suffix (optional text inputs); random segment length
-  - [ ] Character exclusion: preset "No ambiguous" (o,O,0,i,I,l,L,1) or custom exclude list (input or checkbox set)
-  - [ ] For multi-use: input code string (or auto-generate), save
-  - [ ] For single-use: "Generate N codes" button, show count, export CSV (plain codes for distribution)
-  - [ ] Batch list: name, MAG, type, usage stats (e.g., 45/100 redeemed), expires, actions
+- [x] Admin UI: Code Generator
+  - [x] Add to CRM → Memberships: "Code Generator" page (/admin/crm/memberships/code-generator)
+  - [x] Create batch form: MAG selector, use_type (single_use | multi_use), num_codes or max_uses, expires_at
+  - [x] Pattern config: prefix, suffix (optional text inputs); random segment length
+  - [ ] Character exclusion: preset "No ambiguous" in generator; custom exclude list (optional)
+  - [x] For multi-use: input code string, save
+  - [x] For single-use: "Generate N codes" button, show count, export CSV (plain codes for distribution)
+  - [x] Batch list: name, MAG, type, usage stats (e.g., 45/100 redeemed), expires, actions
+  - [x] "Explore" button per batch → dedicated page `/admin/crm/memberships/code-generator/batches/[id]` with redemption table (Code, Status, Contact/Email with link to contact, Redeemed timestamp)
 
 - [ ] Public/member UI: Code entry
   - [ ] Login/register page: optional "Have an access code?" field; on submit, if code provided, validate and assign MAG after auth
   - [ ] Member profile/account page: "Apply code" section — input code, submit; validate and assign MAG to current member
 
-- [ ] API routes
-  - [ ] `POST /api/admin/membership-codes/batches` — Create batch (admin)
-  - [ ] `GET /api/admin/membership-codes/batches` — List batches (admin)
-  - [ ] `POST /api/admin/membership-codes/batches/[id]/generate` — Generate single-use codes (admin)
-  - [ ] `GET /api/admin/membership-codes/batches/[id]/codes` — List codes in batch, export (admin)
-  - [ ] `POST /api/members/redeem-code` — Redeem code (authenticated member or during signup flow)
+- [x] API routes
+  - [x] `POST /api/admin/membership-codes/batches` — Create batch (admin)
+  - [x] `GET /api/admin/membership-codes/batches` — List batches (admin)
+  - [x] `POST /api/admin/membership-codes/batches/[id]/generate` — Generate single-use codes (admin)
+  - [x] `GET /api/admin/membership-codes/batches/[id]/codes` — List codes in batch (admin; for Explore page)
+  - [x] `POST /api/members/redeem-code` — Redeem code (authenticated member)
 
 ### Phase 9B: Marketing (Email / Resend / Vbout)
 
@@ -1075,6 +1085,40 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Integration config (Resend/Vbout keys, webhooks if needed)
   - [ ] Sync or push contacts to provider lists (respect DND/consent)
   - [ ] Unsubscribe handling: set contact DND when unsubscribe event received
+
+### Phase 9D: AnyChat.one Integration (Conversations)
+
+**Status**: Planned - Before Phase 10 (API Development). Adds omnichannel live chat and AI-assisted conversations to the CRM workflow.
+
+**Platform overview (anychat.one):**
+- All-in-one live chat and AI-assisted chat platform with web widget
+- Omnichannel: Facebook, Instagram, LinkedIn, WhatsApp, Telegram, Messenger, Viber, WeChat, Skype, etc.
+- Built-in CRM, meetings section, and API
+- Embeddable live chat management page for embedding in admin panels
+- Dashboard at anychat.one/app for full operations (channels, inbox, chatflows, forms)
+- Docs: https://docs.anychat.one/ (quick setup, widgets, channels, live chat, inbox, chatflows)
+
+- [ ] Add CRM sub-navigation: "Conversations"
+  - [ ] Add "Conversations" link to `crmSubNav` in Sidebar
+  - [ ] Route: `/admin/crm/conversations`
+
+- [ ] Create Conversations page (`/admin/crm/conversations`)
+  - [ ] Embed AnyChat.one live chat management interface (iframe or platform embed SDK)
+  - [ ] Full-height embed area for managing conversations
+  - [ ] Header section with:
+    - [ ] Page title and brief description
+    - [ ] Link(s) to full AnyChat.one dashboard (anychat.one/app) for channels, inbox, chatflows, meetings, CRM, API
+    - [ ] "Open in new tab" for dashboard access
+
+- [ ] Integration configuration
+  - [ ] Add AnyChat.one config to superadmin integrations or Settings → CRM
+  - [ ] Store embed URL or API credentials (per deployment)
+  - [ ] Document required env vars or settings (e.g. `ANYCHAT_EMBED_URL`, `ANYCHAT_API_KEY`)
+  - [ ] Optional: SSO or token-based auth for embed (if AnyChat supports)
+
+- [ ] Documentation
+  - [ ] Document setup steps: AnyChat.one account, embed configuration, dashboard links
+  - [ ] Reference AnyChat.one docs for widget setup on public site (separate from admin embed)
 
 ### Phase 10: API Development
 
@@ -1122,6 +1166,46 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 - [ ] Create archive script
   - [ ] Create `scripts/archive-project.ts` (CLI for archiving project, backup options)
   - [ ] Add `pnpm run archive` script to `package.json`
+
+### Phase 11b: Digicards (Digital Business Cards)
+
+**Status**: Planned - Future enhancement
+
+**Goal**: Single-page digital business cards ("Digicards") for the tenant client and their team. Mobile-optimized landing pages at `https://clientdomain.com/digicard/[slug]` with VCF download, native share, and PWA add-to-home-screen. Admin manages their own card and team member cards. Analytics (view/open/share) feed Activity Stream or a dedicated dashboard.
+
+**Reference**: See `prd-planned.md` — Digital Business Card Feature (team_members schema, vCard, PWA).
+
+- [ ] Schema and team members
+  - [ ] Create `team_members` table (or equivalent): id, name, title, company, email, phone, bio, photo_url, social_links JSONB, digicard_slug UNIQUE, is_active, created_at, updated_at
+  - [ ] Create `digicard_events` table for analytics: id, team_member_id, event_type (view | open | share | vcf_download), created_at, metadata JSONB (user_agent, referrer, etc.)
+- [ ] Admin UI
+  - [ ] CRM or Settings → Digicards (or Team Cards)
+  - [ ] List cards: tenant/org card + team member cards
+  - [ ] Add/Edit card: name, title, company, email, phone, bio, photo, social links, slug
+  - [ ] Preview link to public page
+- [ ] Public digicard page
+  - [ ] Route: `/(public)/digicard/[slug]/page.tsx` → `https://clientdomain.com/digicard/team-member-name`
+  - [ ] Single-page layout optimized for mobile
+  - [ ] PWA manifest + service worker so page can be saved to device home screen
+- [ ] VCF (vCard) download
+  - [ ] API or route: `GET /digicard/[slug]/vcf` or `/api/digicard/[slug]/vcard`
+  - [ ] Generate .vcf from team member data for one-tap save to contacts
+- [ ] Share button
+  - [ ] Native Web Share API: `navigator.share()` opens device share sheet (text, email, AirDrop, etc.)
+  - [ ] Fallback: copy link, or compose mail with pre-filled contact
+- [ ] Analytics and tracking
+  - [ ] Track: view (page load), open (e.g. link open), share (Share API success), vcf_download
+  - [ ] Store in `digicard_events`; optionally write to Activity Stream (e.g. as contact activity if linked) or separate Digicards dashboard
+  - [ ] Admin: Digicards dashboard panel — views, shares, downloads per card; time range filter
+- [ ] Design system integration
+  - [ ] Digicard layout uses tenant design system (fonts, colors, branding)
+  - [ ] Photo from Media Library or URL
+- [ ] Documentation
+  - [ ] How to add team members, customize cards, interpret analytics
+
+**Note**: Tenant "org" card can be a special team_member (e.g. `is_primary` or slug `company`) for the client’s main business card.
+
+---
 
 ### Phase 12: Superadmin - Visual Component Library
 
@@ -1267,6 +1351,48 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Add integration tests for API routes (including protected content)
   - [ ] Test component library components
   - [ ] Test membership access control flows
+
+### Phase 16a: RAG Knowledge Document Export (External AI Agent Feed)
+
+**Status**: Planned - Future enhancement
+
+**Goal**: Produce a single public-but-hidden document containing condensed CMS content so external AI agents (Custom GPTs, etc.) can be pointed at one URL instead of many. Most AI agent training UIs accept URLs one at a time; this document represents the full client website in one place.
+
+**Concept**:
+- Per-content checkbox (auto-checked by default): "Include in AI knowledge document"
+- When content is created/updated, optionally include it in a consolidated, optimized document
+- Each entry: condensed/cleaned text (strip HTML, summarize if needed)
+- Single document served at unlisted URL (token-protected or UUID path)
+- Admin: regenerate button, copy URL for pasting into AI agent config
+
+- [ ] Schema and content flag
+  - [ ] Add `include_in_rag_export` boolean to content (default `true`)
+  - [ ] Migration for new column
+- [ ] Content editor integration
+  - [ ] Add checkbox "Include in AI knowledge document" to ContentEditModal (default checked)
+  - [ ] Persist on save
+- [ ] Document builder
+  - [ ] Create `src/lib/ai/rag-knowledge-doc.ts`:
+    - `buildRagKnowledgeDocument()` - Query opted-in content, condense each, concatenate
+    - Condense: strip HTML, extract plain text, optional truncation/summary per entry
+    - Include: title, slug, excerpt, condensed body, content type, public URL
+  - [ ] Regenerate on content save (async) or via admin "Regenerate" button
+- [ ] Public delivery
+  - [ ] Route: `/api/rag-knowledge` or `/rag/[uuid].txt` (unlisted; token or UUID in path)
+  - [ ] Public, no auth required (document is non-sensitive condensed content)
+  - [ ] Cache or store built document; invalidate on regenerate
+- [ ] Admin UI
+  - [ ] Settings → RAG Knowledge (or under Content/Settings)
+  - [ ] "Regenerate" button
+  - [ ] "Copy URL" for pasting into external AI agent (Custom GPT, etc.)
+  - [ ] Optional: Rotate token / generate new UUID for URL
+- [ ] Documentation
+  - [ ] How to use with ChatGPT Custom GPTs, other AI agents
+  - [ ] Security note: URL is unlisted but not secret; document contains only public-facing condensed content
+
+**Note**: This feeds external AI agents. Phase 16 (RAG Chatbot) builds an on-site chatbot with vector embeddings; the condensed document could optionally feed that pipeline later.
+
+---
 
 ### Phase 16: RAG Chatbot (Future Nice-to-Have)
 

@@ -50,7 +50,7 @@ export function ContactDetailTabs({
           className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
         >
           <FileText className="h-3.5 w-3.5 mr-1.5" />
-          Notes
+          Activity Stream
         </TabsTrigger>
         <TabsTrigger
           value="taxonomy"
@@ -101,8 +101,8 @@ export function ContactDetailTabs({
             <CardContent className="p-6">
               {tab === "notes" && (
                 <>
-                  <h2 className="text-sm font-semibold mb-1">Notes</h2>
-                  <p className="text-xs text-muted-foreground mb-4">Internal notes and activity log.</p>
+                  <h2 className="text-sm font-semibold mb-1">Activity Stream</h2>
+                  <p className="text-xs text-muted-foreground mb-4">Timestamped activities for this contact, including custom notes.</p>
                 </>
               )}
               {tab === "customFields" && (

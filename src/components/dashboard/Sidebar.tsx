@@ -28,6 +28,7 @@ import {
   Building2,
   Mail,
   ListChecks,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -53,6 +54,7 @@ const crmSubNav = [
   { name: "Marketing", href: "/admin/crm/marketing", icon: Mail },
   { name: "Lists", href: "/admin/crm/lists", icon: ListChecks },
   { name: "Memberships", href: "/admin/crm/memberships", icon: Folder },
+  { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound },
 ];
 
 const settingsSubNav = [

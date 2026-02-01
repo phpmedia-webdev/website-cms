@@ -172,7 +172,7 @@ export default async function ContactDetailPage({
         </CardContent>
       </Card>
 
-      {/* Tabbed section: Notes | Taxonomy | Custom Fields | Marketing Lists | Memberships */}
+      {/* Tabbed section: Activity Stream | Taxonomy | Custom Fields | Marketing Lists | Memberships */}
       <ContactDetailTabs
         contactId={id}
         initialNotes={notes}
