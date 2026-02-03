@@ -32,7 +32,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 - [x] Implement multi-tenant auth with user metadata
   - [x] Configure user metadata structure:
     - `user_metadata.type`: `superadmin | admin | member`
-    - `user_metadata.role`: `superadmin | client_admin | editor | viewer | ...`
+    - `user_metadata.role`: `superadmin | client_admin | editor | creator | viewer | ...` (Creator = content submissions only; no site editing)
     - `user_metadata.tenant_id`: required for `admin` and `member` users (must match deployment schema)
     - `user_metadata.allowed_schemas`: optional allowlist for cross-tenant access (superadmin)
   - [x] Update middleware rules:
@@ -324,6 +324,12 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Phase 03 will create: Client tenant tables (`public.client_tenants`, `public.client_admins`, `public.client_admin_tenants`)
   - [ ] All schemas will reflect updated PRD specifications
 
+- [ ] Refactor: Color palette — central preset library in public schema
+  - [ ] Move predefined palette library to a **table in the public schema** (e.g. `public.color_palette_presets`). Superadmin maintains this central table (add/edit/remove presets); all tenants reference it as the picklist for choosing palettes.
+  - [ ] Tenant schema: retain only **custom** palettes (user-created per site), e.g. in existing `color_palettes` or a dedicated `custom_palettes` table. Picker UI: "Presets" (from public) + "My palettes" (from tenant).
+  - [ ] RPCs/API: read presets from public; read/write custom palettes in tenant schema. Single source of truth for the preset library; easier maintenance and sharing across all tenant apps.
+  - [ ] Optional: migration to copy existing predefined rows from tenant `color_palettes` into public presets (once), then remove predefined rows from tenant tables or stop inserting them per tenant.
+
 ### Phase 02: Superadmin UI
 
 **Status**: Pending - Required to begin settings and developing components (crude MVP component library manager)
@@ -528,7 +534,21 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [x] `src/app/(public)/blog/[slug]/page.tsx` (single post, rich content, SEO)
 - [x] Build public-facing pages
   - [x] Dynamic `[slug]` page (type `page`); homepage = page slug `/` (fallback if none); `RichTextDisplay` (Tiptap JSON → HTML)
-  - [ ] Page composition using reusable sections (future)
+  - [ ] Page composition using reusable sections (section editor)
+    - [ ] All content items (including pages) are identified by **UUID** and title; reference by **UUID** in code (APIs, links, data); use title for display
+    - [ ] Page content type as section container: page records stay in Content library list; clicking a page opens a **section editor** (not the current Tiptap modal)
+    - [ ] Section editor: name, slug in detail/metadata area; main area = **drag-and-drop arrangement of sections** (blocks) for the page
+    - [ ] **Sections library in public schema:** Reusable section/component building blocks are stored in a **table in the public schema** (global, central). Admin/superadmin reference this table when building the Page content object. Single source of truth: easier to update and share across all tenant apps (see Phase 12).
+    - [ ] Persist section order and section instance data (e.g. `body` or `content_sections` JSONB: ordered list of `{ section_type_id, props, order }`)
+    - [ ] Public page render: resolve sections by type and render in order (can be a later task)
+- [ ] Content type: FAQ block
+  - [ ] Add FAQ block as a selectable content type in the content library (create/edit in list + modal or dedicated editor)
+  - [ ] Structure: one topic (title) + multiple Q&A pairs (question, answer). Store in `content.body` JSONB or content-type-specific fields (e.g. `{ topic, items: [{ question, answer }] }`)
+  - [ ] Content library: FAQ block appears in type filter and list; selecting it opens editor for topic and Q&A list (add/remove/reorder pairs)
+  - [ ] Use cases: (1) Block can be placed on a public page (e.g. as a section/block when page composition exists, or embedded by slug/UUID); (2) Included in RAG knowledge document (Phase 16a) for AI agent training when opted in
+  - [ ] Migration or seed: add `faq_block` (or equivalent slug) to `content_types`; add any content-type-specific fields if not using body JSONB
+  - [ ] Public render: optional route or component to render a single FAQ block (e.g. by slug or UUID) for embedding; or render only when used as a section in page composition
+
 - [x] Legacy admin routes
   - [x] Redirect `/admin/posts`, `/admin/posts/new`, `/admin/posts/[id]` → `/admin/content?type=post`; `/admin/pages` → `/admin/content?type=page`; Content page reads `?type=` and sets type filter
 
@@ -580,6 +600,14 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - [ ] Create contact with `status = 'new'` (marked for review)
     - [ ] Process consents (simplified, IP address and timestamp)
     - [ ] Set DND status based on consent
+
+- [ ] Central automations layer (trigger/response)
+  - [ ] Create `src/lib/automations/` (or equivalent): single place for all automation logic; API routes and handlers call into automations instead of inlining steps
+  - [ ] Define automation pattern: trigger (event) → pipeline of steps (e.g. appendContactNote, matchOrCreateContact, assignMag). Shared steps reusable across automations
+  - [ ] Form submission automation: trigger = form submitted; steps = validate, match/create contact, fill fields, auto-assign tags/MAGs, append note to activity stream. Refactor `POST /api/forms/[formId]/submit` to call this automation
+  - [ ] Code redemption automation: trigger = code redeemed; steps = validate code, assign MAG, append note. Refactor redeem-code flow to call this automation (if not already centralized)
+  - [ ] Optional: MAG assigned automation (trigger = MAG assigned to contact → append note). Add more automations over time (e.g. tag changes, external CRM push) for comprehensive activity logging
+  - [ ] Document pattern so new events (e.g. contact tagged, form submitted) are added as new automation modules
 
 - [ ] Create CRM admin UI
   - [ ] Create `src/app/admin/crm/page.tsx` (CRM dashboard)
@@ -1173,10 +1201,10 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 **Goal**: Single-page digital business cards ("Digicards") for the tenant client and their team. Mobile-optimized landing pages at `https://clientdomain.com/digicard/[slug]` with VCF download, native share, and PWA add-to-home-screen. Admin manages their own card and team member cards. Analytics (view/open/share) feed Activity Stream or a dedicated dashboard.
 
-**Reference**: See `prd-planned.md` — Digital Business Card Feature (team_members schema, vCard, PWA).
+**Reference**: See `prd-planned.md` — Digital Business Card Feature (team_members schema, vCard, PWA). **Team member profile** (Phase 18b) is the **data source** for Digicards: bio, photo, social links, etc. live on the team profile; Digicards read from it.
 
 - [ ] Schema and team members
-  - [ ] Create `team_members` table (or equivalent): id, name, title, company, email, phone, bio, photo_url, social_links JSONB, digicard_slug UNIQUE, is_active, created_at, updated_at
+  - [ ] Create `team_members` table (or equivalent) — may align with Phase 18b team member profile: id, name, title, company, email, phone, bio, photo_url, social_links JSONB, digicard_slug UNIQUE, is_active, created_at, updated_at
   - [ ] Create `digicard_events` table for analytics: id, team_member_id, event_type (view | open | share | vcf_download), created_at, metadata JSONB (user_agent, referrer, etc.)
 - [ ] Admin UI
   - [ ] CRM or Settings → Digicards (or Team Cards)
@@ -1214,11 +1242,13 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 **Note**: This is the full visual component library system (from old Phase 13). The crude MVP component library manager is in Phase 02.
 
-- [ ] Create component library database schema
-  - [ ] Create migration `supabase/migrations/008_component_library.sql`:
-    - [ ] `component_library` table (name, library_entry_id UUID UNIQUE, file_path, import_path, category, theme, location, description, props_schema JSONB, usage_examples JSONB, dependencies, design_tokens, screenshot_url, wireframe_url, preview_images JSONB, requirements_screenshot_url, requirements_text, development_status, is_linked_to_file, assigned_to, priority, estimated_complexity, planned_at, started_at, completed_at, author, dates, search_text TSVECTOR)
-    - [ ] Add indexes for category, theme, location, development_status, and full-text search
-    - [ ] Create Supabase Storage bucket `component-library/` for image storage
+**Spec — Central shared library in public schema:** Section/component building blocks (the blocks used in the Page section editor) are stored in a **table in the public schema** (e.g. `public.section_components` or `public.component_library`). Admin and superadmin reference this table when building the "Page" content object. Global and central: easier to update and share across all tenant apps; superadmin can maintain the catalog; tenants do not duplicate the library.
+
+- [ ] Create component library database schema (**public** schema)
+  - [ ] Create migration for **public** schema table (e.g. `public.section_components` or `public.component_library`): section/component definitions that all tenants reference when building pages
+  - [ ] Table fields: name, slug/id, file_path, import_path, category, theme, location, description, props_schema JSONB, usage_examples JSONB, dependencies, design_tokens, screenshot_url, wireframe_url, preview_images JSONB, requirements_screenshot_url, requirements_text, development_status, is_linked_to_file, assigned_to, priority, estimated_complexity, planned_at, started_at, completed_at, author, dates, search_text TSVECTOR (or equivalent)
+  - [ ] Add indexes for category, theme, location, development_status, and full-text search
+  - [ ] Create Supabase Storage bucket `component-library/` for image storage
 
 - [ ] Build component scanner/auto-discovery system
   - [ ] Create `src/lib/components/scanner.ts`:
@@ -1942,7 +1972,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 18: Admin Sidebar Feature Gating & Custom Links
 
-**Status**: Planned - Superadmin controls feature visibility per tenant; custom links per fork
+**Status**: Planned - Superadmin controls feature visibility per tenant; custom links per fork. Can be extended to **per-role** feature selection (see Phase 18b).
 
 **Purpose**: Enable tiered feature offerings. Some clients don't get all features. Disabled features show as ghosted (visible but greyed out); optionally route to preview/upsell page. Custom links per tenant (not in template) for client-specific navigation.
 
@@ -1973,6 +2003,27 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] `GET /api/super/clients/[id]/sidebar` - Get sidebar config for tenant
   - [ ] `PUT /api/super/clients/[id]/sidebar` - Update sidebar feature gating and custom links
   - [ ] `GET /api/admin/sidebar-config` - Get current tenant's sidebar config (for Sidebar component)
+
+### Phase 18b: Tenant Team Members, Roles & Profile
+
+**Status**: Planned - Client admin roles (Creator, editor, viewer, client_admin), optional custom roles, per-role feature set, and team member profile page. Team members are not required to be in CRM; profile is the source for Digicards.
+
+**Purpose**: Admin users for a tenant are **team members**. Each has a role and a **team member profile** (name, email, role, avatar, bio, photo, social links). Profile serves (1) access/identity and (2) **Digicards** data source. Per-role feature set lets superadmin/client_admin select which CMS features each role can access (same idea as Phase 18 but per role).
+
+- [ ] Roles: Creator, editor, viewer, client_admin
+  - [ ] **Creator:** Content submissions only (create/edit content); no site-editing features (Settings, structure, user management). Add to `user_metadata.role` and `hasRole()` / middleware.
+  - [ ] **editor, viewer, client_admin:** As today; scope may be limited by per-role feature set.
+- [ ] Per-role feature set
+  - [ ] Superadmin (and optionally client_admin) configures which sidebar features each role can access (Content, Galleries, Media, CRM, Settings, etc.). Same mechanism as Phase 18 but **per role** (e.g. Creator = [Content], editor = [Content, Media, Galleries]).
+  - [ ] Schema: e.g. `role_features` (role_id or role slug, feature_id, enabled) or tenant config. Sidebar and route protection use role + feature set.
+- [ ] Optional: Custom roles
+  - [ ] Allow tenant to define custom roles (e.g. "Marketing", "Support") and assign a feature set to each. Users assigned a built-in or custom role.
+- [ ] Team member profile page / management section
+  - [ ] Each team member has a **profile** (name, email, role, avatar, and fields for **Digicards**: bio, photo, social_links, title, company, phone, digicard_slug). Stored in tenant schema (e.g. `team_members` or extend auth/user profile table).
+  - [ ] Admin UI: Team list and team member profile page (e.g. `/admin/settings/team` or `/admin/team`, `/admin/team/[id]`). Edit profile; profile is **source for Digicards** (Phase 11b).
+  - [ ] **Team ≠ CRM:** Team members may or may not be in the CRM/contact list. If in CRM, that is for marketing; access and Digicard data live on the team member profile.
+- [ ] Digicards integration
+  - [ ] Phase 11b (Digicards) uses **team member profile** as the data source (bio, photo, social links, etc.). Implement team profile first or align `team_members` schema with Digicards needs.
 
 ## Notes
 

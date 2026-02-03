@@ -327,6 +327,7 @@ All content types use the **site-wide taxonomy system** for categories and tags 
 - **Content type registry:** A `content_types` table defines each type (core and custom). Core types include **post**, **page**, **snippet**, **quote**, **article**. Custom types (e.g. portfolio, properties) are added via Settings → Content Types.
 - **Custom fields:** A `content_type_fields` table defines fields **per content type**. Each field applies to exactly one type. Values are stored in `content.custom_fields` (JSONB). Example: a "Price" field for "Properties" is separate from a "Price" field for "Portfolio."
 - **No per-type tables:** Do **not** create separate `posts`, `pages`, or type-specific tables for text-based content. Use the unified `content` table and `content_type_id` to distinguish types.
+- **Content identification:** Every content item has a stable **UUID** (primary key) and a **title**. In code, reference content by **UUID** for APIs, links, and data relationships; use **title** for display and human-readable labels.
 
 **Benefits:** One place to query and manage all content, consistent list/modal UI, and new types added via configuration rather than new migrations.
 
@@ -343,6 +344,8 @@ All content types use the **site-wide taxonomy system** for categories and tags 
 - Access control: public, members-only, or MAG-restricted
 - Section-level restrictions: Different sections of a page can have different access levels (e.g. `section_restrictions` in custom fields or dedicated column)
 - Taxonomy: Categories and tags (section-scoped)
+
+**Page composition (sections):** Pages can be built from reusable sections (blocks). In the Content library, page items still appear in the list; opening a page opens a **section editor** (not the rich-text modal) with name and slug in a detail area and a **drag-and-drop** area to arrange sections on the page, analogous to WordPress block-based page editing. **Section/component building blocks** are stored in a **central table in the public schema** (e.g. `public.section_components` or `public.component_library`). Admin and superadmin reference this table when building the Page content object; global and central so they are easier to update and share across all tenant apps.
 
 ### Blog Posts
 
@@ -476,6 +479,13 @@ The CRM accepts contact data from public forms, stores standard and custom field
 - Admins add entries for cultivation and work history.
 - Some entries are **automated** (e.g. "Contact created", "Added to campaign X").
 
+### Automations (trigger / response)
+
+- **Automations** are centralized trigger/response flows: when an event occurs (e.g. form submitted, code redeemed, MAG assigned), a defined pipeline of steps runs (e.g. match/create contact, update fields, append note to activity stream).
+- All automation logic lives in a **central code location** (e.g. `src/lib/automations/`) so the app stays organized and new events are easy to add. API routes and UI handlers call into these automations rather than inlining the same steps in multiple places.
+- **Examples:** Form submission (trigger: form submitted → steps: validate, match/create contact, fill fields, auto-assign tags/MAGs, append note); code redemption (trigger: code redeemed → steps: validate, assign MAG, append note); MAG assigned (trigger: admin assigns MAG → steps: append note). More auto-events (e.g. form submissions, tag changes) can be added as automations and will feed the contact activity stream.
+- **Refactor:** Existing scattered routines (e.g. form submit handler, redeem-code handler) should be refactored over time to call the central automation layer so behavior is consistent and maintainable.
+
 ### Contacts list
 
 - **Compact, spreadsheet-like** table: common fields (name, email, phone, etc.).
@@ -530,8 +540,8 @@ The CRM accepts contact data from public forms, stores standard and custom field
 - Changes apply immediately across entire site
 
 **Color Palette System:**
-- Predefined palettes (global presets)
-- Custom palettes (per-tenant)
+- **Predefined palettes (global presets):** Stored in a **central table in the public schema** (e.g. `public.color_palette_presets`). Superadmin maintains this table; all tenants reference it as the picklist. Easier to update and share across tenant apps.
+- **Custom palettes (per-tenant):** Stored in the tenant schema only. Picker shows "Presets" (from public) + "My palettes" (from tenant).
 - 15-color structure (color01 through color15)
 - Palette library with preview
 - Live preview in settings UI
@@ -590,6 +600,22 @@ The CRM accepts contact data from public forms, stores standard and custom field
 **Core Distinction:**
 - **Admin roles** control **what CMS features** an authenticated admin can access
 - **MAGs (Membership Access Groups)** control **what protected content** a GPUM can access on the public site
+
+### Tenant Team Members & Roles
+
+Admin users for a tenant are **team members**. Each has a **role** and a **team member profile**.
+
+**Roles (built-in):**
+- **client_admin:** Full access within tenant (site editing, settings, all features).
+- **editor:** Create and edit content; scope may be limited by per-role feature set.
+- **Creator:** Content submissions only (e.g. create/edit posts, pages, media); no site-editing features (Settings, structure, user management). Intended for contributors who should not change site configuration.
+- **viewer:** Read-only access to permitted areas.
+
+**Per-role feature set:** Superadmin (and optionally client_admin) selects which CMS features each role can access (e.g. Content, Galleries, Media, CRM, Settings). Same mechanism applies to every role (built-in or custom). E.g. Creator might see only Content; editor might see Content + Media + Galleries.
+
+**Custom roles (optional):** Tenant can define custom roles (e.g. "Marketing", "Support") and assign a feature set to each. Users are then assigned a built-in or custom role.
+
+**Team member profile:** Each team member has a **profile page / management section** (name, email, role, avatar, and fields used for **Digicards**: bio, photo, social links, etc.). The profile is used for (1) access/identity and (2) as the **data source for digital business cards** (Phase 11b). Team members may or may not be in the CRM/contact list; if they are (e.g. to receive marketing), that is separate from their team profile and access management.
 
 ### Multi-Client Authentication Strategy
 
@@ -655,9 +681,9 @@ MAG (Membership Access Groups) system provides granular access control for prote
 
 The application supports two distinct user types:
 
-1. **Admin Users** - Access CMS at `/admin/*`
+1. **Admin Users (Team Members)** - Access CMS at `/admin/*`
    - Superadmin: Cross-tenant access
-   - Client Admin: Single-tenant access
+   - Client Admin and other roles (editor, Creator, viewer, or custom): Single-tenant access; each has a **team member profile** (name, email, role, avatar, bio, photo, social links — profile is also the source for Digicards). Team members are not required to be in the CRM; if in CRM, that is for marketing; access and Digicard data live on the team profile.
    - Authenticate at `/admin/login`
 
 2. **Member Users** - Access protected content on public site
@@ -669,9 +695,9 @@ The application supports two distinct user types:
 
 ### MAG vs Roles
 
-**Roles** (Admin Users):
-- Define what CMS features a user can access
-- Set in `user_metadata.role` (superadmin, client_admin, editor, viewer, etc.)
+**Roles** (Admin Users / Team Members):
+- Define what CMS features a user can access. Set in `user_metadata.role` (superadmin, client_admin, editor, Creator, viewer, or custom role).
+- Superadmin (and optionally client_admin) configures which features each role can access (per-role feature set). Creator = content submissions only; no site editing.
 - Examples: "Can this admin user delete posts?", "Can they edit settings?"
 
 **MAG (Membership Access Groups)** (Member Users):

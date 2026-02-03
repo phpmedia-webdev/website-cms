@@ -9,6 +9,21 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-01-30 CT - PRD and planlog: specs and planning (no code changes)
+
+**Context for Next Session:**
+- **Documentation-only session.** Significant updates to PRD and planlog to capture product and technical specs for future development. No code or migrations changed.
+- **Planning added/updated:** Page composition (sections in public schema; content UUID/title); RAG Knowledge Document (Phase 16a), Digicards (Phase 11b); central automations layer (trigger/response); FAQ block content type; color palette refactor (preset library in public schema); reusable sections/component library in public schema; **Tenant Team Members, roles & profile** (Phase 18b — Creator role, per-role feature set, team member profile as source for Digicards; Team ≠ CRM).
+- **Next priorities** unchanged: Phase 11 Deployment Tools, reusable components; implement specs when ready.
+
+**Key Files Changed:**
+- `docs/prd.md` — Tenant Team Members & Roles (Creator, per-role feature set, custom roles, team member profile; Team ≠ CRM); Color Palette (central preset table in public); Page composition (sections library in public schema); Admin Users = Team Members; MAG vs Roles updated
+- `docs/planlog.md` — Phase 00 (creator role); Phase 01 (color palette refactor: central preset in public); Phase 06 (page composition sections in public, FAQ block, content UUID); Phase 07 (central automations layer); Phase 11b (Digicards ↔ team profile); Phase 12 (component library in public schema); Phase 16a (RAG Knowledge Document); Phase 18 (per-role note); Phase 18b (Tenant Team Members, Roles & Profile)
+
+**Changes:**
+- PRD: Team members & roles (Creator, editor, viewer, client_admin; custom roles; per-role feature set); team member profile (access + Digicards source); Team ≠ CRM. Color palette and sections library: central tables in public schema.
+- Planlog: New/expanded phases and tasks for automations, FAQ block, color palette refactor, sections in public, RAG, Digicards, and Phase 18b (team, roles, profile).
+
 ### 2026-01-30 CT - Session wrap: Code Generator Explore page, RAG + Digicards planning
 
 **Context for Next Session:**
