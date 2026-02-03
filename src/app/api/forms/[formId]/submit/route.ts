@@ -162,10 +162,10 @@ async function handler(
         if (key === "message") continue;
         const bodyVal = body[key];
         if (bodyVal == null || bodyVal === "") continue;
-        const existingVal = (existingContact as Record<string, unknown>)[key];
+        const existingVal = (existingContact as unknown as Record<string, unknown>)[key];
         const isEmpty =
           existingVal == null || String(existingVal).trim() === "";
-        if (isEmpty) (updatePayload as Record<string, unknown>)[key] = String(bodyVal);
+        if (isEmpty) (updatePayload as unknown as Record<string, unknown>)[key] = String(bodyVal);
       }
 
       if (Object.keys(updatePayload).length > 0) {

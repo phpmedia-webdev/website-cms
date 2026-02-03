@@ -85,13 +85,13 @@ export async function getPublishedGalleryBySlug(slug: string): Promise<{
       .eq("gallery_id", gallery.id),
   ]);
 
-  const styleList: GalleryStyleOption[] = (stylesResult.data ?? []).map((s) => ({
+  const styleList: GalleryStyleOption[] = (stylesResult.data ?? []).map((s: { id: string; name: string | null; layout: string | null }) => ({
     id: s.id,
     name: s.name,
     layout: s.layout,
   }));
 
-  const requiredMagIds = (magsResult.data ?? []).map((r) => r.mag_id);
+  const requiredMagIds = (magsResult.data ?? []).map((r: { mag_id: string }) => r.mag_id);
 
   const access: GalleryAccessInfo = {
     access_level: (gallery.access_level as GalleryAccessInfo["access_level"]) ?? "public",
@@ -133,7 +133,7 @@ export async function getGalleryAccessInfo(
     .select("mag_id")
     .eq("gallery_id", galleryId);
 
-  const requiredMagIds = (magRows ?? []).map((r) => r.mag_id);
+  const requiredMagIds = (magRows ?? []).map((r: { mag_id: string }) => r.mag_id);
 
   return {
     access_level: (gallery.access_level as GalleryAccessInfo["access_level"]) ?? "public",

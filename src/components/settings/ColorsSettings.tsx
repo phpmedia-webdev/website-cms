@@ -576,7 +576,7 @@ export function ColorsSettings({
                 This is a sample paragraph using your primary font and foreground color. It demonstrates how body text will appear with your design system. The text should be readable and maintain good contrast with the background.
               </p>
               <p style={{ color: config.colors.color07, lineHeight: "1.6" }}>
-                This is muted text using your foreground muted color. It's perfect for secondary information, captions, or less important content that still needs to be visible but not as prominent.
+                This is muted text using your foreground muted color. It&apos;s perfect for secondary information, captions, or less important content that still needs to be visible but not as prominent.
               </p>
             </div>
 
@@ -681,7 +681,7 @@ export function ColorsSettings({
                 Card/Container Example
               </h5>
               <p style={{ color: config.colors.color07, fontSize: "0.75rem" }}>
-                This is a card or container element using your background alt color. It's useful for grouping related content and creating visual hierarchy.
+                This is a card or container element using your background alt color. It&apos;s useful for grouping related content and creating visual hierarchy.
               </p>
             </div>
 

@@ -58,6 +58,12 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+    if (!created) {
+      return NextResponse.json(
+        { error: "Failed to create MAG (no data returned)" },
+        { status: 500 }
+      );
+    }
 
     const { error: tagErr } = await ensureMagTagExists(created.uid, created.name);
     if (tagErr) {

@@ -76,6 +76,10 @@ export function ContentPageClient() {
     .filter((t) => t.type === "tag")
     .map((t) => ({ id: t.id, name: t.name }));
 
+  // Exclude "page" from content library: structure is built in code, not as content type (per product decision).
+  const contentTypesForLibrary = types.filter((t) => t.slug !== "page");
+  const contentItemsForLibrary = items.filter((c) => c.type_slug !== "page");
+
   const termFilterIds = [...selectedCategoryIds, ...selectedTagIds];
   const contentIdsWithTerms =
     termFilterIds.length === 0
@@ -84,7 +88,7 @@ export function ContentPageClient() {
           relationships.filter((r) => termFilterIds.includes(r.term_id)).map((r) => r.content_id)
         );
 
-  const filtered = items.filter((c) => {
+  const filtered = contentItemsForLibrary.filter((c) => {
     const matchSearch =
       !search.trim() ||
       c.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -241,7 +245,7 @@ export function ContentPageClient() {
                 className="w-[180px] px-3 py-2 border border-input rounded-md bg-background text-sm"
               >
                 <option value="">All types</option>
-                {types.map((t) => (
+                {contentTypesForLibrary.map((t) => (
                   <option key={t.id} value={t.slug}>
                     {t.label}
                   </option>
@@ -347,7 +351,7 @@ export function ContentPageClient() {
         open={modalOpen}
         onClose={handleModalClose}
         item={editing}
-        types={types}
+        types={contentTypesForLibrary}
         onSaved={handleSaved}
       />
     </div>

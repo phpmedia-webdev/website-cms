@@ -23,7 +23,7 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 
 async function main() {
-  const supabase = createClient(supabaseUrl, serviceRoleKey!, {
+  const supabase = createClient(supabaseUrl!, serviceRoleKey!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 

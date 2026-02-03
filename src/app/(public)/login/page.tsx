@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const supabase = getSupabaseClient();
 
-export default function MemberLoginPage() {
+function MemberLoginContent() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -138,5 +138,13 @@ export default function MemberLoginPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function MemberLoginPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto px-4 py-16 max-w-md text-center text-muted-foreground">Loading...</div>}>
+      <MemberLoginContent />
+    </Suspense>
   );
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,12 +80,12 @@ export default async function SuperadminPage() {
             <p className="text-sm text-muted-foreground mb-4">
               Configure Google Analytics, VisitorTracking.com, and SimpleCommenter.com integrations.
             </p>
-            <a
+            <Link
               href="/admin/super/integrations"
               className="text-sm text-primary hover:underline"
             >
               Go to Integrations Settings →
-            </a>
+            </Link>
           </CardContent>
         </Card>
 

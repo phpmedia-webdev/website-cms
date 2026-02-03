@@ -53,7 +53,7 @@ export async function getGalleriesForMedia(
     return [];
   }
 
-  const items = (data ?? []) as {
+  const items = (data ?? []) as unknown as {
     id: string;
     gallery_id: string;
     media_id: string;

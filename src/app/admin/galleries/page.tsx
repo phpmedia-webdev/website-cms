@@ -39,7 +39,7 @@ export default async function GalleriesPage({
   if (galleries?.length) {
     const coverIds = galleries
       .map((g: { cover_image_id?: string | null }) => g.cover_image_id)
-      .filter((id): id is string => !!id);
+      .filter((id: string | null | undefined): id is string => !!id);
     if (coverIds.length > 0) {
       const { data: variantRows } = await supabase
         .schema(schema)

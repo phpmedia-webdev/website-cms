@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
 import { getMemberByUserId } from "@/lib/supabase/members";
 import { redeemCode } from "@/lib/mags/code-generator";
-import { cookies } from "next/headers";
 
 /**
  * POST /api/members/redeem-code
@@ -11,7 +10,7 @@ import { cookies } from "next/headers";
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerSupabaseClientSSR(cookies());
+    const supabase = await createServerSupabaseClientSSR();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

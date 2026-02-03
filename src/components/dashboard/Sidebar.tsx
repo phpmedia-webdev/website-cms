@@ -69,8 +69,12 @@ const settingsSubNav = [
   { name: "API", href: "/admin/settings/api", icon: Code },
 ];
 
-const superadminNavigation = [
-  { name: "Superadmin", href: "/admin/super", icon: Shield },
+const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
+
+const superadminSubNav = [
+  { name: "Dashboard", href: "/admin/super", icon: Shield },
+  { name: "Integrations", href: "/admin/super/integrations", icon: KeyRound },
+  { name: "Code snippets", href: "/admin/super/code-snippets", icon: Code },
 ];
 
 export function Sidebar({ isSuperadmin = false }: SidebarProps) {
@@ -80,10 +84,12 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
   const isSettings = pathname === "/admin/settings" || pathname?.startsWith("/admin/settings/");
   const isCrm = pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
+  const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
 
   const fetchNewContactsCount = async () => {
@@ -123,51 +129,73 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
         setCrmOpen(false);
         setMediaOpen(false);
         setSettingsOpen(false);
+        setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
       if (isCrm) {
         setCrmOpen(true);
         setMediaOpen(false);
         setSettingsOpen(false);
+        setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "true");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
       if (isMedia) {
         setCrmOpen(false);
         setMediaOpen(true);
         setSettingsOpen(false);
+        setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "true");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
       if (isSettings) {
         setCrmOpen(false);
         setMediaOpen(false);
+        setSuperOpen(false);
         setSettingsOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "true");
+        return;
+      }
+      if (isSuper) {
+        setCrmOpen(false);
+        setMediaOpen(false);
+        setSettingsOpen(false);
+        setSuperOpen(true);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "true");
         return;
       }
       // Content, etc.: collapse all
       setCrmOpen(false);
       setMediaOpen(false);
       setSettingsOpen(false);
+      setSuperOpen(false);
       localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
       localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+      localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
     } catch {
       if (isCrm) setCrmOpen(true);
       if (isMedia) setMediaOpen(true);
       if (isSettings) setSettingsOpen(true);
+      if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMedia, isSettings]);
+  }, [pathname, isCrm, isMedia, isSettings, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -205,6 +233,26 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
     } catch { /* ignore */ }
   };
 
+  const toggleSuper = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !superOpen;
+    setSuperOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMediaOpen(false);
+      setSettingsOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_SUPER_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
   const toggleSettings = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -213,9 +261,11 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
+      setSuperOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
       } catch { /* ignore */ }
     }
     try {
@@ -471,21 +521,58 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           )}
         </div>
         </div>
-        {/* Superadmin: last in nav, only for superadmin users */}
+        {/* Superadmin twirldown: sub-sections (Dashboard, Integrations, Code snippets) */}
         {isSuperadmin && (
           <div className="pt-1 mt-2 border-t border-border" style={{ borderColor: 'hsl(220, 13%, 80%)' }}>
-            <Link
-              href="/admin/super"
+            <div
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                pathname === "/admin/super" || pathname?.startsWith("/admin/super/")
-                  ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+                isSuper && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
               )}
             >
-              <Shield className="h-5 w-5" />
-              Superadmin
-            </Link>
+              <Link
+                href="/admin/super"
+                className={cn(
+                  "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                  isSuper ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <Shield className="h-5 w-5 flex-shrink-0" />
+                Superadmin
+              </Link>
+              <button
+                type="button"
+                onClick={toggleSuper}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  isSuper ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+                aria-expanded={superOpen}
+              >
+                {superOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {superOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {superadminSubNav.map((sub) => {
+                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                  const SubIcon = sub.icon;
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </nav>

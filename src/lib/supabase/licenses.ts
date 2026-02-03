@@ -169,6 +169,6 @@ export async function filterMediaByOwnership(
     .or("expires_at.is.null,expires_at.gte." + new Date().toISOString());
 
   if (error) return [];
-  const owned = new Set((data ?? []).map((r) => r.content_id));
+  const owned = new Set((data ?? []).map((r: { content_id: string }) => r.content_id));
   return mediaIds.filter((id) => owned.has(id));
 }

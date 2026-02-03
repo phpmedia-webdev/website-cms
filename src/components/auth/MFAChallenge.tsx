@@ -240,7 +240,7 @@ export default function MFAChallenge() {
         <div className="text-xs text-muted-foreground space-y-1">
           <p>• Make sure your device time is synchronized</p>
           <p>• Codes expire after 30 seconds</p>
-          <p>• If you're having trouble, try refreshing the page</p>
+          <p>• If you&apos;re having trouble, try refreshing the page</p>
         </div>
       </CardContent>
     </Card>

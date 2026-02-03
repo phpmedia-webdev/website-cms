@@ -34,7 +34,7 @@ export async function getMagTagSlugsOnMedia(
 
   if (relErr || !rels?.length) return result;
 
-  const termIds = [...new Set(rels.map((r) => r.term_id))];
+  const termIds = [...new Set(rels.map((r: { term_id: string }) => r.term_id))];
 
   const { data: terms, error: termErr } = await supabase
     .schema(SCHEMA)

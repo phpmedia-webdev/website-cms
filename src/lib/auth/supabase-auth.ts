@@ -40,7 +40,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const supabase = await createServerSupabaseClientSSR();
     
     // Get user from Supabase Auth (may throw if refresh token is invalid/expired)
-    let user: { id: string; email?: string; user_metadata?: UserMetadata } | null = null;
+    let user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null;
     let error: { message?: string } | null = null;
     try {
       const result = await supabase.auth.getUser();
@@ -59,7 +59,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     }
 
     // Extract metadata
-    const metadata = user.user_metadata as UserMetadata;
+    const metadata = user.user_metadata as unknown as UserMetadata;
     
     // Validate metadata structure
     if (!metadata || !metadata.type) {
@@ -126,7 +126,7 @@ export async function getCurrentUserFromRequest(
     });
     
     // Get user from session (may throw AuthApiError if refresh token is invalid/expired)
-    let user: { id: string; email?: string; user_metadata?: UserMetadata } | null = null;
+    let user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null;
     let error: { message?: string } | null = null;
     try {
       const result = await supabase.auth.getUser();
@@ -146,7 +146,7 @@ export async function getCurrentUserFromRequest(
     }
 
     // Extract metadata
-    const metadata = user.user_metadata as UserMetadata;
+    const metadata = user.user_metadata as unknown as UserMetadata;
     
     // Validate metadata structure
     if (!metadata || !metadata.type) {

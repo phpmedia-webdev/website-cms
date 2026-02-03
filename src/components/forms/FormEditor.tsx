@@ -180,7 +180,7 @@ export function FormEditor({ form }: FormEditorProps) {
             <CardContent className="space-y-4">
               {fields.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
-                  No fields yet. Click "Add Field" to get started.
+                  No fields yet. Click &quot;Add Field&quot; to get started.
                 </p>
               ) : (
                 fields.map((field, index) => (

@@ -255,7 +255,7 @@ export function FontsSettings({
                   fontFamily: `"${config.fonts.primary.family}", sans-serif`,
                 }}
               >
-                This is muted text using your foreground muted color with the primary font. It's perfect for secondary information, captions, or less important content.
+                This is muted text using your foreground muted color with the primary font. It&apos;s perfect for secondary information, captions, or less important content.
               </p>
             </div>
 
@@ -297,7 +297,7 @@ export function FontsSettings({
                 }}
                 className="my-2"
               >
-                "This is a blockquote using the secondary font. It's perfect for highlighting important quotes or testimonials."
+                &quot;This is a blockquote using the secondary font. It&apos;s perfect for highlighting important quotes or testimonials.&quot;
               </blockquote>
             </div>
 
@@ -431,7 +431,7 @@ export function FontsSettings({
                   fontFamily: `"${config.fonts.primary.family}", sans-serif`,
                 }}
               >
-                This is a card or container element using your background alt color and primary font. It's useful for grouping related content and creating visual hierarchy.
+                This is a card or container element using your background alt color and primary font. It&apos;s useful for grouping related content and creating visual hierarchy.
               </p>
             </div>
 

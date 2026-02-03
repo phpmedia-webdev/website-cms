@@ -1236,7 +1236,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ---
 
-### Phase 12: Superadmin - Visual Component Library
+### Phase 12: Visual Component Library
 
 **Status**: Pending - Visual component library to manage pages, sections. Up until now components are being built in a reusable structure. This section will scan and help visually organize the components for easier client site deployment.
 

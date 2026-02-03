@@ -9,6 +9,17 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-03 CT - Session wrap: build fixes, tenant roles/features/team/profile plan
+
+**Context for Next Session:**
+- **Build passes:** Lint and type errors fixed across multiple files (Link usage, escaped entities, script/API/auth types, login Suspense for useSearchParams). `pnpm run build` completes successfully.
+- **MVP plan in sessionlog:** Tenant roles, feature scope, team, and profile. Seven-step plan: (1) feature registry + role_features, (2) tenant features + getEffectiveFeatures, (3) Phase 03 client_tenants/client_admins/client_admin_tenants + role, (4) superadmin UI (roles, tenant features, assign users), (5) sidebar/route enforcement, (6) Settings → Team (tenant admin adds Editor/Creator/Viewer only), (7) profile pages (super under Superadmin; admin/team under Settings). Execute in that order.
+- **Key files:** `docs/sessionlog.md` (plan and focus), `docs/planlog.md` (Phase 03, 18, 18b reference). No DB or RLS left in a vulnerable state.
+
+**Changes:**
+- Code: ESLint/TypeScript fixes (super page Link; MFAChallenge, FormEditor, ColorsSettings, FontsSettings escaped entities; add-gallery script, galleries page, CRM mags, form submit, galleries mags route, redeem-code route, supabase-auth, content-protection, code-snippets, galleries-server, galleries.ts, licenses; login and admin/login Suspense for useSearchParams). Build succeeds.
+- Docs: sessionlog updated with full roles/features/team/profile plan and profile step; completed items (donor folder, build passes) pruned from sessionlog. MVP focus = execute plan steps 1–7.
+
 ### 2026-01-30 CT - PRD and planlog: specs and planning (no code changes)
 
 **Context for Next Session:**
