@@ -2025,6 +2025,36 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 - [ ] Digicards integration
   - [ ] Phase 11b (Digicards) uses **team member profile** as the data source (bio, photo, social links, etc.). Implement team profile first or align `team_members` schema with Digicards needs.
 
+### Phase: Code Review, Security, Optimization & Modular Alignment
+
+**Status**: Planned - Run after MVP roles/features/team (or as a pre-release gate). Aligns code to documented feature boundaries and applies security/optimization per module.
+
+**Purpose**: Comprehensive code review and refactor for security, performance, and modular structure. Feature boundaries and version marking are documented in PRD and prd-technical; this phase executes the alignment and adds light per-module version marking where desired.
+
+- [ ] **Documentation (design)**
+  - [x] Modular design & feature boundaries in PRD (prd.md)
+  - [x] Feature boundaries & modular code map in prd-technical (section 8)
+  - [x] Version marking (per module) in prd-technical — light form (comment header or manifest)
+  - [ ] Optional: Add coding rule or checklist so new code follows feature paths
+
+- [ ] **Security review (per module)**
+  - [ ] Auth and RLS: middleware, route protection, Supabase policies
+  - [ ] Input validation and API exposure (admin vs public routes)
+  - [ ] Per-feature pass: Content, CRM, Media, Galleries, Forms, Settings, Auth/MFA, Superadmin
+
+- [ ] **Optimization pass (per module)**
+  - [ ] Bundle size and lazy loading where appropriate
+  - [ ] Query and caching (Supabase, React)
+  - [ ] Per-feature pass using feature map in prd-technical
+
+- [ ] **Modular alignment (refactor)**
+  - [ ] Align existing code to feature boundaries (move/split files as needed)
+  - [ ] Reduce cross-feature coupling; keep shared code in documented shared paths
+
+- [ ] **Version marking (optional)**
+  - [ ] Add light per-module version markers (e.g. comment header `@module X @version Y`) to key module entry files
+  - [ ] Optional: manifest or script to compare module versions across template and forks
+
 ## Notes
 
 - **IMPORTANT**: Items are NEVER deleted from this document - they remain and are simply checked off (`- [ ]` → `- [x]`) when completed

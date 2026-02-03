@@ -9,6 +9,15 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-03 CT - Modular design, feature boundaries, per-module version marking (docs)
+
+**Changes:**
+- **PRD:** New subsection “Modular Design & Feature Boundaries” (after Deployment Model). Code organized by product feature so each feature can be identified and updated or selectively synced to forks; principle “one feature ≈ one coherent boundary.” Light **version marking (per module)** documented — forks may diverge, so version control can be per module (comment header or manifest) to compare and selectively update.
+- **prd-technical:** New section 8 “Feature Boundaries & Modular Code Map” with feature → paths table (Content, CRM, Media, Galleries, Forms, Settings, Auth/MFA, Superadmin, Public). New subsection “Version Marking (Per Module)” with options A (comment header), B (manifest), C (Git); recommend Option A to start.
+- **planlog:** New phase “Code Review, Security, Optimization & Modular Alignment” — documentation (design) items checked; security review, optimization pass, modular alignment (refactor), and optional version marking as unchecked tasks.
+
+**Key files:** `docs/prd.md`, `docs/prd-technical.md`, `docs/planlog.md`.
+
 ### 2026-02-03 CT - Session wrap: build fixes, tenant roles/features/team/profile plan
 
 **Context for Next Session:**

@@ -16,6 +16,7 @@ This document contains all technical implementation details, patterns, and solut
 5. [API Endpoints Reference](#5-api-endpoints-reference)
 6. [Authentication & Security](#6-authentication--security)
 7. [Testing & Troubleshooting](#7-testing--troubleshooting)
+8. [Feature Boundaries & Modular Code Map](#8-feature-boundaries--modular-code-map)
 
 ---
 
@@ -863,6 +864,38 @@ src/types/
 5. Test write operations with `.from()` first, create RPC if needed
 
 **This will save you hours of debugging!**
+
+---
+
+## 8. Feature Boundaries & Modular Code Map
+
+Code is organized by **product feature** so each feature can be identified and updated (or selectively synced to forks). New code for a feature should go in that feature’s paths. A dedicated code review/refactor phase (see planlog) aligns existing code to these boundaries and runs security/optimization per module.
+
+**Feature → paths (target layout):**
+
+| Feature | App routes | Components | Lib / types |
+|--------|------------|------------|-------------|
+| **Content** | `app/admin/content/`, `app/(public)/blog/`, etc. | `components/content/`, `components/editor/`, `components/public/content/` | `lib/supabase/content.ts`, `types/content.ts` |
+| **CRM** | `app/admin/crm/`, `app/api/crm/` | `components/forms/` (form UI), CRM-specific under crm | `lib/supabase/crm.ts`, `crm-taxonomy.ts`, `lib/mags/` (MAG/code-gen) |
+| **Media** | `app/admin/media/`, `app/api/media/` | `components/media/`, `components/public/media/` | `lib/supabase/media.ts`, `lib/media/`, `types/media.ts` |
+| **Galleries** | `app/admin/galleries/`, `app/api/galleries/`, `app/(public)/gallery/` | `components/galleries/`, `components/public/media/` (gallery renderers) | `lib/supabase/galleries.ts`, `galleries-server.ts`, `lib/shortcodes/` |
+| **Forms** | `app/admin/forms/`, `app/api/forms/` | `components/forms/` | Form registry in CRM; submit API under `api/forms/` |
+| **Settings** | `app/admin/settings/` | `components/settings/` | `lib/supabase/settings.ts`, `color-palettes.ts`, design-system, taxonomy |
+| **Auth / MFA** | `app/admin/login/`, `app/(public)/login/`, `app/admin/mfa/` | `components/auth/` | `lib/auth/`, `lib/supabase/client.ts`, `schema.ts` |
+| **Superadmin** | `app/admin/super/`, `app/api/admin/` | `components/superadmin/` | `lib/supabase/code-snippets.ts`, integrations; client-tenants (Phase 03) |
+| **Public** | `app/(public)/` (pages, gallery, blog) | `components/public/` | Shared with feature libs above |
+
+**Shared / cross-cutting:** `components/ui/` (primitives), `lib/api/`, `middleware.ts`, `types/database.ts`. Keep shared code minimal and stable.
+
+### Version Marking (Per Module)
+
+Because forks may be slightly unique, version control can be **per module** so you can compare and selectively update. Light-weight approach:
+
+- **Option A (comment header):** At the top of a module’s main entry file (e.g. `lib/supabase/crm.ts`), add a single line such as `// @module crm @version 1.2` or `// MODULE:crm VERSION:1.2`. No tooling required; grep or a small script can extract “CRM version” per fork.
+- **Option B (manifest):** A small JSON or TS file (e.g. `src/module-versions.json` or per-feature) listing `{ "crm": "1.2", "media": "1.0", ... }`. Build or a script can embed it; superadmin or CI can compare to template.
+- **Option C (Git):** Rely on Git history and “last changed” per path; no explicit version field. When syncing from template, compare commits that touched `src/app/admin/crm/` and `src/lib/supabase/crm.ts` vs. the fork’s history.
+
+Recommendation: start with **Option A** (comment header) for key modules so developers and scripts can identify “this fork’s CRM is at 1.1, template is 1.2.” Expand to Option B if you want a single manifest for many modules.
 
 ---
 

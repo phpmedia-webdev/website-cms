@@ -161,6 +161,19 @@ Each client deployment uses:
 - Single domain deployment: `clientdomain.com` (no subdomain needed)
 - Admin access via `/admin` route (discreet login link in footer)
 
+### Modular Design & Feature Boundaries
+
+Code is organized **by product feature** so that each feature’s code can be identified and updated (or selectively synced to forks) with minimal impact on other areas. Forks may diverge per client; keeping features modular supports “if it ain’t broke, don’t fix it” — improvements can be applied per feature when desired.
+
+**Principles:**
+- **One feature ≈ one coherent boundary:** routes (`app/`), components (`components/`), and lib/types (`lib/`, `types/`) that belong to that feature live in predictable locations (see [prd-technical.md - Feature Boundaries & Modular Code Map](./prd-technical.md#8-feature-boundaries--modular-code-map)).
+- **New code** for a feature should go in that feature’s paths; avoid scattering feature logic across unrelated folders.
+- A **code review and refactor phase** (see planlog) will align existing code to these boundaries and run security/optimization checks per module.
+
+**Version marking (per module):** Because each fork may be slightly unique, version control is treated **per module** where useful. Modules can carry a light version or marker (e.g. in a comment header, or a small manifest) so that when syncing from the template, you can compare “CRM module version” or “Media module version” per fork and decide which modules to update. This is optional and light-weight; full app versioning remains in Git.
+
+**Technical Details:** See [prd-technical.md - Feature Boundaries & Modular Code Map](./prd-technical.md#8-feature-boundaries--modular-code-map) and [Version Marking (Per Module)](./prd-technical.md#version-marking-per-module).
+
 ### Developer Workflow (Idea Intake, Migrations, and Standby Launch)
 
 This project is optimized for a **developer-authored** workflow (Cursor + Git) rather than a client-side page builder.
