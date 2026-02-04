@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -11,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { orderedFeatures } from "@/lib/supabase/feature-registry";
@@ -24,7 +24,7 @@ export function RolesManager() {
   const [roleFeatureIds, setRoleFeatureIds] = useState<RoleFeatureIds>({});
   const [selectedRoleSlug, setSelectedRoleSlug] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingFeatureId, setSavingFeatureId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const ordered = useMemo(() => orderedFeatures(features), [features]);
@@ -59,27 +59,20 @@ export function RolesManager() {
     }
   };
 
-  const toggleFeature = (featureId: string, checked: boolean) => {
+  const toggleFeature = async (featureId: string, checked: boolean) => {
     if (!selectedRoleSlug) return;
-    setRoleFeatureIds((prev) => {
-      const current = prev[selectedRoleSlug] ?? [];
-      const next = checked
-        ? [...current, featureId]
-        : current.filter((id) => id !== featureId);
-      return { ...prev, [selectedRoleSlug]: next };
-    });
-  };
-
-  const saveCurrentRole = async () => {
-    if (!selectedRoleSlug) return;
-    setSaving(true);
+    const current = roleFeatureIds[selectedRoleSlug] ?? [];
+    const next = checked
+      ? [...current, featureId]
+      : current.filter((id) => id !== featureId);
+    setRoleFeatureIds((prev) => ({ ...prev, [selectedRoleSlug]: next }));
+    setSavingFeatureId(featureId);
     setError(null);
     try {
-      const featureIds = roleFeatureIds[selectedRoleSlug] ?? [];
       const res = await fetch(`/api/admin/roles/${selectedRoleSlug}/features`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ featureIds }),
+        body: JSON.stringify({ featureIds: next }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -87,8 +80,9 @@ export function RolesManager() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
+      setRoleFeatureIds((prev) => ({ ...prev, [selectedRoleSlug]: current }));
     } finally {
-      setSaving(false);
+      setSavingFeatureId(null);
     }
   };
 
@@ -123,64 +117,58 @@ export function RolesManager() {
     <Card>
       <CardContent className="pt-4">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-muted-foreground">
-                Role
-              </label>
-              <Select
-                value={selectedRoleSlug}
-                onValueChange={(v) => setSelectedRoleSlug(v)}
-              >
-                <SelectTrigger className="w-[220px] h-9">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.slug} value={role.slug}>
-                      {role.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              onClick={saveCurrentRole}
-              disabled={saving || !selectedRoleSlug}
-              className="h-9"
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-muted-foreground">
+              Role
+            </label>
+            <Select
+              value={selectedRoleSlug}
+              onValueChange={(v) => setSelectedRoleSlug(v)}
             >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Save"
-              )}
-            </Button>
+              <SelectTrigger className="w-[220px] h-9">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((role) => (
+                  <SelectItem key={role.slug} value={role.slug}>
+                    {role.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
+          <p className="text-sm text-muted-foreground">
+            Toggle features for the selected role. On (right, blue) = allowed; off (left, grey) = not allowed. Changes save automatically.
+          </p>
+          {error && (
+            <p className="text-sm text-destructive">{error}</p>
+          )}
           <div className="border rounded-md divide-y">
             {ordered.map((feature) => (
-              <label
+              <div
                 key={feature.id}
                 className={cn(
-                  "flex items-start gap-2 px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors",
+                  "flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/50 transition-colors",
                   feature.parent_id && "pl-8"
                 )}
               >
-                <Checkbox
-                  checked={isChecked(feature.id)}
-                  onCheckedChange={(checked) =>
-                    toggleFeature(feature.id, checked === true)
-                  }
-                  className="mt-0.5"
-                />
                 <div className="flex-1 min-w-0">
                   <span className="font-medium">{feature.label}</span>
-                  {/* Reserved for future feature description (no copy added yet) */}
-                  <p className="text-sm text-muted-foreground min-h-[1rem]" aria-hidden>
-                    {" "}
-                  </p>
                 </div>
-              </label>
+                <div className="flex items-center gap-2 shrink-0">
+                  {savingFeatureId === feature.id && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  <Switch
+                    checked={isChecked(feature.id)}
+                    onCheckedChange={(checked) =>
+                      toggleFeature(feature.id, checked)
+                    }
+                    disabled={savingFeatureId === feature.id || !selectedRoleSlug}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         </div>

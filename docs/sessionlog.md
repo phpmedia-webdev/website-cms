@@ -15,60 +15,113 @@
 
 ## Current Focus
 
-**MVP: Tenant roles, feature scope, team, and profile.** Execute the build plan below: Superadmin Dashboard (tabbed), Users (scoped), Profile under Settings; sites + related users tables; no Integrations UI (header scripts in Code Snippets + manual variable per site).
+**MVP: Tenant roles, feature scope, team, and profile.** Superadmin: Dashboard | Tenant Sites | Tenant Users | Roles | Code Library (separate full-size pages). Tenant Site list/detail with back navigation; global Tenant Users table with two entry points; invite email for new users. Profile under Settings. No Integrations UI (header scripts in Code Library).
 
 ---
 
-## Superadmin final layout
+## Priority next step
 
-- **Superadmin** (main sidebar link; opens Dashboard).
-- **Sub-item: Dashboard** — Tabbed full-page view:
-  1. **Tenants** — Master table of web apps (sites table). Add/edit sites. Click row → detail: site info + related users and roles (editable). Single source of truth for schema; to fully use a site, log into that site.
-  2. **Roles** — Global roles and role→feature mapping.
-  3. **Code Snippets** — Global code snippet library. Header scripts (GA, VisitorTracking, Simple Commenter, etc.) live here for dev copy/paste; variable (e.g. ID) set manually per site in code or env. No Integrations tab.
-- **Sub-item: Users** — Scoped to current site. Table to add admins and team for this site; assign role. User-editable profile is under **Settings** (not Superadmin).
-- **Profile** — One per user (same name, email, avatar on every site). Under **Settings** (e.g. Settings → Profile) for all site users.
+- **Content editor: modal → full page.** On the content creation link, change the editor from a **modal view to a full page view** with a **back button top left**. The current modal is too small for comfortable editing.
+
+---
+
+## Terminology
+
+| Term | Meaning |
+|------|--------|
+| **Tenant** | End-user client concept (business/organization). |
+| **Tenant Site** | Individual website — name, schema, feature set. |
+| **Tenant Client** | Actual client business name (used rarely). |
+| **Tenant User** | Admin or team member for a Tenant Site. |
+
+---
+
+## Route and table renames (consistent naming)
+
+**Routes (Superadmin):**
+- `/admin/super/clients` → `/admin/super/tenant-sites`
+- New: `/admin/super/tenant-users`
+- `/admin/super/code-snippets` → `/admin/super/code-library`
+- Dashboard: `/admin/super` or `/admin/super/dashboard`; Roles: `/admin/super/roles` (unchanged).
+
+**Tables (migration 086 + code):**
+- `client_tenants` → `tenant_sites`
+- `client_admins` → `tenant_users`
+- `client_admin_tenants` → `tenant_user_assignments` (junction: which user is on which site with which role)
+
+All code references to old routes and table names must be updated when implementing.
+
+---
+
+## Superadmin layout
+
+- **Superadmin** (sidebar link; opens Dashboard).
+- **Sub-links (order):** Dashboard | Tenant Sites | Tenant Users | Roles | Code Library.
+- **No tabbed dashboard** — each item is a full-size page with its own route.
+- **Tenant Sites:** List (full page) → detail (full page with Back); detail includes Related Tenant Users section. Add/Edit site = full page with Back (no overlay modals).
+- **Tenant Users:** Global table at `/admin/super/tenant-users`; Superadmin users shown with badge. Two entry points: standalone list and from Tenant Site detail → Related Tenant Users.
+- **First admin:** Handled by the client startup script: script always assigns superadmin access; has an **optional first-user (admin)** field so you can scaffold the site before inviting the first tenant admin. If not set by script, first admin can be added later via Tenant Site detail (Add user → Admin) or Settings → Team (once an admin exists).
+- **New user:** When adding a user who has no Auth account yet, send invite email to create password.
+- **Profile:** Settings → Profile for all site users (one profile per user; editable by self). UI left plain for later design pass.
+
+---
+
+## MVP: What’s left (from docs/reference/mvp-status.md + PRD)
+
+**MVP** = one deployable template: content, media, galleries, CRM, memberships, forms, basic public pages, plus tenant/superadmin structure (sites, users, roles, profile, team) with minimal polish and known gaps.
+
+**Done toward MVP:** Auth/MFA, design system, content (no Page in library), media/galleries/MAG, CRM (contacts, forms, submissions, activity stream), code generator, code library (MVP variant), **tenant registry** (tenant_sites, tenant_features), **roles + feature registry**, **tenant users + assignments**, **Tenant Sites / Tenant Users / Roles / Code Library** Superadmin UI, **Profile** (Settings → Profile), **dynamic header** (site + role). Build passes.
+
+**Remaining (ordered):**
+
+1. **Smoke-test core flows (no new features)**  
+   - Manually verify: content (post/snippet), media, galleries, CRM (contacts, custom fields, forms, submit, submissions), memberships (MAG), code generator (batch, redeem). Fix anything broken.
+
+2. **Settings → Team**  
+   - [ ] `/admin/settings/team`: list team for **current** site; add member (Editor/Creator/Viewer only). Only Admin can add; cannot assign Admin.
+
+3. **Effective features (sidebar + route guards)**  
+   - [ ] Use `getEffectiveFeatures(tenant_id, role)` so sidebar and route guards hide or block features the role doesn’t have. Team cannot see more than role allows.
+
+4. **Client startup script (Phase 11 CLI)**  
+   - [ ] Script creates schema, **always assigns superadmin access**, **optional first-user (admin)**. Enables new tenant sites; optionally invite first admin or scaffold first and add later via UI.
+
+**Optional for MVP:** Phase 12 full component library (code snippets + donor is enough for dev reference).  
+**Explicitly out of MVP (defer):** Phase 10 API, Phase 13/14 archive/reset, Phase 15 full polish, Phase 9B Marketing, full member routes/content protection, RAG/Digicards/Team 18b.
 
 ---
 
 ## Build plan (order of work)
 
-**Principles:** Roles = Admin, Editor, Creator, Viewer. Effective features = tenant features ∩ role features. Only superadmin can assign Admin role; tenant admin can add team with Editor/Creator/Viewer only. Non-admin role feature set ⊆ Admin role feature set.
+**Principles:** Effective features = tenant features ∩ role features. Only Superadmin can assign Admin role; Tenant Site admin can add team with Editor/Creator/Viewer only. Non-admin role feature set ⊆ Admin role feature set.
 
 ### Done
 - [x] **Feature registry + role feature set:** Migrations 081, 083. `feature_registry`, `admin_roles`, `role_features`; types + `feature-registry.ts`; Roles UI at `/admin/super/roles`.
-- [x] **Tenant registry + tenant feature set:** Migrations 082, 084. `client_tenants`, `tenant_features`; types + `client-tenants.ts`; `getEffectiveFeatures(tenantId, roleSlug)`; Clients list, Add client, client detail with Features tab.
-- [x] **Quick wins (session wrap):** Migration 085 added (`client_admins`, `client_admin_tenants`) — run in SQL Editor when ready. Integrations removed from Superadmin sidebar and dashboard (header scripts remain in Code Snippets).
+- [x] **Tenant registry + tenant features:** Migrations 082, 084. `client_tenants`, `tenant_features`; types + `client-tenants.ts`; `getEffectiveFeatures(tenantId, roleSlug)`; Clients list, Add client, client detail with Features tab.
+- [x] **User-tenant-role tables:** Migration 085 (`client_admins`, `client_admin_tenants`) — run in SQL Editor when ready.
 
-### Next (in order)
+### Next up (this phase: Profile + dynamic header)
 
-1. **client_admins + client_admin_tenants (user-tenant-role)**
-   - [x] Migration file 085 created (run in SQL Editor when ready). Tables: `public.client_admins`, `public.client_admin_tenants`.
-   - [x] Run script 085 - completed 2/3/2026
-   - [ ] Types + lib: CRUD for admins, assign/remove user to tenant with role; list users per tenant.
-   - [ ] Auth/session: resolve current user's role from `client_admin_tenants` for current tenant (for sidebar and route guards).
+- [x] **Migration 087: profiles + profile_field_values** — `public.profiles` (user_id, display_name, avatar_url, title, company, bio, phone); `public.profile_field_values` (user_id, field_key, value). RLS: users read/update own row(s).
+- [x] **Types + lib:** `src/types/profiles.ts`, `src/lib/supabase/profiles.ts` — get/upsert profile, get/set custom field values.
+- [x] **Settings → Profile:** `/admin/settings/profile` — form for core fields + custom key-value; email read-only. Add "Profile" to Settings sub-nav in Sidebar.
+- [x] **Dynamic header:** Admin layout header shows current site name + role (from tenant_sites + getRoleForCurrentUser or "Superadmin"); when no tenant: "Platform · Superadmin".
 
-2. **Superadmin Dashboard (tabbed) + sidebar**
-   - [ ] Refactor `/admin/super` into tabbed Dashboard: **Tenants** | **Roles** | **Code Snippets**. Tenants tab = current Clients list/table; Roles tab = current Roles page content; Code Snippets = placeholder or existing snippets UI.
-   - [x] Sidebar: Remove Integrations from Superadmin (done). Still to add: sub-item "Users" → `/admin/super/users`.
+### Remaining (in order)
 
-3. **Superadmin Users page + Related users on tenant detail**
-   - [ ] `/admin/super/users`: list admins/team for **current site**; add user, assign role (superadmin can set Admin; others Editor/Creator/Viewer).
-   - [ ] Client (tenant) detail: "Related users" section — list users for that tenant, add/remove, set role (same rules). Reuse same tables and APIs.
+- [x] **Migration 086**, route renames, **Tenant Users data & auth**, **Tenant Sites pages**, **Tenant Users global table** — done (see Done above and previous sessions).
+- [x] **Profile** (migration 087, types/lib, Settings → Profile, sidebar link) and **dynamic header** — done.
 
-4. **Page headers + effective features**
-   - [ ] Superadmin pages: show "Managing: [current site name]" (or "Superadmin" when no site context).
-   - [ ] Sidebar + route guards: use `getEffectiveFeatures(tenant_id, user.role)` so team cannot see more than their role allows.
+6. **Settings → Team** (first admin via client startup script)
+   - [ ] Client startup script: always assigns superadmin access to the new site; **optional first-user (admin)** parameter — when provided, script creates/invites first tenant admin; when omitted, you can scaffold then add first admin later via Tenant Site detail or Team.
+   - [ ] `/admin/settings/team`: list team for **current** site; add member (Editor/Creator/Viewer only). Only Admin can add; cannot assign Admin.
 
-5. **Profile page (all site users)**
-   - [ ] **Settings → Profile** (`/admin/settings/profile`): one profile per user (name, email, avatar, etc.); editable by self. Available to anyone with Settings access (or dedicated Profile link). Superadmin and client team both use this (no separate super profile page).
-
-6. **Tenant admin: Settings → Team**
-   - [ ] `/admin/settings/team`: list team, add member (email, display name, role = Editor | Creator | Viewer only). Only role=Admin can add; cannot assign Admin.
+7. **Page headers + effective features**
+   - [ ] Superadmin pages: “Managing: [current site name]” or “Superadmin” when no site context.
+   - [ ] Sidebar + route guards: use `getEffectiveFeatures(tenant_id, role)` so team cannot see more than role allows.
 
 ### Other / Deferred
-- [ ] Phase 12 full component library; Phase 11, 10, dynamic Page (deferred).
-- [ ] Client startup script (creates schema, assigns superadmin) — separate from this plan.
+- [ ] Phase 12 full component library; Phase 11 (script in “MVP: What’s left” above), Phase 10, dynamic Page (deferred).
 
 ---
 

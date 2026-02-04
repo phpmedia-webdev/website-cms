@@ -5,6 +5,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
+import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import type {
   DesignSystemConfig,
   DesignSystemSettings,
@@ -322,6 +323,36 @@ export async function updateSiteMetadata(
     console.error("Error updating site metadata:", error);
     return false;
   }
+}
+
+/**
+ * Get coming-soon page copy (per-tenant). Used for branding on the standby page.
+ * Message priority: tenant_sites.coming_soon_message → coming_soon.message setting → site description → default.
+ * Headline: coming_soon.headline setting or "Coming Soon".
+ */
+export async function getComingSoonCopy(): Promise<{
+  headline: string;
+  message: string;
+  siteName: string;
+}> {
+  const schema = getClientSchema();
+  const [meta, settings, tenantSite] = await Promise.all([
+    getSiteMetadata(),
+    getSettings(["coming_soon.headline", "coming_soon.message"]),
+    getTenantSiteBySchema(schema),
+  ]);
+  const headline = (settings["coming_soon.headline"] as string)?.trim() || "Coming Soon";
+  const messageFromTenant = tenantSite?.coming_soon_message?.trim();
+  const message =
+    messageFromTenant ||
+    (settings["coming_soon.message"] as string)?.trim() ||
+    meta.description?.trim() ||
+    "We're working on something amazing. Check back soon!";
+  return {
+    headline,
+    message,
+    siteName: meta.name?.trim() || "Website",
+  };
 }
 
 // Default CRM note types

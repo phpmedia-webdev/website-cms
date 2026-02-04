@@ -9,6 +9,21 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-03 CT - Session wrap: Coming Soon snippet, Tiptap alignment, Site Mode UX
+
+**Context for Next Session:**
+- **Migrations 088 & 089:** If not yet run, copy `supabase/migrations/088_tenant_sites_coming_soon_message.sql` and `089_tenant_sites_coming_soon_snippet_id.sql` into Supabase SQL Editor and run in order. Adds `coming_soon_message` and `coming_soon_snippet_id` to `tenant_sites`.
+- **Priority next step** (sessionlog): Change content creation editor from **modal to full page** with a **back button top left**; modal is too small. Tracked in planlog under Admin content UI.
+- **Coming Soon:** Site Mode (General Settings + Superadmin → Tenant Sites → detail) uses a **snippet dropdown** (Content library, type Snippet). Coming Soon page renders the selected snippet with formatting, links, images, galleries when set; otherwise falls back to headline/message from settings. Snippets API: `GET /api/settings/snippets`, `GET /api/admin/tenant-sites/[id]/snippets`.
+- **Tiptap:** Rich text editor has **left/center/right/justify** alignment in toolbar; `@tiptap/extension-text-align@2.1.13`; same extension in `ContentWithGalleries` for public render.
+- **Key files:** `GeneralSettingsContent.tsx`, `TenantSiteModeCard.tsx`, `src/app/(public)/coming-soon/page.tsx`, `RichTextEditor.tsx`, `ContentWithGalleries.tsx`, `src/lib/supabase/tenant-sites.ts`, `src/lib/supabase/content.ts` (getSnippetOptions, getContentByIdServer), site-mode API routes, `ComingSoonSnippetView.tsx`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Coming Soon (snippet-based):** Migrations 088 (coming_soon_message), 089 (coming_soon_snippet_id). Types and CRUD for both; site-mode GET/PATCH return/accept coming_soon_snippet_id. Snippet dropdown (Select) in General Settings and TenantSiteModeCard; options from GET snippets APIs. Coming Soon page fetches snippet by id when set and renders via ComingSoonSnippetView; else uses getComingSoonCopy(). Radix Select "None" uses value `__none__` (empty string not allowed). updateTenantSite returns `{ ok, error }` so API can return real DB errors to client.
+- **Tiptap text alignment:** Added @tiptap/extension-text-align; toolbar buttons (AlignLeft, AlignCenter, AlignRight, AlignJustify) in RichTextEditor; TextAlign in ContentWithGalleries EXTENSIONS for generateHTML.
+- **Sessionlog:** "Priority next step" — Content editor modal → full page with back button. **Planlog:** Unchecked item under Admin content UI for same.
+
 ### 2026-02-03 CT - Session wrap: quick wins (migration 085, remove Integrations from Superadmin)
 
 **Context for Next Session:**

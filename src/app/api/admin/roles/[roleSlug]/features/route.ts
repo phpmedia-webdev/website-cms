@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { setRoleFeatureIds } from "@/lib/supabase/feature-registry";
+import { setRoleFeatureIds, getSuperadminFeatureId } from "@/lib/supabase/feature-registry";
 
 /**
  * PATCH /api/admin/roles/[roleSlug]/features
@@ -29,9 +29,13 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const featureIds = Array.isArray(body?.featureIds)
+    let featureIds = Array.isArray(body?.featureIds)
       ? (body.featureIds as string[]).filter((id) => typeof id === "string" && id.length > 0)
       : [];
+    const superadminId = await getSuperadminFeatureId();
+    if (superadminId) {
+      featureIds = featureIds.filter((id) => id !== superadminId);
+    }
 
     const ok = await setRoleFeatureIds(roleSlug.trim(), featureIds);
     if (!ok) {

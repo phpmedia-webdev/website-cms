@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { createClientTenant } from "@/lib/supabase/client-tenants";
+import { createTenantSite } from "@/lib/supabase/tenant-sites";
 
 /**
  * POST /api/admin/tenants
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const tenant = await createClientTenant({
+    const tenant = await createTenantSite({
       name,
       slug,
       schema_name,

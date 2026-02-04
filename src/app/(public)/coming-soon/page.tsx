@@ -1,18 +1,30 @@
 /**
  * Coming Soon / Standby Mode Page
- * This page is displayed when the site is in "coming soon" mode
- * Controlled by NEXT_PUBLIC_SITE_MODE environment variable
+ *
+ * Route: /coming-soon (file: src/app/(public)/coming-soon/page.tsx).
+ * When a snippet is chosen in Settings → Site Mode (or Superadmin → Tenant → Site Mode),
+ * that snippet is rendered here with formatting, links, images, and galleries—centered and
+ * mobile responsive. Otherwise falls back to headline/message from settings.
+ *
+ * Design system (fonts, colors) from root layout applies. Admin and /admin/login remain accessible.
  */
 
-import { getSiteMetadata } from "@/lib/supabase/settings";
+import Link from "next/link";
+import { getComingSoonCopy } from "@/lib/supabase/settings";
+import { getClientSchema } from "@/lib/supabase/schema";
+import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
+import { getContentByIdServer } from "@/lib/supabase/content";
+import { ComingSoonSnippetView } from "@/components/public/ComingSoonSnippetView";
 import { Metadata } from "next";
 
+/** Never cache so site mode toggle takes effect immediately. */
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
-  const siteMetadata = await getSiteMetadata();
-  
+  const { headline, siteName } = await getComingSoonCopy();
   return {
-    title: `Coming Soon - ${siteMetadata.name}`,
-    description: siteMetadata.description || "We're working on something amazing. Check back soon!",
+    title: `${headline} - ${siteName}`,
+    description: "This site is currently in standby mode. Check back soon.",
     robots: {
       index: false,
       follow: false,
@@ -21,21 +33,66 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ComingSoonPage() {
-  const siteMetadata = await getSiteMetadata();
+  let snippetContent: Record<string, unknown> | null = null;
+  try {
+    const schema = getClientSchema();
+    const site = await getTenantSiteBySchema(schema);
+    if (site?.coming_soon_snippet_id) {
+      const row = await getContentByIdServer(site.coming_soon_snippet_id, schema);
+      if (row?.body) snippetContent = row.body;
+    }
+  } catch {
+    // No schema or tenant; use fallback copy
+  }
+
+  const { headline, message, siteName } = await getComingSoonCopy();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="container mx-auto px-4 text-center">
-        <h1 className="text-4xl md:text-6xl font-bold mb-4" style={{ fontFamily: 'var(--font-primary)' }}>
-          Coming Soon
-        </h1>
-        <p className="text-xl md:text-2xl text-muted-foreground mb-8" style={{ fontFamily: 'var(--font-secondary)' }}>
-          {siteMetadata.description || "We're working on something amazing. Check back soon!"}
-        </p>
-        <div className="text-sm text-muted-foreground">
-          <p>{siteMetadata.name}</p>
+    <div
+      className="relative flex min-h-screen flex-col items-center justify-center"
+      style={{
+        backgroundColor: "var(--color-04)",
+        color: "var(--color-06)",
+        fontFamily: "var(--font-primary)",
+      }}
+    >
+      <Link
+        href="/admin"
+        className="absolute right-4 top-4 text-xs underline opacity-70 hover:opacity-100"
+        style={{ color: "var(--color-07)" }}
+      >
+        Admin
+      </Link>
+      {snippetContent ? (
+        <ComingSoonSnippetView content={snippetContent} />
+      ) : (
+        <div className="container mx-auto px-4 text-center">
+          <h1
+            className="mb-4 text-4xl font-bold md:text-6xl"
+            style={{
+              fontFamily: "var(--font-primary)",
+              color: "var(--color-06)",
+            }}
+          >
+            {headline}
+          </h1>
+          <p
+            className="mb-8 text-xl md:text-2xl"
+            style={{
+              fontFamily: "var(--font-secondary)",
+              color: "var(--color-07)",
+            }}
+          >
+            {message}
+          </p>
+          <p
+            className="text-sm"
+            style={{ color: "var(--color-07)" }}
+          >
+            {siteName}
+          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }

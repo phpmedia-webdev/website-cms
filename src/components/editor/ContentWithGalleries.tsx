@@ -5,6 +5,7 @@ import { generateHTML, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
 import { findGalleryShortcodes } from "@/lib/shortcodes/gallery";
 import { GalleryEmbed } from "@/components/public/media/GalleryEmbed";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,9 @@ const EXTENSIONS = [
   Link.configure({
     openOnClick: false,
     HTMLAttributes: { rel: "noopener noreferrer" },
+  }),
+  TextAlign.configure({
+    types: ["heading", "paragraph"],
   }),
 ];
 

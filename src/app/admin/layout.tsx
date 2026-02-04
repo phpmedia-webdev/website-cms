@@ -1,37 +1,48 @@
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
 import { AdminLayoutWrapper } from "@/components/admin/AdminLayoutWrapper";
+import { getRoleForCurrentUser } from "@/lib/auth/resolve-role";
+import { getClientSchema } from "@/lib/supabase/schema";
+import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 
 /**
  * Admin layout for all /admin/* routes.
- * 
- * Best Practice Approach:
- * - Server component handles authentication check
- * - Client component wrapper handles route-based conditional rendering
- * - Uses Next.js usePathname() hook (proper way to access pathname)
- * - No custom headers or workarounds needed
+ *
+ * Fetches site name and role for the header; passes to client wrapper.
  */
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Try to get user (may be null on login page, which is fine)
   let user;
   try {
     user = await getCurrentUser();
-  } catch (error) {
-    // If getCurrentUser fails (e.g., no session), user will be null
-    // This is expected on the login page
+  } catch {
     user = null;
   }
 
-  // Determine if user is superadmin (only if user exists)
   const userIsSuperadmin = user ? isSuperadmin(user) : false;
 
-  // Use client component wrapper to handle pathname-based conditional rendering
-  // This is the proper Next.js way - usePathname() hook in a client component
+  let siteName: string | null = null;
+  let role: string | null = null;
+  if (user) {
+    try {
+      role = await getRoleForCurrentUser();
+      const schema = getClientSchema();
+      const site = await getTenantSiteBySchema(schema);
+      siteName = site?.name ?? null;
+    } catch {
+      // No schema or tenant (e.g. platform-only dev); role may still be superadmin
+      if (userIsSuperadmin) role = "superadmin";
+    }
+  }
+
   return (
-    <AdminLayoutWrapper isSuperadmin={userIsSuperadmin}>
+    <AdminLayoutWrapper
+      isSuperadmin={userIsSuperadmin}
+      siteName={siteName}
+      role={role}
+    >
       {children}
     </AdminLayoutWrapper>
   );

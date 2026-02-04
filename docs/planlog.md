@@ -520,6 +520,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 - [x] Admin content UI (unified list + modal)
   - [x] `src/app/admin/content/page.tsx` — list all types, type filter, search, Add New, Edit, Delete
   - [x] `ContentEditModal` — type selector, Name, Slug, Data (Tiptap), Excerpt, Status, custom fields, 70% width
+  - [ ] **Content editor: full page instead of modal** — Replace modal with full-page editor and back button (top left); modal is too small for comfortable editing. See sessionlog "Priority next step."
 - [x] Integrate rich text editor (Tiptap)
   - [x] `src/components/editor/RichTextEditor.tsx` — H1–H6, bold/italic, lists, blockquote, links, images, HTML code view, WYSIWYG (`prose`)
   - [x] Saving/loading via `content.body` JSONB
@@ -1178,14 +1179,23 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 **Status**: Active priority (swapped with Phase 10) - Focus before API dev. Enables deployment and structure for public pages.
 
-- [ ] Create setup script
-  - [ ] Create `scripts/setup-new-client.ts`:
+- [ ] Create setup script (client/tenant startup script)
+  - [ ] Create `scripts/setup-new-client.ts` (or extend existing setup-client script):
     - Interactive CLI for new client setup
     - Schema creation
     - Migration execution
     - Storage bucket creation
     - Environment variable validation
+    - **Always assign superadmin access** to the new site (so superadmin can manage it immediately).
+    - **Optional first-user (admin):** when provided, script creates tenant user + assignment (Admin) and can send invite; when omitted, operator can scaffold the site first and add the first admin later via Superadmin UI (Tenant Site detail or Tenant Users).
   - [ ] Add `pnpm run setup` script to `package.json`
+
+- [ ] Create client script generator (copy/paste workflow)
+  - [ ] Generator UI (e.g. Superadmin section or localhost dev page): form for new client variables (client/site name, slug, schema name, deployment URL, **optional first-admin email** (for first tenant admin; omit to scaffold first), default features).
+  - [ ] Generator outputs SQL script for copy/paste into Supabase SQL Editor: `INSERT INTO public.tenant_sites` with entered values; optionally `INSERT INTO public.tenant_features` for default feature set (reference new site id, e.g. via DO block or two-step script).
+  - [ ] Optional: output block or instructions for client schema creation (`CREATE SCHEMA` + migrations) if that is run via SQL Editor; or note to run existing setup-client script separately for schema.
+  - [ ] Generator outputs short checklist for manual steps: if first admin was not set by script, create/invite first admin via Auth or Superadmin UI; set env vars for deployment.
+  - [ ] Workflow: use generator in dev (localhost), copy generated SQL into Supabase SQL Editor and run manually; then complete any non-SQL steps (auth, env). No need to run scripts from the app; generator only produces the script.
 
 - [ ] Create reset script
   - [ ] Create `scripts/reset-content.ts` (CLI for resetting content, partial/full options)

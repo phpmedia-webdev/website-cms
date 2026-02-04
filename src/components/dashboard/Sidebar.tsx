@@ -30,6 +30,7 @@ import {
   ListChecks,
   KeyRound,
   ShieldCheck,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -59,6 +60,7 @@ const crmSubNav = [
 ];
 
 const settingsSubNav = [
+  { name: "Profile", href: "/admin/settings/profile", icon: User },
   { name: "General", href: "/admin/settings/general", icon: Settings },
   { name: "Fonts", href: "/admin/settings/fonts", icon: Type },
   { name: "Colors", href: "/admin/settings/colors", icon: Palette },
@@ -67,16 +69,16 @@ const settingsSubNav = [
   { name: "Content Fields", href: "/admin/settings/content-fields", icon: ListTree },
   { name: "CRM", href: "/admin/settings/crm", icon: Users },
   { name: "Security", href: "/admin/settings/security", icon: Shield },
-  { name: "API", href: "/admin/settings/api", icon: Code },
 ];
 
 const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
 
 const superadminSubNav = [
   { name: "Dashboard", href: "/admin/super", icon: Shield },
-  { name: "Code snippets", href: "/admin/super/code-snippets", icon: Code },
+  { name: "Tenant Sites", href: "/admin/super/tenant-sites", icon: Building2 },
+  { name: "Tenant Users", href: "/admin/super/tenant-users", icon: Users },
   { name: "Roles", href: "/admin/super/roles", icon: ShieldCheck },
-  { name: "Clients", href: "/admin/super/clients", icon: Building2 },
+  { name: "Code Library", href: "/admin/super/code-library", icon: Code },
 ];
 
 export function Sidebar({ isSuperadmin = false }: SidebarProps) {

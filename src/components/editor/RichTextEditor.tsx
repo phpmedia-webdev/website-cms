@@ -5,6 +5,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ import {
   Code,
   FileText,
 } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react";
 import { GalleryPickerModal } from "./GalleryPickerModal";
 
 interface RichTextEditorProps {
@@ -79,6 +81,9 @@ export function RichTextEditor({
       Link.configure({
         openOnClick: false,
         HTMLAttributes: { rel: "noopener noreferrer" },
+      }),
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
       }),
     ],
     content: content || "",
@@ -283,6 +288,59 @@ export function RichTextEditor({
               aria-label="Quote"
             >
               <Quote className="h-4 w-4" />
+            </Button>
+            <div className="w-px h-6 bg-border mx-1" />
+            <Button
+              type="button"
+              variant={editor.isActive({ textAlign: "left" }) ? "default" : "ghost"}
+              size="icon"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().setTextAlign("left").run();
+                forceToolbarUpdate();
+              }}
+              aria-label="Align left"
+            >
+              <AlignLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={editor.isActive({ textAlign: "center" }) ? "default" : "ghost"}
+              size="icon"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().setTextAlign("center").run();
+                forceToolbarUpdate();
+              }}
+              aria-label="Align center"
+            >
+              <AlignCenter className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={editor.isActive({ textAlign: "right" }) ? "default" : "ghost"}
+              size="icon"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().setTextAlign("right").run();
+                forceToolbarUpdate();
+              }}
+              aria-label="Align right"
+            >
+              <AlignRight className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={editor.isActive({ textAlign: "justify" }) ? "default" : "ghost"}
+              size="icon"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().setTextAlign("justify").run();
+                forceToolbarUpdate();
+              }}
+              aria-label="Justify"
+            >
+              <AlignJustify className="h-4 w-4" />
             </Button>
             <div className="w-px h-6 bg-border mx-1" />
             <Button

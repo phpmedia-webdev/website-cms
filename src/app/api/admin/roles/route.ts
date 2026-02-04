@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { listFeatures, listRoles, listRoleFeatureIds } from "@/lib/supabase/feature-registry";
+import {
+  listFeatures,
+  listRoles,
+  listRoleFeatureIds,
+  featuresForRoleOrTenantUI,
+} from "@/lib/supabase/feature-registry";
 
 /**
  * GET /api/admin/roles
@@ -16,10 +21,11 @@ export async function GET() {
       );
     }
 
-    const [roles, features] = await Promise.all([
+    const [roles, allFeatures] = await Promise.all([
       listRoles(),
       listFeatures(true),
     ]);
+    const features = featuresForRoleOrTenantUI(allFeatures);
 
     const roleFeatureIds: Record<string, string[]> = {};
     for (const role of roles) {

@@ -264,3 +264,27 @@ export async function updateUserPassword(userId: string, newPassword: string) {
 
   return { success: true, user: data.user, error: null };
 }
+
+/**
+ * Invite a user by email (sends invite email to set password).
+ * Uses Supabase Auth Admin API. Caller must enforce superadmin/tenant admin.
+ *
+ * @param email - Email to invite
+ * @param options - Optional redirect URL, metadata
+ * @returns Invited user (with id) or error. User exists in auth with invited status until they accept.
+ */
+export async function inviteUserByEmail(
+  email: string,
+  options?: {
+    redirectTo?: string;
+    data?: { display_name?: string };
+  }
+) {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email.trim().toLowerCase(), {
+    redirectTo: options?.redirectTo,
+    data: options?.data,
+  });
+  if (error) return { error, user: null };
+  return { user: data.user, error: null };
+}

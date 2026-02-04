@@ -7,22 +7,36 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getCurrentUserFromRequest, validateTenantAccess } from "./lib/auth/supabase-auth";
 import { requiresAAL2, isDevModeBypassEnabled } from "./lib/auth/mfa";
+import { getSiteModeForEdge } from "./lib/site-mode";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check for standby/coming soon mode
-  const siteMode = process.env.NEXT_PUBLIC_SITE_MODE || "live";
+  // Coming soon: read from DB (tenant_sites.site_mode) when NEXT_PUBLIC_CLIENT_SCHEMA is set; otherwise live
+  const siteMode = await getSiteModeForEdge();
   const isComingSoonMode = siteMode === "coming_soon";
-  
+
   // Allow access to admin routes, API routes, and coming-soon page even in coming soon mode
   const isAdminRoute = pathname.startsWith("/admin");
   const isAPIRoute = pathname.startsWith("/api");
   const isComingSoonRoute = pathname === "/coming-soon";
-  
+  const isPublicRoute = !isAdminRoute && !isAPIRoute;
+
+  /** No cache so site mode toggle (live ↔ coming soon) takes effect immediately. */
+  const noStore = "no-store, no-cache, must-revalidate, max-age=0";
+
   // If in coming soon mode, redirect all public routes to /coming-soon
-  if (isComingSoonMode && !isAdminRoute && !isAPIRoute && !isComingSoonRoute) {
-    return NextResponse.redirect(new URL("/coming-soon", request.url));
+  if (isComingSoonMode && isPublicRoute && !isComingSoonRoute) {
+    const res = NextResponse.redirect(new URL("/coming-soon", request.url));
+    res.headers.set("Cache-Control", noStore);
+    return res;
+  }
+
+  // If in live mode but user hit /coming-soon (e.g. back button, "Back to website"), send to home
+  if (isComingSoonRoute && !isComingSoonMode) {
+    const res = NextResponse.redirect(new URL("/", request.url));
+    res.headers.set("Cache-Control", noStore);
+    return res;
   }
 
   // Redirect /admin to /admin/dashboard if authenticated, or /admin/login if not
@@ -110,7 +124,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // All other routes continue normally
-  return NextResponse.next();
+  const res = NextResponse.next();
+  if (isPublicRoute) {
+    res.headers.set("Cache-Control", noStore);
+  }
+  return res;
 }
 
 export const config = {

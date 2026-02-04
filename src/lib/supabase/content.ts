@@ -11,6 +11,32 @@ import type { ContentType, ContentListItem, ContentRow, ContentTypeField } from 
 const CONTENT_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
 
+/** Server-only: list content items of type "snippet" for dropdowns (e.g. Coming Soon message). */
+export async function getSnippetOptions(
+  schema?: string
+): Promise<{ id: string; title: string; slug: string }[]> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? CONTENT_SCHEMA;
+  const { data: typeRow } = await supabase
+    .schema(schemaName)
+    .from("content_types")
+    .select("id")
+    .eq("slug", "snippet")
+    .maybeSingle();
+  if (!typeRow) return [];
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("content")
+    .select("id, title, slug")
+    .eq("content_type_id", typeRow.id)
+    .order("title", { ascending: true });
+  if (error) {
+    console.error("getSnippetOptions:", error);
+    return [];
+  }
+  return (data as { id: string; title: string; slug: string }[]) ?? [];
+}
+
 export async function getContentTypes(): Promise<ContentType[]> {
   const supabase = createClientSupabaseClient();
 
@@ -165,6 +191,29 @@ export async function getContentById(id: string): Promise<ContentRow | null> {
     return null;
   }
   return data as ContentRow;
+}
+
+/**
+ * Server-only: fetch one content row by id (e.g. for Coming Soon snippet). Uses service role.
+ * @param schema - optional; defaults to CONTENT_SCHEMA (current tenant).
+ */
+export async function getContentByIdServer(
+  id: string,
+  schema?: string
+): Promise<ContentRow | null> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? CONTENT_SCHEMA;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("content")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    console.error("getContentByIdServer:", error);
+    return null;
+  }
+  return data as ContentRow | null;
 }
 
 /**

@@ -6,6 +6,26 @@
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import type { AdminRole, FeatureRegistry } from "@/types/feature-registry";
 
+/** Slug for the Superadmin feature. Global, not toggleable in Roles or Tenant Features UI. */
+export const SUPERADMIN_FEATURE_SLUG = "superadmin";
+
+/** Exclude Superadmin from lists used for role/tenant feature toggles (it is always available). */
+export function featuresForRoleOrTenantUI(features: FeatureRegistry[]): FeatureRegistry[] {
+  return features.filter((f) => f.slug !== SUPERADMIN_FEATURE_SLUG);
+}
+
+/** Resolve Superadmin feature ID (for filtering out of role/tenant feature writes). */
+export async function getSuperadminFeatureId(): Promise<string | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("feature_registry")
+    .select("id")
+    .eq("slug", SUPERADMIN_FEATURE_SLUG)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { id: string }).id;
+}
+
 /** Order features: roots first, then each root's children, by display_order then label. */
 export function orderedFeatures(features: FeatureRegistry[]): FeatureRegistry[] {
   const byOrderThenLabel = (a: FeatureRegistry, b: FeatureRegistry) =>
@@ -66,7 +86,7 @@ export async function listRoleFeatureIds(roleSlug: string): Promise<string[]> {
     console.error("listRoleFeatureIds:", error);
     return [];
   }
-  return (data ?? []).map((row) => row.feature_id as string);
+  return (data ?? []).map((row: { feature_id: string }) => row.feature_id);
 }
 
 export async function setRoleFeatureIds(roleSlug: string, featureIds: string[]): Promise<boolean> {
@@ -101,7 +121,7 @@ export async function listTenantFeatureIds(tenantId: string): Promise<string[]> 
     console.error("listTenantFeatureIds:", error);
     return [];
   }
-  return (data ?? []).map((row) => row.feature_id as string);
+  return (data ?? []).map((row: { feature_id: string }) => row.feature_id);
 }
 
 export async function setTenantFeatureIds(tenantId: string, featureIds: string[]): Promise<boolean> {

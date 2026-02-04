@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { listTenantFeatureIds, setTenantFeatureIds } from "@/lib/supabase/feature-registry";
+import {
+  listTenantFeatureIds,
+  setTenantFeatureIds,
+  getSuperadminFeatureId,
+} from "@/lib/supabase/feature-registry";
 
 /**
  * GET /api/admin/tenants/[id]/features
@@ -54,9 +58,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Missing tenant id" }, { status: 400 });
     }
     const body = await request.json();
-    const featureIds = Array.isArray(body?.featureIds)
+    let featureIds = Array.isArray(body?.featureIds)
       ? (body.featureIds as string[]).filter((id) => typeof id === "string" && id.length > 0)
       : [];
+    const superadminId = await getSuperadminFeatureId();
+    if (superadminId) {
+      featureIds = featureIds.filter((id) => id !== superadminId);
+    }
     const ok = await setTenantFeatureIds(tenantId, featureIds);
     if (!ok) {
       return NextResponse.json(
