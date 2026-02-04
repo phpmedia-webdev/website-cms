@@ -44,6 +44,7 @@
 
 1. **client_admins + client_admin_tenants (user-tenant-role)**
    - [x] Migration file 085 created (run in SQL Editor when ready). Tables: `public.client_admins`, `public.client_admin_tenants`.
+   - [x] Run script 085 - completed 2/3/2026
    - [ ] Types + lib: CRUD for admins, assign/remove user to tenant with role; list users per tenant.
    - [ ] Auth/session: resolve current user's role from `client_admin_tenants` for current tenant (for sidebar and route guards).
 
