@@ -1,3 +1,4 @@
+pnpm run dev
 # MVP Status — Where We Are & What’s Left
 
 **Purpose:** One place to see current state and what’s needed to reach MVP. Use with [planlog.md](./planlog.md) (full task list) and [sessionlog.md](./sessionlog.md) (next steps).
