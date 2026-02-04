@@ -9,6 +9,19 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-03 CT - Session wrap: quick wins (migration 085, remove Integrations from Superadmin)
+
+**Context for Next Session:**
+- **Migration 085** (`supabase/migrations/085_client_admins.sql`) is added but not run. When ready: copy contents into Supabase SQL Editor and run. Tables: `client_admins` (id, user_id, email, display_name, status), `client_admin_tenants` (admin_id, tenant_id, role_slug). Next step is types + lib + auth/session resolution for these tables (step 1 in sessionlog).
+- **Integrations** removed from Superadmin: sidebar no longer shows Integrations link; Superadmin dashboard card for Integrations removed. Header scripts (GA, VisitorTracking, SimpleCommenter) remain in Code Snippets / integrations table; route `/admin/super/integrations` and API still exist if needed.
+- **Build plan** in sessionlog unchanged: after running 085, do client_admins lib + auth resolution, then tabbed Dashboard, Users page, etc.
+
+**Changes:**
+- Added `supabase/migrations/085_client_admins.sql`: `client_admins`, `client_admin_tenants` tables; grants to authenticated and service_role.
+- Sidebar: removed Integrations from `superadminSubNav`; updated comment.
+- Superadmin dashboard (`/admin/super`): removed Integrations card.
+- Sessionlog: noted quick wins in Done; step 1 migration checkbox; step 2 Integrations done.
+
 ### 2026-02-03 CT - Modular design, feature boundaries, per-module version marking (docs)
 
 **Changes:**

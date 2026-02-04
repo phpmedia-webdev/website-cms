@@ -29,6 +29,7 @@ import {
   Mail,
   ListChecks,
   KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -73,8 +74,9 @@ const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
 
 const superadminSubNav = [
   { name: "Dashboard", href: "/admin/super", icon: Shield },
-  { name: "Integrations", href: "/admin/super/integrations", icon: KeyRound },
   { name: "Code snippets", href: "/admin/super/code-snippets", icon: Code },
+  { name: "Roles", href: "/admin/super/roles", icon: ShieldCheck },
+  { name: "Clients", href: "/admin/super/clients", icon: Building2 },
 ];
 
 export function Sidebar({ isSuperadmin = false }: SidebarProps) {
@@ -521,7 +523,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           )}
         </div>
         </div>
-        {/* Superadmin twirldown: sub-sections (Dashboard, Integrations, Code snippets) */}
+        {/* Superadmin twirldown: Dashboard, Code snippets, Roles, Clients */}
         {isSuperadmin && (
           <div className="pt-1 mt-2 border-t border-border" style={{ borderColor: 'hsl(220, 13%, 80%)' }}>
             <div

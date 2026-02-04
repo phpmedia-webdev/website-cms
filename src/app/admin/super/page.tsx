@@ -71,26 +71,6 @@ export default async function SuperadminPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Integrations</CardTitle>
-            <CardDescription>
-              Manage third-party integrations and head section scripts
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Configure Google Analytics, VisitorTracking.com, and SimpleCommenter.com integrations.
-            </p>
-            <Link
-              href="/admin/super/integrations"
-              className="text-sm text-primary hover:underline"
-            >
-              Go to Integrations Settings →
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Archive & Restore</CardTitle>
             <CardDescription>
               Archive and restore client projects
