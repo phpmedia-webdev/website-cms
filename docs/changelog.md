@@ -9,6 +9,41 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-03 CT - Phase 09 sub-phases (9A, 9E, 9B, 9D) sessionlog; Phase 12 cancelled
+
+**Context for Next Session:**
+- **Sessionlog is unchanged** and ready for tomorrow: Phase 09 (membership working), 9C (members & ownership), 9A (code redemption UI), 9E (gallery enhancement), 9B (marketing research), 9D (AnyChat integration) each have ordered steps or plan references. Pick up from **Next up** in `docs/sessionlog.md`.
+- **Phase 12 (Visual Component Library):** Cancelled in planlog. We use the simple Code Library (code blocks/snippets), not a visual component catalog or page section editor; all Phase 12 items marked N/A.
+- **Key docs:** `docs/sessionlog.md` (next steps), `docs/planlog.md` (Phase 09 overview table, 9A/9C/9E “What we built vs what we need,” 9B/9D full scope, Phase 12 cancelled).
+
+**Changes:**
+- **Planlog:** Phase 9A “What we built vs what we need” and Phase 9E same (with built/still-needed bullets); Phase 9E overview table and checkboxes updated; Phase 12 status set to Cancelled, all items marked [x] N/A (retained for reference).
+- **Sessionlog:** Phase 9A steps (member Apply code, login access code, no-ambiguous preset); Phase 9E steps (external video embed, thumbnail strip, taxonomy filter, shortcode UX, deferred); Phase 9B block (research 2 email platforms, plan reference); Phase 9D block (review AnyChat docs, add integration, plan reference). Sessionlog kept as-is for next session.
+
+### 2026-02-03 CT - View as Role + Site, sub-level feature guards, Roles UI hierarchy
+
+**Context for Next Session:**
+- **View as Role + Site** is implemented and tested: Superadmin dashboard card (Site + Role selector), cookie override, red banner with Exit, layout uses `getEffectiveFeatureSlugs(tenantId, roleSlug)` when active; Superadmin link stays visible. No git push this session.
+- **Feature hierarchy:** Top-level ON = all sub-items allowed (sidebar + route guard); top-level OFF = only explicitly enabled sub-items. Sub-routes mapped (contacts, marketing, forms, memberships, code_generator); `canAccessFeature` and FeatureGuard use parent slug so having CRM grants all CRM sub-routes.
+- **Roles & Features UI:** Toggling a top-level (e.g. CRM) ON turns on all its sub-items; toggling OFF turns off all sub-items. Operator can then turn individual sub-items on manually. Applies to all top-level sections.
+- **Next:** Smoke-test core flows; Settings → Team; or add new items to sessionlog. Sessionlog cleared to a clean slate.
+
+**Changes:**
+- View as Role + Site: `src/lib/admin/view-as.ts`, layout override in `admin/layout.tsx`, banner + Exit in `AdminLayoutWrapper`, `ViewAsCard` on Superadmin page; force-dynamic layout; guard when view-as active never pass "all".
+- Sub-level guards: `pathToFeatureSlug` for contacts, marketing, forms, memberships, code_generator, lists→marketing; sidebar CRM/Media sub-nav by featureSlug; `FEATURE_PARENT_SLUG` and `canAccessFeature` parent rule; FeatureGuard uses `canAccessFeature`.
+- RolesManager: top-level toggle adds/removes parent + all children; help text updated. Planlog View as Role + Site checked off.
+
+### 2026-02-03 CT - Sessionlog cleanup; View as Role + Site planned
+
+**Context for Next Session:**
+- **Sessionlog is now lean.** Removed completed build-plan items, long MVP checklist, terminology table, route/table renames, and Superadmin layout detail. Sessionlog keeps only: current focus, next up, and View as Role + Site (planned). For full history and backlog use `planlog.md` and `changelog.md`.
+- **Done (lives in planlog/changelog only):** Effective features (sidebar filter + FeatureGuard modal), profile (migration 087, Settings → Profile), dynamic header (site + role), content editor full page, migrations 081–087, tenant sites/users/roles UI, route renames. No need to re-read these in sessionlog.
+- **Next:** Smoke-test core flows; then Settings → Team or View as Role + Site implementation. View as Role + Site spec is in sessionlog (short) and planlog (Phase 18b).
+
+**Changes:**
+- **Sessionlog:** Pruned to ~50 lines. Kept: workflow, current focus, next up, View as Role + Site (planned), handoff pointer. Removed: MVP "What's left" list, build plan with done/remaining checkboxes, terminology table, route and table renames, Superadmin layout bullets.
+- **Changelog:** This entry added.
+
 ### 2026-02-03 CT - Session wrap: Coming Soon snippet, Tiptap alignment, Site Mode UX
 
 **Context for Next Session:**

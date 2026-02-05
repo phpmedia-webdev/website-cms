@@ -81,7 +81,8 @@ export async function listRoleFeatureIds(roleSlug: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("role_features")
     .select("feature_id")
-    .eq("role_slug", roleSlug);
+    .eq("role_slug", roleSlug)
+    .eq("is_enabled", true);
   if (error) {
     console.error("listRoleFeatureIds:", error);
     return [];
@@ -158,4 +159,25 @@ export async function getEffectiveFeatures(
   ]);
   const roleSet = new Set(roleIds);
   return tenantIds.filter((id) => roleSet.has(id));
+}
+
+/**
+ * Effective feature slugs for a user (tenant ∩ role). Use for sidebar and route guards.
+ */
+export async function getEffectiveFeatureSlugs(
+  tenantId: string,
+  roleSlug: string
+): Promise<string[]> {
+  const ids = await getEffectiveFeatures(tenantId, roleSlug);
+  if (ids.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("feature_registry")
+    .select("slug")
+    .in("id", ids);
+  if (error) {
+    console.error("getEffectiveFeatureSlugs:", error);
+    return [];
+  }
+  return (data ?? []).map((r: { slug: string }) => r.slug);
 }

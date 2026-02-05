@@ -10,6 +10,7 @@ import {
   getRoleForUserOnSite,
 } from "@/lib/supabase/tenant-users";
 import { getClientSchema } from "@/lib/supabase/schema";
+import { getEffectiveFeatureSlugs } from "@/lib/supabase/feature-registry";
 
 /**
  * Get the current user's role for the current tenant (NEXT_PUBLIC_CLIENT_SCHEMA).
@@ -57,4 +58,34 @@ export async function getRoleForCurrentUserOnSite(tenantSiteId: string): Promise
   if (!tenantUser) return null;
 
   return getRoleForUserOnSite(tenantUser.id, tenantSiteId);
+}
+
+/**
+ * Effective feature slugs for the current user (for sidebar and route guards).
+ * - Superadmin: returns "all" (allow everything).
+ * - Tenant user: returns slug[] from getEffectiveFeatureSlugs(tenantSiteId, role).
+ * - No user or no tenant/role: returns [].
+ */
+export async function getEffectiveFeatureSlugsForCurrentUser(): Promise<string[] | "all"> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
+    return "all";
+  }
+
+  let tenantSiteId: string;
+  try {
+    const schema = getClientSchema();
+    const site = await getTenantSiteBySchema(schema);
+    if (!site) return [];
+    tenantSiteId = site.id;
+  } catch {
+    return [];
+  }
+
+  const role = await getRoleForCurrentUser();
+  if (!role) return [];
+
+  return getEffectiveFeatureSlugs(tenantSiteId, role);
 }

@@ -33,30 +33,33 @@ import {
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { canAccessFeature } from "@/lib/admin/route-features";
 
 const SIDEBAR_SETTINGS_OPEN = "sidebar-settings-open";
 
 interface SidebarProps {
   isSuperadmin?: boolean;
+  /** Effective feature slugs for current user; "all" = show everything. */
+  effectiveFeatureSlugs?: string[] | "all";
 }
 
-const mediaSubNav = [
-  { name: "Library", href: "/admin/media", icon: Image },
-  { name: "Galleries", href: "/admin/galleries", icon: Folder },
+const mediaSubNav: { name: string; href: string; icon: typeof Image; featureSlug: string }[] = [
+  { name: "Library", href: "/admin/media", icon: Image, featureSlug: "media" },
+  { name: "Galleries", href: "/admin/galleries", icon: Folder, featureSlug: "galleries" },
 ];
 
 const SIDEBAR_MEDIA_OPEN = "sidebar-media-open";
 
 const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 
-const crmSubNav = [
-  { name: "Contacts", href: "/admin/crm/contacts", icon: Users },
-  { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList },
-  { name: "Form submissions", href: "/admin/crm/forms/submissions", icon: Inbox },
-  { name: "Marketing", href: "/admin/crm/marketing", icon: Mail },
-  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks },
-  { name: "Memberships", href: "/admin/crm/memberships", icon: Folder },
-  { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound },
+const crmSubNav: { name: string; href: string; icon: typeof Users; featureSlug: string }[] = [
+  { name: "Contacts", href: "/admin/crm/contacts", icon: Users, featureSlug: "contacts" },
+  { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList, featureSlug: "forms" },
+  { name: "Form submissions", href: "/admin/crm/forms/submissions", icon: Inbox, featureSlug: "forms" },
+  { name: "Marketing", href: "/admin/crm/marketing", icon: Mail, featureSlug: "marketing" },
+  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks, featureSlug: "marketing" },
+  { name: "Memberships", href: "/admin/crm/memberships", icon: Folder, featureSlug: "memberships" },
+  { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
 ];
 
 const settingsSubNav = [
@@ -81,7 +84,7 @@ const superadminSubNav = [
   { name: "Code Library", href: "/admin/super/code-library", icon: Code },
 ];
 
-export function Sidebar({ isSuperadmin = false }: SidebarProps) {
+export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = getSupabaseClient();
@@ -89,6 +92,23 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
   const isCrm = pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
+
+  const showDashboard =
+    effectiveFeatureSlugs === "all" ||
+    (Array.isArray(effectiveFeatureSlugs) &&
+      (effectiveFeatureSlugs.length === 0 || effectiveFeatureSlugs.includes("dashboard")));
+  const showCrm =
+    canAccessFeature(effectiveFeatureSlugs, "crm") ||
+    canAccessFeature(effectiveFeatureSlugs, "contacts") ||
+    canAccessFeature(effectiveFeatureSlugs, "forms") ||
+    canAccessFeature(effectiveFeatureSlugs, "marketing") ||
+    canAccessFeature(effectiveFeatureSlugs, "memberships") ||
+    canAccessFeature(effectiveFeatureSlugs, "code_generator");
+  const showMedia =
+    canAccessFeature(effectiveFeatureSlugs, "media") ||
+    canAccessFeature(effectiveFeatureSlugs, "galleries");
+  const showContent = canAccessFeature(effectiveFeatureSlugs, "content");
+  const showSettings = canAccessFeature(effectiveFeatureSlugs, "settings");
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
@@ -327,6 +347,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
       <nav className="flex-1 flex flex-col min-h-0 p-4">
         <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
         {/* Dashboard first */}
+        {showDashboard && (
         <Link
           href="/admin/dashboard"
           className={cn(
@@ -339,7 +360,9 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           <LayoutDashboard className="h-5 w-5" />
           Dashboard
         </Link>
+        )}
         {/* CRM twirldown (right after Dashboard) */}
+        {showCrm && (
         <div className="pt-1">
           <div
             className={cn(
@@ -379,31 +402,39 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           </div>
           {crmOpen && (
             <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {crmSubNav.map((sub) => {
-                const isSubActive =
-                  sub.href === "/admin/crm/forms"
-                    ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
-                      !pathname?.startsWith("/admin/crm/forms/submissions")
-                    : pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
-                const SubIcon = sub.icon;
-                return (
-                  <Link
-                    key={sub.href}
-                    href={sub.href}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
-                  >
-                    <SubIcon className="h-4 w-4" />
-                    {sub.name}
-                  </Link>
-                );
-              })}
+              {crmSubNav
+                .filter(
+                  (sub) =>
+                    canAccessFeature(effectiveFeatureSlugs, "crm") ||
+                    canAccessFeature(effectiveFeatureSlugs, sub.featureSlug)
+                )
+                .map((sub) => {
+                  const isSubActive =
+                    sub.href === "/admin/crm/forms"
+                      ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
+                        !pathname?.startsWith("/admin/crm/forms/submissions")
+                      : pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                  const SubIcon = sub.icon;
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  );
+                })}
             </div>
           )}
         </div>
+        )}
         {/* Media twirldown (Library, Galleries) */}
+        {showMedia && (
         <div className="pt-1">
           <div
             className={cn(
@@ -435,30 +466,38 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           </div>
           {mediaOpen && (
             <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {mediaSubNav.map((sub) => {
-                const isSubActive =
-                  pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
-                const SubIcon = sub.icon;
-                return (
-                  <Link
-                    key={sub.href}
-                    href={sub.href}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      isSubActive
-                        ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
-                  >
-                    <SubIcon className="h-4 w-4" />
-                    {sub.name}
-                  </Link>
-                );
-              })}
+              {mediaSubNav
+                .filter(
+                  (sub) =>
+                    canAccessFeature(effectiveFeatureSlugs, "media") ||
+                    canAccessFeature(effectiveFeatureSlugs, sub.featureSlug)
+                )
+                .map((sub) => {
+                  const isSubActive =
+                    pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                  const SubIcon = sub.icon;
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        isSubActive
+                          ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  );
+                })}
             </div>
           )}
         </div>
+        )}
         {/* Content */}
+        {showContent && (
         <Link
           href="/admin/content"
           className={cn(
@@ -471,8 +510,10 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
           <FileText className="h-5 w-5" />
           Content
         </Link>
+        )}
 
         {/* Settings twirldown */}
+        {showSettings && (
         <div className="pt-1">
           <div
             className={cn(
@@ -524,6 +565,7 @@ export function Sidebar({ isSuperadmin = false }: SidebarProps) {
             </div>
           )}
         </div>
+        )}
         </div>
         {/* Superadmin twirldown: Dashboard, Code snippets, Roles, Clients */}
         {isSuperadmin && (

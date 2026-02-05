@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
-import { getContentTypes, getContentListWithTypes, getContentById, deleteContent } from "@/lib/supabase/content";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getContentTypes, getContentListWithTypes, deleteContent } from "@/lib/supabase/content";
 import {
   getTaxonomyTermsClient,
   getContentTaxonomyRelationships,
@@ -10,14 +10,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ContentEditModal } from "@/components/content/ContentEditModal";
 import { TaxonomyMultiSelect, type TaxonomyMultiSelectOption } from "@/components/media/TaxonomyMultiSelect";
-import type { ContentListItem, ContentType, ContentRow } from "@/types/content";
+import type { ContentListItem, ContentType } from "@/types/content";
 import type { TaxonomyTerm } from "@/types/taxonomy";
 import { Plus, Search, Edit, Trash2, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 
 export function ContentPageClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [items, setItems] = useState<ContentListItem[]>([]);
   const [types, setTypes] = useState<ContentType[]>([]);
@@ -30,8 +30,6 @@ export function ContentPageClient() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<ContentRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -130,28 +128,12 @@ export function ContentPageClient() {
   };
 
   const handleAdd = () => {
-    setEditing(null);
-    setModalOpen(true);
+    const query = typeFilter ? `?type=${encodeURIComponent(typeFilter)}` : "";
+    router.push(`/admin/content/new${query}`);
   };
 
-  const handleEdit = async (c: ContentListItem) => {
-    const row = await getContentById(c.id);
-    if (!row) {
-      alert("Could not load content.");
-      return;
-    }
-    setEditing(row);
-    setModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setModalOpen(false);
-    setEditing(null);
-  };
-
-  const handleSaved = () => {
-    fetchItems();
-    handleModalClose();
+  const handleEdit = (c: ContentListItem) => {
+    router.push(`/admin/content/${c.id}/edit`);
   };
 
   const handleDelete = async (c: ContentListItem) => {
@@ -347,13 +329,6 @@ export function ContentPageClient() {
         </CardContent>
       </Card>
 
-      <ContentEditModal
-        open={modalOpen}
-        onClose={handleModalClose}
-        item={editing}
-        types={contentTypesForLibrary}
-        onSaved={handleSaved}
-      />
     </div>
   );
 }

@@ -29,6 +29,10 @@ export function RolesManager() {
 
   const ordered = useMemo(() => orderedFeatures(features), [features]);
 
+  /** Child feature IDs for a given parent feature id (one level: direct children only). */
+  const getChildFeatureIds = (parentId: string) =>
+    features.filter((f) => f.parent_id === parentId).map((f) => f.id);
+
   useEffect(() => {
     load();
   }, []);
@@ -61,10 +65,28 @@ export function RolesManager() {
 
   const toggleFeature = async (featureId: string, checked: boolean) => {
     if (!selectedRoleSlug) return;
+    const feature = features.find((f) => f.id === featureId);
+    const childIds = getChildFeatureIds(featureId);
     const current = roleFeatureIds[selectedRoleSlug] ?? [];
-    const next = checked
-      ? [...current, featureId]
-      : current.filter((id) => id !== featureId);
+
+    let next: string[];
+    if (!feature?.parent_id) {
+      // Top-level: turning ON adds this + all children; turning OFF removes this + all children
+      if (checked) {
+        next = [...new Set([...current, featureId, ...childIds])];
+      } else {
+        const childSet = new Set(childIds);
+        next = current.filter(
+          (id) => id !== featureId && !childSet.has(id)
+        );
+      }
+    } else {
+      // Sub-level: only this feature
+      next = checked
+        ? [...current, featureId]
+        : current.filter((id) => id !== featureId);
+    }
+
     setRoleFeatureIds((prev) => ({ ...prev, [selectedRoleSlug]: next }));
     setSavingFeatureId(featureId);
     setError(null);
@@ -139,7 +161,7 @@ export function RolesManager() {
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Toggle features for the selected role. On (right, blue) = allowed; off (left, grey) = not allowed. Changes save automatically.
+            Toggle features for the selected role. On = allowed; off = not allowed. Turning a <strong>top-level</strong> (e.g. CRM) <strong>on</strong> turns on all sub-items; turning it <strong>off</strong> turns off all sub-items. You can then turn individual sub-items on manually. Changes save automatically.
           </p>
           {error && (
             <p className="text-sm text-destructive">{error}</p>

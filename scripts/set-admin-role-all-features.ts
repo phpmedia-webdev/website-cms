@@ -19,8 +19,11 @@ if (!supabaseUrl || !serviceRoleKey) {
   process.exit(1);
 }
 
+const url = supabaseUrl as string;
+const key = serviceRoleKey as string;
+
 async function main() {
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 

@@ -59,7 +59,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - `getUserById()` - Get user by ID
     - `listUsers()` - List users with pagination
     - `updateUserPassword()` - Update user password
-  - [ ] Document user creation process:
+  - [X] Document user creation process:
     - Create **Superadmin** users (cross-tenant) for developer/team
     - Create **Client Admin** users (single-tenant) per deployment with `tenant_id`
     - Create **Member** users (GPUM) with `type="member"` and `tenant_id`
@@ -74,9 +74,9 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - Integrations link (placeholder for next step)
   - [x] Ensure page is accessible only to `type="superadmin"` + `role="superadmin"` (middleware updated)
   - [x] Update Sidebar to show Superadmin link only for superadmins
-  - [ ] Add Site URL field to superadmin page (when page is fully developed): single input for true site domain (e.g. https://example.com). Store in settings (site.url). Use as prefix for gallery standalone URL (Gallery Details → Standalone URL). Fallback: NEXT_PUBLIC_APP_URL or request origin if not set.
+  - [ ] Add Site URL field to **Superadmin → Tenant Sites → [site detail/settings]**: single input for true site domain (e.g. https://example.com). Use as prefix for gallery standalone URL (Gallery Details → Standalone URL). Fallback: NEXT_PUBLIC_APP_URL or request origin if not set.
 
-- [ ] Test Automated Client Setup Script
+- [ ] Test Automated Client Setup Script *(required prior to deploying a fork site)*
   - [ ] Test `pnpm setup-client <test-schema-name>` script with a test schema (e.g., `test_client_setup`)
   - [ ] Verify script creates schema successfully
   - [ ] Verify script runs all migrations correctly (schema name replacement works)
@@ -90,9 +90,9 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Document any issues or improvements needed for the script
   - [ ] Clean up test schema after testing (optional: keep for reference)
 
-- [ ] Template Subdomain Deployment Setup
+- [ ] Template (Root) Domain Deployment Setup *(next: we are using root domain, not subdomain)*
   - [ ] Set up Vercel project for template repository
-  - [ ] Configure subdomain (e.g., `template.yourdomain.com` or `dev.yourdomain.com`)
+  - [ ] Configure root domain (e.g., `yourdomain.com` or `app.yourdomain.com`)
   - [ ] Create test schema in Supabase (e.g., `template_dev`) using automated script
   - [ ] Expose schema in Supabase Dashboard (Settings → API → Exposed Schemas)
   - [ ] Configure Vercel environment variables:
@@ -100,9 +100,9 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
     - `SUPABASE_SERVICE_ROLE_KEY`
     - `NEXT_PUBLIC_CLIENT_SCHEMA=template_dev`
-    - `NEXT_PUBLIC_APP_URL=https://template.yourdomain.com`
+    - `NEXT_PUBLIC_APP_URL=https://yourdomain.com` (or your root domain)
   - [ ] Create superadmin user in Supabase Auth with proper metadata
-  - [ ] Test authentication flow on deployed subdomain
+  - [ ] Test authentication flow on deployed domain
   - [ ] Verify middleware and route protection work correctly
   - [ ] Document deployment process for future client setups
   - [ ] Set up automatic deployments (Vercel auto-deploy on push to main)
@@ -204,20 +204,20 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
       - Remove factor button (with safety checks)
       - Show enrollment dates
       - Prevent removing last factor if role requires 2FA
-    - [ ] Create `src/app/members/account/security/page.tsx` (member security settings - optional 2FA) - Deferred to Phase 09 (Membership Platform)
-  - [ ] Update API routes for AAL checks:
+    - [X] Create `src/app/members/account/security/page.tsx` (member security settings - optional 2FA) - Deferred to Phase 09 (Membership Platform)
+  - [ ] Update API routes for AAL checks *(senior dev may know; see sessionlog)*:
     - Update sensitive admin API routes to check `aal` claim
     - Require `aal2` for destructive operations (archive, reset, user management)
     - Return 403 if `aal1` but `aal2` required
   - [ ] Add RLS policies for AAL enforcement (if needed):
     - Check `aal` claim in JWT for sensitive database operations
     - Require `aal2` for superadmin operations
-  - [ ] Handle edge cases:
+  - [ ] Handle edge cases *(before final launch)*:
     - Session refresh maintains `aal2` status
     - Prevent unenrollment of last factor for roles requiring 2FA
     - Recovery process documentation for lost authenticator access
     - Multiple factor enrollment support (up to 10 factors)
-  - [ ] Testing:
+  - [ ] Testing *(when we deploy to domain — soon; add to planlog)*:
     - Test enrollment flow for superadmin and client admin
     - Test challenge flow after login
     - Test middleware enforcement for protected routes
@@ -225,7 +225,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - Test multiple factor enrollment
     - Test unenrollment safety checks
 
-- [ ] SMS/Phone-Based 2FA (Planned for Future)
+- [ ] SMS/Phone-Based 2FA (Future dev)
   - [ ] Research SMS provider options (Twilio, MessageBird, Vonage, Textlocal)
   - [ ] Document SMS provider setup requirements
   - [ ] Plan SMS enrollment flow (similar to TOTP)
@@ -311,18 +311,18 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - Coming-soon page itself is accessible
   - [x] Add `noindex`/`nofollow` behavior for coming-soon mode (SEO safety)
     - Metadata includes `robots: { index: false, follow: false }`
-  - [ ] Document Vercel env var setup for client deployments
+  - [X] Document Vercel env var setup for client deployments
     - TODO: Add to deployment documentation
 
-- [ ] Create essential database schemas (as needed per phase)
-  - [ ] **Note**: Schemas will be created incrementally as each phase is developed
+- [X] Create essential database schemas (as needed per phase)
+  - [X] **Note**: Schemas will be created incrementally as each phase is developed
   - [x] Phase 05 created: `media`, `media_variants` tables (migrations 026, 039, 040)
-  - [ ] Phase 06 creates: `content`, `content_types`, `content_type_fields` (unified model)
-  - [ ] Phase 07 will create: CRM tables (`crm_contacts`, `crm_custom_fields`, `crm_contact_custom_fields`, `crm_contact_mags`, `crm_consents`, `forms`)
-  - [ ] Phase 08 will use: `forms` table (from Phase 07)
-  - [ ] Phase 09 will create: MAG tables (`mags`, `members`, `user_mags`, `menu_items`)
-  - [ ] Phase 03 will create: Client tenant tables (`public.client_tenants`, `public.client_admins`, `public.client_admin_tenants`)
-  - [ ] All schemas will reflect updated PRD specifications
+  - [X] Phase 06 creates: `content`, `content_types`, `content_type_fields` (unified model)
+  - [X] Phase 07 will create: CRM tables (`crm_contacts`, `crm_custom_fields`, `crm_contact_custom_fields`, `crm_contact_mags`, `crm_consents`, `forms`)
+  - [X] Phase 08 will use: `forms` table (from Phase 07)
+  - [X] Phase 09 will create: MAG tables (`mags`, `members`, `user_mags`, `menu_items`)
+  - [X] Phase 03 will create: Client tenant tables (`public.client_tenants`, `public.client_admins`, `public.client_admin_tenants`)
+  - [X] All schemas will reflect updated PRD specifications
 
 - [ ] Refactor: Color palette — central preset library in public schema
   - [ ] Move predefined palette library to a **table in the public schema** (e.g. `public.color_palette_presets`). Superadmin maintains this central table (add/edit/remove presets); all tenants reference it as the picklist for choosing palettes.
@@ -336,143 +336,85 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 **Note**: Simple list/text table to reference components as we build. Start by adding component name and description. As components are built in code, keep metadata in sync.
 
-- [ ] Enhance settings page with design system section
-  - [ ] Update `src/app/admin/settings/page.tsx` with design system section
-  - [ ] Create `src/components/settings/DesignSystemSettings.tsx`:
+- [X] Enhance settings page with design system section **New Method** We went with a copy/past code library on the superadmin section
+  - [X] Update `src/app/admin/settings/page.tsx` with design system section
+  - [X] Create `src/components/settings/DesignSystemSettings.tsx`:
     - Font selection UI (Google Fonts integration)
     - Color palette picker UI
     - Real-time preview component
     - Save/update functionality
-  - [ ] Create API route `src/app/api/admin/settings/route.ts` for updating settings
+  - [X] Create API route `src/app/api/admin/settings/route.ts` for updating settings
 
-- [ ] Implement admin dark theme
+- [X] Implement admin dark theme - **decided to skip**
   - [ ] Update admin layout (`src/app/admin/layout.tsx`) to use dark theme
   - [ ] Create admin-specific CSS variables that use design system colors in dark mode
   - [ ] Ensure admin uses same fonts but different color application
 
-- [ ] CSS variable integration
-  - [ ] Update `src/app/globals.css` with design system CSS variables
-  - [ ] Create utility functions to apply design system values
-  - [ ] Ensure variables are applied to both public and admin (different themes)
+- [x] CSS variable integration *(single global area for tenant-managed CSS: Settings → Fonts/Colors → design system → CSS variables at root; not scattered)*
+  - [x] Update `src/app/globals.css` with design system CSS variables (fallbacks in :root)
+  - [x] Create utility functions to apply design system values (`designSystemToCSSVariables`, injection in layout)
+  - [x] Ensure variables are applied globally from one source (public and admin use same variable set from DB)
 
-- [ ] Create crude MVP component library manager (simple list/text table)
-  - [ ] Create database table for component library (simple: name, description, file_path, status)
-  - [ ] Create superadmin UI at `/admin/super/components` (simple list/table view)
-  - [ ] Add component entry form (name, description)
-  - [ ] Update metadata as components are built
-  - [ ] Simple search/filter functionality
+- [X] Create crude MVP component library manager (simple list/text table) **New Method** We went with a copy/past code library on the superadmin section
+  - [X] Create database table for component library (simple: name, description, file_path, status)
+  - [X] Create superadmin UI at `/admin/super/components` (simple list/table view)
+  - [X] Add component entry form (name, description)
+  - [X] Update metadata as components are built
+  - [X] Simple search/filter functionality
 
 ### Phase 03: Superadmin Tenant Admin Management
 
-**Status**: Pending - New feature for managing client tenants and admin users
+**Status**: Implemented as **Tenant Sites** and **Tenant Users** (naming: `tenant_sites`, `tenant_users`, `tenant_user_assignments`). Routes: `/admin/super/tenant-sites`, `/admin/super/tenant-users`; API: `/api/admin/tenant-sites`, `/api/admin/tenant-users`.
 
-- [ ] Create client/tenant registry database schema
-  - [ ] Create migration `supabase/migrations/006_client_tenants.sql`:
-    - [ ] `public.client_tenants` table (id, client_name, slug, schema_name, status, deployment_url, github_repo, site_mode, site_mode_locked, site_mode_locked_by, site_mode_locked_at, site_mode_locked_reason, created_at, updated_at, notes)
-    - [ ] `public.client_admins` table (id, user_id, email, display_name, status, temporary_password_set, password_set_at, created_at, updated_at, notes)
-    - [ ] `public.client_admin_tenants` junction table (id, admin_id, tenant_id, role, assigned_at, assigned_by)
-    - [ ] Add indexes for performance (slug, schema_name, email lookups)
+- [x] Create client/tenant registry database schema
+  - [x] Migrations: `082_create_tenant_management_tables.sql`, `085_alter_tenant_sites_deployment_url.sql`, `086_add_tenant_user_assignments.sql`
+  - [x] `public.tenant_sites` (id, name, slug, schema_name, status, deployment_url, github_repo, site_mode, site_mode_locked, site_mode_locked_by, site_mode_locked_at, site_mode_locked_reason, created_at, updated_at, notes)
+  - [x] `public.tenant_users` (id, user_id, email, display_name, status, …)
+  - [x] `public.tenant_user_assignments` (tenant_site_id, tenant_user_id, role_slug, assigned_at, assigned_by, …)
+  - [x] Indexes for slug, schema_name, email lookups
 
-- [ ] Create client/tenant management utilities
-  - [ ] Create `src/lib/supabase/client-tenants.ts`:
-    - [ ] `getClientTenants()` - List all client tenants (with filtering)
-    - [ ] `getClientTenant()` - Get tenant details by ID
-    - [ ] `createClientTenant()` - Create new client tenant record
-    - [ ] `updateClientTenant()` - Update tenant record
-    - [ ] `getClientAdmins()` - List all client admins (global or filtered by tenant)
-    - [ ] `getClientAdmin()` - Get admin details
-    - [ ] `createClientAdmin()` - Create admin user (Supabase Auth + CRM record)
-    - [ ] `assignAdminToTenant()` - Link admin to tenant(s)
-    - [ ] `removeAdminFromTenant()` - Unlink admin from tenant
-    - [ ] `lockSiteMode()` - Lock site mode (superadmin only)
-    - [ ] `unlockSiteMode()` - Unlock site mode (superadmin only)
-    - [ ] `updateSiteMode()` - Change site mode (with lock check)
+- [x] Create client/tenant management utilities
+  - [x] `src/lib/supabase/tenant-sites.ts`: getTenantSites, getTenantSiteById, getTenantSiteBySchema, createTenantSite, updateTenantSite
+  - [x] `src/lib/supabase/tenant-users.ts`: listTenantUsers, listUsersByTenantSite, getTenantUserByEmail, createTenantUser, assignUserToSite, removeUserFromSite, updateTenantUser, etc.
+  - [x] Site mode and lock updated via updateTenantSite (no separate lockSiteMode/unlockSiteMode; lock fields on tenant_sites)
 
-- [ ] Build superadmin client management UI
-  - [ ] Create `src/app/admin/super/clients/page.tsx` (client list view):
-    - [ ] Table showing: client name, schema, status, deployment URL, site mode, admin count
-    - [ ] Filter by status (active, archived, suspended)
-    - [ ] Filter by site mode (coming_soon, live)
-    - [ ] Search by client name
-    - [ ] Quick actions: View details, Create admin, Archive client
-  - [ ] Create `src/app/admin/super/clients/new/page.tsx` (create new client):
-    - [ ] Client name input
-    - [ ] Auto-generate slug and schema name
-    - [ ] Status selection
-    - [ ] Deployment URL and GitHub repo fields
-    - [ ] Site mode default (coming_soon)
-    - [ ] Notes field
-  - [ ] Create `src/app/admin/super/clients/[id]/page.tsx` (client detail view):
-    - [ ] Client information display
-    - [ ] Deployment tracking (GitHub repo, Vercel URL, domain)
-    - [ ] Site mode control section:
-      - [ ] Current mode display (coming_soon/live)
-      - [ ] Lock status indicator
-      - [ ] Lock reason display (if locked)
-      - [ ] Toggle lock button (superadmin only)
-      - [ ] Change mode button (if not locked)
-    - [ ] Admin list with add/remove buttons
-    - [ ] Notes field
-    - [ ] Quick actions: Create admin, Archive client, View deployment
-  - [ ] Create `src/app/admin/super/clients/[id]/admins/page.tsx` (manage client admins):
-    - [ ] List of all admins assigned to this client
-    - [ ] Add new admin button
-    - [ ] For each admin: email, display name, status, assigned date, actions (Suspend, Remove, View details)
-  - [ ] Create `src/app/admin/super/clients/[id]/admins/new/page.tsx` (create admin for client):
-    - [ ] Email input (required)
-    - [ ] Display name input (optional)
-    - [ ] Assign to tenant(s) multi-select
-    - [ ] Status selection (default: active)
-    - [ ] Notes field
-    - [ ] On submit: Create Supabase Auth user with temporary password, set user metadata, create CRM record, link to tenant(s), send email
-  - [ ] Create `src/app/admin/super/admins/page.tsx` (global admin list):
-    - [ ] View all client admins across all sites
-    - [ ] Filter by tenant
-    - [ ] See which sites each admin manages
-    - [ ] Create new admin (assign to tenant during creation)
-    - [ ] Suspend/activate admins globally
-  - [ ] Create `src/components/superadmin/ClientList.tsx` (table view)
-  - [ ] Create `src/components/superadmin/ClientDetail.tsx` (detail view)
-  - [ ] Create `src/components/superadmin/AdminList.tsx` (admin table view)
-  - [ ] Create `src/components/superadmin/AdminCreationForm.tsx` (admin creation form)
-  - [ ] Create `src/components/superadmin/SiteModeControl.tsx` (site mode toggle with lock display)
+- [x] Build superadmin client management UI
+  - [x] `src/app/admin/super/tenant-sites/page.tsx` — list (name, schema, status, deployment URL, site mode)
+  - [x] `src/app/admin/super/tenant-sites/new/` — create site (name, slug, schema_name, status, deployment_url, site_mode, notes)
+  - [x] `src/app/admin/super/tenant-sites/[id]/page.tsx` — detail with deployment info, site mode control, user list, notes
+  - [x] `src/app/admin/super/tenant-sites/[id]/settings/page.tsx` — site settings
+  - [x] `src/app/admin/super/tenant-users/page.tsx` — global tenant users list; add user to site from tenant-sites detail
+  - [x] Site mode + lock: `TenantSiteModeCard` on site detail; lock toggle and reason (superadmin only)
+  - [x] Add user to site: from site detail (email, display_name, role_slug, invite); no separate /clients/[id]/admins/new page — inline or modal
 
-- [ ] Implement email notifications for admin creation
-  - [ ] Create email template for new admin welcome
-  - [ ] Include login URL (tenant-specific deployment URL)
-  - [ ] Include temporary password
-  - [ ] Include instructions to set new password on first login
-  - [ ] Include link to password reset if needed
-  - [ ] Send email when admin is created
+- [x] Implement email notifications for admin creation
+  - [ ] Custom email template for new admin welcome (optional; currently Supabase invite email)
+  - [ ] Include tenant-specific login URL in template (optional)
+  - [x] Send email when admin is created: `inviteUserByEmail()` when `invite: true` in POST `/api/admin/tenant-sites/[id]/users`
 
-- [ ] Update site mode control in tenant admin settings
-  - [ ] Update `src/app/admin/settings/page.tsx` to show site mode toggle
-  - [ ] Display lock status if site mode is locked
-  - [ ] Disable toggle if locked (with explanation)
-  - [ ] Show lock reason if locked
-  - [ ] Allow tenant admin to toggle if not locked
+- [x] Update site mode control in tenant admin settings
+  - [x] Settings → General (`GeneralSettingsContent`): site mode toggle, lock status, lock reason, toggle disabled when locked
+  - [x] API: GET/PATCH `/api/settings/site-mode` (admin auth; superadmin can set lock)
 
-- [ ] Create API routes for client/tenant management
-  - [ ] `GET /api/super/clients` - List all clients (superadmin only)
-  - [ ] `GET /api/super/clients/[id]` - Get client details
-  - [ ] `POST /api/super/clients` - Create new client
-  - [ ] `PUT /api/super/clients/[id]` - Update client
-  - [ ] `POST /api/super/clients/[id]/admins` - Create admin for client
-  - [ ] `PUT /api/super/clients/[id]/site-mode` - Change site mode (with lock check)
-  - [ ] `PUT /api/super/clients/[id]/site-mode/lock` - Lock/unlock site mode
+- [x] Create API routes for client/tenant management
+  - [x] `GET/POST /api/admin/tenant-sites` — list, create
+  - [x] `GET/PUT /api/admin/tenant-sites/[id]` — get, update
+  - [x] `GET/POST/DELETE /api/admin/tenant-sites/[id]/users` — list, add (with invite), remove
+  - [x] `GET/PATCH /api/admin/tenant-sites/[id]/site-mode` — get/update site mode and lock
+  - [x] `GET /api/admin/tenant-users` — list tenant users (superadmin)
 
 ### Phase 04: Tenant Admin UI
 
-**Status**: Pending - Placeholder links and pages (tabbed interface, clean visual UX mockup)
+**Status**: Complete — Admin uses **sidebar layout** with collapsible sections (Dashboard, Content, Media, Forms, CRM, Settings; Superadmin section when applicable). All areas have real pages; Posts/Pages are served via unified Content with legacy redirects.
 
-**Note**: Can be placeholders but the design will help develop the CMS properly. We may use a tabbed interface. A clean visual interface for client is important so lot of time will be spent here on the mock UX. We will wire it all up as following modules are created.
+**Note**: Design uses sidebar + expandable groups rather than top tabs. Clean visual UX in place; further polish can continue in later phases.
 
-- [ ] Create placeholder admin dashboard structure
-  - [ ] Create tabbed interface layout
-  - [ ] Add placeholder navigation items
-  - [ ] Create placeholder pages for: Posts, Pages, Media, Galleries, Forms, CRM, Settings
-  - [ ] Design clean visual UX mockup
-  - [ ] Wire up navigation and routing structure
+- [x] Create placeholder admin dashboard structure
+  - [x] Layout: sidebar with collapsible sections (`Sidebar.tsx`); path-driven open state; feature-based visibility
+  - [x] Navigation: Dashboard, Content, Media (Library + Galleries), Forms, CRM (Contacts, Forms, Lists, Marketing, Memberships, Code Generator), Settings (Profile, General, Fonts, Colors, Taxonomy, Content Types, Content Fields, CRM, Security)
+  - [x] Pages: Dashboard (`/admin/dashboard`), Content (`/admin/content` — list/new/[id]/edit), Media (`/admin/media`), Galleries (`/admin/galleries`), Forms (`/admin/forms`), CRM (`/admin/crm/*`), Settings (`/admin/settings/*`). Posts/Pages: redirect to Content with `?type=post` / `?type=page` (Phase 06)
+  - [x] Visual UX: consistent admin shell, StatsCard on dashboard, feature guards and role-based nav
+  - [x] Navigation and routing wired; layout in `src/app/admin/layout.tsx`, `AdminLayoutWrapper`, `Sidebar`
 
 ### Phase 05: CMS - Media Library (Storage, Image Optimization, Local Copy)
 
@@ -512,15 +454,15 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 06: CMS - Content Management (Unified Content Model)
 
-**Status**: In progress — unified content (single `content` table, `content_types`, `content_type_fields`) per [sessionlog](./sessionlog.md). Admin UI, taxonomy, public routes, and legacy redirects complete.
+**Status**: Core complete. Unified content (single `content` table, `content_types`, `content_type_fields`), full-page editor, taxonomy, public blog/pages, legacy redirects. No WordPress-style page builder — tenant sites use custom code sections (code library) and reference content by UUID. Remaining: document content-by-UID for code library; FAQ block content type (optional).
 
 - [x] Unified content schema and migrations
   - [x] `content_types`, `content_type_fields`, `content` tables (client schema); RLS; dynamic RPCs
   - [x] Seed core types (post, page, snippet, quote, article); drop `posts`
-- [x] Admin content UI (unified list + modal)
-  - [x] `src/app/admin/content/page.tsx` — list all types, type filter, search, Add New, Edit, Delete
-  - [x] `ContentEditModal` — type selector, Name, Slug, Data (Tiptap), Excerpt, Status, custom fields, 70% width
-  - [ ] **Content editor: full page instead of modal** — Replace modal with full-page editor and back button (top left); modal is too small for comfortable editing. See sessionlog "Priority next step."
+- [x] Admin content UI (unified list + full-page editor)
+  - [x] `src/app/admin/content/page.tsx` — list all types, type filter, search, taxonomy filter, Add New, Edit, Delete
+  - [x] Full-page editor: `src/app/admin/content/new/page.tsx` (ContentNewClient), `src/app/admin/content/[id]/edit/page.tsx` (EditContentClient); list navigates to `/admin/content/new` and `/admin/content/[id]/edit`. Back button and full-width editing.
+  - [x] Type selector, Name, Slug, body (Tiptap), Excerpt, Status, custom fields, taxonomy in edit view
 - [x] Integrate rich text editor (Tiptap)
   - [x] `src/components/editor/RichTextEditor.tsx` — H1–H6, bold/italic, lists, blockquote, links, images, HTML code view, WYSIWYG (`prose`)
   - [x] Saving/loading via `content.body` JSONB
@@ -534,14 +476,10 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [x] `src/app/(public)/blog/page.tsx` (list posts from `content` type `post`)
   - [x] `src/app/(public)/blog/[slug]/page.tsx` (single post, rich content, SEO)
 - [x] Build public-facing pages
-  - [x] Dynamic `[slug]` page (type `page`); homepage = page slug `/` (fallback if none); `RichTextDisplay` (Tiptap JSON → HTML)
-  - [ ] Page composition using reusable sections (section editor)
-    - [ ] All content items (including pages) are identified by **UUID** and title; reference by **UUID** in code (APIs, links, data); use title for display
-    - [ ] Page content type as section container: page records stay in Content library list; clicking a page opens a **section editor** (not the current Tiptap modal)
-    - [ ] Section editor: name, slug in detail/metadata area; main area = **drag-and-drop arrangement of sections** (blocks) for the page
-    - [ ] **Sections library in public schema:** Reusable section/component building blocks are stored in a **table in the public schema** (global, central). Admin/superadmin reference this table when building the Page content object. Single source of truth: easier to update and share across all tenant apps (see Phase 12).
-    - [ ] Persist section order and section instance data (e.g. `body` or `content_sections` JSONB: ordered list of `{ section_type_id, props, order }`)
-    - [ ] Public page render: resolve sections by type and render in order (can be a later task)
+  - [x] Homepage and routes are **code-defined** (not a dynamic WordPress-style page fetcher). Content library excludes "page" type; pages/sections are built in tenant code.
+- **Page composition (product decision)** — We are **not** building a dynamic page builder like WordPress. No "Page" content type; no section editor or drag-and-drop DB-driven composition. Instead: **custom code sections per tenant site**, using the **Code Library** (Superadmin) as a starting block; tenant code references content in code and fetches by UID where needed.
+  - [x] **Content UID (UUID):** Every content item has a stable `id` (UUID) in `content` table. Tenant code (and code library snippets) should **reference content by this UUID** (e.g. `getContentById(id)` or public API by UUID) so sections can reliably pull in the right content. Use title/slug for display; use UUID for stable reference in code and APIs.
+  - [ ] **Document/reinforce:** Ensure code library and docs describe referencing content by UUID; add example snippets if needed (e.g. fetch content by UUID for a section).
 - [ ] Content type: FAQ block
   - [ ] Add FAQ block as a selectable content type in the content library (create/edit in list + modal or dedicated editor)
   - [ ] Structure: one topic (title) + multiple Q&A pairs (question, answer). Store in `content.body` JSONB or content-type-specific fields (e.g. `{ topic, items: [{ question, answer }] }`)
@@ -555,103 +493,54 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 07: CRM-First Lightweight CRM
 
-**Status**: Pending - Primary purpose: Accept form submissions and store for review. Admin can update notes, assign tags, manage MAGs, and manually push to external CRM.
+**Status**: Core complete. Schema, utilities, form submission, CRM admin UI (contacts list + detail, Activity Stream, taxonomy, custom fields, MAGs, marketing lists), and API routes in place. Tags/categories via taxonomy (not `tags TEXT[]`). Remaining: central automations layer (optional), auto-assign tags on form submit (optional), manual push to external CRM (optional), combined Activity Stream dashboard widget (optional).
 
-**Workflow**: Form submitted (common + custom fields) → pushed to CRM and marked as new for review → some tags and MAGs created automatically → admin reviews, makes notes, adjusts tags/MAGs, and manually pushes to external CRM or email marketing system.
+**Workflow**: Form submitted → match/create contact, fill core + custom fields, auto-assign MAGs (if configured), insert form_submission → admin reviews in CRM, uses Activity Stream, taxonomy, custom fields, MAGs/lists; external CRM push not yet implemented.
 
-- [ ] Create simplified CRM schema
-  - [ ] Create migration `supabase/migrations/004_crm_schema.sql`:
-    - [ ] `crm_contacts` table:
-      - [ ] Standard fields: id, email, phone, firstname, lastname, fullname, company (text field), address, city, state, postal_code, country
-      - [ ] `tags TEXT[]` array (for sorting, filtering, marketing segments)
-      - [ ] `status TEXT` (new, contacted, archived)
-      - [ ] `dnd_status TEXT` (none, email, phone, all)
-      - [ ] `external_crm_id TEXT` (ID in external CRM if synced)
-      - [ ] `external_crm_synced_at TIMESTAMPTZ` (when last synced)
-      - [ ] `notes TEXT` (admin notes)
-      - [ ] `source TEXT`, `form_id UUID`, timestamps
-    - [ ] `crm_custom_fields` table (tenant-specific field definitions):
-      - [ ] `id`, `name`, `label`, `type`, `validation_rules JSONB`, timestamps
-    - [ ] `crm_contact_custom_fields` table (relational for tenant-specific field values):
-      - [ ] `id`, `contact_id`, `custom_field_id`, `value TEXT`, timestamps
-    - [ ] `crm_contact_mags` junction table (link contacts to MAGs):
-      - [ ] `id`, `contact_id`, `mag_id`, `assigned_via`, `assigned_at`
-    - [ ] `crm_consents` table (simplified: contact_id, consent_type, consented, ip_address, consented_at, withdrawn_at)
-    - [ ] `forms` table (id, name, slug, auto_assign_tags TEXT[], auto_assign_mag_ids UUID[], settings JSONB) - form registry
-    - [ ] Add indexes for email lookups, tags, MAGs
+- [x] Create simplified CRM schema
+  - [x] Client schema: `crm_contacts` (standard fields, status, dnd_status, message, external_crm_id, external_crm_synced_at, source, form_id), `crm_notes`, `crm_custom_fields`, `crm_contact_custom_fields`, `crm_contact_mags`, `forms`, `form_submissions`. Tags/categories via **taxonomy_relationships** (content_type = `crm_contact`). Status from Settings → CRM picklist.
+  - [ ] **Optional:** `crm_consents` table if needed for consent tracking
 
-- [ ] Create CRM utilities
-  - [ ] Create `src/lib/supabase/crm.ts`:
-    - [ ] `getContacts()` - Filter by tags, MAGs, status, DND
-    - [ ] `getContact()` - Include tags, MAGs, custom fields
-    - [ ] `createContact()` - Store standard fields + custom fields in relational table
-    - [ ] `updateContact()` - Update notes, tags, MAGs, status, DND
-    - [ ] `addTagsToContact()` - Add/remove tags (for sorting, filtering, segments)
-    - [ ] `assignMAGsToContact()` - Assign/remove MAGs
-    - [ ] `pushContactToExternalCRM()` - Manual push to external CRM
-    - [ ] `getCustomFields()` - Get tenant-specific custom fields
-    - [ ] `createCustomField()` - Create custom field definition
+- [x] Create CRM utilities
+  - [x] `src/lib/supabase/crm.ts`: getContacts, getContactById, getContactByEmail, createContact, updateContact; getContactNotes, createNote, updateNote, deleteNote; getContactMags, addContactToMag, removeContactFromMag; getContactMarketingLists, add/remove from list; getCrmCustomFields, getContactCustomFields, upsertContactCustomFieldValue; getForms, getFormFields, setFormFields, insertFormSubmission, getFormSubmissions; getMags, getNewContactsCount. Taxonomy for contact tags via crm-taxonomy / taxonomy_relationships.
+  - [ ] **Deferred:** pushContactToExternalCRM() — manual push to external CRM (fields exist; no implementation)
 
-- [ ] Update form submission workflow
-  - [ ] Update `POST /api/forms/[formId]/submit`:
-    - [ ] Store standard fields in `crm_contacts` table
-    - [ ] Store custom field values in `crm_contact_custom_fields` relational table
-    - [ ] Auto-assign tags (if configured in form settings)
-    - [ ] Auto-assign MAGs (if configured in form settings)
-    - [ ] Create contact with `status = 'new'` (marked for review)
-    - [ ] Process consents (simplified, IP address and timestamp)
-    - [ ] Set DND status based on consent
+- [x] Update form submission workflow
+  - [x] `POST /api/forms/[formId]/submit`: validate, match/create contact, fill core + custom fields, auto-assign MAGs (form.auto_assign_mag_ids), insert form_submission, status = default (e.g. new)
+  - [ ] **Optional:** Auto-assign taxonomy tags from form.auto_assign_tags (form has column; not wired in submit)
+  - [ ] **Optional:** Process consents, set DND from consent (if crm_consents added)
 
-- [ ] Central automations layer (trigger/response)
-  - [ ] Create `src/lib/automations/` (or equivalent): single place for all automation logic; API routes and handlers call into automations instead of inlining steps
-  - [ ] Define automation pattern: trigger (event) → pipeline of steps (e.g. appendContactNote, matchOrCreateContact, assignMag). Shared steps reusable across automations
-  - [ ] Form submission automation: trigger = form submitted; steps = validate, match/create contact, fill fields, auto-assign tags/MAGs, append note to activity stream. Refactor `POST /api/forms/[formId]/submit` to call this automation
-  - [ ] Code redemption automation: trigger = code redeemed; steps = validate code, assign MAG, append note. Refactor redeem-code flow to call this automation (if not already centralized)
-  - [ ] Optional: MAG assigned automation (trigger = MAG assigned to contact → append note). Add more automations over time (e.g. tag changes, external CRM push) for comprehensive activity logging
-  - [ ] Document pattern so new events (e.g. contact tagged, form submitted) are added as new automation modules
+- [ ] **Deferred — Central automations layer**
+  - [ ] `src/lib/automations/` (or equivalent): single place for automation logic; form submit / code redeem call into it
+  - [ ] Pattern: trigger → pipeline of steps; document for future events
 
-- [ ] Create CRM admin UI
-  - [ ] Create `src/app/admin/crm/page.tsx` (CRM dashboard)
-  - [ ] Create `src/app/admin/crm/contacts/page.tsx`:
-    - [ ] Filter by tags (for marketing segments)
-    - [ ] Filter by MAGs
-    - [ ] Filter by status (new, contacted, archived)
-    - [ ] Filter by DND status
-  - [ ] Create `src/app/admin/crm/contacts/[id]/page.tsx`:
-    - [ ] Display tags (with add/remove functionality)
-    - [ ] Display MAG assignments (with assign/remove functionality)
-    - [ ] Display custom field values (from relational table)
-    - [ ] Display notes (admin notes and follow-up tracking)
-    - [ ] Display status (new, contacted, archived)
-    - [ ] Display external CRM sync status
-    - [ ] "Manual push to external CRM" button/action
-  - [x] Contact detail: Activity Stream (renamed from Notes)
-    - [x] Rename "Notes" tab/section to "Activity Stream" — timestamped list of activities for the contact
-    - [x] Change "+Add" button to "+Add Custom Note" (custom notes remain one activity type)
-    - [x] When a membership code is redeemed by a user, add entry to contact's activity stream (note_type: code_redemption, body: "Membership code redeemed: [MAG name]")
-  - [ ] Combined Activity Stream (admin dashboard)
-    - [ ] Dashboard widget: merged, timestamp-sorted view of all contact activities (manual notes + automatic events)
-    - [ ] Source: crm_notes across all contacts; future: form submissions, MAG assignments, etc.
-    - [ ] Display: contact name/link, activity type, snippet, timestamp; link to contact detail
-    - [ ] Optional: filter by contact, activity type, date range
-  - [ ] Create `src/components/crm/TagManager.tsx` (tag assignment UI)
-  - [ ] Create `src/components/crm/MAGAssignment.tsx` (MAG assignment UI)
-  - [ ] Create `src/components/crm/ExternalCRMPush.tsx` (manual push UI)
+- [x] Create CRM admin UI
+  - [x] `src/app/admin/crm/page.tsx` → redirect to `/admin/crm/contacts`
+  - [x] `src/app/admin/crm/contacts/page.tsx` — list with search, filter by status, MAG, marketing list, category/tag (taxonomy)
+  - [x] `src/app/admin/crm/contacts/[id]/page.tsx` — detail with tabs: Activity Stream, Taxonomy, Custom Fields, Marketing Lists, Memberships (MAGs); edit contact; status badge
+  - [x] Activity Stream (per contact): timestamped notes, "+Add Custom Note", code redemption auto-appends entry
+  - [x] Taxonomy (ContactTaxonomyBlock): assign categories/tags to contact
+  - [x] Custom Fields: form filter, inline edit, PATCH /api/crm/contacts/[id]/custom-fields
+  - [x] MAG and marketing list assignment in detail view
+  - [ ] **Optional:** Combined Activity Stream dashboard widget (all contacts, merged view)
+  - [ ] **Deferred:** "Manual push to external CRM" button; dedicated TagManager/MAGAssignment/ExternalCRMPush components (functionality in ContactTaxonomyBlock, ContactCardRight, etc.)
 
-- [ ] Create CRM API endpoints
-  - [ ] `GET /api/crm/contacts` - List contacts (admin, with filtering)
-  - [ ] `GET /api/crm/contacts/[id]` - Get contact details
-  - [ ] `POST /api/crm/contacts/[id]/tags` - Add/remove tags (admin or API key auth)
-  - [ ] `POST /api/crm/contacts/[id]/mags` - Assign/remove MAGs (admin or API key auth)
-  - [ ] `POST /api/crm/contacts/[id]/push` - Manually push contact to external CRM (admin)
-  - [ ] `POST /api/crm/contacts/[email]/tags` - Add tags by email (API key auth)
-  - [ ] `POST /api/crm/contacts/[email]/mags` - Assign MAGs by email (API key auth)
+- [x] Create CRM API endpoints
+  - [x] `GET /api/crm/contacts` — list (admin)
+  - [x] `GET/PATCH /api/crm/contacts/[id]` — get/update contact
+  - [x] `GET/POST/PATCH/DELETE /api/crm/contacts/[id]/notes`
+  - [x] `GET/PATCH /api/crm/contacts/[id]/custom-fields`
+  - [x] `GET/POST/DELETE /api/crm/contacts/[id]/mags`
+  - [x] `GET/POST/DELETE /api/crm/contacts/[id]/lists` (marketing lists)
+  - [x] `GET /api/crm/contacts/new-count` (badge). Taxonomy (tags) via taxonomy APIs.
+  - [ ] **Deferred:** `POST /api/crm/contacts/[id]/push` (manual push to external CRM)
+  - [ ] **Optional:** Add tags by email / assign MAGs by email (API key auth) for external integrations
 
 ### Phase 08: Forms Management
 
-**Status**: In Progress - Form registry at `/admin/crm/forms` (Custom Fields + Forms tabs) done; form-field assignment next.
+**Status**: Complete. Form registry (Custom Fields + Forms tabs), form-field assignment, form submission API, and submissions view are implemented. Only optional "Edit all" mode in Custom Fields section remains.
 
-**Note**: Forms are developer-authored components that map to CRM fields. Form registry at `/admin/crm/forms` organizes custom field definitions and form definitions (name, slug). Forms = logical grouping of custom fields; assign fields to forms next. Submit API and submissions view pending.
+**Note**: Forms are developer-authored components that map to CRM fields. Form registry at `/admin/crm/forms` organizes custom field definitions and form definitions; forms = logical grouping of custom fields with display order and required flag. Submit API and submissions list at `/admin/crm/forms/submissions` are live.
 
 - [x] Create form registry UI (developer helper)
   - [x] Create `src/app/admin/crm/forms/page.tsx` (server: fetch custom fields + forms) and `CrmFormsClient.tsx` (tabs: Custom Fields, Forms)
@@ -679,53 +568,55 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 09: Membership System / MAG Manager (Tied to CRM)
 
-**Status**: Complete - Core MAG management and CRM integration complete. Contact detail UI restructured. Next: mag-tag restriction for media/galleries.
+**Status**: Core complete. MAG schema (mags, crm_contact_mags), admin UI at `/admin/crm/memberships` (list, new, [id], code-generator), gallery protection (gallery_mags, checkGalleryAccess, mag-tags on media), content editor access/MAG, and API `/api/crm/mags` are implemented. **Remaining/deferred:** Member auth flow and member routes, protected video/media proxy, section-level and inline shortcode protection, menu restrictions, ecommerce webhooks, api_keys. Member = CRM contact with MAGs via crm_contact_mags; **members** table (9C) exists for elevated contacts (auth + licenses).
+
+**Phase 09 and sub-phases (9A–9E) — execution order and status**
+
+Recommended **execution order** (dependencies first): **09** (core MAG) → **9C** (Members & Ownership, prerequisite for 9A) → **9A** (Code Generator & Redemption) → **9E** (Gallery Enhancement) → **9B** (Marketing) → **9D** (AnyChat). Sub-phases are listed in this order below.
+
+| Phase | Done | Still needed |
+|-------|------|--------------|
+| **09** | MAG schema (mags, crm_contact_mags, gallery_mags); utilities (crm.ts, gallery-access, content-protection); admin UI (memberships list/new/[id], code-generator); gallery + content editor access/MAG; API /api/crm/mags. | Member auth flow & routes; checkContentAccess for blog/pages; protected video/download proxy; section-level & shortcode protection; menu restrictions; ecommerce webhooks & api_keys; dashboard membership stats. |
+| **9C** | members + user_licenses schema; members.ts (getMemberByContactId, createMemberForContact, resolveMemberFromAuth); licenses.ts (hasLicense, grantLicense, revokeLicense, getMemberLicenses, filterMediaByOwnership). | Elevation flow docs (when to create members row); update LMS Phase 17 to use user_licenses. |
+| **9A** | Code tables (batches, membership_codes); code-generator.ts (generate, redeem, hash); admin UI (code-generator, batches, explore); API (batches, generate, codes, redeem-code). | Redemption flow: assign MAG via contact (crm_contact_mags), create/update members row on redeem; character exclusion in generator; public/member "Apply code" UI (login page + member profile). |
+| **9E** | Gallery schema & status; media↔gallery assignment (both directions); MAG protection; standalone /gallery/[slug]; shortcode spec + parser + findGalleryShortcodes; GalleryRenderer (server) + GalleryEmbed (client); ContentWithGalleries; GalleryPreviewModal (images + native video, keyboard, captions); Insert gallery + copy shortcode UIs; GET /api/galleries/[id] and /api/galleries/[id]/public (JSON). | GalleryPreviewModal: external video embed (YouTube/Vimeo/Adilo via video_url + provider); optional thumbnail strip/zoom; gallery header filter by media taxonomy (categories/tags); content–gallery linking (Phase 7); style templates/presets (Phase 8). |
+| **9B** | Placeholder CRM → Marketing page. | Define scope (Resend, Vbout); lists/segments/campaigns UI; integration config; sync contacts; unsubscribe → DND. |
+| **9D** | — | Conversations nav; embed AnyChat.one; config & docs. |
+
+**Phase 09 (main) — What we built vs what’s still needed**
+
+Inferred from planlog + codebase review:
+
+**Built**
+- **Schema:** `mags`, `crm_contact_mags`, `gallery_mags`; `content` and galleries have `access_level`, `required_mag_id` (content single, galleries via junction), `visibility_mode`, `restricted_message`.
+- **Utilities:** `crm.ts` (MAG CRUD, getContactMags, addContactToMag, removeContactFromMag, getContactsByMag, searchMags); `gallery-access.ts` (checkGalleryAccess for public/members/mag with required_mag_ids); `content-protection.ts` (getMagTagSlugsOnMedia, canAccessMediaByMagTags for gallery media).
+- **Admin UI:** `/admin/crm/memberships` — list, new, [id] (MAGDetailClient), code-generator (batches, explore). MAG assign/remove from Contact detail → Memberships tab.
+- **Gallery protection:** `(public)/gallery/[slug]/page.tsx` and `api/galleries/[id]/public` run `checkGalleryAccess` before rendering; gallery client filters media by mag-tags; admins bypass.
+- **Content editor:** Full-page editor (EditContentClient / ContentEditorForm) has access_level, single required_mag_id, visibility_mode, restricted_message. GalleryEditor has multi-MAG picker and same.
+- **API:** `GET/POST /api/crm/mags`, `GET/PUT/DELETE /api/crm/mags/[id]`, `GET /api/crm/mags/search`, `GET/POST/DELETE /api/crm/contacts/[id]/mags`.
+- **Login:** `(public)/login` — shared Supabase signInWithPassword; redirects by user_metadata.type (member → redirect param, admin → /admin/dashboard). No separate register or member-only auth API.
+- **Redeem:** `POST /api/members/redeem-code` exists (expects authenticated member via getMemberByUserId).
+
+**Still needed (Phase 09 main)**
+- **Content protection (blog/pages):** `blog/[slug]/page.tsx` and `(public)/[slug]/page.tsx` do **not** check `access_level`/`required_mag_id` before rendering; they fetch and render body for everyone. **Required:** Implement `checkContentAccess(content, session)` and gate blog + dynamic page routes (and optionally blog list) so restricted body is never sent to unauthorized users; redirect to login with return URL when access requires member.
+- **Member auth flow:** Optional separate register page or combined login/register; optional `/api/auth/member/*` if you want member-only endpoints. Middleware has no `/members/*` handling (no member routes yet).
+- **Member routes:** No `(public)/members` (dashboard), `members/profile`, `members/account`; no MemberDashboard/MemberProfile. Add if member portal is in scope.
+- **Protected video/download:** No `/api/stream/media/[id]` or `/api/download/media/[id]`; direct storage URLs still used. Add proxy routes that verify session + MAG and stream bytes.
+- **Granular protection:** Section-level, shortcode `[[mag-code]]`, menu restrictions, ProtectedContent wrapper — all deferred.
+- **Ecommerce:** No api_keys table, no payment webhooks, no payment-integration.ts.
+- **Dashboard:** No membership stats on admin dashboard, no `/admin/members` list or unified customer view.
 
 - [x] Create MAG (Membership Access Groups) database schema
-  - [ ] Create migration `supabase/migrations/005_mag_schema.sql`:
-    - [ ] `mags` table (id, code TEXT UNIQUE, name, slug, description, tier, default_message, ecommerce_tag, auto_assign_on_payment, start_date, end_date [nullable = lifetime], status [active | draft], created_at, updated_at)
-    - [ ] **Draft MAGs:** Assignable in admin so developers can work on pages/sections/content; hidden from all users (public and member-facing). Only active MAGs appear in public/member UI.
-    - [ ] `members` table (id UUID REFERENCES auth.users, email, display_name, status, created_at, updated_at)
-    - [ ] `user_mags` junction table (id, member_id, mag_id, expires_at, assigned_via, created_at, updated_at)
-    - [ ] Note: No payment transaction tracking - all payment details stay in ecommerce platform
-  - [ ] Add content protection columns to `posts` table:
-    - [ ] `access_level TEXT` (public, members, mag)
-    - [ ] `required_mag_id UUID` REFERENCES mags(id)
-    - [ ] `visibility_mode TEXT` (hidden, message)
-    - [ ] `restricted_message TEXT` (optional override)
-  - [ ] Add content protection columns to `galleries` table (same as posts)
-  - [ ] Add content protection columns to `pages` table:
-    - [ ] Same as posts, plus `section_restrictions JSONB` for section-level protection
-  - [ ] Add `menu_items` table with `access_level` and `required_mag_id` columns
-  - [ ] Add indexes for performance (code for shortcode lookups, ecommerce_tag for webhook lookups, member_id)
+  - [x] Client schema: `mags` table (id, uid, name, description, start_date, end_date, status active|draft, etc.); **contacts get MAGs via `crm_contact_mags`** (contact_id, mag_id, assigned_via, assigned_at) — no separate `members` table; member = contact with MAG assignments.
+  - [x] Content: `content` table has `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message`.
+  - [x] Galleries: `access_level`, `visibility_mode`, `restricted_message`; **`gallery_mags` junction** (gallery_id, mag_id) for multi-MAG; legacy `required_mag_id` migrated to junction.
+  - [ ] **Deferred:** `menu_items` table with access; section_restrictions on pages; separate `members`/`user_mags` if member auth is added later.
 
 - [x] Build MAG utilities
-  - [ ] Create `src/lib/supabase/mags.ts`:
-    - `getMAGs()` - List all MAGs
-    - `getMemberMAGs()` - Get member's active MAGs
-    - `checkContentAccess()` - Verify member has access to content
-    - `assignMAG()` - Assign member to MAG
-    - `removeMAG()` - Remove member from MAG
-    - `hasMAGAccess()` - Check if user has specific MAG
-    - `hasAnyMembership()` - Check if user has any active membership
-  - [ ] Create `src/lib/mags/content-protection.ts`:
-    - `checkPageAccess()` - Check page-level access
-    - `checkSectionAccess()` - Check section-level access
-    - `checkInlineTextAccess()` - Check inline text access
-    - `getRestrictedMessage()` - Get message with hierarchy (inline > section > MAG > system)
-  - [ ] Create `src/lib/mags/section-protection.ts`:
-    - `getSectionRestrictions()` - Get restrictions for page sections
-    - `checkSectionAccess()` - Verify user has access to section
-    - `getSectionMessage()` - Get restricted message for section (with hierarchy)
-  - [ ] Create `src/lib/mags/shortcode-parser.ts`:
-    - Parse shortcode syntax: `[[mag-code]]`, `[[mag-uuid]]`, `[[:]]` (any membership)
-    - Extract message override from shortcode attributes
-  - [ ] Create `src/lib/mags/menu-filter.ts`:
-    - `filterMenuItems()` - Filter menu items based on user access
-  - [ ] Create `src/lib/auth/member-auth.ts`:
-    - `getMemberUser()` - Get authenticated member with profile
-    - `validateMemberAccess()` - Verify member authentication
-    - `hasMAG()` - Check if member has specific MAG
+  - [x] `src/lib/supabase/crm.ts`: getMags, getMagById, getContactMags, addContactToMag, removeContactFromMag, getContactsByMag, searchMags (MAG CRUD and contact–MAG assignment).
+  - [x] `src/lib/auth/gallery-access.ts`: checkGalleryAccess(galleryAccessInfo) — public/members/mag, required_mag_ids from gallery_mags, returns hasAccess/visibilityMode/restrictedMessage.
+  - [x] `src/lib/mags/content-protection.ts`: getMagTagSlugsOnMedia(mediaIds), canAccessMediaByMagTags(magTagSlugs, userMagUids) — mag-tag restriction for gallery media.
+  - [ ] **Deferred:** src/lib/mags/section-protection.ts, shortcode-parser.ts, menu-filter.ts; member-auth.ts (getMemberUser, validateMemberAccess); checkContentAccess for posts/pages (content-level gate).
 
 - [ ] Member authentication flow
   - [x] Create `src/app/(public)/login/page.tsx` (member login/registration)
@@ -741,19 +632,15 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Create `src/components/memberships/MemberDashboard.tsx`
   - [ ] Create `src/components/memberships/MemberProfile.tsx`
 
-- [ ] Content protection implementation
-  - [ ] **Security principle (CRITICAL):** Server-side enforcement only. Restricted content body must NEVER be sent in the HTTP response for unauthorized users. Check access BEFORE rendering; do not fetch or include restricted body in HTML/JSON. Next.js Server Components enable this — gate at data layer.
-  - [ ] Create `checkContentAccess(content, memberSession)` in `src/lib/mags/content-protection.ts` — returns `{ hasAccess: boolean; visibilityMode?: string; message?: string }`. Used by all public page routes.
-  - [ ] Update `src/app/(public)/blog/[slug]/page.tsx`:
-    - [ ] Fetch content (metadata + body). Run `checkContentAccess(post, session)` BEFORE rendering.
-    - [ ] If no access: render `<RestrictedMessage />` or redirect to `/login`; do NOT pass `post.body` to any component.
-    - [ ] If access: render full content. Body never reaches client when unauthorized.
-  - [ ] Update `src/app/(public)/[slug]/page.tsx` (dynamic pages): same pattern — check access before rendering body.
-  - [x] Update `src/app/(public)/gallery/[slug]/page.tsx` to check access_level; filter gallery items by mag-tag visibility for members.
-  - [ ] Update blog list `src/app/(public)/blog/page.tsx`: filter out restricted posts user cannot access; optionally show teaser (title/excerpt only, no body) for restricted items when visibility_mode = message.
-  - [ ] Create `src/components/public/ProtectedContent.tsx` — server component wrapper; checks access, renders children or restricted message. Used for section-level and inline protection.
-  - [ ] Implement redirect to `/login` for unauthenticated access when access_level requires member (with return URL).
-  - [ ] **Never use client-side hiding** (CSS display:none, JS show/hide) for restricted content — insecure; content would still be in HTML source.
+- [x] Gallery content protection (implemented)
+  - [x] `src/app/(public)/gallery/[slug]/page.tsx`: runs `checkGalleryAccess(gallery.access)` before rendering; if no access, shows restricted message or "Sign in" link; access uses `required_mag_ids` from gallery_mags; admins bypass.
+  - [x] Gallery media: mag-tags on media (taxonomy slug `mag-{uid}`); `content-protection.ts` getMagTagSlugsOnMedia, canAccessMediaByMagTags; gallery client filters items by mag-tag visibility for current user.
+- [ ] **Content protection (blog/pages) — partial**
+  - [ ] **Security principle (CRITICAL):** Server-side enforcement only; never send restricted body to unauthorized users. Gate at data layer.
+  - [ ] checkContentAccess(content, session) for posts/pages; use in blog/[slug] and dynamic [slug] before rendering body.
+  - [ ] Blog list: filter restricted posts; teaser-only for visibility_mode = message.
+  - [ ] ProtectedContent wrapper; redirect to /login with return URL when access_level requires member.
+  - [ ] **Never use client-side hiding** for restricted content.
 
 - [ ] **Protected video/media delivery** (prevent URL copy-and-share)
   - [ ] **Problem:** Direct video URLs in HTML (e.g. `<video src="https://storage.../video.mp4">`) can be copied from view source and shared; anyone with the URL could watch after membership ends or share with friends.
@@ -778,39 +665,12 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Plan to host videos on Vimeo; use Vimeo's domain restriction to allow playback only on allowed domains (reduces embed theft to other sites)
   - [ ] **Consideration — Roku/OTT apps:** Domain restriction may block Roku or other streaming apps (they don't run on a web domain). Before building Roku app: verify Vimeo's options for app/OTT playback (signed embeds, API, token-based auth). May need different config for web vs app, or hybrid hosting.
 
-- [ ] Admin UI for MAG management (Easy CRM interface)
-  - [ ] Create `src/app/admin/mags/page.tsx` (list all MAGs)
-  - [ ] Create `src/app/admin/mags/new/page.tsx` (create new MAG)
-  - [ ] Create `src/app/admin/mags/[id]/page.tsx` (edit MAG):
-    - [ ] Code field (unique, for shortcode references)
-    - [ ] Name, slug, description
-    - [ ] Start date, end date (nullable = lifetime)
-    - [ ] Status: active vs draft (draft = in development, hidden from all users; assignable in admin for dev testing)
-    - [ ] Default message field (site-wide default message)
-    - [ ] Simple ecommerce tag field (text input for tag reference)
-    - [ ] Auto-assign toggle checkbox
-    - [ ] Clear instructions for setting up ecommerce integration
-  - [ ] Create `src/components/mags/MAGEditor.tsx`:
-    - [ ] All MAG fields with validation
-    - [ ] Code uniqueness check
-  - [ ] Create `src/app/admin/members/page.tsx` (CRM view - easy MAG management):
-    - [ ] List all members with their current MAGs
-    - [ ] Simple assign/remove buttons for each MAG
-    - [ ] Member status management (active, inactive, suspended)
-    - [ ] Set expiration dates
-    - [ ] Bulk operations (assign multiple members to MAG)
-    - [ ] Search and filter functionality
-  - [ ] Create `src/app/admin/members/[id]/page.tsx` (member detail page):
-    - [ ] View member profile and all MAGs
-    - [ ] One-click assign/remove MAGs
-    - [ ] Update member status
-    - [ ] Set expiration dates per MAG
-    - [ ] View member activity (form submissions linked by email) - **Requires Phase 07 (CRM)**
-  - [ ] Create `src/components/mags/MemberManagement.tsx` (easy-to-use interface)
-  - [ ] Create `src/components/mags/MemberList.tsx` (table view with actions)
-  - [ ] Create `src/components/mags/MAGAssignment.tsx` (simple assign/remove component)
-  - [ ] Create `src/app/admin/api-keys/page.tsx` (API key management for webhook endpoints)
-  - [ ] Create `src/components/api/ApiKeyManager.tsx` (simple API key generation/management)
+- [x] Admin UI for MAG management (under CRM → Memberships)
+  - [x] `src/app/admin/crm/memberships/page.tsx` — list all MAGs (MembershipsListClient); new MAG at `/admin/crm/memberships/new`
+  - [x] `src/app/admin/crm/memberships/[id]/page.tsx` — MAG detail/edit (MAGDetailClient): name, uid, description, start/end date, status (active/draft)
+  - [x] MAG assign/remove: from **Contact detail** (Memberships tab) — assign/remove MAGs per contact; no separate /admin/members list (contacts = members for MAG purposes)
+  - [x] Code generator: `/admin/crm/memberships/code-generator` (batches, explore) for membership codes
+  - [ ] **Deferred:** Dedicated /admin/members page (list members with MAGs); API key management page; ecommerce tag / auto-assign UI in MAG editor if desired
 
 - [ ] Implement granular content protection
   - [ ] Section-level content protection:
@@ -850,7 +710,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] **Content (posts/pages):** Apply same multi-MAG pattern for consistency (TBD in planning).
 
 - [ ] Content editor integration
-  - [x] Update content editor (ContentEditModal — unified model for post/page):
+  - [x] Update content editor (full-page EditContentClient / ContentEditorForm — unified model for post/page):
     - [x] Add access level dropdown (public, members, mag)
     - [x] Add MAG selector (single required_mag_id for now; multi-MAG TBD)
     - [x] Add visibility mode toggle (hidden/message)
@@ -871,22 +731,12 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
     - [ ] Visual indicators for protected text blocks
   - [ ] Add preview mode to see member view
 
-- [ ] API routes for MAGs
-  - [ ] Create `src/app/api/mags/route.ts` (GET list, POST create - admin only)
-  - [ ] Create `src/app/api/mags/[id]/route.ts` (GET, PUT, DELETE - admin only)
-  - [ ] Create `src/app/api/mags/[id]/assign/route.ts` (POST - API key auth for ecommerce)
-  - [ ] Create `src/app/api/mags/[id]/remove/route.ts` (POST - API key auth)
-  - [ ] Create `src/app/api/members/route.ts` (GET list - admin only)
-  - [ ] Create `src/app/api/members/[id]/route.ts` (GET details - admin only)
-  - [ ] Create `src/app/api/members/[id]/mags/route.ts` (POST assign, DELETE remove - admin only)
-  - [ ] Create `src/app/api/members/[email]/route.ts` (GET member by email - API key auth)
-  - [ ] Create `src/app/api/members/verify/route.ts` (POST verify MAG - API key auth)
-  - [ ] Create `src/app/api/member/profile/route.ts` (GET current member profile)
-  - [ ] Update existing content API routes to respect access_level:
-    - [ ] Update `src/app/api/posts/[id]/route.ts` to check MAG access; do NOT return body for unauthorized requests (return 403 or limited metadata only)
-    - [ ] Update `src/app/api/galleries/[id]/route.ts` to check MAG access; filter media by mag-tag visibility
-    - [ ] Update `src/app/api/pages/[id]/route.ts` to check MAG access (page + section level)
-  - [ ] Search/RSS filtering: exclude restricted content from public search results and feeds for non-members
+- [x] API routes for MAGs (under /api/crm)
+  - [x] `GET/POST /api/crm/mags` — list, create (admin)
+  - [x] `GET/PUT/DELETE /api/crm/mags/[id]` — get, update, delete (admin)
+  - [x] `GET /api/crm/mags/search?q=...` — search MAGs
+  - [x] Contact–MAG assignment: `GET/POST/DELETE /api/crm/contacts/[id]/mags`
+  - [ ] **Deferred:** /api/mags/[id]/assign and /remove (API key auth for ecommerce); /api/members/* (member by email, verify MAG, member profile); content API routes enforcing access_level (posts, pages); search/RSS filtering for restricted content
 
 - [ ] Ecommerce Integration API (simple tag-based system)
   - [ ] Create API key management system:
@@ -928,81 +778,24 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Simple interface for client admins to manage memberships easily
   - [ ] **Note**: Full CRM features (companies, consents, DND, duplicate detection) come in Phase 10B
 
-### Gallery Enhancement (prerequisite for membership protection testing)
-
-**Status**: In progress - Galleries must be fully functional before testing MAG protection on gallery items.
-
-**Design**: Galleries are virtual groupings of media. No taxonomy on gallery; media items have taxonomy. Shortcode method: style options in shortcode attributes; no schema for presentation. Two-way assignment: media ↔ galleries. Developer use: `GET /api/galleries/[id]` returns JSON; custom styling in code.
-
-- [x] Phase 1: Schema & core
-  - [x] Migration: add `status` (draft | published), `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message` to galleries
-  - [x] Update Gallery type and types
-  - [x] GalleryEditor: add status field
-  - [x] Gallery list: filter by status (All | Published | Draft), status badge on cards
-
-- [x] Phase 2: Assignment — Media → Galleries
-  - [x] ImagePreviewModal: add "Assign to galleries" section
-  - [x] Multi-select picklist of active (published) galleries (checkbox badges)
-  - [x] Load current gallery assignments for media item
-  - [x] Add/remove via gallery_items; show which galleries item is in
-  - [x] API/helper: get galleries for media; add/remove media from galleries (galleries.ts)
-
-- [x] Phase 3: Assignment — Gallery → Media
-  - [x] MediaLibrary (or variant): add taxonomy filter (categories, tags) for GalleryEditor
-  - [x] GalleryEditor: wire media picker to taxonomy-filtered media
-  - [x] Search + taxonomy filter when adding items to gallery
-  - [x] Extract shared `MediaFilterBar` component (Categories, Tags, Reset; Search, Sort, View toggle)
-  - [x] GalleryMediaPicker uses same filter/sort/view UI as Media Library
-
-- [ ] Phase 4: Shortcode system
-  - [ ] Create `src/lib/shortcodes/gallery.ts`: GALLERY_SHORTCODE_SPEC (attributes, defaults, example)
-  - [ ] Shortcode parser: parse `[gallery slug="x" layout="grid" columns="4"]`
-  - [ ] GalleryRenderer component: takes gallery data + parsed attributes, renders layout (grid, masonry, slider)
-  - [ ] Integrate parser into content renderer (blog post body, page body)
-
-- [ ] Phase 4.5: Mixed media gallery preview modal
-  - [ ] Create `GalleryPreviewModal` component — lightbox for viewing gallery items
-  - [ ] Mixed media support: detect `media_type` (image vs video) per item
-  - [ ] Image viewer: full-size display with zoom/pan controls
-  - [ ] Video player: embed player for uploaded videos (variants) and external videos (YouTube/Vimeo/Adilo via `video_url` + `provider`)
-  - [ ] Navigation: Previous/Next arrows, keyboard support (arrows, ESC to close)
-  - [ ] Seamless transitions between image and video items in same gallery
-  - [ ] Thumbnail strip (optional): show all gallery items for quick jump
-  - [ ] Caption display: show `gallery_items.caption` or `media.alt_text`
-
-- [ ] Phase 5: Shortcode builder UIs
-  - [ ] Post editor: "Insert gallery" button → modal (pick gallery, options) → insert shortcode at cursor
-  - [ ] Gallery edit page: "Use this gallery" section — options form, live shortcode, copy button
-  - [ ] Optional: gallery list quick "Copy shortcode" (defaults)
-  - [ ] Cheat sheet: collapsible in editor footer or in modal; generated from GALLERY_SHORTCODE_SPEC
-
-- [ ] Phase 6: Public gallery & developer API
-  - [x] Create `(public)/gallery/[slug]/page.tsx` — standalone gallery page by slug
-  - [ ] Confirm `GET /api/galleries/[id]` returns JSON (items with media) for developer use
-  - [ ] Gallery display: filter media by categories/tags in header (media taxonomy)
-  - [ ] Integrate `GalleryPreviewModal` (Phase 4.5) — click item opens lightbox with mixed media support
-  - [x] Handle MAG protection: check access_level before showing items; filter by mag-tag visibility for members (checkGalleryAccess, standalone page + API)
-  - [ ] **Note:** Gallery membership assignment uses **multi-select MAGs** — see "Multi-MAG protection schema" in Membership Protection phase.
-  - [ ] **Note:** Gallery Details Standalone URL prefix comes from superadmin Site URL setting (when added). See planlog superadmin section.
-
-- [ ] Phase 7: Content–gallery linking (future)
-  - [ ] `content_galleries(content_id, gallery_id)` junction if posts link to galleries
-  - [ ] Content editor UI to link galleries
-
-- [ ] **Phase 8: Gallery style templates & presets (production-ready future feature)**
-  - [ ] **Template styles (public library):** Global library of predefined styles (e.g. "Compact Grid", "Full-Width Slider", "Masonry Lightbox")
-  - [ ] Create `gallery_style_templates` table (shared/public schema) — id, name, layout, columns, gap, size, captions, lightbox, border, slider_*, display_order
-  - [ ] Seed templates via migration; superadmin can add/edit (optional)
-  - [ ] Display Style modal: "Start from template" → pick from library → form pre-filled; "Start from scratch" → current behavior
-  - [ ] **Presets (optional, per-tenant):** Save current form values as user/tenant preset; "Start from my preset" when creating style
-  - [ ] Add `gallery_style_presets` table (tenant schema) if presets desired — id, tenant_id, name, layout, columns, ...
-  - [ ] Benefits: faster workflow, consistency, easier onboarding; additive to existing per-gallery display styles
-
 ### Phase 9C: Members Table & Ownership (User Licenses)
 
-**Status**: Planned - Prerequisite for Phase 9A (Code Generator) and LMS ownership. See [members-and-ownership-summary.md](./reference/members-and-ownership-summary.md).
+**Status**: Schema and utilities complete. **Still needed:** Elevation flow (when to create members row) and wiring so admin grant MAG and first-time code redemption create/link members. See [members-and-ownership-summary.md](./reference/members-and-ownership-summary.md).
 
 **Design**: Members = qualified contacts (MAG + auth). Simple signup = contact only. Ownership = per-item licenses for media and courses (iTunes-style "My Library").
+
+**Phase 9C — What we built vs what we need**
+
+**Built**
+- **Schema:** `members` table (id, contact_id UNIQUE, user_id UNIQUE nullable, created_at, updated_at); `user_licenses` table (member_id, content_type, content_id, granted_via, granted_at, expires_at, metadata). Migrations in archive (072/073 or equivalent). RLS and grants per project pattern.
+- **members.ts:** getMemberByContactId(contactId), getMemberByUserId(userId), createMemberForContact(contactId, userId?), resolveMemberFromAuth() → member id or null. Idempotent create; optional user_id update when linking auth to existing member.
+- **licenses.ts:** hasLicense(memberId, contentType, contentId), grantLicense(…), revokeLicense(…), getMemberLicenses(memberId, contentType?), filterMediaByOwnership(mediaIds, memberId). Content types: 'media' | 'course'.
+- **Usage:** Redeem-code API (POST /api/members/redeem-code) uses getMemberByUserId and redeemCode(memberId) — assigns MAG to member’s contact via addContactToMag; does **not** create the members row (expects member to already exist). Batch Explore page joins to members for redeemed_by_member_id.
+
+**Still needed**
+- **Elevation flow — when to create members row:** Document and wire: (1) **Admin assign MAG:** When admin adds a contact to a MAG (POST /api/crm/contacts/[id]/mags), call createMemberForContact(contactId) so the contact becomes a member (idempotent). (2) **First-time code redemption:** Either (a) “Register with code” on login: create contact by email if needed, createMemberForContact(contactId, userId) after auth, then redeem code; or (b) “Apply code” for already-logged-in member — then member must already exist (e.g. created by admin or prior flow). (3) **Purchase webhook (later):** When assigning MAG on payment, createMemberForContact(contactId) if not already member.
+- **Documentation:** Short doc or planlog note: simple signup = contact only; member = purchase OR admin grant OR signup code; when to create members row (three triggers above). Form auto_assign_mag_ids = for qualifying forms only (not every form).
+- **Optional:** Update LMS Phase 17 plan to use user_licenses for course enrollment alongside course_mags.
 
 - [x] Schema: members table
   - [x] Create `members` table (id, contact_id UNIQUE FK → crm_contacts, user_id UNIQUE FK → auth.users nullable, created_at, updated_at)
@@ -1042,9 +835,21 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 9A: Membership Code Generator & Redemption
 
-**Status**: Planned - Essential for membership module. Enables visitor signup with code (login/register), group/bulk MAG access, and gifting/comped access.
+**Status**: Core complete. Schema, code-generator.ts, admin UI (Code Generator, batches, Explore), and redeem API are implemented. **Still needed:** Public/member UI for code entry (login "Have an access code?" and/or member dashboard/profile "Apply code"); optional "No ambiguous" preset in admin generator UI.
 
 **Purpose**: Two code types — (1) single-use redemption codes: unique codes, one use each, tracked; (2) multi-use codes: one shared code, finite or unlimited uses. Two-table design: `membership_code_batches` + `membership_codes`.
+
+**Phase 9A — What we built vs what we need**
+
+**Built**
+- **Schema:** `membership_code_batches` (mag_id, name, use_type single_use|multi_use; single_use: num_codes, expires_at, code_prefix, code_suffix, random_length, exclude_chars, created_by; multi_use: code_hash, code_plain, max_uses, use_count, expires_at). `membership_codes` (batch_id, code_hash, status available|redeemed, redeemed_at, redeemed_by_member_id). `membership_code_redemptions` for multi-use "who used when". Migrations 078, 079 (archive). RLS, indexes.
+- **code-generator.ts:** generateCodeString(prefix, suffix, randomLength, excludeChars) with NO_AMBIGUOUS preset; hashCode; createSingleUseBatch; createMultiUseCode; generateSingleUseCodes; redeemCode(code, memberId). Single-use: find available by hash, check batch expires_at, idempotent getContactMags then addContactToMag, update code status, createNote. Multi-use: find batch by hash, check expires_at and max_uses, same assign + increment use_count, insert redemption row, createNote.
+- **Admin UI:** Code Generator at /admin/crm/memberships/code-generator — create batch (MAG, single_use|multi_use, num_codes/max_uses, expires_at, prefix, suffix, random length); multi-use: enter code string; single-use: "Generate N codes", export CSV; batch list with stats; Explore per batch with redemption table (code, status, contact/email link, redeemed_at).
+- **API:** POST/GET /api/admin/membership-codes/batches; POST batches/[id]/generate; GET batches/[id]/codes; POST /api/members/redeem-code (auth member, body.code).
+
+**Still needed**
+- **Public/member UI — code entry:** (1) Login page: optional "Have an access code?" field; on submit after auth, if code provided call POST /api/members/redeem-code (requires user to already be a member — so either combine with "register with code" that creates member first, or "Apply code" only for already-logged-in members). (2) Member dashboard or profile: "Apply code" section — input code, submit to POST /api/members/redeem-code; show success/error. Depends on Phase 09 member routes (/members, /members/profile) and 9C elevation (member row exists when admin assigned MAG or after first-time flow).
+- **Optional:** Admin generator UI: expose "No ambiguous" character preset as a checkbox (backend already uses it by default); custom exclude list field optional.
 
 - [x] Schema: membership code tables (client schema)
   - [x] Create `membership_code_batches` table:
@@ -1097,6 +902,92 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [x] `POST /api/admin/membership-codes/batches/[id]/generate` — Generate single-use codes (admin)
   - [x] `GET /api/admin/membership-codes/batches/[id]/codes` — List codes in batch (admin; for Explore page)
   - [x] `POST /api/members/redeem-code` — Redeem code (authenticated member)
+
+### Phase 9E: Gallery Enhancement (prerequisite for membership protection testing)
+
+**Status**: In progress - Galleries must be fully functional before testing MAG protection on gallery items.
+
+**Design**: Galleries are virtual groupings of media. No taxonomy on gallery; media items have taxonomy. Shortcode method: style options in shortcode attributes; no schema for presentation. Two-way assignment: media ↔ galleries. Developer use: `GET /api/galleries/[id]` returns JSON; custom styling in code.
+
+**Phase 9E — What we built vs what we need**
+
+**Built**
+- **Schema & core (Phases 1–3):** Gallery `status`, `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message`; GalleryEditor status field and list filters; ImagePreviewModal "Assign to galleries"; GalleryEditor media picker with taxonomy-filtered media; shared `MediaFilterBar`; gallery_items two-way assignment via `galleries.ts` helpers.
+- **Shortcode system (Phase 4):** `src/lib/shortcodes/gallery.ts` — `GALLERY_SHORTCODE_SPEC`, `parseGalleryShortcode`, `findGalleryShortcodes`, `generateGalleryShortcode`. `ContentWithGalleries` parses body HTML and replaces shortcodes with `GalleryEmbed`. Server `GalleryRenderer` uses `getGalleryForPublic`; client `GalleryEmbed` fetches `/api/galleries/[id]/public?styleId=`.
+- **GalleryPreviewModal (Phase 4.5, partial):** `GalleryPreviewModal` exists: lightbox, image + native `<video>` (display_url), prev/next, keyboard (arrows, ESC), caption, counter. Used in `GalleryEmbed` and thus on standalone gallery page. **Missing:** External video embed (YouTube/Vimeo/Adilo via `video_url` + `provider`); optional thumbnail strip; optional zoom/pan for images.
+- **Shortcode builder UIs (Phase 5):** `GalleryPickerModal` — pick gallery + style, insert shortcode at cursor (RichTextEditor). Gallery edit page: "Use this gallery" with copy shortcode and standalone URL. **Optional still:** Gallery list quick "Copy shortcode"; cheat sheet in editor footer/modal.
+- **Public gallery & API (Phase 6):** `(public)/gallery/[slug]/page.tsx` with `checkGalleryAccess`, style picker, `GalleryPageClient` + `GalleryEmbed`. `GET /api/galleries/[id]` and `GET /api/galleries/[id]/public` return JSON (gallery + items with media); public route enforces MAG via `checkGalleryAccess`. **Missing:** Filter gallery items by media taxonomy (categories/tags) in page header.
+
+**Still needed**
+- **GalleryPreviewModal:** Support external video (YouTube, Vimeo, Adilo) in lightbox via `video_url` + `provider` (iframe or existing video-embed component). Optional: thumbnail strip for quick jump; zoom/pan for images.
+- **Gallery page:** Optional filter bar by media categories/tags so visitors can narrow items (media taxonomy, not gallery-level).
+- **Phase 7 (future):** Content–gallery linking (e.g. `content_galleries` junction, editor UI to link galleries to posts).
+- **Phase 8 (future):** Gallery style templates & presets (public library + per-tenant presets).
+
+- [x] Phase 1: Schema & core
+  - [x] Migration: add `status` (draft | published), `access_level`, `required_mag_id`, `visibility_mode`, `restricted_message` to galleries
+  - [x] Update Gallery type and types
+  - [x] GalleryEditor: add status field
+  - [x] Gallery list: filter by status (All | Published | Draft), status badge on cards
+
+- [x] Phase 2: Assignment — Media → Galleries
+  - [x] ImagePreviewModal: add "Assign to galleries" section
+  - [x] Multi-select picklist of active (published) galleries (checkbox badges)
+  - [x] Load current gallery assignments for media item
+  - [x] Add/remove via gallery_items; show which galleries item is in
+  - [x] API/helper: get galleries for media; add/remove media from galleries (galleries.ts)
+
+- [x] Phase 3: Assignment — Gallery → Media
+  - [x] MediaLibrary (or variant): add taxonomy filter (categories, tags) for GalleryEditor
+  - [x] GalleryEditor: wire media picker to taxonomy-filtered media
+  - [x] Search + taxonomy filter when adding items to gallery
+  - [x] Extract shared `MediaFilterBar` component (Categories, Tags, Reset; Search, Sort, View toggle)
+  - [x] GalleryMediaPicker uses same filter/sort/view UI as Media Library
+
+- [x] Phase 4: Shortcode system
+  - [x] Create `src/lib/shortcodes/gallery.ts`: GALLERY_SHORTCODE_SPEC (attributes, defaults, example)
+  - [x] Shortcode parser: `parseGalleryShortcode`, `findGalleryShortcodes` — format `[[gallery:uuid, style-id]]` or `[[gallery:uuid]]`
+  - [x] GalleryRenderer (server) + GalleryEmbed (client): gallery data + style, layout (grid, masonry, slider)
+  - [x] Integrate parser into content renderer: `ContentWithGalleries` (blog/post body) replaces shortcodes with GalleryEmbed
+
+- [x] Phase 4.5: Mixed media gallery preview modal (partial)
+  - [x] Create `GalleryPreviewModal` component — lightbox for viewing gallery items
+  - [x] Mixed media support: detect `media_type` (image vs video) per item
+  - [x] Image viewer: full-size display (zoom/pan optional, not yet)
+  - [x] Video player: native `<video>` for uploaded/variant videos (display_url)
+  - [x] Navigation: Previous/Next arrows, keyboard support (arrows, ESC to close)
+  - [x] Seamless transitions between image and video items in same gallery
+  - [ ] Thumbnail strip (optional): show all gallery items for quick jump
+  - [x] Caption display: show `gallery_items.caption` or `media.alt_text`
+  - [ ] External video embed: YouTube/Vimeo/Adilo via `video_url` + `provider` (iframe)
+
+- [x] Phase 5: Shortcode builder UIs
+  - [x] Post editor: "Insert gallery" button → GalleryPickerModal (pick gallery, style) → insert shortcode at cursor
+  - [x] Gallery edit page: "Use this gallery" section — shortcode copy, standalone URL
+  - [ ] Optional: gallery list quick "Copy shortcode" (defaults)
+  - [ ] Cheat sheet: collapsible in editor footer or in modal; generated from GALLERY_SHORTCODE_SPEC
+
+- [x] Phase 6: Public gallery & developer API (partial)
+  - [x] Create `(public)/gallery/[slug]/page.tsx` — standalone gallery page by slug
+  - [x] Confirm `GET /api/galleries/[id]` and `GET /api/galleries/[id]/public` return JSON (items with media)
+  - [ ] Gallery display: filter media by categories/tags in header (media taxonomy)
+  - [x] Integrate `GalleryPreviewModal` — click item opens lightbox (image + native video)
+  - [x] Handle MAG protection: checkGalleryAccess on standalone page + public API
+  - [x] **Note:** Gallery membership assignment uses **multi-select MAGs** — see "Multi-MAG protection schema" in Membership Protection phase.
+  - [ ] **Note:** Gallery Details Standalone URL prefix comes from superadmin Site URL setting (when added). See planlog superadmin section.
+
+- [ ] Phase 7: Content–gallery linking (future)
+  - [ ] `content_galleries(content_id, gallery_id)` junction if posts link to galleries
+  - [ ] Content editor UI to link galleries
+
+- [ ] **Phase 8: Gallery style templates & presets (production-ready future feature)**
+  - [ ] **Template styles (public library):** Global library of predefined styles (e.g. "Compact Grid", "Full-Width Slider", "Masonry Lightbox")
+  - [ ] Create `gallery_style_templates` table (shared/public schema) — id, name, layout, columns, gap, size, captions, lightbox, border, slider_*, display_order
+  - [ ] Seed templates via migration; superadmin can add/edit (optional)
+  - [ ] Display Style modal: "Start from template" → pick from library → form pre-filled; "Start from scratch" → current behavior
+  - [ ] **Presets (optional, per-tenant):** Save current form values as user/tenant preset; "Start from my preset" when creating style
+  - [ ] Add `gallery_style_presets` table (tenant schema) if presets desired — id, tenant_id, name, layout, columns, ...
+  - [ ] Benefits: faster workflow, consistency, easier onboarding; additive to existing per-gallery display styles
 
 ### Phase 9B: Marketing (Email / Resend / Vbout)
 
@@ -1248,74 +1139,34 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ### Phase 12: Visual Component Library
 
-**Status**: Pending - Visual component library to manage pages, sections. Up until now components are being built in a reusable structure. This section will scan and help visually organize the components for easier client site deployment.
+**Status**: **Cancelled — not needed.** We decided against a dynamic site (WordPress-style) and a drag-and-drop / section-editor page builder. The product uses a **simple Code Library** (Superadmin → Code Library) where we store copy-paste code blocks (headers, hero sections, etc.) for tenant use. No visual component catalog, no scanner, no DB-driven section picker. Phase 02’s “crude MVP component library manager” was superseded by the Code Library; this full Phase 12 scope is obsolete.
 
-**Note**: This is the full visual component library system (from old Phase 13). The crude MVP component library manager is in Phase 02.
+**Note**: This was the full visual component library system (from old Phase 13). All items below are **cancelled**; retained for reference only.
 
-**Spec — Central shared library in public schema:** Section/component building blocks (the blocks used in the Page section editor) are stored in a **table in the public schema** (e.g. `public.section_components` or `public.component_library`). Admin and superadmin reference this table when building the "Page" content object. Global and central: easier to update and share across all tenant apps; superadmin can maintain the catalog; tenants do not duplicate the library.
+~~**Spec — Central shared library in public schema:** Section/component building blocks (the blocks used in the Page section editor) would have been stored in a table in the public schema. We do not have a Page section editor; we have a Code Library instead.~~
 
-- [ ] Create component library database schema (**public** schema)
-  - [ ] Create migration for **public** schema table (e.g. `public.section_components` or `public.component_library`): section/component definitions that all tenants reference when building pages
-  - [ ] Table fields: name, slug/id, file_path, import_path, category, theme, location, description, props_schema JSONB, usage_examples JSONB, dependencies, design_tokens, screenshot_url, wireframe_url, preview_images JSONB, requirements_screenshot_url, requirements_text, development_status, is_linked_to_file, assigned_to, priority, estimated_complexity, planned_at, started_at, completed_at, author, dates, search_text TSVECTOR (or equivalent)
-  - [ ] Add indexes for category, theme, location, development_status, and full-text search
-  - [ ] Create Supabase Storage bucket `component-library/` for image storage
+- [x] ~~Create component library database schema (**public** schema)~~ **N/A — cancelled**
+  - [x] ~~Create migration for **public** schema table~~ **N/A**
+  - [x] ~~Table fields…~~ **N/A**
+  - [x] ~~Add indexes…~~ **N/A**
+  - [x] ~~Create Supabase Storage bucket `component-library/`~~ **N/A**
 
-- [ ] Build component scanner/auto-discovery system
-  - [ ] Create `src/lib/components/scanner.ts`:
-    - [ ] `scanComponents()` - Recursively scan `src/components/` directory
-    - [ ] `extractMetadata()` - Parse JSDoc-style header comments
-    - [ ] `parseProps()` - Extract props from TypeScript interfaces
-    - [ ] `detectComponentInfo()` - Detect category, theme, location from file path
-    - [ ] `linkComponentToLibrary()` - Link component file to library entry (via @library_id or name match)
-    - [ ] `updateComponentLibrary()` - Update database with discovered components
-    - [ ] `updateDevelopmentStatus()` - Auto-update status based on component file existence and completeness
+- [x] ~~Build component scanner/auto-discovery system~~ **N/A — cancelled**
+  - [x] ~~Create `src/lib/components/scanner.ts`~~ **N/A**
+  - [x] ~~scanComponents, extractMetadata, parseProps, etc.~~ **N/A**
 
-- [ ] Build superadmin component library UI
-  - [ ] Create `src/app/admin/super/components/page.tsx` (component library list):
-    - [ ] Search bar (full-text search)
-    - [ ] Filter controls (category, theme, location, development_status)
-    - [ ] Sort options (name, category, last updated, status)
-    - [ ] Grid/List view toggle
-    - [ ] Component cards with thumbnails and status badges
-    - [ ] Statistics dashboard (total components, by category, by theme, by status)
-    - [ ] Development queue view (planned components)
-    - [ ] "Create New Component" button (prominent)
-  - [ ] Create `src/app/admin/super/components/[id]/page.tsx` (component detail):
-    - [ ] Component overview (name, description, file path, import path, library_entry_id)
-    - [ ] Development status section (status badge, timeline, assigned developer)
-    - [ ] Visual reference section (screenshot, wireframe, example images)
-    - [ ] Props table (name, type, required, default, description)
-    - [ ] Usage examples (code snippets with syntax highlighting)
-    - [ ] Dependencies list (with links to dependency components)
-    - [ ] Design tokens used
-    - [ ] Use cases and related components
-    - [ ] Actions (view source, copy import, copy example, open in editor, update status)
+- [x] ~~Build superadmin component library UI~~ **N/A — cancelled**
+  - [x] ~~Component library list page~~ **N/A**
+  - [x] ~~Component detail page~~ **N/A**
 
-- [ ] Implement image upload/management
-  - [ ] Create `src/components/superadmin/ComponentImageUpload.tsx`:
-    - [ ] Upload screenshot (file upload, drag-and-drop)
-    - [ ] Upload wireframe (file upload)
-    - [ ] Add example images (multiple images with captions)
-    - [ ] Image preview and management (replace, delete, set primary)
-    - [ ] Link to media library entries
-  - [ ] Create image upload API route:
-    - [ ] `POST /api/admin/components/[id]/images` - Upload component image
-    - [ ] Store images in Supabase Storage `component-library/` bucket
-    - [ ] Generate optimized variants (thumbnail, large)
-    - [ ] Update component record with image URLs
+- [x] ~~Implement image upload/management~~ **N/A — cancelled**
+  - [x] ~~ComponentImageUpload, image API~~ **N/A**
 
-- [ ] Create component scanning API and automation
-  - [ ] Create `src/app/api/admin/components/scan/route.ts` (POST - manual scan trigger)
-  - [ ] Create scheduled scan job (daily/weekly) - optional
-  - [ ] Create file watcher for dev mode (auto-scan on file change) - optional
-  - [ ] Create CI/CD hook for automatic scan on deployment
+- [x] ~~Create component scanning API and automation~~ **N/A — cancelled**
+  - [x] ~~Scan route, scheduled job, file watcher, CI/CD~~ **N/A**
 
-- [ ] Build component library search functionality
-  - [ ] Implement PostgreSQL full-text search (TSVECTOR)
-  - [ ] Weighted search (name > description > props)
-  - [ ] Fuzzy matching for typos
-  - [ ] Category/theme filtering
-  - [ ] Search API endpoint: `GET /api/admin/components/search`
+- [x] ~~Build component library search functionality~~ **N/A — cancelled**
+  - [x] ~~Full-text search, search API~~ **N/A**
 
 ### Phase 13: Archive & Restore System
 
@@ -2028,6 +1879,8 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [ ] Schema: e.g. `role_features` (role_id or role slug, feature_id, enabled) or tenant config. Sidebar and route protection use role + feature set.
 - [ ] Optional: Custom roles
   - [ ] Allow tenant to define custom roles (e.g. "Marketing", "Support") and assign a feature set to each. Users assigned a built-in or custom role.
+- [x] View as Role + Site (superadmin testing)
+  - [x] Superadmin dashboard: selector (Site + Role). Override effective features via cookie/session so sidebar and route guards reflect that tenant+role. Superadmin section stays visible; persistent red banner with "Exit View As". View-only (no mutations as viewed user).
 - [ ] Team member profile page / management section
   - [ ] Each team member has a **profile** (name, email, role, avatar, and fields for **Digicards**: bio, photo, social_links, title, company, phone, digicard_slug). Stored in tenant schema (e.g. `team_members` or extend auth/user profile table).
   - [ ] Admin UI: Team list and team member profile page (e.g. `/admin/settings/team` or `/admin/team`, `/admin/team/[id]`). Edit profile; profile is **source for Digicards** (Phase 11b).

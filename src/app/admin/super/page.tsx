@@ -1,7 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { listTenantSites } from "@/lib/supabase/tenant-sites";
+import { listRoles } from "@/lib/supabase/feature-registry";
+import { getViewAsFromCookies } from "@/lib/admin/view-as";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ViewAsCard } from "@/components/superadmin/ViewAsCard";
 
 /**
  * Superadmin system area - platform-wide utilities.
@@ -10,10 +14,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default async function SuperadminPage() {
   const user = await getCurrentUser();
 
-  // Redirect if not superadmin
   if (!user || !isSuperadmin(user)) {
     redirect("/admin/dashboard");
   }
+
+  const [sites, roles] = await Promise.all([listTenantSites(), listRoles()]);
+  const cookieStore = await cookies();
+  const viewAs = getViewAsFromCookies(cookieStore);
 
   return (
     <div className="space-y-6">
@@ -25,6 +32,7 @@ export default async function SuperadminPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        <ViewAsCard sites={sites} roles={roles} initialViewAs={viewAs} />
         <Card>
           <CardHeader>
             <CardTitle>Tenant Management</CardTitle>
