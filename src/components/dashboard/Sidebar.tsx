@@ -22,8 +22,6 @@ import {
   Type,
   Palette,
   Tags,
-  Layers,
-  ListTree,
   Code,
   Building2,
   Mail,
@@ -31,6 +29,11 @@ import {
   KeyRound,
   ShieldCheck,
   User,
+  Sliders,
+  LifeBuoy,
+  MessageCircle,
+  BookOpen,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canAccessFeature } from "@/lib/admin/route-features";
@@ -41,6 +44,8 @@ interface SidebarProps {
   isSuperadmin?: boolean;
   /** Effective feature slugs for current user; "all" = show everything. */
   effectiveFeatureSlugs?: string[] | "all";
+  /** If true, show Settings → Users link. Only admins (tenant admin or superadmin) can manage team. */
+  canManageTeam?: boolean;
 }
 
 const mediaSubNav: { name: string; href: string; icon: typeof Image; featureSlug: string }[] = [
@@ -54,6 +59,7 @@ const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 
 const crmSubNav: { name: string; href: string; icon: typeof Users; featureSlug: string }[] = [
   { name: "Contacts", href: "/admin/crm/contacts", icon: Users, featureSlug: "contacts" },
+  { name: "OmniChat", href: "/admin/crm/omnichat", icon: MessageCircle, featureSlug: "crm" },
   { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList, featureSlug: "forms" },
   { name: "Form submissions", href: "/admin/crm/forms/submissions", icon: Inbox, featureSlug: "forms" },
   { name: "Marketing", href: "/admin/crm/marketing", icon: Mail, featureSlug: "marketing" },
@@ -62,16 +68,21 @@ const crmSubNav: { name: string; href: string; icon: typeof Users; featureSlug: 
   { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
 ];
 
-const settingsSubNav = [
-  { name: "Profile", href: "/admin/settings/profile", icon: User },
+const settingsSubNav: { name: string; href: string; icon: typeof Settings; adminOnly?: boolean }[] = [
   { name: "General", href: "/admin/settings/general", icon: Settings },
-  { name: "Fonts", href: "/admin/settings/fonts", icon: Type },
-  { name: "Colors", href: "/admin/settings/colors", icon: Palette },
+  { name: "Style", href: "/admin/settings/style", icon: Palette },
   { name: "Taxonomy", href: "/admin/settings/taxonomy", icon: Tags },
-  { name: "Content Types", href: "/admin/settings/content-types", icon: Layers },
-  { name: "Content Fields", href: "/admin/settings/content-fields", icon: ListTree },
-  { name: "CRM", href: "/admin/settings/crm", icon: Users },
-  { name: "Security", href: "/admin/settings/security", icon: Shield },
+  { name: "Customizer", href: "/admin/settings/customizer", icon: Sliders },
+  { name: "Users", href: "/admin/settings/users", icon: Users, adminOnly: true },
+  { name: "My Profile", href: "/admin/settings/profile", icon: User },
+];
+
+const SIDEBAR_SUPPORT_OPEN = "sidebar-support-open";
+
+const supportSubNav: { name: string; href: string; icon: typeof LifeBuoy }[] = [
+  { name: "Quick Support", href: "/admin/support/quick-support", icon: MessageCircle },
+  { name: "Knowledge Base", href: "/admin/support/knowledge-base", icon: BookOpen },
+  { name: "WorkHub", href: "https://desktop.phpmedia.com/", icon: Briefcase },
 ];
 
 const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
@@ -82,13 +93,15 @@ const superadminSubNav = [
   { name: "Tenant Users", href: "/admin/super/tenant-users", icon: Users },
   { name: "Roles", href: "/admin/super/roles", icon: ShieldCheck },
   { name: "Code Library", href: "/admin/super/code-library", icon: Code },
+  { name: "Security", href: "/admin/super/security", icon: Shield },
 ];
 
-export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }: SidebarProps) {
+export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", canManageTeam = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = getSupabaseClient();
   const isSettings = pathname === "/admin/settings" || pathname?.startsWith("/admin/settings/");
+  const isSupport = pathname === "/admin/support" || pathname?.startsWith("/admin/support/");
   const isCrm = pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
@@ -111,6 +124,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
   const showSettings = canAccessFeature(effectiveFeatureSlugs, "settings");
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
@@ -153,10 +167,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
         setCrmOpen(false);
         setMediaOpen(false);
         setSettingsOpen(false);
+        setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
@@ -164,10 +180,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
         setCrmOpen(true);
         setMediaOpen(false);
         setSettingsOpen(false);
+        setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "true");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
@@ -175,32 +193,51 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
         setCrmOpen(false);
         setMediaOpen(true);
         setSettingsOpen(false);
+        setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "true");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
       if (isSettings) {
         setCrmOpen(false);
         setMediaOpen(false);
+        setSupportOpen(false);
         setSuperOpen(false);
         setSettingsOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "true");
+        return;
+      }
+      if (isSupport) {
+        setCrmOpen(false);
+        setMediaOpen(false);
+        setSettingsOpen(false);
+        setSupportOpen(true);
+        setSuperOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "true");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
       if (isSuper) {
         setCrmOpen(false);
         setMediaOpen(false);
         setSettingsOpen(false);
+        setSupportOpen(false);
         setSuperOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "true");
         return;
       }
@@ -208,18 +245,21 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
       setCrmOpen(false);
       setMediaOpen(false);
       setSettingsOpen(false);
+      setSupportOpen(false);
       setSuperOpen(false);
       localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
       localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+      localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
     } catch {
       if (isCrm) setCrmOpen(true);
       if (isMedia) setMediaOpen(true);
       if (isSettings) setSettingsOpen(true);
+      if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMedia, isSettings, isSuper]);
+  }, [pathname, isCrm, isMedia, isSettings, isSupport, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -229,9 +269,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
     if (next) {
       setMediaOpen(false);
       setSettingsOpen(false);
+      setSupportOpen(false);
       try {
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       } catch { /* ignore */ }
     }
     try {
@@ -247,9 +289,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
     if (next) {
       setCrmOpen(false);
       setSettingsOpen(false);
+      setSupportOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       } catch { /* ignore */ }
     }
     try {
@@ -266,10 +310,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
       setCrmOpen(false);
       setMediaOpen(false);
       setSettingsOpen(false);
+      setSupportOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       } catch { /* ignore */ }
     }
     try {
@@ -285,15 +331,39 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
+      setSupportOpen(false);
       setSuperOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
       } catch { /* ignore */ }
     }
     try {
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
+  const toggleSupport = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !supportOpen;
+    setSupportOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMediaOpen(false);
+      setSettingsOpen(false);
+      setSuperOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_SUPPORT_OPEN, next ? "true" : "false");
     } catch { /* ignore */ }
   };
 
@@ -545,17 +615,89 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
           </div>
           {settingsOpen && (
             <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {settingsSubNav.map((sub) => {
-                const isSubActive = pathname === sub.href;
+              {settingsSubNav
+                .filter((sub) => !("adminOnly" in sub && sub.adminOnly) || canManageTeam)
+                .map((sub) => {
+                  const isSubActive = pathname === sub.href;
+                  const SubIcon = sub.icon;
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* Support twirldown (Quick Support, Knowledge Base) */}
+        <div className="pt-1">
+          <div
+            className={cn(
+              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
+              isSupport && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
+            )}
+          >
+            <Link
+              href="/admin/support/quick-support"
+              className={cn(
+                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
+                isSupport ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <LifeBuoy className="h-5 w-5" />
+              Support
+            </Link>
+            <button
+              type="button"
+              onClick={toggleSupport}
+              className={cn(
+                "p-1 rounded transition-colors",
+                isSupport ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+              aria-expanded={supportOpen}
+            >
+              {supportOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          </div>
+          {supportOpen && (
+            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+              {supportSubNav.map((sub) => {
+                const isSubActive = !sub.href.startsWith("http") && pathname === sub.href;
                 const SubIcon = sub.icon;
+                const isExternal = sub.href.startsWith("http");
+                const linkClass = cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                );
+                if (isExternal) {
+                  return (
+                    <a
+                      key={sub.href}
+                      href={sub.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={linkClass}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </a>
+                  );
+                }
                 return (
                   <Link
                     key={sub.href}
                     href={sub.href}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
+                    className={linkClass}
                   >
                     <SubIcon className="h-4 w-4" />
                     {sub.name}
@@ -565,7 +707,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all" }:
             </div>
           )}
         </div>
-        )}
         </div>
         {/* Superadmin twirldown: Dashboard, Code snippets, Roles, Clients */}
         {isSuperadmin && (

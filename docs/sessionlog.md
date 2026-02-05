@@ -6,15 +6,71 @@
 - **Session start:** Open `sessionlog.md`; use **Next up** and **Context** to pick up where you left off.
 - **Session end:** Check off completed items → sync to `planlog.md` → delete those items from sessionlog → add context to `changelog.md`.
 
+**Performance (speed):** Speed is a major goal. Features that may slow the system must be documented and the product owner notified. See [prd.md](./prd.md) and [planlog.md](./planlog.md) — Performance (Speed).
+
 ---
 
 ## Current Focus
 
-**MVP: Tenant roles, feature scope, team, profile.** View as Role + Site and role/feature hierarchy (sidebar, route guards, Roles UI top-level cascade) are implemented and tested. Superadmin: Dashboard | Tenant Sites | Tenant Users | Roles | Code Library. Profile under Settings.
+**Auth/password/TOTP work complete.** Password policy (12 chars, denylist), forgot password, change password on Profile, TOTP on My Profile (optional), 2FA optional for tenant admins, CRM recommendation banner, invite redirectTo reset-password, tenant site name on auth pages, hardening confirmed. **Next:** Tenant admin team management (Settings → Users, Owner flag) per First priority below.
 
 ---
 
 ## Next up
+
+### Completed: In-app password policy + optional TOTP + auth branding + recommendation (steps 1–9)
+
+- Password policy in `src/lib/auth/password-policy.ts`; used on change-password, set-new-password (reset), and invite acceptance (redirectTo our reset-password page).
+- Forgot password: link on login, `/admin/login/forgot`, `/admin/login/reset-password` with policy validation.
+- My Profile: Change password card; Security card with TOTP (MFAManagement, allowRemoveLastFactor for tenants); MFA enroll redirects to Profile when already enrolled.
+- Login: 2FA required only for superadmin; tenant admins optional; CRM recommendation banner on Profile when no factors.
+- Invite flows (tenant-sites users, settings team) pass `redirectTo` our reset-password page so first password meets policy.
+- Auth pages show tenant site name in header (layout resolves site when unauthenticated). Deeper design (fonts/colors) deferred to client site design.
+- Protected routes and APIs confirmed to validate session/role; form submit rate-limited, members redeem requires auth.
+
+---
+
+### First priority: Tenant admin team management (Settings → Users) — with Owner flag
+
+**Goal:** Let tenant admins (scoped to the current site) manage their own team: list users, add users, assign roles (Admin, Editor, Creator, Viewer). Settings → Users link at the top of Settings (above Profile). Superadmin remains the master list (Tenant Sites → [site] → Related Tenant Users); Settings → Users is the same data, scoped UI for that site’s admins.
+
+**Owner rules:**
+- There can be **more than one Owner** per tenant site. Owner is a flag/badge on the assignment (e.g. `is_owner` on `tenant_user_assignments`).
+- **Only superadmin** can set or clear the Owner flag (typically during setup when adding/inviting the initial owner/admin).
+- **Owners** can delete all other admins **except other Owners**. Non-owner Admins cannot delete Owners; only superadmin can remove an Owner or change Owner status.
+- Tenant admins (including Owners) can add members and assign any role (Admin, Editor, Creator, Viewer); they **cannot** set or clear the Owner flag — that is superadmin-only.
+
+**Steps:**
+
+1. **Migration: add Owner flag**
+   - Add column `is_owner BOOLEAN NOT NULL DEFAULT false` to `public.tenant_user_assignments`. Migration file e.g. `090_tenant_user_assignments_is_owner.sql`. Comment: only superadmin may set true; Owners cannot be removed by tenant admins.
+
+2. **Types and CRUD**
+   - Update `TenantUserAssignment` (and insert/update types) to include `is_owner`. Update `tenant-users.ts` (or equivalent) so reads/writes include `is_owner`; only superadmin APIs may set `is_owner` to true or false when creating/updating assignments.
+
+3. **AuthZ helper**
+   - Server helper e.g. `canManageTeamForCurrentTenant(userId)`: resolve current user → get tenant_site for current schema → get user’s assignment for that site → allow only if `role_slug === 'admin'`. Optionally expose whether current user is Owner for this site (so UI can show "Remove" only for non-Owners when viewer is Owner). Use in Settings Users page and tenant-scoped team API.
+
+4. **Settings → Users link and route**
+   - In Sidebar `settingsSubNav`, add **Users** at the top (above Profile): `{ name: "Users", href: "/admin/settings/users", icon: Users }`.
+   - Create route `src/app/admin/settings/users/page.tsx` — server component that checks canManageTeamForCurrentTenant; if not admin for this tenant, redirect or 403. Else render client component (team list + add/edit).
+
+5. **Tenant-scoped team API**
+   - **GET** e.g. `GET /api/settings/team` or `GET /api/settings/users`: returns list of users for the **current** tenant site (tenant_user_assignments + tenant_users for that site). Include `is_owner` in each assignment; only superadmin can change it, but tenant admins need to see it so Owners are not removable by them. Require caller to be Admin for this tenant.
+   - **POST** (add user): body `{ email, display_name?, role_slug, invite?: boolean }`. Create/find tenant_user; create tenant_user_assignment for this site with role_slug. Do **not** accept `is_owner` from tenant admin — only superadmin (existing Tenant Sites → users API) can set is_owner. If invite and no auth user, call existing invite flow then create assignment.
+   - **PATCH** (change role or remove): body `{ assignment_id, role_slug? }` or `{ user_id, role_slug? }`; if role_slug omitted, remove assignment. **Rule:** If target assignment has `is_owner === true`, return 403 unless caller is superadmin. Tenant Admin (including Owner) can remove only non-Owner admins. Only superadmin can remove an Owner or set is_owner.
+
+6. **Superadmin API: set Owner**
+   - In `POST/ PATCH /api/admin/tenant-sites/[id]/users` (or equivalent), allow superadmin to pass `is_owner: true | false` when adding or updating an assignment. Typically set `is_owner: true` when adding the first admin during setup.
+
+7. **Settings → Users page UI**
+   - List: table or cards of current site users (email, display name, role, **Owner badge** when is_owner). Actions: Change role (dropdown; cannot change Owner flag — show badge only), **Remove from site** (with confirm). For rows with is_owner, hide or disable Remove unless current user is superadmin (or allow only superadmin to remove Owners from superadmin dashboard).
+   - Add user: form (email, display name optional, role dropdown, "Send invite email" checkbox). Submit → POST to tenant-scoped API. No Owner checkbox (superadmin only).
+
+8. **Reuse / alignment**
+   - Reuse types and helpers from tenant-users lib and superadmin Related Tenant Users (invite flow, role list). Both superadmin and Settings → Users read/write same tables; Owner flag and who can set/remove it enforced in API and migration comment.
+
+---
 
 ### Phase 09 — Membership working (steps)
 
@@ -34,11 +90,7 @@ Ordered steps for the "Still needed" Phase 09 items so membership actually gates
 3. **Resolve member’s MAGs for content check**
    - checkContentAccess needs "current user’s MAGs". Member is identified by auth (user_metadata.type = "member"); member row links to contact_id (members table); contact has MAGs via crm_contact_mags. Add helper e.g. getMagIdsForCurrentUser(): get session → get member by user_id → get contact_id → getContactMags(contact_id) → return mag ids. Use in checkContentAccess for mag-level content. Admins/superadmins bypass (treat as hasAccess for content).
 
-4. **Member routes (dashboard / profile)**
-   - Create `src/app/(public)/members/page.tsx` — protected member dashboard (redirect to /login?redirect=/members if not authenticated or not type member). Simple landing: "Member dashboard", optional "Apply code" link, link to profile.
-   - Create `src/app/(public)/members/profile/page.tsx` — member profile (display name, email, "Apply code" section if not already on dashboard).
-   - Create `src/app/(public)/members/account/page.tsx` — account settings placeholder (password change, etc.; can be minimal).
-   - Middleware: add handling for `/members/*` — require auth and user_metadata.type === "member" (or admin); else redirect to /login?redirect=/members (or current path). Reuse getCurrentUserFromRequest; redirect to public login, not admin login.
+4. **Member routes (dashboard / profile)** — Done. Members area has dashboard, profile (display name, avatar), account placeholder, Apply code block; middleware protects `/members/*`. **Membership sync (CRM + members row) runs only in `src/app/(public)/members/layout.tsx`**, not on every public page, so the rest of the site stays fast. See prd.md and planlog.md — Member sync and performance; Performance (Speed). **Membership is limited to certain pages for now;** shortcode feature will require adjustments when implemented (see PRD/planlog).
 
 5. **ProtectedContent wrapper (optional, for reuse)**
    - Create `src/components/public/ProtectedContent.tsx` — server component that accepts content (or access_level, required_mag_id, etc.) and children; runs checkContentAccess; if no access renders restricted message or null; if access renders children. Use on blog/page and [slug] to avoid duplicating logic.
@@ -123,10 +175,12 @@ We have the **AnyChat platform and docs**; need to **review** them and **add the
 - **MFA testing** — When we deploy to a domain (soon). Planlog Phase 00.
 - **Color palette refactor** — Move predefined palettes to `public.color_palette_presets`; tenant Settings → Colors pulls presets from public (dynamic picker), tenant keeps custom/copied palettes locally. Planlog Phase 01.
 - **Central automations folder/location** — Establish a single place (e.g. `src/lib/automations/`) for all automation logic. (1) **Form-submit → lead identification:** Code steps to run on form submit: add tags (taxonomy), add/set custom fields on the contact, set CRM status to **New** so leads are clearly identified. This entire routine may be **tenant-customizable** (e.g. per-tenant config or code-library-style snippets) so different tenants can have different tag rules, field mappings, or status flows. (2) **Other automations:** e.g. push new contact (received via form) to an external CRM; these can also live in the central location and be tenant-configurable where appropriate. Planlog Phase 07 "Deferred — Central automations layer".
+- **Pagination for CRM contacts list view** — Contacts list currently loads all contacts in one table. Add pagination (e.g. page size 25/50, prev/next or page numbers) so large contact lists perform and scale; optional: continuous scroll as alternative.
 - Add other items as needed (e.g. smoke-test core flows, Settings → Team).
 
 ---
 
 ## Context for handoff
 
+- **Afternoon session wrapped.** Membership area, CRM sync on member pages only, CRM contact delete/list/display-name sync, automations (signup→CRM), public header Welcome/Log Out/Members Area, and speed/membership-limited docs are in changelog entry **2026-02-03 CT (afternoon)**.
 - See changelog **"Context for Next Session"** for latest.

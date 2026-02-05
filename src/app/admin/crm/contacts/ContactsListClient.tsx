@@ -229,7 +229,7 @@ export function ContactsListClient({
                   <tr className="border-b bg-muted/50">
                     <th className="text-left font-medium py-2 px-3">Last name</th>
                     <th className="text-left font-medium py-2 px-3">First name</th>
-                    <th className="text-left font-medium py-2 px-3">Email</th>
+                    <th className="text-left font-medium py-2 px-3">Full name</th>
                     <th className="text-left font-medium py-2 px-3">Phone</th>
                     <th className="text-left font-medium py-2 px-3">Status</th>
                     <th className="text-left font-medium py-2 px-3">Updated</th>
@@ -259,7 +259,7 @@ export function ContactsListClient({
                     >
                       <td className="py-2 px-3 font-medium">{c.last_name ?? "—"}</td>
                       <td className="py-2 px-3 text-muted-foreground">{c.first_name ?? "—"}</td>
-                      <td className="py-2 px-3 text-muted-foreground">{c.email ?? "—"}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{c.full_name ?? "—"}</td>
                       <td className="py-2 px-3 text-muted-foreground">{c.phone ?? "—"}</td>
                       <td className="py-2 px-3">
                         {(() => {

@@ -204,7 +204,10 @@ export async function getContactById(id: string): Promise<CrmContact | null> {
   return rows[0] ?? null;
 }
 
-/** Get one contact by email (direct read for form submit matching). */
+/**
+ * Get one contact by email (direct read for form submit matching).
+ * If multiple contacts share this email (duplicates), returns the first one so callers don't create more.
+ */
 export async function getContactByEmail(email: string | null | undefined): Promise<CrmContact | null> {
   if (!email || typeof email !== "string" || !email.trim()) return null;
   const supabase = createServerSupabaseClient();
@@ -212,13 +215,14 @@ export async function getContactByEmail(email: string | null | undefined): Promi
     .schema(CRM_SCHEMA)
     .from("crm_contacts")
     .select("*")
-    .eq("email", email.trim())
-    .maybeSingle();
+    .eq("email", email.trim().toLowerCase())
+    .limit(1);
   if (error) {
-    console.error("Error fetching contact by email:", { message: error.message, code: error.code });
+    console.error("Error fetching contact by email:", formatSupabaseError(error));
     return null;
   }
-  return (data as CrmContact | null) ?? null;
+  const rows = (data as CrmContact[] | null) ?? [];
+  return rows[0] ?? null;
 }
 
 /** Count contacts with status "New" (work-to-do indicator for sidebar badge). Status is stored as slug (e.g. "new"). */
@@ -526,6 +530,21 @@ export async function updateContact(
     return { contact: null, error: new Error(error.message) };
   }
   return { contact: data as CrmContact, error: null };
+}
+
+/** Delete a contact (write). Related rows in crm_notes, crm_contact_mags, etc. cascade. */
+export async function deleteContact(id: string): Promise<{ success: boolean; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    console.error("Error deleting contact:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
 }
 
 // ==================== Notes ====================

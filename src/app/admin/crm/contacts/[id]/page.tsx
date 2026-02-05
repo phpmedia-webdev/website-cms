@@ -19,6 +19,7 @@ import { ContactTaxonomyBlock } from "./ContactTaxonomyBlock";
 import { ContactCardStatusBadge } from "./ContactCardStatusBadge";
 import { ContactDetailTabs } from "./ContactDetailTabs";
 import { CopyMessageToNotesButton } from "./CopyMessageToNotesButton";
+import { ContactDeleteButton } from "./ContactDeleteButton";
 
 export default async function ContactDetailPage({
   params,
@@ -91,6 +92,7 @@ export default async function ContactDetailPage({
                   Edit
                 </Button>
               </Link>
+              <ContactDeleteButton contactId={id} displayName={displayName} />
             </div>
           </div>
 

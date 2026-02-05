@@ -9,6 +9,38 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-03 CT (afternoon) - Membership area, CRM sync on member pages only, CRM fixes, speed docs
+
+**Context for Next Session:**
+- **Membership:** Members Area nav (dropdown: Dashboard, Profile, Account) in public header when logged in. Member profile page edits display name and avatar (user_metadata). Apply code block on member dashboard; redeem-code API works when member has `members` row. **Sync (CRM contact + members row) runs only in `src/app/(public)/members/layout.tsx`**, not on every public page—keeps rest of site fast. Membership limited to certain pages for now; shortcode feature will need adjustments (see PRD/planlog).
+- **Automations:** New signup → CRM contact (status New) via `src/lib/automations/on-member-signup.ts`; triggered from auth callback (type=signup), login page (when session after signUp), and members layout. Duplicate fix: `getContactByEmail` uses `.limit(1)` and returns first row so duplicates no longer cause PGRST116 or re-create contacts.
+- **CRM:** Contact delete on detail page (Delete button, DELETE `/api/crm/contacts/[id]`, `deleteContact` in crm.ts). List columns: Last name, First name, Full name, Phone, Status, Updated. Member display name syncs to contact `full_name` when existing contact found. Full name shown in list; formatSupabaseError in getContactByEmail for clearer errors.
+- **Public header:** When logged in: Welcome {displayName}, Log Out; Members Area dropdown. AuthUser has optional `display_name` from user_metadata.
+- **Docs:** PRD and planlog have Performance (Speed) guideline—notify of features that may slow the system. Member sync and performance and “membership limited to certain pages; shortcode adjustments” documented. Sessionlog has performance note and handoff. Pagination for CRM list is in sessionlog backlog.
+- **Next:** First priority (Tenant admin team management, Settings → Users, Owner flag) or Phase 09 content protection / login redirect. Key files: `src/app/(public)/members/layout.tsx`, `src/lib/automations/on-member-signup.ts`, `src/app/admin/crm/contacts/`, `docs/prd.md`, `docs/planlog.md`, `docs/sessionlog.md`.
+
+**Changes:**
+- **Public header:** Welcome {displayName} and Log Out when logged in; Members Area dropdown (Dashboard, Profile, Account). `PublicHeaderAuth`, `PublicHeaderMembersNav`; `AuthUser.display_name` in supabase-auth.
+- **Automations:** `src/lib/automations/on-member-signup.ts` (ensureMemberInCrm); auth callback and login page trigger; members layout runs sync only (removed from public layout). `getContactByEmail` uses `.limit(1)`; layout try/catch for missing CRM.
+- **Member area:** Profile page (display name, avatar URL) via `MemberProfileForm`; Apply code block on dashboard; `createMemberForContact` in members layout so redeem-code works.
+- **CRM:** deleteContact in crm.ts; DELETE in `/api/crm/contacts/[id]`; ContactDeleteButton on detail page. List: Full name column, order Last/First/Full name/Phone/Status/Updated. ensureMemberInCrm updates existing contact full_name from member display name.
+- **Docs:** PRD—Performance (Speed) and Member sync and performance; membership limited to certain pages; shortcode adjustments when implemented. Planlog—Performance guideline at top; Phase 9C Performance bullet; membership limited + shortcode note. Sessionlog—performance note; member routes step 4 updated; pagination for CRM in backlog.
+
+### 2026-02-03 CT - Auth: password policy, forgot/change password, TOTP on Profile, 2FA optional, invite redirectTo, tenant auth header
+
+**Context for Next Session:**
+- **Auth/password/TOTP work done.** Password policy (12 chars, denylist) in `src/lib/auth/password-policy.ts`; forgot password flow (link, `/admin/login/forgot`, `/admin/login/reset-password`) with policy; My Profile change-password card and Security card with TOTP (MFAManagement); 2FA required only for superadmin on login; CRM recommendation banner on Profile; invite redirectTo our reset-password so first password meets policy; tenant site name on auth pages; hardening confirmed. Deeper auth-page design deferred to client site design.
+- **Next:** First priority in sessionlog — Tenant admin team management (Settings → Users, Owner flag). Key docs: `docs/sessionlog.md`, `docs/planlog.md`.
+
+**Changes:**
+- **Password policy:** `src/lib/auth/password-policy.ts` (min 12, max 128, denylist, normalizePassword, validatePassword, buildExtraDenylist).
+- **Forgot password:** Login page "Forgot password?" link; `/admin/login/forgot` (request reset); `/admin/login/reset-password` (set new password with policy); success message on login when `?reset=success`.
+- **My Profile:** Change password card (current + new + confirm, policy validation); Security card for non-superadmin uses MFAManagement with allowRemoveLastFactor true; CRM 2FA recommendation banner (dismissible) when hasCrmAccess and no factors.
+- **MFA:** Enroll redirect when already has factors → `/admin/settings/profile`. Login: only superadmin without factors forced to enroll; tenant admins optional.
+- **Invite:** POST tenant-sites users and POST settings team pass `redirectTo: origin + /admin/login/reset-password` so invite acceptance uses our policy.
+- **Tenant auth pages:** Layout resolves site name when unauthenticated; AdminLayoutWrapper shows tenant site name header on login/forgot/reset-password.
+- **Sessionlog:** Top-priority block replaced with completed summary; next up = First priority (Tenant admin team management).
+
 ### 2026-02-03 CT - Phase 09 sub-phases (9A, 9E, 9B, 9D) sessionlog; Phase 12 cancelled
 
 **Context for Next Session:**

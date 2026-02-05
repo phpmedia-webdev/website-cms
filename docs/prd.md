@@ -10,6 +10,8 @@ A WordPress-style CMS application built with Next.js 15, designed as a lightweig
 
 **Goal**: Create a WordPress killer replacement that narrows down to just the essentials for a basic business website - simpler, faster, and easier to use than WordPress while maintaining similar functionality.
 
+**Performance (Speed):** Speed is a major goal. Avoid adding work to high-traffic or every-request paths (e.g. public layout, middleware) unless necessary. When implementing features that may slow the system (e.g. extra DB calls, sync jobs, heavy layout logic), document the impact and consider scoping the work to specific routes or throttling. See planlog for the performance guideline and "notify of slowdowns" expectation.
+
 ## Technology Stack
 
 - **Frontend/App Framework:** Next.js 15 with App Router
@@ -705,6 +707,8 @@ The application supports two distinct user types:
    - Authenticate at `/login` or `/register`
    - Profile stored in `members` table in client schema
    - Can belong to multiple MAGs
+
+**Member sync and performance:** CRM/members sync (ensure contact in CRM, ensure `members` row for redeem/MAG features) runs only on **member-designated pages** (e.g. `/members/*` layout), not on every public page load. This keeps the rest of the site fast; see planlog and sessionlog. **For now, membership features are limited to these pages.** When we implement membership-related shortcodes (e.g. Apply code, MAG-gated blocks on arbitrary pages), adjustments will be needed—e.g. scope sync to shortcode pages, lazy sync in APIs, or document that such shortcodes belong on member pages only. Latency impact of broader sync is to be tested before deciding.
 
 ### MAG vs Roles
 

@@ -103,9 +103,9 @@ export async function checkGalleryAccess(
 
 /**
  * Get MAG IDs for a member user (via members → contact → crm_contact_mags).
- * Only Active status is considered.
+ * Only Active status is considered. Exported for use by content-access.
  */
-async function getMemberMagIds(
+export async function getMemberMagIds(
   supabase: Awaited<ReturnType<typeof import("@/lib/supabase/client").createServerSupabaseClientSSR>>,
   userId: string
 ): Promise<string[]> {

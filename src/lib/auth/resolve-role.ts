@@ -8,6 +8,7 @@ import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import {
   getTenantUserByAuthUserId,
   getRoleForUserOnSite,
+  getAssignmentByAdminAndTenant,
 } from "@/lib/supabase/tenant-users";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getEffectiveFeatureSlugs } from "@/lib/supabase/feature-registry";
@@ -88,4 +89,60 @@ export async function getEffectiveFeatureSlugsForCurrentUser(): Promise<string[]
   if (!role) return [];
 
   return getEffectiveFeatureSlugs(tenantSiteId, role);
+}
+
+/** Result for team management authZ: can the current user manage team for the current tenant, and are they an Owner? */
+export interface TeamManagementContext {
+  canManage: boolean;
+  isOwner: boolean;
+  isSuperadmin: boolean;
+  tenantSiteId: string | null;
+  tenantUserId: string | null;
+}
+
+/**
+ * Can the current user manage team (Settings → Users) for the current tenant?
+ * - Superadmin: canManage true, isOwner false, tenantSiteId from schema.
+ * - Tenant admin (role_slug === 'admin'): canManage true, isOwner from assignment.
+ * - Others: canManage false.
+ */
+export async function getTeamManagementContext(): Promise<TeamManagementContext> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { canManage: false, isOwner: false, isSuperadmin: false, tenantSiteId: null, tenantUserId: null };
+  }
+
+  let tenantSiteId: string;
+  try {
+    const schema = getClientSchema();
+    const site = await getTenantSiteBySchema(schema);
+    if (!site) {
+      return { canManage: false, isOwner: false, isSuperadmin: false, tenantSiteId: null, tenantUserId: null };
+    }
+    tenantSiteId = site.id;
+  } catch {
+    return { canManage: false, isOwner: false, isSuperadmin: false, tenantSiteId: null, tenantUserId: null };
+  }
+
+  if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
+    return { canManage: true, isOwner: false, isSuperadmin: true, tenantSiteId, tenantUserId: null };
+  }
+
+  const tenantUser = await getTenantUserByAuthUserId(user.id);
+  if (!tenantUser) {
+    return { canManage: false, isOwner: false, isSuperadmin: false, tenantSiteId: null, tenantUserId: null };
+  }
+
+  const assignment = await getAssignmentByAdminAndTenant(tenantUser.id, tenantSiteId);
+  if (!assignment || assignment.role_slug !== "admin") {
+    return { canManage: false, isOwner: false, isSuperadmin: false, tenantSiteId: null, tenantUserId: tenantUser.id };
+  }
+
+  return {
+    canManage: true,
+    isOwner: assignment.is_owner,
+    isSuperadmin: false,
+    tenantSiteId,
+    tenantUserId: tenantUser.id,
+  };
 }

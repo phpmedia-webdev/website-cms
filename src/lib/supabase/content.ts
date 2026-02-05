@@ -245,7 +245,7 @@ export async function getPublishedContentByTypeAndSlug(
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
-    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, created_at, updated_at")
     .eq("content_type_id", pageType.id)
     .eq("slug", slug)
     .eq("status", "published")

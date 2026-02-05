@@ -7,15 +7,21 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { validatePassword, PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 
 const supabase = getSupabaseClient();
 
 function MemberLoginContent() {
   const searchParams = useSearchParams();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const redirect = searchParams.get("redirect") || "/";
 
@@ -32,9 +38,10 @@ function MemberLoginContent() {
     });
   }, [redirect]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
     try {
@@ -58,19 +65,16 @@ function MemberLoginContent() {
       const metadata = authData.user.user_metadata as { type?: string } | undefined;
       const userType = metadata?.type;
 
-      // Admin users go to admin area
       if (userType === "superadmin" || userType === "admin") {
         window.location.replace("/admin/dashboard");
         return;
       }
 
-      // Member users
       if (userType === "member") {
         window.location.replace(redirect);
         return;
       }
 
-      // No type or unknown: sign out and show error
       if (!userType) {
         setError("Account is not set up for member access. Please contact support.");
         await supabase.auth.signOut();
@@ -85,13 +89,104 @@ function MemberLoginContent() {
     }
   };
 
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      setLoading(false);
+      return;
+    }
+
+    const validation = validatePassword(password);
+    if (!validation.valid) {
+      setError(validation.error ?? "Password does not meet requirements.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const redirectTo = typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`
+        : undefined;
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: { type: "member" },
+          emailRedirectTo: redirectTo,
+        },
+      });
+
+      if (authError) {
+        setError(authError.message || "Sign up failed.");
+        setLoading(false);
+        return;
+      }
+
+      if (authData.session) {
+        setSuccess("Account created. Redirecting…");
+        // Ensure new member is in CRM with status "New" (for memberships)
+        try {
+          await fetch("/api/automations/on-member-signup", {
+            method: "POST",
+            credentials: "include",
+          });
+        } catch {
+          // Non-blocking: CRM sync will also run on email confirm callback if needed
+        }
+        window.location.replace(redirect);
+        return;
+      }
+
+      setSuccess("Check your email to confirm your account. Then sign in above.");
+      setMode("signin");
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = mode === "signup" ? handleSignUp : handleSignIn;
+
+  const handleResendConfirmation = async () => {
+    const emailToResend = email.trim().toLowerCase();
+    if (!emailToResend) {
+      setResendMessage("Enter your email above first.");
+      return;
+    }
+    setResendMessage(null);
+    setResendLoading(true);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: emailToResend,
+      });
+      if (resendError) {
+        setResendMessage(resendError.message || "Resend failed.");
+        return;
+      }
+      setResendMessage("Confirmation email sent. Check your inbox and spam.");
+    } catch {
+      setResendMessage("Could not resend. Try again.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-16 max-w-md">
       <Card>
         <CardHeader>
-          <CardTitle>Sign In</CardTitle>
+          <CardTitle>{mode === "signup" ? "Create account" : "Sign In"}</CardTitle>
           <CardDescription>
-            Sign in to access member-only content
+            {mode === "signup"
+              ? "Sign up to access member-only content"
+              : "Sign in to access member-only content"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -119,21 +214,96 @@ function MemberLoginContent() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={mode === "signup" ? PASSWORD_MIN_LENGTH : undefined}
               />
+              {mode === "signup" && (
+                <p className="text-xs text-muted-foreground">
+                  At least {PASSWORD_MIN_LENGTH} characters. Avoid common passwords.
+                </p>
+              )}
             </div>
+            {mode === "signup" && (
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="text-sm font-medium">
+                  Confirm password
+                </label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Re-enter password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             {error && (
               <div className="text-sm text-destructive">{error}</div>
             )}
+            {success && (
+              <div className="text-sm text-green-600 dark:text-green-400">{success}</div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
+              {loading
+                ? mode === "signup"
+                  ? "Creating account…"
+                  : "Signing in…"
+                : mode === "signup"
+                  ? "Create account"
+                  : "Sign In"}
             </Button>
           </form>
+          {mode === "signin" && (
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Didn&apos;t receive the confirmation email?{" "}
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resendLoading}
+                className="underline hover:text-foreground font-medium disabled:opacity-50"
+              >
+                {resendLoading ? "Sending…" : "Resend"}
+              </button>
+              {resendMessage && (
+                <span className="block mt-2 text-sm text-muted-foreground">
+                  {resendMessage}
+                </span>
+              )}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mt-4 text-center">
-            Need an account?{" "}
-            <Link href="/" className="underline hover:text-foreground">
-              Contact us
-            </Link>{" "}
-            to get started.
+            {mode === "signin" ? (
+              <>
+                Don&apos;t have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signup");
+                    setError("");
+                    setSuccess("");
+                    setResendMessage(null);
+                  }}
+                  className="underline hover:text-foreground font-medium"
+                >
+                  Sign up
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signin");
+                    setError("");
+                    setSuccess("");
+                  }}
+                  className="underline hover:text-foreground font-medium"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
           </p>
         </CardContent>
       </Card>

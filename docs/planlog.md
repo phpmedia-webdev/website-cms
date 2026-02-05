@@ -4,6 +4,8 @@ This document tracks planned work, implementation phases, and backlog items for 
 
 For session continuity (current focus, next up, handoff), see [sessionlog.md](./sessionlog.md). Planlog remains the priority development workflow; items are never deleted, only checked off.
 
+**Performance (speed):** Speed is a major goal for the web app. When adding features that may slow the system (e.g. extra DB or API calls on every request, heavy layout logic, sync jobs on high-traffic paths), document the impact and consider scoping to specific routes or throttling. Notify/product-owner flag any such features so we can decide trade-offs. See [prd.md](./prd.md) — Performance (Speed).
+
 ---
 
 ## Completed / Reference
@@ -205,6 +207,12 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
       - Show enrollment dates
       - Prevent removing last factor if role requires 2FA
     - [X] Create `src/app/members/account/security/page.tsx` (member security settings - optional 2FA) - Deferred to Phase 09 (Membership Platform)
+  - [x] Password policy and auth flows (2026-02-03):
+    - [x] `src/lib/auth/password-policy.ts` (min 12, denylist, normalize); used on change-password, reset-password, invite acceptance
+    - [x] Forgot password (link, /admin/login/forgot, /admin/login/reset-password); invite redirectTo reset-password so first password meets policy
+    - [x] My Profile: Change password card; Security card with TOTP for tenants (allowRemoveLastFactor); MFA enroll redirect to Profile
+    - [x] Login: 2FA required only for superadmin; tenant admins optional; CRM recommendation banner on Profile
+    - [x] Tenant site name on auth pages (layout resolves when unauthenticated); deeper design deferred to client site design
   - [ ] Update API routes for AAL checks *(senior dev may know; see sessionlog)*:
     - Update sensitive admin API routes to check `aal` claim
     - Require `aal2` for destructive operations (archive, reset, user management)
@@ -625,12 +633,12 @@ Inferred from planlog + codebase review:
   - [ ] Create API route `src/app/api/auth/member/register/route.ts` (member registration with user_metadata.type = "member")
   - [ ] Update middleware to handle member authentication (separate from admin)
 
-- [ ] Member routes and pages
-  - [ ] Create `src/app/(public)/members/page.tsx` (member dashboard - protected)
-  - [ ] Create `src/app/(public)/members/profile/page.tsx` (member profile page)
-  - [ ] Create `src/app/(public)/members/account/page.tsx` (account settings)
-  - [ ] Create `src/components/memberships/MemberDashboard.tsx`
-  - [ ] Create `src/components/memberships/MemberProfile.tsx`
+- [x] Member routes and pages (2026-02-03: dashboard, profile with display name/avatar, account placeholder; Members Area nav; sync in members layout only)
+  - [x] Create `src/app/(public)/members/page.tsx` (member dashboard - protected)
+  - [x] Create `src/app/(public)/members/profile/page.tsx` (member profile page)
+  - [x] Create `src/app/(public)/members/account/page.tsx` (account settings)
+  - [ ] Create `src/components/memberships/MemberDashboard.tsx` (optional; dashboard uses page + ApplyCodeBlock)
+  - [ ] Create `src/components/memberships/MemberProfile.tsx` (optional; profile uses MemberProfileForm)
 
 - [x] Gallery content protection (implemented)
   - [x] `src/app/(public)/gallery/[slug]/page.tsx`: runs `checkGalleryAccess(gallery.access)` before rendering; if no access, shows restricted message or "Sign in" link; access uses `required_mag_ids` from gallery_mags; admins bypass.
@@ -791,6 +799,7 @@ Inferred from planlog + codebase review:
 - **members.ts:** getMemberByContactId(contactId), getMemberByUserId(userId), createMemberForContact(contactId, userId?), resolveMemberFromAuth() → member id or null. Idempotent create; optional user_id update when linking auth to existing member.
 - **licenses.ts:** hasLicense(memberId, contentType, contentId), grantLicense(…), revokeLicense(…), getMemberLicenses(memberId, contentType?), filterMediaByOwnership(mediaIds, memberId). Content types: 'media' | 'course'.
 - **Usage:** Redeem-code API (POST /api/members/redeem-code) uses getMemberByUserId and redeemCode(memberId) — assigns MAG to member’s contact via addContactToMag; does **not** create the members row (expects member to already exist). Batch Explore page joins to members for redeemed_by_member_id.
+- **Performance:** CRM + members sync (ensure contact in CRM, ensure members row) runs only on **member-designated pages** (`/members/*` layout), not on every public page. Keeps rest of site fast; see [prd.md](./prd.md) — Performance (Speed) and Member sync and performance. **Membership is limited to certain pages for now.** When implementing membership shortcodes (Apply code, MAG-gated blocks on arbitrary pages), adjustments will be required (e.g. sync scope, lazy sync in APIs, or shortcodes only on member pages); latency testing will inform the approach.
 
 **Still needed**
 - **Elevation flow — when to create members row:** Document and wire: (1) **Admin assign MAG:** When admin adds a contact to a MAG (POST /api/crm/contacts/[id]/mags), call createMemberForContact(contactId) so the contact becomes a member (idempotent). (2) **First-time code redemption:** Either (a) “Register with code” on login: create contact by email if needed, createMemberForContact(contactId, userId) after auth, then redeem code; or (b) “Apply code” for already-logged-in member — then member must already exist (e.g. created by admin or prior flow). (3) **Purchase webhook (later):** When assigning MAG on payment, createMemberForContact(contactId) if not already member.
@@ -894,7 +903,7 @@ Inferred from planlog + codebase review:
 
 - [ ] Public/member UI: Code entry
   - [ ] Login/register page: optional "Have an access code?" field; on submit, if code provided, validate and assign MAG after auth
-  - [ ] Member profile/account page: "Apply code" section — input code, submit; validate and assign MAG to current member
+  - [x] Member profile/account page: "Apply code" section — input code, submit; validate and assign MAG to current member (ApplyCodeBlock on member dashboard; 2026-02-03)
 
 - [x] API routes
   - [x] `POST /api/admin/membership-codes/batches` — Create batch (admin)

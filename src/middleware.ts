@@ -110,6 +110,23 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Member area: require auth and type member (or admin/superadmin for testing)
+  const isMemberRoute = pathname.startsWith("/members");
+  if (isMemberRoute) {
+    if (!user) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    const type = user.metadata?.type;
+    if (type !== "member" && type !== "admin" && type !== "superadmin") {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    return NextResponse.next();
+  }
+
   // For login page, redirect to dashboard if already logged in
   if (isAuthRoute) {
     if (user && validateTenantAccess(user)) {

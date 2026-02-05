@@ -6,6 +6,8 @@ import {
   getTenantUserByEmail,
   createTenantUser,
   assignUserToSite,
+  getAssignmentByAdminAndTenant,
+  removeUserFromSite,
 } from "@/lib/supabase/tenant-users";
 import { inviteUserByEmail } from "@/lib/supabase/users";
 
@@ -43,7 +45,7 @@ export async function GET(
 
 /**
  * POST /api/admin/tenant-sites/[id]/users
- * Add a user to this tenant site. Body: { email, display_name?, role_slug, invite?: boolean }.
+ * Add a user to this tenant site. Body: { email, display_name?, role_slug, is_owner?: boolean, invite?: boolean }.
  * If invite is true and email has no auth user, sends invite then creates tenant_user and assignment.
  * Superadmin only.
  */
@@ -68,6 +70,7 @@ export async function POST(
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const displayName = typeof body?.display_name === "string" ? body.display_name.trim() : null;
     const roleSlug = typeof body?.role_slug === "string" ? body.role_slug.trim() : "viewer";
+    const isOwner = body?.is_owner === true;
     const doInvite = body?.invite === true;
 
     if (!email) {
@@ -81,7 +84,10 @@ export async function POST(
 
     if (!tenantUser) {
       if (doInvite) {
+        const origin = request.headers.get("origin") ?? new URL(request.url).origin;
+        const redirectTo = `${origin}/admin/login/reset-password`;
         const { user: authUser, error: inviteError } = await inviteUserByEmail(email, {
+          redirectTo,
           data: { display_name: displayName ?? email.split("@")[0] },
         });
         if (inviteError || !authUser) {
@@ -110,7 +116,7 @@ export async function POST(
       );
     }
 
-    const assigned = await assignUserToSite(tenantUser.id, tenantSiteId, roleSlug);
+    const assigned = await assignUserToSite(tenantUser.id, tenantSiteId, roleSlug, isOwner);
     if (!assigned) {
       return NextResponse.json(
         { error: "Failed to assign user to site" },
@@ -122,12 +128,85 @@ export async function POST(
       tenant_user_id: tenantUser.id,
       email: tenantUser.email,
       role_slug: roleSlug,
+      is_owner: isOwner,
       invited: doInvite,
     });
   } catch (error) {
     console.error("POST /api/admin/tenant-sites/[id]/users:", error);
     return NextResponse.json(
       { error: "Failed to add user" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/admin/tenant-sites/[id]/users
+ * Update role and/or is_owner, or remove user. Body: { user_id: string, role_slug?: string, is_owner?: boolean }.
+ * If role_slug is omitted and is_owner is omitted, remove assignment. Superadmin only.
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !isSuperadmin(user)) {
+      return NextResponse.json(
+        { error: "Unauthorized: Superadmin access required" },
+        { status: 403 }
+      );
+    }
+    const { id: tenantSiteId } = await params;
+    const site = await getTenantSiteById(tenantSiteId);
+    if (!site) {
+      return NextResponse.json({ error: "Tenant site not found" }, { status: 404 });
+    }
+    const body = await request.json();
+    const userId = typeof body?.user_id === "string" ? body.user_id.trim() : "";
+    const roleSlug = typeof body?.role_slug === "string" ? body.role_slug.trim() : undefined;
+    const isOwner = body?.is_owner;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "user_id is required" },
+        { status: 400 }
+      );
+    }
+
+    const assignment = await getAssignmentByAdminAndTenant(userId, tenantSiteId);
+    if (!assignment) {
+      return NextResponse.json(
+        { error: "User is not assigned to this site" },
+        { status: 404 }
+      );
+    }
+
+    if (roleSlug === undefined && isOwner === undefined) {
+      const removed = await removeUserFromSite(userId, tenantSiteId);
+      if (!removed) {
+        return NextResponse.json(
+          { error: "Failed to remove user from site" },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ removed: true });
+    }
+
+    const newRole = roleSlug ?? assignment.role_slug;
+    const newIsOwner = typeof isOwner === "boolean" ? isOwner : assignment.is_owner;
+    const updated = await assignUserToSite(userId, tenantSiteId, newRole, newIsOwner);
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Failed to update assignment" },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ role_slug: newRole, is_owner: newIsOwner });
+  } catch (error) {
+    console.error("PATCH /api/admin/tenant-sites/[id]/users:", error);
+    return NextResponse.json(
+      { error: "Failed to update user" },
       { status: 500 }
     );
   }

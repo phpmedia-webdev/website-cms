@@ -33,6 +33,7 @@ export interface TenantUserAssignment {
   admin_id: string;
   tenant_id: string;
   role_slug: string;
+  is_owner: boolean;
   created_at: string;
 }
 
@@ -46,4 +47,5 @@ export interface TenantUserWithAssignment {
   tenant_id: string;
   tenant_name?: string;
   role_slug: string;
+  is_owner?: boolean;
 }

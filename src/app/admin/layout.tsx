@@ -72,7 +72,18 @@ export default async function AdminLayout({
         }
       }
     }
+  } else {
+    // No user (login/forgot/reset pages): still resolve tenant site name for branding
+    try {
+      const schema = getClientSchema();
+      const site = await getTenantSiteBySchema(schema);
+      siteName = site?.name ?? null;
+    } catch {
+      siteName = null;
+    }
   }
+
+  const canManageTeam = !!user && (userIsSuperadmin || role === "admin");
 
   return (
     <AdminLayoutWrapper
@@ -83,6 +94,7 @@ export default async function AdminLayout({
       viewAsActive={viewAsActive}
       viewAsSiteName={viewAsSiteName}
       viewAsRole={viewAsRole}
+      canManageTeam={canManageTeam}
     >
       {children}
     </AdminLayoutWrapper>

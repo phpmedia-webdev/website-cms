@@ -23,7 +23,12 @@ interface MFAFactor {
   created_at: string;
 }
 
-export default function MFAManagement() {
+interface MFAManagementProps {
+  /** When false, user cannot remove their last factor (e.g. mandatory MFA for superadmin). Default true. */
+  allowRemoveLastFactor?: boolean;
+}
+
+export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManagementProps) {
   const router = useRouter();
   const [factors, setFactors] = useState<MFAFactor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,6 +94,9 @@ export default function MFAManagement() {
 
   const verifiedFactors = factors.filter((f) => f.status === "verified");
   const hasVerifiedFactors = verifiedFactors.length > 0;
+  const canRemoveLast = allowRemoveLastFactor;
+  const isLastFactor = (factorId: string) => verifiedFactors.length === 1 && verifiedFactors.some((f) => f.id === factorId);
+  const showRemove = (factorId: string) => canRemoveLast || !isLastFactor(factorId);
 
   if (loading) {
     return (
@@ -152,40 +160,42 @@ export default function MFAManagement() {
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (verifiedFactors.length === 1) {
-                        // For last factor, show confirmation dialog
-                        setConfirmRemoveId(factor.id);
-                      } else {
-                        // For multiple factors, use simple confirm
-                        if (confirm("Are you sure you want to remove this authenticator?")) {
-                          handleRemoveFactor(factor.id);
+                  {showRemove(factor.id) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (verifiedFactors.length === 1) {
+                          setConfirmRemoveId(factor.id);
+                        } else {
+                          if (confirm("Are you sure you want to remove this authenticator?")) {
+                            handleRemoveFactor(factor.id);
+                          }
                         }
-                      }
-                    }}
-                    disabled={removingId === factor.id}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    {removingId === factor.id ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Removing...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove
-                      </>
-                    )}
-                  </Button>
+                      }}
+                      disabled={removingId === factor.id}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      {removingId === factor.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Removing...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Required</span>
+                  )}
                 </div>
               ))}
 
-              {/* Warning if removing last factor */}
-              {verifiedFactors.length === 1 && (
+              {/* Warning if removing last factor (only when removal is allowed) */}
+              {verifiedFactors.length === 1 && canRemoveLast && (
                 <div className="flex items-start gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md">
                   <AlertTriangle className="h-4 w-4 mt-0.5" />
                   <p>
@@ -193,6 +203,11 @@ export default function MFAManagement() {
                     Make sure to enroll a new authenticator before removing this one.
                   </p>
                 </div>
+              )}
+              {verifiedFactors.length === 1 && !canRemoveLast && (
+                <p className="text-sm text-muted-foreground">
+                  Two-factor authentication is required for your role. You can add another authenticator as a backup below.
+                </p>
               )}
 
               {/* Add Another Factor Button */}

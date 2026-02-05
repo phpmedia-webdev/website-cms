@@ -5,6 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Shield, KeyRound } from "lucide-react";
+import MFAManagement from "@/components/auth/MFAManagement";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import {
+  validatePassword,
+  normalizePassword,
+  PASSWORD_MIN_LENGTH,
+} from "@/lib/auth/password-policy";
 
 interface ProfileData {
   email: string;
@@ -20,7 +28,20 @@ interface ProfileData {
   };
 }
 
-export function ProfileSettingsContent() {
+interface ProfileSettingsContentProps {
+  /** When true, Security section (2FA/OTP) is hidden; superadmin uses Superadmin → Security. */
+  isSuperadmin?: boolean;
+  /** User has access to CRM/contacts/data; show 2FA recommendation when no factors enrolled. */
+  hasCrmAccess?: boolean;
+  /** User has at least one enrolled TOTP factor. */
+  hasEnrolledFactors?: boolean;
+}
+
+export function ProfileSettingsContent({
+  isSuperadmin = false,
+  hasCrmAccess = false,
+  hasEnrolledFactors = false,
+}: ProfileSettingsContentProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -31,6 +52,14 @@ export function ProfileSettingsContent() {
   const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Change password
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [dismiss2FABanner, setDismiss2FABanner] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/profile")
@@ -102,6 +131,52 @@ export function ProfileSettingsContent() {
 
   const removeCustomField = (index: number) => {
     setCustomFields((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError("");
+    if (!currentPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      setPasswordError("Please fill in all password fields.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password and confirmation do not match.");
+      return;
+    }
+    const result = validatePassword(newPassword);
+    if (!result.valid) {
+      setPasswordError(result.error ?? "Invalid password.");
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const supabase = getSupabaseClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: currentPassword,
+      });
+      if (signInError) {
+        setPasswordError("Current password is incorrect.");
+        setPasswordSaving(false);
+        return;
+      }
+      const normalizedNew = normalizePassword(newPassword);
+      const { error: updateError } = await supabase.auth.updateUser({ password: normalizedNew });
+      if (updateError) {
+        setPasswordError(updateError.message ?? "Failed to update password.");
+        setPasswordSaving(false);
+        return;
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError("");
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Failed to update password.");
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   if (loading) {
@@ -231,6 +306,101 @@ export function ProfileSettingsContent() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            Change password
+          </CardTitle>
+          <CardDescription>
+            Update your password. Use at least {PASSWORD_MIN_LENGTH} characters; avoid common or easily guessed passwords.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div>
+              <Label htmlFor="current_password">Current password</Label>
+              <Input
+                id="current_password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new_password">New password</Label>
+              <Input
+                id="new_password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="confirm_password">Confirm new password</Label>
+              <Input
+                id="confirm_password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="new-password"
+              />
+            </div>
+            {passwordError && (
+              <p className="text-sm text-destructive">{passwordError}</p>
+            )}
+            <Button type="submit" disabled={passwordSaving}>
+              {passwordSaving ? "Updating..." : "Update password"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {!isSuperadmin && (
+        <>
+          {hasCrmAccess && !hasEnrolledFactors && !dismiss2FABanner && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+              <Shield className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Because you have access to contact data, we recommend enabling two-factor authentication.
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  You can add an authenticator app in the Security section below.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismiss2FABanner(true)}
+                className="shrink-0 text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-200 text-sm"
+                aria-label="Dismiss"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Security
+              </CardTitle>
+              <CardDescription>
+                Two-factor authentication (authenticator app) adds an extra sign-in step. Optional for you; recommended if you have access to contact data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MFAManagement allowRemoveLastFactor={true} />
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

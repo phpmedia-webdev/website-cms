@@ -2,6 +2,9 @@ import Link from "next/link";
 import Script from "next/script";
 import { getIntegrations } from "@/lib/supabase/integrations";
 import { PublicPageTracker } from "@/components/public/PublicPageTracker";
+import { PublicHeaderAuth } from "@/components/public/PublicHeaderAuth";
+import { PublicHeaderMembersNav } from "@/components/public/PublicHeaderMembersNav";
+import { getCurrentSessionUser } from "@/lib/auth/session";
 
 export default async function PublicLayout({
   children,
@@ -24,6 +27,11 @@ export default async function PublicLayout({
   const gaActive = googleAnalytics?.enabled && googleAnalytics?.config?.measurement_id;
   const vtActive = visitorTracking?.enabled && visitorTracking?.config?.websiteId;
   const scActive = simpleCommenter?.enabled && simpleCommenter?.config?.domain;
+
+  const user = await getCurrentSessionUser();
+  const displayLabel = user?.display_name?.trim() || user?.email || "Member";
+
+  // Membership/CRM sync runs only in the members layout (/members/*), not here, to keep public pages fast. See PRD/planlog.
 
   return (
     <>
@@ -89,16 +97,23 @@ export default async function PublicLayout({
             <Link href="/" className="text-xl font-bold">
               My Website
             </Link>
-            <nav className="flex gap-4">
+            <nav className="flex items-center gap-4">
               <Link href="/blog" className="text-sm hover:underline">
                 Blog
               </Link>
               <Link href="/forms/contact" className="text-sm hover:underline">
                 Contact
               </Link>
-              <Link href="/admin" className="text-xs text-muted-foreground opacity-50 hover:opacity-100">
-                Admin
-              </Link>
+              {user ? (
+                <>
+                  <PublicHeaderMembersNav />
+                  <PublicHeaderAuth displayLabel={displayLabel} variant="link" />
+                </>
+              ) : (
+                <Link href="/login" className="text-sm hover:underline">
+                  Member Login
+                </Link>
+              )}
             </nav>
           </div>
         </header>
@@ -106,10 +121,14 @@ export default async function PublicLayout({
         <footer className="border-t mt-auto">
           <div className="container mx-auto px-4 py-8 text-center text-sm text-muted-foreground">
             <p>&copy; {new Date().getFullYear()} My Website. All rights reserved.</p>
-            <div className="flex justify-center gap-4 mt-2">
-              <Link href="/login" className="text-xs opacity-50 hover:opacity-100">
-                Member login
-              </Link>
+            <div className="flex justify-center items-center gap-4 mt-2">
+              {user ? (
+                <PublicHeaderAuth displayLabel={displayLabel} variant="button" showWelcome={false} />
+              ) : (
+                <Link href="/login" className="text-xs opacity-50 hover:opacity-100">
+                  Member Login
+                </Link>
+              )}
               <Link href="/admin" className="text-xs opacity-50 hover:opacity-100">
                 Admin
               </Link>

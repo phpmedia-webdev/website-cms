@@ -97,7 +97,7 @@ export async function updateTenantUser(id: string, row: TenantUserUpdate): Promi
   return true;
 }
 
-/** List users assigned to a tenant site (with role). */
+/** List users assigned to a tenant site (with role and is_owner). */
 export async function listUsersByTenantSite(tenantSiteId: string): Promise<TenantUserWithAssignment[]> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
@@ -106,6 +106,7 @@ export async function listUsersByTenantSite(tenantSiteId: string): Promise<Tenan
       admin_id,
       tenant_id,
       role_slug,
+      is_owner,
       created_at,
       tenant_users!inner (
         id,
@@ -124,6 +125,7 @@ export async function listUsersByTenantSite(tenantSiteId: string): Promise<Tenan
     admin_id: string;
     tenant_id: string;
     role_slug: string;
+    is_owner: boolean;
     created_at: string;
     tenant_users: TenantUser | null;
   }>;
@@ -137,14 +139,16 @@ export async function listUsersByTenantSite(tenantSiteId: string): Promise<Tenan
       status: (r.tenant_users as TenantUser).status,
       tenant_id: r.tenant_id,
       role_slug: r.role_slug,
+      is_owner: r.is_owner ?? false,
     }));
 }
 
-/** Assign a tenant user to a site with a role. Idempotent: upserts. */
+/** Assign a tenant user to a site with a role. Idempotent: upserts. Only superadmin should pass isOwner true. */
 export async function assignUserToSite(
   tenantUserId: string,
   tenantSiteId: string,
-  roleSlug: string
+  roleSlug: string,
+  isOwner?: boolean
 ): Promise<boolean> {
   const supabase = createServerSupabaseClient();
   const { error } = await supabase.from("tenant_user_assignments").upsert(
@@ -152,6 +156,7 @@ export async function assignUserToSite(
       admin_id: tenantUserId,
       tenant_id: tenantSiteId,
       role_slug: roleSlug.trim(),
+      is_owner: isOwner === true,
     },
     { onConflict: "admin_id,tenant_id" }
   );
@@ -196,6 +201,25 @@ export async function getRoleForUserOnSite(
   return data.role_slug as string;
 }
 
+/** Get assignment (role + is_owner) for a tenant user on a site. Returns null if not assigned. */
+export async function getAssignmentByAdminAndTenant(
+  adminId: string,
+  tenantSiteId: string
+): Promise<{ role_slug: string; is_owner: boolean } | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("tenant_user_assignments")
+    .select("role_slug, is_owner")
+    .eq("admin_id", adminId)
+    .eq("tenant_id", tenantSiteId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return {
+    role_slug: data.role_slug as string,
+    is_owner: data.is_owner === true,
+  };
+}
+
 /** List all assignments across all sites (for global Tenant Users table). Each row = one user-site-role. */
 export async function listAllAssignments(): Promise<TenantUserWithAssignment[]> {
   const supabase = createServerSupabaseClient();
@@ -205,6 +229,7 @@ export async function listAllAssignments(): Promise<TenantUserWithAssignment[]> 
       admin_id,
       tenant_id,
       role_slug,
+      is_owner,
       created_at,
       tenant_users!inner (
         id,
@@ -227,6 +252,7 @@ export async function listAllAssignments(): Promise<TenantUserWithAssignment[]> 
     admin_id: string;
     tenant_id: string;
     role_slug: string;
+    is_owner: boolean;
     created_at: string;
     tenant_users: TenantUser | null;
     tenant_sites: { name: string } | null;
@@ -242,5 +268,6 @@ export async function listAllAssignments(): Promise<TenantUserWithAssignment[]> 
       tenant_id: r.tenant_id,
       tenant_name: r.tenant_sites?.name ?? undefined,
       role_slug: r.role_slug,
+      is_owner: r.is_owner ?? false,
     }));
 }

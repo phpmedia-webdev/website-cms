@@ -10,10 +10,10 @@ export default async function MFAEnrollPage() {
     redirect("/admin/login");
   }
 
-  // Check if user already has enrolled factors
+  // Check if user already has enrolled factors → send to My Profile (Security section)
   const hasFactors = await hasEnrolledFactors();
   if (hasFactors) {
-    redirect("/admin/settings/security");
+    redirect("/admin/settings/profile");
   }
 
   return (

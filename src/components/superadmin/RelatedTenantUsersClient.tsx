@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import type { TenantUserWithAssignment } from "@/types/tenant-users";
 import { Loader2, UserPlus } from "lucide-react";
 
@@ -19,6 +20,7 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
   const [addEmail, setAddEmail] = useState("");
   const [addDisplayName, setAddDisplayName] = useState("");
   const [addRole, setAddRole] = useState("viewer");
+  const [addIsOwner, setAddIsOwner] = useState(false);
   const [addInvite, setAddInvite] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -66,6 +68,7 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
           email: addEmail.trim(),
           display_name: addDisplayName.trim() || null,
           role_slug: addRole,
+          is_owner: addIsOwner,
           invite: addInvite,
         }),
       });
@@ -76,6 +79,7 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
       }
       setAddEmail("");
       setAddDisplayName("");
+      setAddIsOwner(false);
       setShowAdd(false);
       fetchUsers();
     } catch (e) {
@@ -147,6 +151,14 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                checked={addIsOwner}
+                onChange={(e) => setAddIsOwner(e.target.checked)}
+              />
+              Owner (can remove other admins; only superadmin can set)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
                 checked={addInvite}
                 onChange={(e) => setAddInvite(e.target.checked)}
               />
@@ -179,6 +191,7 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
                 <th className="text-left px-4 py-2 font-medium">Email</th>
                 <th className="text-left px-4 py-2 font-medium">Display name</th>
                 <th className="text-left px-4 py-2 font-medium">Role</th>
+                <th className="text-left px-4 py-2 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -186,7 +199,13 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
                 <tr key={`${u.id}-${u.tenant_id}`} className="border-b last:border-0">
                   <td className="px-4 py-2">{u.email}</td>
                   <td className="px-4 py-2 text-muted-foreground">{u.display_name || "—"}</td>
-                  <td className="px-4 py-2">{u.role_slug}</td>
+                  <td className="px-4 py-2">
+                    <span className="mr-2">{u.role_slug}</span>
+                    {u.is_owner && (
+                      <Badge variant="secondary" className="text-xs">Owner</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground">{u.status ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

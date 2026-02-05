@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ function AdminLoginContent() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const resetSuccess = searchParams.get("reset") === "success";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,26 +69,19 @@ function AdminLoginContent() {
         return;
       }
 
-      // Check MFA requirements
       const redirect = searchParams.get("redirect") || "/admin/dashboard";
-      
-      // Check if user has enrolled factors
-      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+
+      // Only superadmin must have 2FA; tenant admins have optional 2FA
+      const isSuperadmin = metadata.type === "superadmin" && metadata.role === "superadmin";
+      const { data: factorsData } = await supabase.auth.mfa.listFactors();
       const hasFactors = factorsData?.all && factorsData.all.length > 0;
-      
-      // Check if user role requires 2FA
-      const requires2FA = metadata.type === "superadmin" || 
-                         (metadata.type === "admin" && redirect.includes("/admin/settings"));
-      
-      // If 2FA is required but no factors enrolled, redirect to enrollment
-      if (requires2FA && !hasFactors) {
+
+      if (isSuperadmin && !hasFactors) {
         router.push("/admin/mfa/enroll");
         return;
       }
-      
-      // If factors are enrolled, check current AAL
-      // Middleware will handle redirecting to challenge if aal2 is required
-      // For now, just redirect to intended destination
+
+      // Middleware will redirect to MFA challenge if aal2 is required and not yet satisfied
       window.location.replace(redirect);
     } catch (err) {
       setError("An error occurred. Please try again.");
@@ -128,12 +123,22 @@ function AdminLoginContent() {
                 required
               />
             </div>
+            {resetSuccess && (
+              <div className="text-sm text-green-600 dark:text-green-400">
+                Password updated. You can sign in with your new password.
+              </div>
+            )}
             {error && (
               <div className="text-sm text-destructive">{error}</div>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
             </Button>
+            <p className="text-center text-sm text-muted-foreground mt-2">
+              <Link href="/admin/login/forgot" className="underline hover:text-foreground">
+                Forgot password?
+              </Link>
+            </p>
           </form>
         </CardContent>
       </Card>

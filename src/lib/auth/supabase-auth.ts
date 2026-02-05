@@ -22,6 +22,8 @@ export interface UserMetadata {
 export interface AuthUser {
   id: string;
   email: string;
+  /** Display name from user_metadata, for "Welcome, {displayName}" etc. */
+  display_name?: string | null;
   metadata: UserMetadata;
 }
 
@@ -66,9 +68,15 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       return null;
     }
 
+    const displayName =
+      typeof (user.user_metadata as { display_name?: string })?.display_name === "string"
+        ? (user.user_metadata as { display_name: string }).display_name
+        : null;
+
     return {
       id: user.id,
       email: user.email || "",
+      display_name: displayName || null,
       metadata: {
         type: metadata.type,
         role: metadata.role,
@@ -153,9 +161,15 @@ export async function getCurrentUserFromRequest(
       return null;
     }
 
+    const displayName =
+      typeof (user.user_metadata as { display_name?: string })?.display_name === "string"
+        ? (user.user_metadata as { display_name: string }).display_name
+        : null;
+
     return {
       id: user.id,
       email: user.email || "",
+      display_name: displayName || null,
       metadata: {
         type: metadata.type,
         role: metadata.role,

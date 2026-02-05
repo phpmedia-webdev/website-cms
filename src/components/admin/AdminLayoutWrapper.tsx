@@ -18,6 +18,8 @@ interface AdminLayoutWrapperProps {
   viewAsActive?: boolean;
   viewAsSiteName?: string | null;
   viewAsRole?: string | null;
+  /** Show Settings → Users link; only true for tenant admin or superadmin. */
+  canManageTeam?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ export function AdminLayoutWrapper({
   viewAsActive = false,
   viewAsSiteName = null,
   viewAsRole = null,
+  canManageTeam = false,
 }: AdminLayoutWrapperProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -53,7 +56,17 @@ export function AdminLayoutWrapper({
   }
 
   if (isLoginPage) {
-    return <>{children}</>;
+    const authSiteName = siteName?.trim() || "Admin";
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <header className="shrink-0 border-b bg-muted/40 px-4 py-3 flex items-center justify-center sm:justify-start">
+          <span className="font-semibold text-foreground">{authSiteName}</span>
+        </header>
+        <main className="flex-1 flex items-center justify-center p-4">
+          {children}
+        </main>
+      </div>
+    );
   }
 
   const displaySite = siteName?.trim() || "Platform";
@@ -72,6 +85,7 @@ export function AdminLayoutWrapper({
       <Sidebar
         isSuperadmin={isSuperadmin}
         effectiveFeatureSlugs={effectiveSlugsForGuard}
+        canManageTeam={canManageTeam}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {viewAsActive && (
