@@ -105,3 +105,23 @@ export async function getMagUidsForContact(contactId: string): Promise<string[]>
   const mags = await getContactMags(contactId);
   return mags.map((m) => m.mag_uid).filter(Boolean);
 }
+
+/**
+ * Get MAG uids for the current request user (from cookies/session).
+ * Use in API routes or server components. Returns null if unauthenticated, [] if authenticated but not a member.
+ */
+export async function getMagUidsForCurrentUser(): Promise<string[] | null> {
+  const { createServerSupabaseClientSSR } = await import("@/lib/supabase/client");
+  const { getMemberByUserId } = await import("@/lib/supabase/members");
+
+  const supabase = await createServerSupabaseClientSSR();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const member = await getMemberByUserId(user.id);
+  if (!member?.contact_id) return [];
+
+  return getMagUidsForContact(member.contact_id);
+}

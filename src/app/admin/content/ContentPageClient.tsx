@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TaxonomyMultiSelect, type TaxonomyMultiSelectOption } from "@/components/media/TaxonomyMultiSelect";
 import type { ContentListItem, ContentType } from "@/types/content";
 import type { TaxonomyTerm } from "@/types/taxonomy";
@@ -30,6 +31,7 @@ export function ContentPageClient() {
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  const [filterMembershipOnly, setFilterMembershipOnly] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -93,20 +95,24 @@ export function ContentPageClient() {
       c.slug?.toLowerCase().includes(search.toLowerCase());
     const matchType = !typeFilter || c.type_slug === typeFilter;
     const matchTaxonomy = !contentIdsWithTerms || contentIdsWithTerms.has(c.id);
-    return matchSearch && matchType && matchTaxonomy;
+    const matchMembership =
+      !filterMembershipOnly || c.access_level === "members" || c.access_level === "mag";
+    return matchSearch && matchType && matchTaxonomy && matchMembership;
   });
 
   const hasFilters =
     search.trim().length > 0 ||
     !!typeFilter ||
     selectedCategoryIds.size > 0 ||
-    selectedTagIds.size > 0;
+    selectedTagIds.size > 0 ||
+    filterMembershipOnly;
 
   const handleResetFilters = () => {
     setSearch("");
     setTypeFilter("");
     setSelectedCategoryIds(new Set());
     setSelectedTagIds(new Set());
+    setFilterMembershipOnly(false);
   };
 
   const handleCategoryToggle = (id: string, checked: boolean) => {
@@ -177,40 +183,46 @@ export function ContentPageClient() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {(filterCategories.length > 0 || filterTags.length > 0) && (
-              <div className="flex flex-wrap items-center gap-2">
-                {filterCategories.length > 0 && (
-                  <TaxonomyMultiSelect
-                    label="Categories"
-                    options={filterCategories}
-                    selectedIds={selectedCategoryIds}
-                    onToggle={handleCategoryToggle}
-                    placeholder="All categories"
-                  />
-                )}
-                {filterTags.length > 0 && (
-                  <TaxonomyMultiSelect
-                    label="Tags"
-                    options={filterTags}
-                    selectedIds={selectedTagIds}
-                    onToggle={handleTagToggle}
-                    placeholder="All tags"
-                  />
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9"
-                  onClick={handleResetFilters}
-                  disabled={!hasFilters}
-                  title="Reset search, type, and taxonomy filters"
-                >
-                  <RotateCcw className="h-4 w-4 mr-1" />
-                  Reset Filters
-                </Button>
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {filterCategories.length > 0 && (
+                <TaxonomyMultiSelect
+                  label="Categories"
+                  options={filterCategories}
+                  selectedIds={selectedCategoryIds}
+                  onToggle={handleCategoryToggle}
+                  placeholder="All categories"
+                />
+              )}
+              {filterTags.length > 0 && (
+                <TaxonomyMultiSelect
+                  label="Tags"
+                  options={filterTags}
+                  selectedIds={selectedTagIds}
+                  onToggle={handleTagToggle}
+                  placeholder="All tags"
+                />
+              )}
+              <label className="flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap">
+                <Checkbox
+                  id="filter-membership"
+                  checked={filterMembershipOnly}
+                  onCheckedChange={(checked) => setFilterMembershipOnly(checked === true)}
+                />
+                <span>Is Membership</span>
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 ml-auto shrink-0"
+                onClick={handleResetFilters}
+                disabled={!hasFilters}
+                title="Reset search, type, taxonomy, and membership filters"
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reset Filters
+              </Button>
+            </div>
             <div className="flex gap-2 items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -249,6 +261,9 @@ export function ContentPageClient() {
                       <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
                         Status
                       </th>
+                      <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground" title="Membership restricted">
+                        Membership
+                      </th>
                       <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
                         Updated
                       </th>
@@ -260,13 +275,13 @@ export function ContentPageClient() {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
                           Loading…
                         </td>
                       </tr>
                     ) : filtered.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
                           {hasFilters
                             ? "No content matches your search and filters."
                             : "No content yet. Add your first item."}
@@ -291,6 +306,18 @@ export function ContentPageClient() {
                             >
                               {c.status}
                             </span>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {(c.access_level === "members" || c.access_level === "mag") ? (
+                              <span
+                                className="inline-flex h-5 w-5 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-xs dark:bg-red-900/40 dark:text-red-300"
+                                title="Membership restricted"
+                              >
+                                M
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
                           </td>
                           <td className="px-3 py-1.5 text-xs text-muted-foreground">
                             {c.updated_at

@@ -139,11 +139,11 @@ export async function getContentListWithTypes(): Promise<ContentListItem[]> {
   }
 
   type Rel = { slug: string; label: string };
-  type Row = { id: string; content_type_id: string; title: string; slug: string; status: string; updated_at: string; content_types: Rel | Rel[] | null };
+  type Row = { id: string; content_type_id: string; title: string; slug: string; status: string; access_level: string | null; updated_at: string; content_types: Rel | Rel[] | null };
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
-    .select("id, content_type_id, title, slug, status, updated_at, content_types!content_type_id(slug, label)")
+    .select("id, content_type_id, title, slug, status, access_level, updated_at, content_types!content_type_id(slug, label)")
     .order("updated_at", { ascending: false });
   if (error) {
     console.error("getContentListWithTypes direct query failed:", { message: error.message, code: error.code });
@@ -160,6 +160,7 @@ export async function getContentListWithTypes(): Promise<ContentListItem[]> {
       title: r.title,
       slug: r.slug,
       status: r.status,
+      access_level: r.access_level ?? null,
       updated_at: r.updated_at,
     };
   });

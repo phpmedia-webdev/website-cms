@@ -54,6 +54,7 @@ export function CodeGeneratorClient() {
   const [codePrefix, setCodePrefix] = useState("");
   const [codeSuffix, setCodeSuffix] = useState("");
   const [randomLength, setRandomLength] = useState("8");
+  const [excludeCharsInput, setExcludeCharsInput] = useState("0, O, 1, l, I");
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [generatingBatchId, setGeneratingBatchId] = useState<string | null>(null);
   const [generateCount, setGenerateCount] = useState("50");
@@ -92,6 +93,15 @@ export function CodeGeneratorClient() {
     setCodePrefix("");
     setCodeSuffix("");
     setRandomLength("8");
+    setExcludeCharsInput("0, O, 1, l, I");
+  };
+
+  /** Parse comma-separated exclude characters into a single string (deduped) for the API. */
+  const parseExcludeChars = (input: string): string => {
+    const tokens = input.split(",").map((s) => s.trim()).filter(Boolean);
+    const chars = new Set<string>();
+    tokens.forEach((t) => t.split("").forEach((c) => chars.add(c)));
+    return [...chars].join("");
   };
 
   const handleCreate = async () => {
@@ -124,6 +134,7 @@ export function CodeGeneratorClient() {
         body.code_prefix = codePrefix || null;
         body.code_suffix = codeSuffix || null;
         body.random_length = parseInt(randomLength, 10) || 8;
+        body.exclude_chars = parseExcludeChars(excludeCharsInput);
       }
       const res = await fetch("/api/admin/membership-codes/batches", {
         method: "POST",
@@ -387,6 +398,20 @@ export function CodeGeneratorClient() {
                     min={4}
                     max={24}
                   />
+                </div>
+                <div>
+                  <Label htmlFor="exclude-chars">Characters to omit from codes</Label>
+                  <Input
+                    id="exclude-chars"
+                    type="text"
+                    value={excludeCharsInput}
+                    onChange={(e) => setExcludeCharsInput(e.target.value)}
+                    placeholder="e.g. 0, O, 1, l, I, 2, Z"
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Comma-separated. These characters will not appear in generated codes.
+                  </p>
                 </div>
               </>
             )}

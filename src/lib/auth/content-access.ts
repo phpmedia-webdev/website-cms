@@ -1,10 +1,12 @@
 /**
  * Content access control for blog and pages (membership protection).
  * Mirrors gallery-access: public → allow; members → auth + type member; mag → auth + MAG check.
+ * When tenant_sites.membership_enabled is false, all content is treated as public (no gating).
  */
 
 import { getMemberMagIds } from "./gallery-access";
 import type { UserMetadata } from "./supabase-auth";
+import { isMembershipEnabledForCurrentTenant } from "@/lib/supabase/tenant-sites";
 
 export interface ContentAccessInfo {
   access_level: "public" | "members" | "mag" | null;
@@ -31,6 +33,9 @@ export async function checkContentAccess(
   contentAccessInfo: ContentAccessInfo
 ): Promise<ContentAccessResult> {
   const { access_level, required_mag_id, visibility_mode, restricted_message } = contentAccessInfo;
+
+  const membershipEnabled = await isMembershipEnabledForCurrentTenant();
+  if (!membershipEnabled) return { hasAccess: true };
 
   if (!access_level || access_level === "public") {
     return { hasAccess: true };
@@ -91,4 +96,46 @@ export async function checkContentAccess(
     visibilityMode: (visibility_mode as "hidden" | "message") ?? "hidden",
     restrictedMessage: restricted_message ?? undefined,
   };
+}
+
+/**
+ * Filter content rows (e.g. blog list) to those the current user can access.
+ * Use after fetching a list so restricted items are not shown.
+ * Requires access_level and required_mag_id on each row.
+ */
+export async function filterContentByAccess<T extends { access_level?: string | null; required_mag_id?: string | null }>(
+  items: T[]
+): Promise<T[]> {
+  if (items.length === 0) return [];
+
+  const membershipEnabled = await isMembershipEnabledForCurrentTenant();
+  if (!membershipEnabled) return items;
+
+  const { createServerSupabaseClientSSR } = await import("@/lib/supabase/client");
+  const supabase = await createServerSupabaseClientSSR();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const metadata = user?.user_metadata as UserMetadata | undefined;
+  const isAdmin = metadata?.type === "admin" || metadata?.type === "superadmin";
+
+  if (isAdmin && user) return items;
+
+  let memberMagIds: string[] = [];
+  if (user && metadata?.type === "member") {
+    const { getMemberMagIds } = await import("./gallery-access");
+    memberMagIds = await getMemberMagIds(supabase, user.id);
+  }
+
+  return items.filter((item) => {
+    const level = (item.access_level as "public" | "members" | "mag") ?? "public";
+    if (!level || level === "public") return true;
+    if (!user) return false;
+    if (level === "members") return metadata?.type === "member";
+    if (level === "mag") {
+      const magId = item.required_mag_id?.trim();
+      if (!magId) return metadata?.type === "member";
+      return memberMagIds.includes(magId);
+    }
+    return false;
+  });
 }

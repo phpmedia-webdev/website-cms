@@ -51,6 +51,8 @@ export interface ContentListItem {
   title: string;
   slug: string;
   status: string;
+  /** public | members | mag; used for membership indicator (red "M") and optional "Is Membership" filter. */
+  access_level?: string | null;
   updated_at: string;
 }
 

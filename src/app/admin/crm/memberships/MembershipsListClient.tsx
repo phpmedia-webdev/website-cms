@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -37,13 +38,58 @@ function slugify(s: string): string {
 
 interface MembershipsListClientProps {
   mags: Mag[];
+  membershipEnabled: boolean;
+  magCount: number;
 }
 
-export function MembershipsListClient({ mags }: MembershipsListClientProps) {
+export function MembershipsListClient({ mags, membershipEnabled: initialMembershipEnabled, magCount: initialMagCount }: MembershipsListClientProps) {
   const router = useRouter();
+  const [membershipEnabled, setMembershipEnabled] = useState(initialMembershipEnabled);
+  const [magCount, setMagCount] = useState(initialMagCount);
+  const [toggleSaving, setToggleSaving] = useState(false);
+  const [turnOffConfirmOpen, setTurnOffConfirmOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
+
+  useEffect(() => {
+    setMembershipEnabled(initialMembershipEnabled);
+    setMagCount(initialMagCount);
+  }, [initialMembershipEnabled, initialMagCount]);
+
+  const handleToggleChange = async (enabled: boolean) => {
+    if (enabled === false && magCount > 0) {
+      setTurnOffConfirmOpen(true);
+      return;
+    }
+    await patchMembershipEnabled(enabled);
+  };
+
+  const handleTurnOffConfirm = async () => {
+    setTurnOffConfirmOpen(false);
+    await patchMembershipEnabled(false);
+  };
+
+  const patchMembershipEnabled = async (enabled: boolean) => {
+    setToggleSaving(true);
+    try {
+      const res = await fetch("/api/crm/memberships/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ membership_enabled: enabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMembershipEnabled(data.membership_enabled ?? enabled);
+        setMagCount(data.mag_count ?? magCount);
+        router.refresh();
+      } else {
+        alert(data.error ?? "Failed to update");
+      }
+    } finally {
+      setToggleSaving(false);
+    }
+  };
   const [uid, setUid] = useState("");
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -131,6 +177,31 @@ export function MembershipsListClient({ mags }: MembershipsListClientProps) {
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardContent className="flex flex-row items-center justify-between gap-4 py-4">
+          <div>
+            <p className="font-medium">Membership</p>
+            <p className="text-sm text-muted-foreground">
+              {membershipEnabled
+                ? "Sync and content protection are on. You can create and manage membership groups."
+                : "Turn on Membership before creating any MAGs. While off, no sync runs and all content is public."}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {toggleSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <Switch
+              id="membership-master"
+              checked={membershipEnabled}
+              onCheckedChange={(checked) => handleToggleChange(checked === true)}
+              disabled={toggleSaving}
+            />
+            <Label htmlFor="membership-master" className="text-sm cursor-pointer">
+              {membershipEnabled ? "On" : "Off"}
+            </Label>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Memberships</h1>
         <div className="flex flex-1 items-center gap-2 sm:max-w-xs">
@@ -144,7 +215,7 @@ export function MembershipsListClient({ mags }: MembershipsListClientProps) {
             aria-label="Search memberships by name, UID, or MAG-TAG"
           />
         </div>
-        <Button onClick={openModal} className="shrink-0">
+        <Button onClick={openModal} className="shrink-0" disabled={!membershipEnabled}>
           <Plus className="mr-2 h-4 w-4" />
           Add New
         </Button>
@@ -212,6 +283,21 @@ export function MembershipsListClient({ mags }: MembershipsListClientProps) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={turnOffConfirmOpen} onOpenChange={setTurnOffConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turn off Membership?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {magCount} membership group{magCount !== 1 ? "s" : ""} exist{magCount === 1 ? "s" : ""}. Gated content may be exposed when Membership is off. Consider making memberships inactive (draft) first. Turn off anyway?
+          </p>
+          <DialogFooter className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setTurnOffConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={handleTurnOffConfirm}>Turn off</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={modalOpen} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent className="max-w-lg">

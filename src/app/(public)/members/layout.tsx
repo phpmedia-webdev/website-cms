@@ -1,11 +1,12 @@
 import { getCurrentSessionUser } from "@/lib/auth/session";
 import { ensureMemberInCrm } from "@/lib/automations/on-member-signup";
 import { createMemberForContact } from "@/lib/supabase/members";
+import { isMembershipEnabledForCurrentTenant } from "@/lib/supabase/tenant-sites";
 
 /**
  * Members area layout. Runs only for routes under /members/*.
  * We run CRM + members sync here (not on every public page) to keep the rest of the site fast.
- * See PRD/planlog: membership sync is limited to member-designated pages for performance.
+ * When membership is disabled (tenant_sites.membership_enabled = false), skip sync.
  */
 export default async function MembersLayout({
   children,
@@ -13,8 +14,9 @@ export default async function MembersLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentSessionUser();
+  const membershipEnabled = await isMembershipEnabledForCurrentTenant();
 
-  if (user?.metadata.type === "member") {
+  if (membershipEnabled && user?.metadata.type === "member") {
     try {
       const result = await ensureMemberInCrm({
         userId: user.id,

@@ -30,10 +30,14 @@ export function generateCodeString(options: CodePatternOptions = {}): string {
     excludeChars = NO_AMBIGUOUS,
   } = options;
 
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789".replace(
-    new RegExp(`[${excludeChars.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}]`, "gi"),
-    ""
-  );
+  const baseAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const alphabet =
+    !excludeChars || excludeChars.length === 0
+      ? baseAlphabet
+      : baseAlphabet.replace(
+          new RegExp(`[${excludeChars.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}]`, "gi"),
+          ""
+        );
 
   const bytes = new Uint8Array(randomLength * 2); // oversample for modulo
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {

@@ -17,6 +17,7 @@ export interface TenantSite {
   site_mode_locked_reason: string | null;
   coming_soon_message: string | null;
   coming_soon_snippet_id: string | null;
+  membership_enabled: boolean;
   github_repo: string | null;
   created_at: string;
   updated_at: string;
@@ -51,6 +52,7 @@ export interface TenantSiteUpdate {
   site_mode_locked_reason?: string | null;
   coming_soon_message?: string | null;
   coming_soon_snippet_id?: string | null;
+  membership_enabled?: boolean;
   github_repo?: string | null;
   notes?: string | null;
 }

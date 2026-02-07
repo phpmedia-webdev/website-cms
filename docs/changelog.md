@@ -9,6 +9,30 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-06 CT (evening) - Gallery per-media MAG filter; Membership and media items planned
+
+**Context for Next Session:**
+- **Gallery per-media protection** is implemented: `GET /api/galleries/[id]/public` filters items by mag-tag. `getMagUidsForCurrentUser()` in `content-protection.ts` resolves session → member → contact → MAG uids; `filterMediaByMagTagAccess(mediaIds, userMagUids)` keeps only media the user can see (no mag-tag, or user has matching MAG). Admins/superadmins bypass and see all items. Public gallery with mixed public + membership-tagged media shows different item sets to anonymous vs members with that MAG.
+- **Next up (sessionlog):** Membership and media items — (1) Make media assignable to dynamic memberships via **media_mags** table (true protection; mag-tag optional for filtering), API + media item UI membership selector, switch protection logic to media_mags; (2) Red "M" badge on gallery list/grid for membership items; (3) Red "M" badge in media library (list + grid) for items in a membership. See `docs/sessionlog.md` → "Membership and media items (up next)."
+- **Key files:** `src/lib/mags/content-protection.ts` (getMagUidsForCurrentUser, filterMediaByMagTagAccess), `src/app/api/galleries/[id]/public/route.ts`, `docs/sessionlog.md`, `docs/planlog.md`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Gallery public API:** After `checkGalleryAccess`, response items are filtered by per-media MAG: `getMagUidsForCurrentUser()`, `filterMediaByMagTagAccess(mediaIds, userMagUids)`; admins bypass. Enables public galleries with mixed public/membership media to display different items per viewer.
+- **content-protection.ts:** Added `getMagUidsForCurrentUser()` (session → member → getMagUidsForContact).
+- **Docs:** Sessionlog — "Membership and media items (up next)" block added (media_mags, protection rewire, red M badges in gallery and media library). Current Focus set to this work. Planlog — Gallery media bullet updated; "Membership and media items" planned items added.
+
+### 2026-02-06 CT - Tenant admin team (Owner flag, Settings → Users) verified; Content “Is Membership” filter
+
+**Context for Next Session:**
+- **Tenant admin team management (Settings → Users, Owner flag)** is complete and verified: migration 090 (`is_owner` on `tenant_user_assignments`), types/CRUD, `getTeamManagementContext()`, Settings → Users link (adminOnly + canManageTeam), `/admin/settings/users` page, GET/POST/PATCH `/api/settings/team`, superadmin `is_owner` in tenant-sites users API, SettingsUsersContent (list, add, role, remove; Owner badge; Remove disabled for Owners unless superadmin). View as Creator correctly hides the Users link.
+- **Content tab:** “Is Membership” checkbox filter added (after tags; Reset Filters right-justified); filters list to items with `access_level` members | mag. Migration 092 and Membership column were already in place.
+- **Next:** Phase 09 (content protection, membership feature switch) or other sessionlog items. Key files: `docs/sessionlog.md`, `docs/planlog.md`, `src/lib/auth/resolve-role.ts`, `src/app/api/settings/team/route.ts`, `src/app/admin/content/ContentPageClient.tsx`.
+
+**Changes:**
+- **Content filter:** `ContentPageClient.tsx` — `filterMembershipOnly` state, “Is Membership” checkbox after tags, included in `hasFilters` and reset; filter row always shown; Reset Filters with `ml-auto`. No new dependencies.
+- **Docs:** Sessionlog — First priority (tenant admin team management) marked complete and removed from sessionlog to keep it lean. Planlog — Completed / Reference: added bullet for tenant admin team management (Settings → Users, Owner flag). Changelog — this entry.
+
 ### 2026-02-03 CT (afternoon) - Membership area, CRM sync on member pages only, CRM fixes, speed docs
 
 **Context for Next Session:**

@@ -6,13 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { TenantUserWithAssignment } from "@/types/tenant-users";
-import { Loader2, UserPlus } from "lucide-react";
+import { EditTenantAssignmentModal } from "@/components/superadmin/EditTenantAssignmentModal";
+import { Loader2, UserPlus, Pencil } from "lucide-react";
 
 interface RelatedTenantUsersClientProps {
   siteId: string;
+  siteName: string;
 }
 
-export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientProps) {
+export function RelatedTenantUsersClient({ siteId, siteName }: RelatedTenantUsersClientProps) {
   const [list, setList] = useState<TenantUserWithAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<{ slug: string; label: string }[]>([]);
@@ -24,6 +26,7 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
   const [addInvite, setAddInvite] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<TenantUserWithAssignment | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -192,6 +195,7 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
                 <th className="text-left px-4 py-2 font-medium">Display name</th>
                 <th className="text-left px-4 py-2 font-medium">Role</th>
                 <th className="text-left px-4 py-2 font-medium">Status</th>
+                <th className="text-right px-4 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -206,12 +210,37 @@ export function RelatedTenantUsersClient({ siteId }: RelatedTenantUsersClientPro
                     )}
                   </td>
                   <td className="px-4 py-2 text-muted-foreground">{u.status ?? "—"}</td>
+                  <td className="px-4 py-2 text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditing(u)}
+                      className="h-8"
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      <EditTenantAssignmentModal
+        open={!!editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        tenantSiteId={siteId}
+        tenantUserId={editing?.id ?? ""}
+        siteName={siteName}
+        userDisplayLabel={editing ? (editing.display_name ? `${editing.email} (${editing.display_name})` : editing.email) : ""}
+        initialRole={editing?.role_slug ?? "viewer"}
+        initialIsOwner={editing?.is_owner ?? false}
+        roles={roles}
+        onSaved={fetchUsers}
+        onRemoved={fetchUsers}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ function MemberLoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [signupCode, setSignupCode] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,21 @@ function MemberLoginContent() {
   const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const redirect = searchParams.get("redirect") || "/";
+
+  const redeemCodeIfProvided = async () => {
+    const code = signupCode.trim();
+    if (!code) return;
+    try {
+      await fetch("/api/members/redeem-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+        credentials: "include",
+      });
+    } catch {
+      // Non-blocking; user can apply code from dashboard
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -71,6 +87,7 @@ function MemberLoginContent() {
       }
 
       if (userType === "member") {
+        await redeemCodeIfProvided();
         window.location.replace(redirect);
         return;
       }
@@ -138,6 +155,7 @@ function MemberLoginContent() {
         } catch {
           // Non-blocking: CRM sync will also run on email confirm callback if needed
         }
+        await redeemCodeIfProvided();
         window.location.replace(redirect);
         return;
       }
@@ -237,6 +255,19 @@ function MemberLoginContent() {
                 />
               </div>
             )}
+            <div className="space-y-2">
+              <label htmlFor="signupCode" className="text-sm font-medium">
+                Signup code <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Input
+                id="signupCode"
+                type="text"
+                placeholder="Have a code? Enter it here"
+                value={signupCode}
+                onChange={(e) => setSignupCode(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
             {error && (
               <div className="text-sm text-destructive">{error}</div>
             )}

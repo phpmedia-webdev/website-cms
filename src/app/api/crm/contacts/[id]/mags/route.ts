@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { addContactToMag, removeContactFromMag, getContactMags } from "@/lib/supabase/crm";
+import { createMemberForContact } from "@/lib/supabase/members";
 
 /**
  * GET /api/crm/contacts/[id]/mags
@@ -42,6 +43,11 @@ export async function POST(
     const { success, error } = await addContactToMag(id, body.mag_id, body.assigned_via);
     if (error) {
       return NextResponse.json({ error: error.message || "Failed to add MAG" }, { status: 500 });
+    }
+    // Elevate contact to member when admin assigns MAG (Phase 9C): idempotent members row for redeem/Apply code.
+    const { error: memberErr } = await createMemberForContact(id);
+    if (memberErr) {
+      console.error("createMemberForContact after admin assign MAG:", memberErr);
     }
     return NextResponse.json({ success });
   } catch (error) {

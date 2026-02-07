@@ -123,7 +123,7 @@ export async function POST(request: Request) {
         codePrefix: code_prefix || undefined,
         codeSuffix: code_suffix || undefined,
         randomLength: random_length ?? 8,
-        excludeChars: exclude_chars || undefined,
+        excludeChars: (exclude_chars !== undefined && exclude_chars !== null) ? String(exclude_chars) : undefined,
         createdBy: user.id,
       });
       if (err) {

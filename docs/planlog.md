@@ -13,6 +13,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 - **Taxonomy management UI** (Settings → Taxonomy): Phase 04 + 04b complete. Sections, Categories, Tags (modals, slug, cascade, section filter, section delete, "Apply to these Sections"); Media assignment + filter. Post/Page integration, public features, auto-assign Uncategorized — not done.
 - **Settings twirldown + sub-page routing:** Sidebar Settings is a twirldown (General, Fonts, Colors, Taxonomy, Content Types, Content Fields, Security, API). `/admin/settings` → redirect to General. Sub-pages for each; Fonts/Colors use design-system API. **Content Types** and **Content Fields** are full UIs (list, Add, Edit, Delete). Twirldown state persisted in localStorage; open when on any settings route.
 - **Content phase (unified model):** Steps 1–13 complete — schema, admin UI, Tiptap, Types/Fields, taxonomy, public routes, legacy redirects. `/admin/content` uses `ContentPageClient` + Suspense for `useSearchParams`. [sessionlog](./sessionlog.md) pruned.
+- **Tenant admin team management (Settings → Users, Owner flag):** Migration 090 (`is_owner` on `tenant_user_assignments`), types/CRUD in tenant-users.ts, `getTeamManagementContext()` in resolve-role.ts, Settings → Users link (adminOnly + canManageTeam) and route `/admin/settings/users`, GET/POST/PATCH `/api/settings/team`, superadmin `is_owner` in `/api/admin/tenant-sites/[id]/users`, SettingsUsersContent (list, add, role, remove; Owner badge; Remove disabled for Owners unless superadmin). Verified: View as Creator hides Users link.
 
 ---
 
@@ -605,14 +606,23 @@ Inferred from planlog + codebase review:
 - **Login:** `(public)/login` — shared Supabase signInWithPassword; redirects by user_metadata.type (member → redirect param, admin → /admin/dashboard). No separate register or member-only auth API.
 - **Redeem:** `POST /api/members/redeem-code` exists (expects authenticated member via getMemberByUserId).
 
-**Still needed (Phase 09 main)**
-- **Content protection (blog/pages):** `blog/[slug]/page.tsx` and `(public)/[slug]/page.tsx` do **not** check `access_level`/`required_mag_id` before rendering; they fetch and render body for everyone. **Required:** Implement `checkContentAccess(content, session)` and gate blog + dynamic page routes (and optionally blog list) so restricted body is never sent to unauthorized users; redirect to login with return URL when access requires member.
+**Still needed (Phase 09 main)**  
+**Execution order:** Implement and test content protection first; add the membership feature switch **after** basic memberships and content protection work. **No per-page membership management** — membership is global for the site; the switch turns the feature on/off for the whole site only.
+
+- **Content protection (blog/pages)** — do first: `blog/[slug]/page.tsx` and `(public)/[slug]/page.tsx` do **not** check `access_level`/`required_mag_id` before rendering; they fetch and render body for everyone. **Required:** Implement `checkContentAccess(content, session)` and gate blog + dynamic page routes (and optionally blog list) so restricted body is never sent to unauthorized users; redirect to login with return URL when access requires member. Add getMagIdsForCurrentUser for MAG-level content. Test with GPUM; then add membership switch (when OFF, skip content protection).
+- **Membership feature switch (site-level, optimized speed)** — add after content protection is tested: Purpose: optimized site speed for sites that do not require any gated content. Add a **master “Membership” toggle** on the **Membership master page** (`/admin/crm/memberships`). When **OFF:** No membership sync on public pages; no content protection; show notice that admin must turn memberships on before creating MAGs; disable/hide “Create membership” until ON. When **turning OFF** (from ON): If any MAGs exist, warn that gated content will be exposed; advise making all memberships inactive (e.g. MAG status = draft) before turning off. When **ON:** Membership is global (sync and content protection as configured). Store per tenant (e.g. `tenant_sites.membership_enabled` or feature registry). See [prd.md](./prd.md) — Membership feature switch.
 - **Member auth flow:** Optional separate register page or combined login/register; optional `/api/auth/member/*` if you want member-only endpoints. Middleware has no `/members/*` handling (no member routes yet).
 - **Member routes:** No `(public)/members` (dashboard), `members/profile`, `members/account`; no MemberDashboard/MemberProfile. Add if member portal is in scope.
 - **Protected video/download:** No `/api/stream/media/[id]` or `/api/download/media/[id]`; direct storage URLs still used. Add proxy routes that verify session + MAG and stream bytes.
 - **Granular protection:** Section-level, shortcode `[[mag-code]]`, menu restrictions, ProtectedContent wrapper — all deferred.
 - **Ecommerce:** No api_keys table, no payment webhooks, no payment-integration.ts.
 - **Dashboard:** No membership stats on admin dashboard, no `/admin/members` list or unified customer view.
+
+- [ ] **Membership feature switch (site-level)** — optimized speed for sites without gated content
+  - [ ] Add tenant-level setting (e.g. `tenant_sites.membership_enabled` or feature registry). Master toggle on `/admin/crm/memberships` page.
+  - [ ] When OFF: notice “Turn memberships on before creating memberships”; disable/hide Create membership. No sync on public pages; no content protection.
+  - [ ] When turning OFF with existing MAGs: warn that gated content will be exposed; advise making all memberships inactive (draft) first.
+  - [ ] When ON: membership global (sync and content protection as configured). See PRD — Membership feature switch.
 
 - [x] Create MAG (Membership Access Groups) database schema
   - [x] Client schema: `mags` table (id, uid, name, description, start_date, end_date, status active|draft, etc.); **contacts get MAGs via `crm_contact_mags`** (contact_id, mag_id, assigned_via, assigned_at) — no separate `members` table; member = contact with MAG assignments.
@@ -642,7 +652,7 @@ Inferred from planlog + codebase review:
 
 - [x] Gallery content protection (implemented)
   - [x] `src/app/(public)/gallery/[slug]/page.tsx`: runs `checkGalleryAccess(gallery.access)` before rendering; if no access, shows restricted message or "Sign in" link; access uses `required_mag_ids` from gallery_mags; admins bypass.
-  - [x] Gallery media: mag-tags on media (taxonomy slug `mag-{uid}`); `content-protection.ts` getMagTagSlugsOnMedia, canAccessMediaByMagTags; gallery client filters items by mag-tag visibility for current user.
+  - [x] Gallery media: mag-tags on media (taxonomy slug `mag-{uid}`); `content-protection.ts` getMagTagSlugsOnMedia, canAccessMediaByMagTags, getMagUidsForCurrentUser, filterMediaByMagTagAccess; **GET /api/galleries/[id]/public** filters items server-side by mag-tag (admins bypass); gallery displays different items for anonymous vs members with MAG.
 - [ ] **Content protection (blog/pages) — partial**
   - [ ] **Security principle (CRITICAL):** Server-side enforcement only; never send restricted body to unauthorized users. Gate at data layer.
   - [ ] checkContentAccess(content, session) for posts/pages; use in blog/[slug] and dynamic [slug] before rendering body.
@@ -716,6 +726,15 @@ Inferred from planlog + codebase review:
   - [ ] **Option B (array):** Add `required_mag_ids UUID[]` to galleries; keep `access_level`. Query: `WHERE required_mag_ids && ARRAY[user's mag ids]`. Same for content if desired.
   - [x] **GalleryEditor UI:** "Membership Protection" section — access level dropdown; **multi-select MAG picker** (when "Specific Memberships"); visibility mode; restricted message.
   - [ ] **Content (posts/pages):** Apply same multi-MAG pattern for consistency (TBD in planning).
+
+- [ ] **Membership and media items (sessionlog up-next)** — make media protection consistent with content/galleries; mag-tag optional (filtering only).
+  - [ ] Add **media_mags(media_id, mag_id)** table (same pattern as gallery_mags); migration.
+  - [ ] Protection: getMagIdsOnMedia, filterMediaByMagIdAccess using getMemberMagIds; switch gallery public API (and any media protection) from mag-tag to media_mags.
+  - [ ] API: read/write media MAG assignments (e.g. GET/PUT media/[id]/mags).
+  - [ ] Media item UI: membership selector (multi-select MAGs) on media item page; mag-tag remains optional for filtering.
+  - [ ] Optional backfill: media_mags from existing mag-tags on media.
+  - [ ] Red "M" badge on gallery list/grid for items in a membership (media_mags).
+  - [ ] Red "M" badge in media library (list + grid) for items in a membership.
 
 - [ ] Content editor integration
   - [x] Update content editor (full-page EditContentClient / ContentEditorForm — unified model for post/page):
@@ -799,10 +818,10 @@ Inferred from planlog + codebase review:
 - **members.ts:** getMemberByContactId(contactId), getMemberByUserId(userId), createMemberForContact(contactId, userId?), resolveMemberFromAuth() → member id or null. Idempotent create; optional user_id update when linking auth to existing member.
 - **licenses.ts:** hasLicense(memberId, contentType, contentId), grantLicense(…), revokeLicense(…), getMemberLicenses(memberId, contentType?), filterMediaByOwnership(mediaIds, memberId). Content types: 'media' | 'course'.
 - **Usage:** Redeem-code API (POST /api/members/redeem-code) uses getMemberByUserId and redeemCode(memberId) — assigns MAG to member’s contact via addContactToMag; does **not** create the members row (expects member to already exist). Batch Explore page joins to members for redeemed_by_member_id.
-- **Performance:** CRM + members sync (ensure contact in CRM, ensure members row) runs only on **member-designated pages** (`/members/*` layout), not on every public page. Keeps rest of site fast; see [prd.md](./prd.md) — Performance (Speed) and Member sync and performance. **Membership is limited to certain pages for now.** When implementing membership shortcodes (Apply code, MAG-gated blocks on arbitrary pages), adjustments will be required (e.g. sync scope, lazy sync in APIs, or shortcodes only on member pages); latency testing will inform the approach.
+- **Performance:** CRM + members sync (ensure contact in CRM, ensure members row) runs only on **member-designated pages** (`/members/*` layout), not on every public page. Keeps rest of site fast; see [prd.md](./prd.md) — Performance (Speed) and Member sync and performance. **Membership is limited to certain pages for now.** When the **Membership feature switch** is ON (see Phase 09 — membership master toggle on `/admin/crm/memberships`), sync can be global; when OFF, no sync and no content protection — **optimized site speed for sites that do not require any gated content.** When implementing membership shortcodes (Apply code, MAG-gated blocks on arbitrary pages), the switch governs whether membership runs at all; latency testing will inform sync scope when ON.
 
 **Still needed**
-- **Elevation flow — when to create members row:** Document and wire: (1) **Admin assign MAG:** When admin adds a contact to a MAG (POST /api/crm/contacts/[id]/mags), call createMemberForContact(contactId) so the contact becomes a member (idempotent). (2) **First-time code redemption:** Either (a) “Register with code” on login: create contact by email if needed, createMemberForContact(contactId, userId) after auth, then redeem code; or (b) “Apply code” for already-logged-in member — then member must already exist (e.g. created by admin or prior flow). (3) **Purchase webhook (later):** When assigning MAG on payment, createMemberForContact(contactId) if not already member.
+- **Elevation flow — when to create members row:** (1) **Admin assign MAG (done):** When admin adds a contact to a MAG (POST /api/crm/contacts/[id]/mags), POST /api/crm/contacts/[id]/mags calls createMemberForContact(contactId) after addContactToMag (idempotent). (2) **First-time code redemption:** Either (a) “Register with code” on login: create contact by email if needed, createMemberForContact(contactId, userId) after auth, then redeem code; or (b) “Apply code” for already-logged-in member — then member must already exist (e.g. created by admin or prior flow). (3) **Purchase webhook (later):** When assigning MAG on payment, createMemberForContact(contactId) if not already member.
 - **Documentation:** Short doc or planlog note: simple signup = contact only; member = purchase OR admin grant OR signup code; when to create members row (three triggers above). Form auto_assign_mag_ids = for qualifying forms only (not every form).
 - **Optional:** Update LMS Phase 17 plan to use user_licenses for course enrollment alongside course_mags.
 
@@ -833,10 +852,13 @@ Inferred from planlog + codebase review:
     - [x] `getMemberLicenses(memberId, contentType?)` — list owned items
     - [x] `filterMediaByOwnership(mediaIds, memberId)` — filter to owned only
 
-- [ ] Elevation flow documentation
-  - [ ] Document: simple signup = contact only; member = purchase OR admin grant OR signup code
-  - [ ] Form auto_assign_mag_ids: only for qualifying forms (not every form)
-  - [ ] When to create members row: admin grant MAG, purchase webhook, signup code redemption
+- [x] Admin assign MAG → create member
+  - [x] POST /api/crm/contacts/[id]/mags: after addContactToMag success, call createMemberForContact(contactId) (idempotent)
+- [x] Elevation flow documentation
+  - [x] Document: simple signup = contact only; member = purchase OR admin grant OR signup code (see "Elevation flow" note above in Phase 9C)
+  - [x] Form auto_assign_mag_ids: only for qualifying forms (not every form)
+  - [x] When to create members row: admin grant MAG (done), purchase webhook (later), signup code redemption (Apply code requires existing member; optional register-with-code)
+- [ ] First-time code redemption (optional): register with code on login
 
 - [x] Types
   - [x] Add Member, UserLicense types to database.ts

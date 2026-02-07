@@ -82,7 +82,7 @@ export default async function SuperadminTenantSiteDetailPage({
         initialFeatureIds={tenantFeatureIds}
       />
 
-      <RelatedTenantUsersClient siteId={id} />
+      <RelatedTenantUsersClient siteId={id} siteName={site.name} />
     </div>
   );
 }

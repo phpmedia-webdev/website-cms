@@ -1,9 +1,10 @@
 /**
- * Tenant site registry (public.tenant_sites). Superadmin only.
- * Caller must enforce superadmin access for all operations.
+ * Tenant site registry (public.tenant_sites). Superadmin only for most fields.
+ * membership_enabled can be toggled by tenant admin on /admin/crm/memberships.
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/client";
+import { getClientSchema } from "@/lib/supabase/schema";
 import type {
   TenantSite,
   TenantSiteInsert,
@@ -92,6 +93,7 @@ export async function updateTenantSite(
   if (row.site_mode_locked_reason !== undefined) payload.site_mode_locked_reason = row.site_mode_locked_reason?.trim() || null;
   if (row.coming_soon_message !== undefined) payload.coming_soon_message = row.coming_soon_message?.trim() || null;
   if (row.coming_soon_snippet_id !== undefined) payload.coming_soon_snippet_id = row.coming_soon_snippet_id?.trim() || null;
+  if (row.membership_enabled !== undefined) payload.membership_enabled = row.membership_enabled;
   if (row.github_repo !== undefined) payload.github_repo = row.github_repo?.trim() || null;
   if (row.notes !== undefined) payload.notes = row.notes?.trim() || null;
   if (Object.keys(payload).length === 0) return { ok: true };
@@ -101,4 +103,19 @@ export async function updateTenantSite(
     return { ok: false, error: error.message };
   }
   return { ok: true };
+}
+
+/**
+ * Whether membership is enabled for the current tenant (schema).
+ * When false: no membership sync, no content protection (all content public).
+ * Used by members layout and content-access.
+ */
+export async function isMembershipEnabledForCurrentTenant(): Promise<boolean> {
+  try {
+    const schema = getClientSchema();
+    const site = await getTenantSiteBySchema(schema);
+    return site?.membership_enabled ?? true;
+  } catch {
+    return true;
+  }
 }

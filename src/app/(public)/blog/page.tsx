@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { getPublishedPosts } from "@/lib/supabase/content";
+import { filterContentByAccess } from "@/lib/auth/content-access";
 import { format } from "date-fns";
 
 export default async function BlogListPage() {
-  const posts = await getPublishedPosts(50);
+  const allPosts = await getPublishedPosts(50);
+  const posts = await filterContentByAccess(allPosts);
   return (
     <main className="container mx-auto px-4 py-16">
       <h1 className="text-4xl font-bold mb-8">Blog</h1>
