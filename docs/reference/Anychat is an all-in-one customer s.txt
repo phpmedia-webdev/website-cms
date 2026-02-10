@@ -1,0 +1,541 @@
+Anychat is an all-in-one customer support solution designed to streamline and enhance your customer service operations. With an array of powerful features and extensive customization options, Anychat ensures seamless communication across multiple channels, providing a comprehensive support experience for both your team and your customers.
+
+Key Features
+Multichannel Contact Button:
+Highly customizable to fit your brand and website design.
+Facilitates easy customer access to support across multiple channels.
+
+Live Chat Widget:
+Fully featured with AI support for automated responses.
+Extensive customization options to match your website's look and feel.
+
+Omnichannel Inbox:
+Supports communication across multiple channels including LiveChat, Facebook Messenger, Instagram, WhatsApp, Viber, Telegram, Line, and Google Business Chat.
+Centralized inbox for receiving and replying to messages, ensuring all customer interactions are managed from a single platform.
+
+Chatbot Builder:
+AI-supported builder for creating intelligent, automated chatbots.
+Enhances customer interaction and handles routine inquiries efficiently.
+
+Form Designer:
+Design intuitive and user-friendly forms for any purpose.
+Customizable to capture the specific information you need from customers.
+
+CRM System:
+Integrated Customer Relationship Management system.
+Helps manage customer interactions, track issues, and follow up on leads.
+
+Knowledge Base System:
+Create and maintain a comprehensive knowledge base.
+Allows customers to find answers to common questions quickly.
+Benefits
+Enhance customer satisfaction with prompt, efficient support.
+Improve team productivity with a unified platform for managing all customer interactions.
+Increase operational efficiency by automating routine tasks and inquiries.
+Strengthen customer relationships through personalized and responsive communication.
+Why Anychat?
+Anychat is designed to be the ultimate customer support tool, providing everything you need to deliver exceptional service. Whether you are a small business or a large enterprise, Anychat scales with your needs and helps you maintain high-quality support across all communication channels.
+**************************************************************
+Register
+To register on our platform, please visit the sign-up page at https://anychat.one/register. Fill in your first name, last name, email address, and password. Don't forget to agree to our terms of service before completing the registration process.
+You can also sign up using one of the login options we support: Google, Facebook, or Telegram. If an account already exists, you will be automatically logged in. If not, a new account will be created for you.
+Upon logging in, the initial step is to approve all regulatory documents such as GDPR, Terms of Service, Privacy Policy, DPA, NDA, etc.
+If you're not prepared to accept the documents at this time, you can close the pop-up dialog to update your account information before continuing. However, the dialog will continue to reappear until you have agreed to all of the documents.
+**********************************************
+Workspaces
+The workspace serves as the primary container for various assets such as widgets, conversations, contacts, CRM items, and more.
+Each user has the option to have one or multiple workspaces, depending on the selected tariff plan.
+To access your workspaces, click on your account avatar in the top right corner of the page, and then select the "Switch workspace" option. If you have an agency account, you will also have the ability to switch to your client's workspaces.
+In this dialog, you have the ability to create, delete, and edit your workspaces. Please keep in mind that the currently active workspace cannot be deleted. To delete it, you must first create another workspace and switch to it.
+
+Team and departments
+In Anychat, you can assemble a team to assist with handling incoming messages, managing clients, and more. Your team members can have one of two primary roles:
+Agent: Responsible for managing incoming messages, replying to customers, and re-assigning conversations.
+Admin: In addition to the responsibilities of an agent, can manage widgets, workspaces, and settings, performing all actions available to a workspace owner.
+Managing team
+Add a team member
+To add a new team member, follow these steps:
+Navigate to the Settings section and select Members.
+Click the "Add member" button located at the bottom right corner of the page.
+In the ensuing dialog, enter the member's name and email. Optionally, you can also set a display name (that name will be visible in the LiveChat widget) and user picture.
+Choose the role for the new team member:
+     - If you are adding an agent, specify the widgets and integrations that the member will have access to.
+     - If the new member is an admin, they will automatically have access to all widgets and integrations.
+
+Once you add a member, they will receive an email notification.
+Change a password for existing member
+Team members can update their password and other account details in their account settings. They can also reset their password using the standard procedure. 
+
+As the workspace owner, you have the ability to change a specific member's password. To do this, go to the list of team members and click the Change Password button for the selected member. In the subsequent dialog, you can either manually set a new password or automatically generate a strong one. Additionally, you have the option to send the new password to the member's email address or not.
+Delete team member
+If you've decided to remove a member from your team, you can easily do so in the Settings / Members section of your workspace. Simply click the Delete button and confirm your decision.
+Managing departments
+Departments can assist in organizing your team. You can create as many departments as you need and assign team members to them. A single member can be included in multiple departments. 
+Add department
+To add a department, go to the Settings section and select Departments. Then, click the Add Department button. In the dialog box that appears, enter the department's name and description.
+Adding and removing members from the department.
+After adding a department, you can include team members by clicking on the Manage Members button. In the subsequent dialog, select the members you wish to add. To remove team members from the department, simply deselect them.
+
+Widgets
+The widget is a key component for customers to interact with you through AnyChat. It can serve as a multichannel contact button or a standalone live chat widget. 
+
+In the case of a multichannel button, it displays a menu with various contact channels. You have the flexibility to select which contact channels to include in your multichannel widget. When a customer clicks on the multichannel button, a menu with different contact methods will pop up.
+
+On the other hand, the standalone live chat widget features a single live chat option. When a customer clicks on the button, a chatbox will appear without a menu.
+You can include multiple widgets in a single workspace. Each widget can have various channels and can be installed on one or more websites.
+
+Create new widget
+To create a new widget, simply click the Add Widget button located at the bottom right corner of the Settings / Widgets section. Next, enter a name for the widget (it can be anything you choose) and specify the domains where this widget should be used. Additionally, you have the option to enable the widget for whitelisted origins only, which will prevent it from being displayed on unwanted origins. Finally, save the widget settings.
+Please note that the list of allowed domains is crucial for the proper functionality of the widget. We use CORS, so you need to add the exact domains to ensure our server can process requests only from these permitted domains. 
+Installation
+Each widget can be installed on the website either as a multichannel button or as a standalone live chat widget.
+
+To install the widget as a multichannel button please follow this instructions.
+
+If you decide to use the widget as a standalone live chat, please follow this article.
+Multichannel contact button
+The multichannel contact button on the website appears as a single button that expands into a menu when clicked by the customer, allowing them to choose their preferred chatting system (channel) to contact you.
+
+Each channel represents the contact method or some information you want to share with your customers.
+
+For instance, you can add a Facebook Messenger channel to allow your customers to contact you via Facebook Messenger. Alternatively, you can insert an iFrame item to display your store location using Google Maps.
+
+Supported channels
+Currently, our platform supports over 50 channels and social platforms that can be included in the multichannel widget. You can find the list of supported channels below.
+How it works
+When the visitor clicks on the main button, a menu appears displaying the elements you have selected. By clicking on a menu item, the corresponding application will launch or the visitor will be redirected to the appropriate website.
+Supported channels and social media list
+Messengers
+Facebook Messenger
+WhatsApp
+Viber
+Telegram
+Skype
+Instagram
+Signal
+Discord
+Slack
+Twitter
+Line
+Snapchat
+WeChat
+Social profiles
+Facebook page
+Instagram page
+TikTok profile
+Twitter page
+LinkedIn profile
+YouTube channel
+Integrations
+Native LiveChat widget
+Tawk.to
+Crisp chat
+Other channels and features
+AnyChat form
+Custom link
+Click-to-email
+Click-to-call
+Click-to-SMS
+Custom popup (with HTML content)
+iFrame popup
+Image popup
+Custom JS code
+You can also add custom social media or messaging platforms if they support deeplinking, using the Custom link action and a custom icon.
+
+Adding a channel
+To add a new channel to a multichannel widget, please visit this page: https://anychat.one/settings/channels. At the top of the page, select the widget to which you want to add a channel, then click the Add new channel button.
+
+Next, you need to enter a Title and optionally a Subtitle. Select an Action and provide the corresponding action-related details. For example, if you are adding a Facebook Messenger item, you need to enter the name (handle) of your Facebook Page. If it's a WhatsApp item, you need to enter your WhatsApp phone number.
+To execute some JavaScript code when the menu item is clicked, you need to enter that code in the Custom JS code field. This field is often used for custom analytics, including tools like Google Analytics and Yandex Metrika.
+Please note that you cannot insert the <script> tag in the Custom JS code field. This field is intended for plain JavaScript only, such as function calls. For example:
+myPopup.show();
+contactUs.hide();
+On the Visibility tab, you can configure the target device types (where the item should be visible), specify the pages where the item should or should not appear, and also set a schedule for the days and times when the item should be visible.
+
+Live chat widget
+Our platform includes a comprehensive live chat widget with the following key features:
+Reply to message (quote) capability
+Ice Breakers
+Typing indicator
+Live typing (admin or agent can see the message before the visitor sends it)
+File sending
+Form sending
+Quick replies (predefined messages)
+Emojis (with custom set selection)
+Disable user input
+Access to knowledge base articles
+Audio messaging
+Video recording
+Screencast recording
+Speech-to-text functionality
+Text-to-speech functionality
+Multilingual support
+Sound notifications for new messages
+Pre-chat popup
+Unread message counter
+Message status indicators (sent, read)
+Offline mode
+
+Additionally, our widget is fully compatible with our chatbot builder. The admin side of the chat system includes built-in AI features that can automatically generate replies based on the conversation context, rewrite messages, correct spelling, adjust tone, and more.
+Installation
+Install on any website
+To add a standalone live chat widget to your website, please complete the following steps:
+navigate to Settings / Widgets
+choose the widget you want to install
+click Widget script code button
+navigate to Standalone LiveChat widget tab
+copy the widget code to the clipboard
+open your website source code in your favorite editor
+insert the widget code before the body closing tag
+save the changes
+Install on WordPress website
+You can use method described above or install the widget with our WordPress plugin:
+download the plugin from official WordPress website
+install the plugin on your website
+navigate to Apps and plugins section
+click Your API key button at the right top corner of the page
+copy your API key and paste it to WordPress plugin
+navigate to Settings / Widgets
+choose the widget you want to install
+click Widget script code button
+navigate to Standalone LiveChat widget tab
+copy the Widget ID of the widget
+paste it to WordPress plugin settings
+in the "Integration type" choose "Multichannel widget"
+save plugin settings
+***********************************
+Omnichannel inbox
+The omnichannel inbox is a powerful feature that allows you to manage all your communication channels from a single interface within Anychat. By integrating with various third-party platforms such as social media, live chat, and messaging apps, the omnichannel inbox centralizes your incoming messages. This streamlines your workflow by eliminating the need to switch between different platforms to check and respond to messages.
+
+When you receive a message from a third-party platform, it appears in the Chat section of the Anychat platform, where you can view and manage it just like any other message. You can read, reply, and even attach files directly from Anychat. The response will be sent back to the original platform, ensuring seamless communication without any disruption to your usual processes.
+
+This feature is particularly useful for businesses and customer service teams, as it enhances efficiency, improves response times, and helps maintain consistent communication across multiple channels. Whether your customers reach out via Facebook Messenger, WhatsApp, Instagram, or any other supported platform, you can handle all interactions from one central location.
+Supported channels
+Currently, our platform is integrated with the following channels:
+Facebook Messenger
+WhatsApp
+Instagram
+Telegram
+Google Business Chat
+Viber
+Line
+WeChat
+Zalo
+We are actively expanding this list to include more channels.
+
+Connect Facebook Messenger
+Connecting Facebook Messenger requires administrative access to the Facebook page in question. Only admins or owners of the page can establish this connection. If you meet these criteria, you should be able to successfully integrate Facebook Messenger.
+To connect Facebook Messenger to our omnichannel inbox, follow these steps:
+Navigate to https://anychat.one/settings/live-chat-integrations
+Click on the "Add" button
+Select "Messenger"
+Login with your Facebook account
+During the Facebook oAuth dialog, select the page you want to connect to the omnichannel inbox
+In the final step confirm the page selection
+
+This process will integrate Facebook Messenger with our omnichannel inbox, allowing you to manage all your messages from one centralized platform.
+nnect WhatsApp
+You can connect the WhatsApp Business API through a simple Facebook login process.
+To connect WhatsApp Official API to our omnichannel inbox, follow these steps:
+Navigate to https://anychat.one/settings/live-chat-integrations
+Click on the "Add" button.
+Select "WhatsApp".
+Login with your Facebook account.
+During the Facebook oAuth dialog, select the WhatsApp Business Account you want to connect to the omnichannel inbox.
+In the final step confirm the phone number selection.
+This process will integrate WhatsApp business phone number with our omnichannel inbox, allowing you to manage all your messages from one centralized platform.
+Connect Twilio SMS
+This article provides a step-by-step guide on integrating the Twilio SMS channel with the Anychat omnichannel inbox.
+Please keep in mind that if you're using a Trial Twilio account, you can only send SMS to phone numbers that have been verified.
+To get started, you'll need a Twilio account. If you haven't signed up yet, you can create a free account.
+You will need to either purchase a phone number or take advantage of a free trial phone number.
+Following that, you can move on to setting up Twilio.
+Access your Twilio console by visiting https://console.twilio.com/ and navigate to the Dashboard section.
+On Anychat side navigate to Settings / Live chat integrations  then click "Add integration" button and select the "Twilio SMS" channel.
+****************************
+Campaigns
+In this section, you can create and run campaigns. Currently, we only support campaigns through the WhatsApp Business API (WABA).
+To create a campaign please navigate to https://anychat.one/app/campaigns and follow the "New campaing" dialog steps:
+Please enter a campaign title (optional) and select the WhatsApp Business phone number you want to use for this campaign.  
+Next, choose your target audience. You can select from internal contacts database or upload a CSV file. If using a CSV, please use commas to separate columns, and we recommend including column headers in the first row.  
+Then, select a WhatsApp template. Note that only approved templates can be sent within a campaign, as free-form messages are not supported by the WhatsApp API. Ensure your chosen template has been approved by the WhatsApp team.  
+Finally, you can start the campaign immediately or schedule it for later. There's also a "Dry run" option available, which allows you to test the setup without sending actual messages - useful for checking validation errors before launching.
+After launching a campaign, you can access the run log to monitor its performance. The log provides details such as the number of messages sent, delivered, read, or failed. Each execution will generate its own individual run log.
+When a customer responds to your message, you will receive their reply in Anychat and will have the opportunity to send a free-form response within a 24-hour window. If this 24-hour period has elapsed, you will be limited to replying using only predefined templates.
+Please note that WhatsApp API is not free so we recommend to add payment method in your WhatsApp Manager https://business.facebook.com/latest/whatsapp_manager. This is mandatory if you're planning to initiate chats or run WhatsApp campaigns.
+Currently, we do not impose any extra per-message charges (markup fees). However, we reserve the right to modify these terms in the future.
+
+ChatFlows (chatbot builder)
+Chatflows enable the creation of custom chatbots with valuable automation features. Each chatflow can be integrated with our live chat widget, Telegram bot, or WhatsApp.
+Let's take a look at the key elements of our chatbot builder.
+
+Create a new chat flow
+To set up a new chat flow, first go to "ChatFlows" in the main menu. Then, click on "Create new chatbot flow." You can either choose from a pre-defined template or select "Create empty ChatFlow." Enter a name for your flow and, if you wish, add a description.
+
+
+AI assistants
+With AI assistant capabilities, you can develop an AI assistant tailored with your own data. You have the option to use files, web pages, and knowledge base articles to train your AI assistant effectively.
+This feature requires an OpenAI API key. You can enter your API key at the following link: https://anychat.one/settings/integrations.
+For detailed instructions on obtaining an OpenAI API key, please visit: https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key.
+Changing the OpenAI API key after the AI assistant has been set up might lead to access issues within the Chat Flow, resulting in an "Assistant not found" error during testing. To resolve this, you'll need to rebuild the AI assistant using the new API key.
+Creating AI assistant
+To set up an AI assistant, go to https://anychat.one/settings/assistants and select the "Add" button located at the top right corner of the page.
+In the displayed dialog, you have the option to input an "Assistant name" for internal identification purposes, provide text instructions, select the OpenAI model, and choose the data sources you would like to use for training your AI assistant.
+Available data sources
+You have the option to train an AI assistant using these data sources:
+plain text instructions to define the assistant's behavior
+files
+website URLs
+built-in Anychat's knowledge base
+
+Train AI assistant with files
+You can train the AI assistant using files, and while there's no restriction on the number of files you can use, there is a limit on input tokens imposed by OpenAI. This token limit varies depending on the OpenAI model you choose. For more detailed information, you can visit https://platform.openai.com/docs/models.
+Supported file types:
+pdf
+docx
+pptx
+txt
+csv
+Train AI assistant with website
+You can provide the AI assistant with real information from your website for training purposes.
+Please be aware that the assistant won't be able to access all the pages of your website if you only provide the home page. You'll need to input each relevant page individually.
+Please ensure that the website links you add are accessible online. Occasionally, Web Application Firewalls (WAF) like CloudFlare can hinder the Anychat bot from crawling website URLs. To prevent this, kindly whitelist our crawler's IP address, 157.90.227.37, to avoid WAF blocking our bot.
+Train AI assistant with knowledge base
+You can enhance the AI assistant's capabilities by utilizing Anychat's built-in knowledge base system. When this feature is activated, every public knowledge base article will contribute to training the AI assistant.
+Connecting created AI assistant to the ChatFlow
+After creating and processing an assistant, you can integrate it into the chat flow using ChatGPT integration.
+
+Chat flow basics
+Let's explore the fundamental components (actions) that you can use to create powerful and customizable chatbots.
+
+Event triggers
+Triggers enable you to initiate specific actions based on user interactions with the chat widget. For example, an event trigger can act as the starting point for your flow. However, please be aware that many integrations do not support certain event triggers due to the nature of the application. For instance, most integrations do not support widget-related events such as "Chat window opened," "Chat window closed," "Before start new thread," or "Custom event," as these events are based on chat widget behaviors.
+Supported events
+First Visit - This trigger activates when a customer visits your website for the first time
+Second Visit - This trigger activates when a customer has visited your website previously.
+Chat Window Opened - This trigger activates when a customer opens the chat window.
+Chat Window Closed - This trigger activates when a customer closes the chat window.
+Bot Menu Opened - This trigger activates when a customer opens the bot menu.
+Before start new thread - This trigger activates when a thread has not yet started or the current thread has ended.
+New Thread Started - This trigger activates when a customer starts a new thread by sending the first message or command to the chat.
+Custom Event - This trigger can be activated via JavaScript code (see instructions below).
+
+Each trigger has additional options:
+Run once per thread: If enabled, this trigger will execute only once per thread.
+Run only if thread is not started: If enabled, this trigger will execute only if the thread has not yet started (i.e., no messages have been sent by the website visitor).
+Custom Event trigger
+You can activate a custom trigger whenever necessary by executing the following JavaScript code:
+anychat.sendCustomEvent('myCustomTrigger');
+
+Bot commands
+Bot commands originate from the Telegram bot system, but you can also utilize them with our native live chat widget.
+
+In the Telegram app, the bot command is the sole method to initiate a bot. When a user visits your bot in Telegram, they will see the Start button, which sends a /start command when pressed. Therefore, designing a chat flow for Telegram necessitates including the /start command.
+
+If you use bot commands within the live chat widget, they will function identically to those in the Telegram app. The initial command will serve as the starting point, so when a user opens the chat widget, they will see the Start button. Pressing this button will initiate the thread.
+
+Message
+The "Message" action allows you to send a message to the customer. This message can include one or several images and may also contain buttons.
+
+Additionally, you can trigger several actions within the "Message" action:
+Send a webhook
+Set visitor data (store user email, name, and phone number)
+Send data to a Google Sheet (requires Google Sheet integration)
+Send an email
+Send a Telegram notification
+Change the chat flow language
+
+If you are expecting a response from the customer, you need to enable the "Wait for reply" option. You can also set validation for the input value, such as requiring email validation if you are expecting an email address. Please see the next article for details.
+
+Handling user input
+If you anticipate a response from the customer, you need to enable the "Wait for reply" option in the "Message" action. 
+Input validation
+You can then optionally set a validation for the input value. For example, if you expect an email address in response to the message, you can set "Email" as the validation. Once validation is configured, you can attach actions to execute if the validation fails (using the "Message is invalid" port). If the input is valid, the action connected to the "Next" port will be triggered.
+Saving input value to a variable
+To store the value of user input, enable the "Save to variable" option located in the Actions section, and then choose the variable where the input value will be stored.
+
+Forms
+Please note that forms are supported only on native live chat and not on other channels. If you are using forms in your chat flow, you will need to implement some workaround logic using the "Condition" action to run a different flow subtree for platforms that do not support forms.
+You can send a form directly to the live chat widget. Optionally, you can disable the main input field for the Form action to prevent sending messages until the form is submitted.
+
+Additionally, you can save each form field value to a variable. To do this, enable the "Save response to variable" option in the Actions section. Then, select the variable to store and enter {fieldID} in the Data field.
+
+ChatGPT Integration
+ChatGPT integration is used to integrate OpenAI ChatGPT to your chat flow. To use this integration you need to have your own OpenAI API key. By default the API key from OpenAI integration will be used.
+Important Notice: You must place Message with reply before ChatGPT integration to enable it to fetch customer input.
+Training the ChatGPT
+To train ChatGPT with your custom data, use the Instructions text field. Paste the information you want ChatGPT to know about your company or guidelines on how it should interact with customers. You can also utilize a preconfigured ChatGPT assistant to train the model with specific files. To create an assistant, visit https://platform.openai.com/assistants. Once you've created an assistant, copy the Assistant ID and paste it into the integration settings within the chat flow.
+You can also create an AI assistant by navigating to the "AI Assistants" section in your settings. For further details, please refer to the following article.
+AI assistants
+
+Using custom functions
+You can use custom functions to interrupt ChatGPT and execute a specific flow sub-tree in certain scenarios. For instance, you can create a custom function with a description like "if customer wants to buy a phone" and attach specific actions to it. Similarly, you can add a function with the description "if customer wants to contact the support team" and then link it to the "Invite agent" action.
+
+OpenRouter integration
+Please note that OpenRouter offers both free and paid models. We do not impose any additional charges for OpenRouter usage on our customers. However, you will need to use your own API key, and any charges incurred will be handled on the OpenRouter side.
+Please note that the speed and quality of AI responses rely entirely on OpenRouter and the internal models processed on the OpenRouter platform. We do not use any additional plugins that might slow down or alter responses.
+OpenRouter enables you to access multiple AI models with just one API key. To explore the available models, please visit this link: https://openrouter.ai/models
+To use OpenRouter, you'll need your own OpenRouter account, which you can create for free on their official website at https://openrouter.ai/. Here’s how to connect OpenRouter to Anychat:
+
+Generate an API key at https://openrouter.ai/settings/keys.
+Copy the API key to your clipboard.
+Go to Settings / Integrations at https://anychat.one/settings/integrations.
+Click on the Settings button in the OpenRouter section.
+Paste your API key.
+Save the integration settings.
+After you finish, you can integrate OpenRouter into your chat flow.
+Using OpenRouter in the chat flow
+Lets see how you can use OpenRouter AI within chat flow. Let's build a simple AI chat bot.
+To initiate our chat flow, we begin with an entry point. In this scenario, we'll use the "New thread started" event. This event is activated when a new conversation begins, which occurs when a customer sends their first message to the chatbox.
+********************************************
+CRM
+CRM stands for Customer Relationship Management. It refers to the strategies, practices, and technologies that companies use to manage and analyze customer interactions and data throughout the customer lifecycle. The goal of CRM is to improve business relationships with customers, aid in customer retention, and drive sales growth.
+
+Our CRM main components:
+1. Contact Management:
+Details Storage: Store and manage detailed information about each contact, including names, phone numbers, email addresses, job titles, and personal notes.
+Interaction Tracking: Maintain a history of communications and interactions with each contact, such as emails, phone calls, meetings, and notes.
+Segmentation: Group contacts into segments based on tags.
+Search and Filters: Easily search and filter contacts to quickly find specific individuals or groups.
+2. Organizations Management:
+Company Profiles: Maintain detailed profiles of the organizations your business interacts with, including their industry, size, contact information, and related contacts.
+Relationship Mapping: Manage the relationships between different contacts and organizations.
+Notes and Attachments: Attach relevant documents, contracts, and notes to organization profiles for easy access.
+3. Tickets Management:
+Issue Tracking: Create and manage tickets for customer support issues, product defects, or service requests.
+Prioritization: Assign priority levels to tickets to ensure that the most critical issues are addressed promptly.
+Assignment and Workflow: Assign tickets to specific team members and track the progress through different stages of resolution.
+Customer Communication: Maintain clear communication with customers regarding the status of their tickets and resolutions.
+4. Tasks Management:
+Task Creation: Create tasks for team members, with details such as due dates, priority levels, descriptions, and related contacts or organizations.
+Assignment: Assign tasks to specific team members and track their progress.
+Collaboration: Enable team members to collaborate on tasks, share updates, and leave comments.
+5. Meetings Planning:
+Scheduling: Schedule meetings with contacts, including setting dates, times, and locations.
+Follow-ups: Create follow-up tasks or tickets based on meeting outcomes to ensure that action items are addressed.
+
+These components work together to provide a comprehensive solution for managing customer relationships, improving efficiency, and enhancing customer satisfaction.
+
+Knowledge base
+With our knowledge base engine, you can build a website featuring custom content similar to what you're viewing right now.
+To build the website, you have the following content elements at your disposal: 
+Headers 
+Paragraphs 
+Alerts 
+Images 
+Links 
+Code Blocks
+Embed Elements (for inserting YouTube videos, forms, Google Maps, etc.)
+Each content block can be reordered and customized according to your needs.
+You have the option to obtain a complimentary subdomain from anychat.one to host your knowledge base, or you can link your own custom domain.
+The data from your Knowledge base can also be utilized to train an AI assistant.
+******************************************
+Agency
+There are two primary use cases for agency account owners:
+Customize your widgets, dashboard, and other features with your own branding.
+Resell our platform to your clients.
+
+Agency plan users enjoy several key benefits:
+Customize the branding across all widgets.
+Apply your branding throughout the entire dashboard.
+Connect your own domain to replace the default one.
+Create Pro or Multisite accounts for your clients at no additional cost.
+"Unlimited agency" plan users able to create own plans, connect Stripe account and re-sell the platform access with own branding.
+
+Let's delve into the functionality of the agency. Please check the next article.
+
+Agency settings
+In this section, you can configure key details for your agency such as branding, domain connections, and default client permissions, among other settings.
+General settings
+In this section, you can customize your brand by setting up your brand name, logo, and main website URL. Additionally, you can choose a color theme for the dashboard.
+"Use custom branding for my clients" means that your clients will see your personalized branding instead of the default AnyChat branding.
+The "Use for my own widgets" option lets you apply your branding to widgets created under your account.
+You can also configure the "Custom footer content" text, which will be displayed beneath your brand name on the login page. This field is typically used to specify your company location, but you can customize it with any information you choose.
+The "Default Language" option allows you to establish a default language for the dashboard. This language will be used for your clients until they choose a different language in their account settings.
+The "Custom cookie consent" field allows you to create your own personalized cookie usage notice.
+You can also configure the support widget to appear on your clients' dashboards, enabling them to easily reach out for assistance whenever needed.
+To enable user registration through your custom domain, simply activate the "Allow users to register through my domain" option. This allows you to specify the default plan for new clients upon sign-up. Additionally, you can opt to receive email notifications whenever someone signs up as your agency client.
+Agency Logos
+Please follow these recomendations for dashboard and sign-in page logos:
+Using large files for your logo image can slow down page loading times, so it's best to avoid them.
+You can use PNG, JPEG, or SVG images.
+Logo proportions must be is 1:1 (square image)
+Recomended "Sign-in page logo size" is 192. You can use that option to zoom in/out the logo on the login page.
+Since the "sign-in" and "sign-up" pages have a white background, it's ideal to use images that offer a strong contrast against the white backdrop.
+The dashboard header typically features a dark background, which varies based on your theme settings. It's advisable to use a white logo with a transparent background in this area for better visibility.
+If "dashboard logo" is not set, you will see "Sign-in page" logo in the dashboard.
+Agency Brand URL
+Your brand URL will replace the existing link, https://anychat.one, at the bottom of the widget.
+
+Custom domains
+With the custom domains feature, you can link your own domain to replace anychat.one. There are several domains you can connect. Let's explore how to use them.
+Frontend domain
+The frontend domain has now taken over the functions of login and dashboard, replacing the previous anychat.one domain. You have the flexibility to connect either the root domain or a subdomain as your frontend domain.
+To connect a subdomain as Frontend domain to anychat.one, create a CNAME record pointing to "hosting.anychat.one". For connecting a root domain, use an "A" record pointing to the IP address "157.90.227.37".
+API domain
+The API domain replace api.anychat.one domain in the widget script code and API calls.
+To connect a subdomain as API domain to anychat.one, create a CNAME record pointing to "api.anychat.one". For connecting a root domain, use an "A" record pointing to the IP address "157.90.227.37".
+Knowledge base hosting domain
+The knowledge base hosting domain serves as the hosting platform for your client's standalone domains. When a client chooses to link their own standalone domain to the knowledge base, they need to use a CNAME record to point it to your hosting domain.
+If you don't have a Knowledge base hosting domain connected, your clients won't be able to connect a standalone domain to the knowledge base.
+To connect a subdomain as API domain to anychat.one, create a CNAME record pointing to "kb.anychat.one". For connecting a root domain, use an "A" record pointing to the IP address "157.90.227.37".
+Knowledge base wildcard domain
+A wildcard domain for the knowledge base is utilized for your clients' subdomains. Therefore, when a client wishes to claim a specific subdomain for their knowledge base, it will appear as SUBDOMAIN.YOUR_WILDCARD_DOMAIN.
+If the Knowledge base wildcard domain is not connected, your clients will be unable to link subdomains to the knowledge base.
+To connect your domain as a Knowledge Base wildcard domain, you'll need to verify it by adding a TXT record. During the domain addition process, you'll be provided with the details of the TXT record that you need to create for your domain.
+Once validation is complete, you'll need to direct all the subdomains of your KB wildcard domain to our IP address, "157.90.227.37". You can accomplish this by using an "A" record:
+go to your DNS settings
+Create an "A" record.
+In the A record domain set "*." so the resulting domain must be "*.YOUR_WILDCARD_DOMAIN"
+In the A record Destination field, enter "157.90.227.37".
+Save Changes
+Use case
+Most of our clients use custom domains in the following way:
+create a landing page on the root domain (mychat.com) and place some link to app.mychat.com for customers to login or sign up.
+connect the app.mychat.com to anychat as Frontend domain.
+connect the api.mychat.com to anychat as API domain.
+connect the kb.mychat.com as Knowledge base hosting domain.
+connect mychat.com as Knowledge base wildcard domain.
+Result
+When visitors arrive at the landing page, they have the option to sign up for the dashboard by clicking a link provided there.
+When clients want to install the AnyChat widget on their website, they will notice that the embed widget script code includes api.mychat.com (instead of api.anychat.one).
+When clients wish to link a free subdomain, such as "docs," to their Knowledge Base, the resulting domain will be docs.mychat.com (instead of docs.anychat.one).
+When clients want to connect their custom domain to the knowledge base, they should configure their domain's CNAME record to point to kb.mychat.com (instead of kb.anychat.one).
+With this approach, your clients will never encounter the default domains or branding associated with anychat.one.
+***************************
+Developers
+
+Standalone live chat widget: 
+Open a widget: anychat.showChatPopup();
+Close a widget: anychat.hideChatPopup();
+Update user info: anychat.updateUserData("Name", "email@example.com");
+Send a message: anychat.sendMessage('Message content');
+Set custom fields: anychat.setCustomFields({
+  'field-slug': 'Field value',
+  'field-slug-2': 'Field value'
+})
+
+
+
+REST API
+https://documenter.getpostman.com/view/23223880/2sB2qi6x9D
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

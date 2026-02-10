@@ -5,15 +5,16 @@ import {
 } from "@/lib/supabase/galleries-server";
 import { checkGalleryAccess } from "@/lib/auth/gallery-access";
 import {
-  getMagUidsForCurrentUser,
-  filterMediaByMagTagAccess,
+  filterMediaByMagIdAccess,
+  getMagIdsOnMedia,
 } from "@/lib/mags/content-protection";
+import { getMemberMagIds } from "@/lib/auth/gallery-access";
 import type { UserMetadata } from "@/lib/auth/supabase-auth";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
 
 /**
  * GET /api/galleries/[id]/public?styleId=xxx
- * Gallery data for embedding. Respects gallery-level and per-media (MAG tag) membership protection.
+ * Gallery data for embedding. Respects gallery-level and per-media (media_mags) membership protection.
  */
 export async function GET(
   request: Request,
@@ -54,15 +55,23 @@ export async function GET(
     const metadata = user?.user_metadata as UserMetadata | undefined;
     const isAdmin = metadata?.type === "admin" || metadata?.type === "superadmin";
 
-    const items = isAdmin
+    let items = isAdmin
       ? data.items
       : await (async () => {
-          const userMagUids = await getMagUidsForCurrentUser();
+          const userMagIds = user ? await getMemberMagIds(supabase, user.id) : null;
           const mediaIds = data.items.map((i) => i.media_id);
-          const allowedMediaIds = await filterMediaByMagTagAccess(mediaIds, userMagUids);
+          const allowedMediaIds = await filterMediaByMagIdAccess(mediaIds, userMagIds);
           const allowedSet = new Set(allowedMediaIds);
           return data.items.filter((i) => allowedSet.has(i.media_id));
         })();
+
+    // Add has_membership for badge (which items' media are in at least one MAG)
+    const mediaIdsForBadge = items.map((i) => i.media_id);
+    const magIdsByMedia = await getMagIdsOnMedia(mediaIdsForBadge);
+    items = items.map((i) => ({
+      ...i,
+      has_membership: (magIdsByMedia.get(i.media_id) ?? []).length > 0,
+    }));
 
     return NextResponse.json(
       { ...data, items },

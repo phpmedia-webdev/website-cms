@@ -68,6 +68,7 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
   );
   const [selectedMagIds, setSelectedMagIds] = useState<string[]>([]);
   const [availableMags, setAvailableMags] = useState<{ id: string; name: string; uid: string }[]>([]);
+  const [addMagSelectValue, setAddMagSelectValue] = useState("");
 
   useEffect(() => {
     if (name && !slug) {
@@ -99,11 +100,24 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
     setMounted(true);
   }, []);
 
-  // Load all MAGs for picker
+  // Load all MAGs for picker (normalize to { id, name, uid } in case API shape differs)
   useEffect(() => {
     fetch("/api/crm/mags")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setAvailableMags(data ?? []))
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
+      .then((data) => {
+        const raw = Array.isArray(data) ? data : (data?.mags && Array.isArray(data.mags) ? data.mags : []);
+        const normalized = raw
+          .map((m: Record<string, unknown>) => ({
+            id: String(m?.id ?? m?.mag_id ?? ""),
+            name: String(m?.name ?? ""),
+            uid: String(m?.uid ?? ""),
+          }))
+          .filter((m) => m.id.length > 0);
+        setAvailableMags(normalized);
+      })
       .catch(() => setAvailableMags([]));
   }, []);
 
@@ -112,7 +126,7 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
     if (gallery?.id) {
       fetch(`/api/galleries/${gallery.id}/mags`)
         .then((res) => (res.ok ? res.json() : { mag_ids: [] }))
-        .then(({ mag_ids }) => setSelectedMagIds(mag_ids ?? []))
+        .then(({ mag_ids }) => setSelectedMagIds((mag_ids ?? []).filter((id): id is string => Boolean(id))))
         .catch(() => setSelectedMagIds([]));
     }
   }, [gallery?.id]);
@@ -226,18 +240,25 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
 
       // Save MAGs (only for 'mag' access level)
       if (galleryId && accessLevel === "mag") {
-        await fetch(`/api/galleries/${galleryId}/mags`, {
+        const magsRes = await fetch(`/api/galleries/${galleryId}/mags`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mag_ids: selectedMagIds }),
+          body: JSON.stringify({ mag_ids: selectedMagIds.filter((id) => id) }),
         });
+        if (!magsRes.ok) {
+          const err = await magsRes.json().catch(() => ({}));
+          throw new Error(err?.error ?? "Failed to save memberships");
+        }
       } else if (galleryId) {
-        // Clear MAGs if not using 'mag' access level
-        await fetch(`/api/galleries/${galleryId}/mags`, {
+        const magsRes = await fetch(`/api/galleries/${galleryId}/mags`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ mag_ids: [] }),
         });
+        if (!magsRes.ok) {
+          const err = await magsRes.json().catch(() => ({}));
+          throw new Error(err?.error ?? "Failed to clear memberships");
+        }
       }
 
       if (!gallery) {
@@ -813,7 +834,7 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
                   User must have at least one of these memberships to view.
                 </p>
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {selectedMagIds.map((magId) => {
+                  {selectedMagIds.filter((id) => id).map((magId) => {
                     const mag = availableMags.find((m) => m.id === magId);
                     return (
                       <Badge key={magId} variant="secondary" className="flex items-center gap-1">
@@ -833,24 +854,32 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
                   )}
                 </div>
                 <select
-                  value=""
+                  value={addMagSelectValue}
                   onChange={(e) => {
-                    if (e.target.value && !selectedMagIds.includes(e.target.value)) {
-                      setSelectedMagIds((ids) => [...ids, e.target.value]);
+                    const v = e.target.value;
+                    setAddMagSelectValue(v);
+                    if (v && !selectedMagIds.includes(v)) {
+                      setSelectedMagIds((ids) => [...ids, v]);
                     }
-                    e.target.value = "";
+                    setAddMagSelectValue("");
                   }}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  aria-label="Add required membership"
                 >
                   <option value="">Add membership...</option>
                   {availableMags
-                    .filter((m) => !selectedMagIds.includes(m.id))
+                    .filter((m) => m.id && !selectedMagIds.includes(m.id))
                     .map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.name} ({m.uid})
+                        {m.name || m.uid || m.id} {m.uid ? `(${m.uid})` : ""}
                       </option>
                     ))}
                 </select>
+                {availableMags.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    No memberships found. Create one under CRM → Memberships.
+                  </p>
+                )}
               </div>
             )}
 

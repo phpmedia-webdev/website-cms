@@ -15,6 +15,7 @@ interface GalleryRow {
   description?: string | null;
   cover_image_id?: string | null;
   status?: string | null;
+  access_level?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -24,14 +25,20 @@ interface GalleriesListClientProps {
   /** Map of cover_image_id -> url (passed as plain object for serialization) */
   coverImageUrls: Record<string, string>;
   statusFilter?: string;
+  /** Gallery IDs that have at least one membership (for M badge) */
+  galleryIdsWithMembership?: string[];
 }
 
 export function GalleriesListClient({
   galleries,
   coverImageUrls,
   statusFilter,
+  galleryIdsWithMembership = [],
 }: GalleriesListClientProps) {
   const [view, setView] = useState<"grid" | "list">("grid");
+  const membershipSet = new Set(galleryIdsWithMembership);
+  const showMembershipBadge = (g: GalleryRow) =>
+    membershipSet.has(g.id) || g.access_level === "members" || g.access_level === "mag";
 
   useEffect(() => {
     const stored = localStorage.getItem("galleriesListView");
@@ -117,6 +124,14 @@ export function GalleriesListClient({
             <Link key={gallery.id} href={`/admin/galleries/${gallery.id}`}>
               <Card className="hover:bg-accent transition-colors cursor-pointer overflow-hidden">
                 <div className="aspect-square relative bg-muted">
+                  {showMembershipBadge(gallery) && (
+                    <span
+                      className="absolute top-1.5 right-1.5 z-10 inline-flex h-5 w-5 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-xs dark:bg-red-900/40 dark:text-red-300"
+                      title="Membership restricted"
+                    >
+                      M
+                    </span>
+                  )}
                   {gallery.cover_image_id && coverImageUrls[gallery.cover_image_id] ? (
                     <Image
                       src={coverImageUrls[gallery.cover_image_id]!}
@@ -155,6 +170,14 @@ export function GalleriesListClient({
               <Link key={gallery.id} href={`/admin/galleries/${gallery.id}`}>
                 <div className="flex items-center gap-3 px-4 py-2 hover:bg-muted/50 transition-colors">
                   <div className="relative w-10 h-10 shrink-0 rounded bg-muted overflow-hidden">
+                    {showMembershipBadge(gallery) && (
+                      <span
+                        className="absolute top-0.5 right-0.5 z-10 inline-flex h-4 w-4 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-[10px] dark:bg-red-900/40 dark:text-red-300"
+                        title="Membership restricted"
+                      >
+                        M
+                      </span>
+                    )}
                     {gallery.cover_image_id && coverImageUrls[gallery.cover_image_id] ? (
                       <Image
                         src={coverImageUrls[gallery.cover_image_id]!}
@@ -175,6 +198,14 @@ export function GalleriesListClient({
                       {gallery.description || gallery.slug || "—"}
                     </p>
                   </div>
+                  {showMembershipBadge(gallery) ? (
+                    <span
+                      className="shrink-0 inline-flex h-5 w-5 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-xs dark:bg-red-900/40 dark:text-red-300"
+                      title="Membership restricted"
+                    >
+                      M
+                    </span>
+                  ) : null}
                   <Badge
                     variant={gallery.status === "published" ? "default" : "secondary"}
                     className="shrink-0 text-xs"

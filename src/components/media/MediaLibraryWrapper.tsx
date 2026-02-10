@@ -44,6 +44,7 @@ export function MediaLibraryWrapper() {
   const [mediaTermIds, setMediaTermIds] = useState<Map<string, Set<string>>>(new Map());
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  const [mediaIdsWithMembership, setMediaIdsWithMembership] = useState<Set<string>>(new Set());
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // Load storage stats
@@ -202,6 +203,32 @@ export function MediaLibraryWrapper() {
     return () => observer.disconnect();
   }, [hasMore, view]);
 
+  // Fetch which displayed media have membership (for M badge)
+  useEffect(() => {
+    const ids = displayedMedia.slice(0, displayLimit).map((m) => m.id);
+    if (ids.length === 0) {
+      setMediaIdsWithMembership(new Set());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/media/membership-ids?ids=${encodeURIComponent(ids.join(","))}`
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setMediaIdsWithMembership(new Set((data.media_ids as string[]) ?? []));
+      } catch {
+        if (!cancelled) setMediaIdsWithMembership(new Set());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [displayedMedia, displayLimit]);
+
   // Persist view and viewMode preferences
   useEffect(() => {
     const savedView = localStorage.getItem("mediaLibraryView");
@@ -348,6 +375,7 @@ export function MediaLibraryWrapper() {
               media={displayedList}
               loading={loading}
               onSelect={(m) => setSelectedMedia(m)}
+              mediaIdsWithMembership={mediaIdsWithMembership}
             />
             {hasMore && <div ref={observerTarget} className="h-4" />}
           </div>
@@ -360,6 +388,7 @@ export function MediaLibraryWrapper() {
             onSelectAll={handleSelectAll}
             onItemClick={(m) => setSelectedMedia(m)}
             onDelete={() => setRefreshTrigger((prev) => prev + 1)}
+            mediaIdsWithMembership={mediaIdsWithMembership}
           />
         )}
       </div>

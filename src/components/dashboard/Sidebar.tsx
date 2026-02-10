@@ -34,6 +34,7 @@ import {
   MessageCircle,
   BookOpen,
   Briefcase,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canAccessFeature } from "@/lib/admin/route-features";
@@ -54,6 +55,12 @@ const mediaSubNav: { name: string; href: string; icon: typeof Image; featureSlug
 ];
 
 const SIDEBAR_MEDIA_OPEN = "sidebar-media-open";
+
+const SIDEBAR_CONTENT_OPEN = "sidebar-content-open";
+
+const contentSubNav: { name: string; href: string; icon: typeof FileText; featureSlug: string }[] = [
+  { name: "Posts & Pages", href: "/admin/content", icon: FileText, featureSlug: "content" },
+];
 
 const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 
@@ -104,6 +111,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
   const isSupport = pathname === "/admin/support" || pathname?.startsWith("/admin/support/");
   const isCrm = pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
+  const isContent = pathname === "/admin/content" || pathname?.startsWith("/admin/content/");
+  const isEvents = pathname === "/admin/events" || pathname?.startsWith("/admin/events/");
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
 
   const showDashboard =
@@ -121,12 +130,16 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     canAccessFeature(effectiveFeatureSlugs, "media") ||
     canAccessFeature(effectiveFeatureSlugs, "galleries");
   const showContent = canAccessFeature(effectiveFeatureSlugs, "content");
+  const showCalendar =
+    canAccessFeature(effectiveFeatureSlugs, "content") ||
+    canAccessFeature(effectiveFeatureSlugs, "calendar");
   const showSettings = canAccessFeature(effectiveFeatureSlugs, "settings");
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [contentOpen, setContentOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
 
@@ -166,11 +179,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isDashboard) {
         setCrmOpen(false);
         setMediaOpen(false);
+        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -179,11 +194,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isCrm) {
         setCrmOpen(true);
         setMediaOpen(false);
+        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "true");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -192,11 +209,28 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isMedia) {
         setCrmOpen(false);
         setMediaOpen(true);
+        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "true");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+        return;
+      }
+      if (isContent) {
+        setCrmOpen(false);
+        setMediaOpen(false);
+        setContentOpen(true);
+        setSettingsOpen(false);
+        setSupportOpen(false);
+        setSuperOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "true");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -205,11 +239,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isSettings) {
         setCrmOpen(false);
         setMediaOpen(false);
+        setContentOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         setSettingsOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "true");
@@ -218,11 +254,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isSupport) {
         setCrmOpen(false);
         setMediaOpen(false);
+        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(true);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "true");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -231,35 +269,40 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isSuper) {
         setCrmOpen(false);
         setMediaOpen(false);
+        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "true");
         return;
       }
-      // Content, etc.: collapse all
+      // Other routes: collapse all
       setCrmOpen(false);
       setMediaOpen(false);
+      setContentOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
       localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
       localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+      localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
       localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
     } catch {
       if (isCrm) setCrmOpen(true);
       if (isMedia) setMediaOpen(true);
+      if (isContent) setContentOpen(true);
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMedia, isSettings, isSupport, isSuper]);
+  }, [pathname, isCrm, isMedia, isContent, isEvents, isSettings, isSupport, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -268,6 +311,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setCrmOpen(next);
     if (next) {
       setMediaOpen(false);
+      setContentOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -281,6 +325,28 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     } catch { /* ignore */ }
   };
 
+  const toggleContent = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !contentOpen;
+    setContentOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMediaOpen(false);
+      setSettingsOpen(false);
+      setSupportOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_CONTENT_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
   const toggleMedia = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -288,6 +354,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setMediaOpen(next);
     if (next) {
       setCrmOpen(false);
+      setContentOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -309,11 +376,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
+      setContentOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       } catch { /* ignore */ }
@@ -331,11 +400,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
+      setContentOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
       } catch { /* ignore */ }
@@ -353,11 +424,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
+      setContentOpen(false);
       setSettingsOpen(false);
       setSuperOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
       } catch { /* ignore */ }
@@ -566,19 +639,78 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
           )}
         </div>
         )}
-        {/* Content */}
+        {/* Content twirldown (Posts & Pages) */}
         {showContent && (
+        <div className="pt-1">
+          <div
+            className={cn(
+              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
+              isContent && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
+            )}
+          >
+            <Link
+              href="/admin/content"
+              className={cn(
+                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
+                isContent ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <FileText className="h-5 w-5" />
+              Content
+            </Link>
+            <button
+              type="button"
+              onClick={toggleContent}
+              className={cn(
+                "p-1 rounded transition-colors",
+                isContent ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+              aria-expanded={contentOpen}
+            >
+              {contentOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          </div>
+          {contentOpen && (
+            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+              {contentSubNav
+                .filter((sub) => canAccessFeature(effectiveFeatureSlugs, sub.featureSlug))
+                .map((sub) => {
+                  const isSubActive =
+                    pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                  const SubIcon = sub.icon;
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        isSubActive
+                          ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+        )}
+        {/* Calendar (root nav, under Content) */}
+        {showCalendar && (
         <Link
-          href="/admin/content"
+          href="/admin/events"
           className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-            (pathname === "/admin/content" || pathname?.startsWith("/admin/content/"))
-              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 font-medium pl-[10px]"
+            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors pt-1 mt-1",
+            isEvents
+              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           )}
         >
-          <FileText className="h-5 w-5" />
-          Content
+          <Calendar className="h-5 w-5" />
+          Calendar
         </Link>
         )}
 

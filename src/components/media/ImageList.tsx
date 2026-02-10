@@ -9,12 +9,15 @@ interface ImageListProps {
   media: MediaWithVariants[];
   loading?: boolean;
   onSelect?: (media: MediaWithVariants) => void;
+  /** Media IDs that have at least one membership (for M badge) */
+  mediaIdsWithMembership?: Set<string>;
 }
 
 export function ImageList({
   media,
   loading = false,
   onSelect,
+  mediaIdsWithMembership,
 }: ImageListProps) {
   return (
     <div className="space-y-4">
@@ -45,6 +48,14 @@ export function ImageList({
                   onClick={() => onSelect?.(item)}
                 >
                   <div className="aspect-square relative bg-muted">
+                    {mediaIdsWithMembership?.has(item.id) && (
+                      <span
+                        className="absolute top-1.5 right-1.5 z-10 inline-flex h-5 w-5 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-xs dark:bg-red-900/40 dark:text-red-300"
+                        title="Membership restricted"
+                      >
+                        M
+                      </span>
+                    )}
                     {displayUrl ? (
                       <Image
                         src={displayUrl}

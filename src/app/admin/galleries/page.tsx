@@ -21,7 +21,7 @@ export default async function GalleriesPage({
   let query = supabase
     .schema(schema)
     .from("galleries")
-    .select("id, name, slug, description, cover_image_id, status, created_at, updated_at")
+    .select("id, name, slug, description, cover_image_id, status, access_level, created_at, updated_at")
     .order("created_at", { ascending: false });
 
   if (statusFilter) {
@@ -32,6 +32,20 @@ export default async function GalleriesPage({
 
   if (error) {
     console.error("Error loading galleries:", error.message ?? JSON.stringify(error));
+  }
+
+  // Which gallery IDs have at least one membership (gallery_mags) for M badge
+  const galleryIdsWithMembership = new Set<string>();
+  if (galleries?.length) {
+    const galleryIds = galleries.map((g: { id: string }) => g.id);
+    const { data: magRows } = await supabase
+      .schema(schema)
+      .from("gallery_mags")
+      .select("gallery_id")
+      .in("gallery_id", galleryIds);
+    for (const row of magRows ?? []) {
+      if (row?.gallery_id) galleryIdsWithMembership.add(row.gallery_id);
+    }
   }
 
   // Fetch cover image URLs from media_variants (media table has no url column)
@@ -84,6 +98,7 @@ export default async function GalleriesPage({
       galleries={galleries}
       coverImageUrls={coverUrls}
       statusFilter={statusFilter}
+      galleryIdsWithMembership={Array.from(galleryIdsWithMembership)}
     />
   );
 }

@@ -581,7 +581,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 **Phase 09 and sub-phases (9A–9E) — execution order and status**
 
-Recommended **execution order** (dependencies first): **09** (core MAG) → **9C** (Members & Ownership, prerequisite for 9A) → **9A** (Code Generator & Redemption) → **9E** (Gallery Enhancement) → **9B** (Marketing) → **9D** (AnyChat). Sub-phases are listed in this order below.
+Recommended **execution order** (dependencies first): **09** (core MAG) → **9C** (Members & Ownership, prerequisite for 9A) → **9A** (Code Generator & Redemption) → **9E** (Gallery Enhancement). External integrations (Marketing, AnyChat) are in **Phase 12** (12A, 12B), not part of membership core.
 
 | Phase | Done | Still needed |
 |-------|------|--------------|
@@ -589,8 +589,6 @@ Recommended **execution order** (dependencies first): **09** (core MAG) → **9C
 | **9C** | members + user_licenses schema; members.ts (getMemberByContactId, createMemberForContact, resolveMemberFromAuth); licenses.ts (hasLicense, grantLicense, revokeLicense, getMemberLicenses, filterMediaByOwnership). | Elevation flow docs (when to create members row); update LMS Phase 17 to use user_licenses. |
 | **9A** | Code tables (batches, membership_codes); code-generator.ts (generate, redeem, hash); admin UI (code-generator, batches, explore); API (batches, generate, codes, redeem-code). | Redemption flow: assign MAG via contact (crm_contact_mags), create/update members row on redeem; character exclusion in generator; public/member "Apply code" UI (login page + member profile). |
 | **9E** | Gallery schema & status; media↔gallery assignment (both directions); MAG protection; standalone /gallery/[slug]; shortcode spec + parser + findGalleryShortcodes; GalleryRenderer (server) + GalleryEmbed (client); ContentWithGalleries; GalleryPreviewModal (images + native video, keyboard, captions); Insert gallery + copy shortcode UIs; GET /api/galleries/[id] and /api/galleries/[id]/public (JSON). | GalleryPreviewModal: external video embed (YouTube/Vimeo/Adilo via video_url + provider); optional thumbnail strip/zoom; gallery header filter by media taxonomy (categories/tags); content–gallery linking (Phase 7); style templates/presets (Phase 8). |
-| **9B** | Placeholder CRM → Marketing page. | Define scope (Resend, Vbout); lists/segments/campaigns UI; integration config; sync contacts; unsubscribe → DND. |
-| **9D** | — | Conversations nav; embed AnyChat.one; config & docs. |
 
 **Phase 09 (main) — What we built vs what’s still needed**
 
@@ -618,11 +616,11 @@ Inferred from planlog + codebase review:
 - **Ecommerce:** No api_keys table, no payment webhooks, no payment-integration.ts.
 - **Dashboard:** No membership stats on admin dashboard, no `/admin/members` list or unified customer view.
 
-- [ ] **Membership feature switch (site-level)** — optimized speed for sites without gated content
-  - [ ] Add tenant-level setting (e.g. `tenant_sites.membership_enabled` or feature registry). Master toggle on `/admin/crm/memberships` page.
-  - [ ] When OFF: notice “Turn memberships on before creating memberships”; disable/hide Create membership. No sync on public pages; no content protection.
-  - [ ] When turning OFF with existing MAGs: warn that gated content will be exposed; advise making all memberships inactive (draft) first.
-  - [ ] When ON: membership global (sync and content protection as configured). See PRD — Membership feature switch.
+- [x] **Membership feature switch (site-level)** — optimized speed for sites without gated content
+  - [x] Add tenant-level setting (e.g. `tenant_sites.membership_enabled` or feature registry). Master toggle on `/admin/crm/memberships` page.
+  - [x] When OFF: notice “Turn memberships on before creating memberships”; disable/hide Create membership. No sync on public pages; no content protection.
+  - [x] When turning OFF with existing MAGs: warn that gated content will be exposed; advise making all memberships inactive (draft) first.
+  - [x] When ON: membership global (sync and content protection as configured). See PRD — Membership feature switch.
 
 - [x] Create MAG (Membership Access Groups) database schema
   - [x] Client schema: `mags` table (id, uid, name, description, start_date, end_date, status active|draft, etc.); **contacts get MAGs via `crm_contact_mags`** (contact_id, mag_id, assigned_via, assigned_at) — no separate `members` table; member = contact with MAG assignments.
@@ -728,10 +726,10 @@ Inferred from planlog + codebase review:
   - [ ] **Content (posts/pages):** Apply same multi-MAG pattern for consistency (TBD in planning).
 
 - [ ] **Membership and media items (sessionlog up-next)** — make media protection consistent with content/galleries; mag-tag optional (filtering only).
-  - [ ] Add **media_mags(media_id, mag_id)** table (same pattern as gallery_mags); migration.
-  - [ ] Protection: getMagIdsOnMedia, filterMediaByMagIdAccess using getMemberMagIds; switch gallery public API (and any media protection) from mag-tag to media_mags.
-  - [ ] API: read/write media MAG assignments (e.g. GET/PUT media/[id]/mags).
-  - [ ] Media item UI: membership selector (multi-select MAGs) on media item page; mag-tag remains optional for filtering.
+  - [x] Add **media_mags(media_id, mag_id)** table (same pattern as gallery_mags); migration 094.
+  - [x] Protection: getMagIdsOnMedia, filterMediaByMagIdAccess using getMemberMagIds; switch gallery public API from mag-tag to media_mags.
+  - [x] API: read/write media MAG assignments (GET/PUT media/[id]/mags).
+  - [x] Media item UI: membership selector (multi-select MAGs) on media item page (Memberships tab); mag-tag remains optional for filtering.
   - [ ] Optional backfill: media_mags from existing mag-tags on media.
   - [ ] Red "M" badge on gallery list/grid for items in a membership (media_mags).
   - [ ] Red "M" badge in media library (list + grid) for items in a membership.
@@ -1020,57 +1018,6 @@ Inferred from planlog + codebase review:
   - [ ] Add `gallery_style_presets` table (tenant schema) if presets desired — id, tenant_id, name, layout, columns, ...
   - [ ] Benefits: faster workflow, consistency, easier onboarding; additive to existing per-gallery display styles
 
-### Phase 9B: Marketing (Email / Resend / Vbout)
-
-**Status**: Pending - Comes before Phase 10 (API Development). CRM → Marketing UI exists as placeholder; integrations TBD.
-
-- [ ] Define Marketing scope and integrations
-  - [ ] Resend API: transactional/campaign email; API key in integrations/settings
-  - [ ] Vbout API: email marketing (lists, segments, campaigns); reference https://developers.vbout.com/
-  - [ ] External email: connections and sync (per PRD: lists/segments per contact, search contacts by list)
-- [ ] Marketing UI (CRM → Marketing page)
-  - [ ] Lists/segments management (as far as provider API supports)
-  - [ ] Campaign management (as far as provider API supports)
-  - [ ] Link contacts to lists/segments; search/filter contacts by list
-- [ ] API and backend
-  - [ ] Integration config (Resend/Vbout keys, webhooks if needed)
-  - [ ] Sync or push contacts to provider lists (respect DND/consent)
-  - [ ] Unsubscribe handling: set contact DND when unsubscribe event received
-
-### Phase 9D: AnyChat.one Integration (Conversations)
-
-**Status**: Planned - Before Phase 10 (API Development). Adds omnichannel live chat and AI-assisted conversations to the CRM workflow.
-
-**Platform overview (anychat.one):**
-- All-in-one live chat and AI-assisted chat platform with web widget
-- Omnichannel: Facebook, Instagram, LinkedIn, WhatsApp, Telegram, Messenger, Viber, WeChat, Skype, etc.
-- Built-in CRM, meetings section, and API
-- Embeddable live chat management page for embedding in admin panels
-- Dashboard at anychat.one/app for full operations (channels, inbox, chatflows, forms)
-- Docs: https://docs.anychat.one/ (quick setup, widgets, channels, live chat, inbox, chatflows)
-
-- [ ] Add CRM sub-navigation: "Conversations"
-  - [ ] Add "Conversations" link to `crmSubNav` in Sidebar
-  - [ ] Route: `/admin/crm/conversations`
-
-- [ ] Create Conversations page (`/admin/crm/conversations`)
-  - [ ] Embed AnyChat.one live chat management interface (iframe or platform embed SDK)
-  - [ ] Full-height embed area for managing conversations
-  - [ ] Header section with:
-    - [ ] Page title and brief description
-    - [ ] Link(s) to full AnyChat.one dashboard (anychat.one/app) for channels, inbox, chatflows, meetings, CRM, API
-    - [ ] "Open in new tab" for dashboard access
-
-- [ ] Integration configuration
-  - [ ] Add AnyChat.one config to superadmin integrations or Settings → CRM
-  - [ ] Store embed URL or API credentials (per deployment)
-  - [ ] Document required env vars or settings (e.g. `ANYCHAT_EMBED_URL`, `ANYCHAT_API_KEY`)
-  - [ ] Optional: SSO or token-based auth for embed (if AnyChat supports)
-
-- [ ] Documentation
-  - [ ] Document setup steps: AnyChat.one account, embed configuration, dashboard links
-  - [ ] Reference AnyChat.one docs for widget setup on public site (separate from admin embed)
-
 ### Phase 10: API Development
 
 **Status**: Deferred - Move after Phase 11 (Deployment Tools) and component library structure. See sessionlog for priority.
@@ -1168,9 +1115,9 @@ Inferred from planlog + codebase review:
 
 ---
 
-### Phase 12: Visual Component Library
+### Phase 12: Integrating External Applications
 
-**Status**: **Cancelled — not needed.** We decided against a dynamic site (WordPress-style) and a drag-and-drop / section-editor page builder. The product uses a **simple Code Library** (Superadmin → Code Library) where we store copy-paste code blocks (headers, hero sections, etc.) for tenant use. No visual component catalog, no scanner, no DB-driven section picker. Phase 02’s “crude MVP component library manager” was superseded by the Code Library; this full Phase 12 scope is obsolete.
+**Status**: Planned. External integrations (email marketing, live chat) were previously listed under Phase 09 by priority; they are not part of the membership core. Phase 12 groups them as **12A** (Marketing) and **12B** (AnyChat). **Former Phase 12 (Visual Component Library)** moved to end of planlog as Phase 20 (cancelled, reference only). We decided against a dynamic site (WordPress-style) and a drag-and-drop / section-editor page builder. The product uses a **simple Code Library** (Superadmin → Code Library) where we store copy-paste code blocks (headers, hero sections, etc.) for tenant use. No visual component catalog, no scanner, no DB-driven section picker. Phase 02’s “crude MVP component library manager” was superseded by the Code Library; this full Phase 12 scope is obsolete.
 
 **Note**: This was the full visual component library system (from old Phase 13). All items below are **cancelled**; retained for reference only.
 

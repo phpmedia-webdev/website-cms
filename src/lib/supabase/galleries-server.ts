@@ -12,6 +12,8 @@ export interface GalleryItemForRender {
   media_id: string;
   position: number;
   caption: string | null;
+  /** True when this item's media is in at least one membership (media_mags). Set by API. */
+  has_membership?: boolean;
   media: {
     id: string;
     media_type: string;

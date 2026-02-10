@@ -125,3 +125,73 @@ export async function getMagUidsForCurrentUser(): Promise<string[] | null> {
 
   return getMagUidsForContact(member.contact_id);
 }
+
+/**
+ * Get MAG IDs (UUIDs) assigned to media items via media_mags table.
+ * Returns a map of mediaId -> mag_id[] (empty array = no restriction = public).
+ */
+export async function getMagIdsOnMedia(
+  mediaIds: string[]
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+
+  if (mediaIds.length === 0) return result;
+
+  const supabase = createServerSupabaseClient();
+
+  const { data: rows, error } = await supabase
+    .schema(SCHEMA)
+    .from("media_mags")
+    .select("media_id, mag_id")
+    .in("media_id", mediaIds);
+
+  if (error || !rows?.length) {
+    mediaIds.forEach((id) => result.set(id, []));
+    return result;
+  }
+
+  for (const id of mediaIds) {
+    result.set(id, []);
+  }
+  for (const r of rows as { media_id: string; mag_id: string }[]) {
+    const arr = result.get(r.media_id) ?? [];
+    if (!arr.includes(r.mag_id)) arr.push(r.mag_id);
+    result.set(r.media_id, arr);
+  }
+
+  return result;
+}
+
+/**
+ * Check if a user can access media based on media_mags restriction.
+ * @param mediaMagIds - MAG IDs on the media (from getMagIdsOnMedia)
+ * @param userMagIds - MAG IDs the user has (null = anonymous, [] = member with no MAGs)
+ * @returns true if accessible (no MAGs on media, or user has at least one matching MAG)
+ */
+export function canAccessMediaByMagIds(
+  mediaMagIds: string[],
+  userMagIds: string[] | null
+): boolean {
+  if (mediaMagIds.length === 0) return true;
+  if (userMagIds == null || userMagIds.length === 0) return false;
+
+  const userSet = new Set(userMagIds);
+  return mediaMagIds.some((id) => userSet.has(id));
+}
+
+/**
+ * Filter media IDs to those the user can access based on media_mags.
+ * Use this for gallery/public API when protection is driven by media_mags (not mag-tag).
+ */
+export async function filterMediaByMagIdAccess(
+  mediaIds: string[],
+  userMagIds: string[] | null
+): Promise<string[]> {
+  if (mediaIds.length === 0) return [];
+  const magIdsByMedia = await getMagIdsOnMedia(mediaIds);
+
+  return mediaIds.filter((id) => {
+    const magIds = magIdsByMedia.get(id) ?? [];
+    return canAccessMediaByMagIds(magIds, userMagIds);
+  });
+}

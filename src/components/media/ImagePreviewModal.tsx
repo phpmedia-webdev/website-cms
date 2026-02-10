@@ -55,6 +55,11 @@ export function ImagePreviewModal({
   const [galleryToggling, setGalleryToggling] = useState<string | null>(null);
   const [galleryFeedback, setGalleryFeedback] = useState<{ message: string; galleryName: string } | null>(null);
 
+  const [availableMags, setAvailableMags] = useState<{ id: string; name: string; uid: string }[]>([]);
+  const [selectedMagIds, setSelectedMagIds] = useState<string[]>([]);
+  const [magsLoading, setMagsLoading] = useState(true);
+  const [magsToggling, setMagsToggling] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       setGalleryLoading(true);
@@ -68,6 +73,51 @@ export function ImagePreviewModal({
     }
     load();
   }, [media.id]);
+
+  useEffect(() => {
+    async function load() {
+      setMagsLoading(true);
+      try {
+        const [magsRes, mediaMagsRes] = await Promise.all([
+          fetch("/api/crm/mags"),
+          fetch(`/api/media/${media.id}/mags`),
+        ]);
+        const mags = magsRes.ok ? (await magsRes.json()) ?? [] : [];
+        const { mag_ids } = mediaMagsRes.ok ? (await mediaMagsRes.json()) ?? {} : {};
+        setAvailableMags(mags);
+        setSelectedMagIds(Array.isArray(mag_ids) ? mag_ids : []);
+      } catch {
+        setAvailableMags([]);
+        setSelectedMagIds([]);
+      } finally {
+        setMagsLoading(false);
+      }
+    }
+    load();
+  }, [media.id]);
+
+  const handleMagToggle = async (magId: string, currentlyAssigned: boolean) => {
+    setMagsToggling(magId);
+    try {
+      const nextIds = currentlyAssigned
+        ? selectedMagIds.filter((id) => id !== magId)
+        : [...selectedMagIds, magId];
+      const res = await fetch(`/api/media/${media.id}/mags`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mag_ids: nextIds }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? "Failed to update membership");
+        return;
+      }
+      setSelectedMagIds(nextIds);
+      onUpdate?.(media);
+    } finally {
+      setMagsToggling(null);
+    }
+  };
 
   const handleGalleryToggle = async (galleryId: string, currentlyAssigned: boolean) => {
     const gallery = publishedGalleries.find((g) => g.id === galleryId);
@@ -334,18 +384,19 @@ export function ImagePreviewModal({
             </div>
           )}
 
-          {/* Tabbed sections: Taxonomy, Galleries, Variants */}
+          {/* Tabbed sections: Taxonomy, Galleries, Variants, Membership (last) */}
           <Tabs defaultValue="taxonomy" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
-              <TabsTrigger value="galleries">Galleries</TabsTrigger>
-              <TabsTrigger value="variants">Variants ({media.variants.length})</TabsTrigger>
+            <TabsList className="flex w-full flex-wrap gap-1 h-auto p-1">
+              <TabsTrigger value="taxonomy" className="flex-1 min-w-0">Taxonomy</TabsTrigger>
+              <TabsTrigger value="galleries" className="flex-1 min-w-0">Galleries</TabsTrigger>
+              <TabsTrigger value="variants" className="flex-1 min-w-0">Variants ({media.variants.length})</TabsTrigger>
+              <TabsTrigger value="membership" className="flex-1 min-w-0">Memberships</TabsTrigger>
             </TabsList>
 
             {/* Tab 1: Taxonomy (Categories & Tags) */}
             <TabsContent value="taxonomy" className="space-y-2 mt-4">
               <p className="text-xs text-muted-foreground">
-                MAG tags allow filtering by memberships.
+                MAG tags allow filtering by memberships. Restrict access via the Memberships tab.
               </p>
               <TaxonomyAssignment
                 mediaId={media.id}
@@ -429,7 +480,7 @@ export function ImagePreviewModal({
               )}
             </TabsContent>
 
-            {/* Tab 3: Variants */}
+            {/* Tab 4: Variants */}
             <TabsContent value="variants" className="space-y-2 mt-4">
               <div className="grid gap-1.5 max-h-64 overflow-y-auto overflow-x-hidden min-w-0">
                 {media.variants.map((variant) => (
@@ -497,6 +548,75 @@ export function ImagePreviewModal({
                   </div>
                 ))}
               </div>
+            </TabsContent>
+
+            {/* Tab 4: Memberships (last) — restrict media to memberships */}
+            <TabsContent value="membership" className="space-y-3 mt-4">
+              <Label className="text-sm font-medium">Restrict to memberships</Label>
+              <p className="text-xs text-muted-foreground">
+                Only users with at least one of these memberships can see this media in galleries and on the site.
+              </p>
+              {magsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading memberships…
+                </div>
+              ) : availableMags.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No memberships yet. Create one under CRM → Memberships.
+                </p>
+              ) : (
+                <ul className="space-y-2 max-h-48 overflow-y-auto">
+                  {availableMags.map((mag) => {
+                    const isAssigned = selectedMagIds.includes(mag.id);
+                    const toggling = magsToggling === mag.id;
+                    return (
+                      <li
+                        key={mag.id}
+                        className={`flex items-center justify-between gap-3 px-3 py-2 rounded-md border ${
+                          isAssigned
+                            ? "border-primary bg-primary/5"
+                            : "border-input bg-muted/30"
+                        } ${toggling ? "opacity-60" : ""}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Checkbox
+                            id={`mag-${mag.id}`}
+                            checked={isAssigned}
+                            onCheckedChange={() => handleMagToggle(mag.id, isAssigned)}
+                            disabled={toggling}
+                          />
+                          <label
+                            htmlFor={`mag-${mag.id}`}
+                            className="text-sm font-medium truncate cursor-pointer flex-1"
+                          >
+                            {mag.name}
+                          </label>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {isAssigned ? "Required" : "—"}
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 shrink-0"
+                          onClick={() => handleMagToggle(mag.id, isAssigned)}
+                          disabled={toggling}
+                          title={isAssigned ? `Remove ${mag.name} restriction` : `Require ${mag.name}`}
+                        >
+                          {toggling ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : isAssigned ? (
+                            <><Minus className="h-3.5 w-3.5 mr-1" /> Remove</>
+                          ) : (
+                            <><Plus className="h-3.5 w-3.5 mr-1" /> Add</>
+                          )}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </TabsContent>
           </Tabs>
         </div>

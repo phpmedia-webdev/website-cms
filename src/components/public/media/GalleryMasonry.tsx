@@ -41,8 +41,17 @@ export function GalleryMasonry({
   return (
     <div className={cn("columns space-y-4", colCount, gapClass)}>
       {items.map((item, index) => (
-        <figure key={item.id} className="break-inside-avoid m-0">
-          {lightbox && onItemClick ? (
+        <figure key={item.id} className="break-inside-avoid m-0 relative">
+          <div className="relative">
+            {item.has_membership && (
+              <span
+                className="absolute top-1.5 right-1.5 z-10 inline-flex h-5 w-5 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-xs dark:bg-red-900/40 dark:text-red-300"
+                title="Membership restricted"
+              >
+                M
+              </span>
+            )}
+            {lightbox && onItemClick ? (
             <button
               type="button"
               onClick={() => onItemClick(index)}
@@ -89,6 +98,7 @@ export function GalleryMasonry({
               )}
             </a>
           )}
+          </div>
           {captions && (item.caption || item.media.alt_text) && (
             <figcaption className="mt-1 text-sm text-muted-foreground">
               {item.caption ?? item.media.alt_text}

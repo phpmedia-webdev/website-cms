@@ -9,6 +9,21 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-09 CT (evening) - Calendar: taxonomy fix, search/filters, sessionlog planning
+
+**Context for Next Session:**
+- **Calendar module (admin):** Schema done (events, event_exceptions, participants, resources, junctions). Admin calendar at /admin/events with month/week/day/agenda views, event create/edit form (taxonomy + memberships tabs), cover image, link_url. **Taxonomy fix:** `taxonomy.ts` schema fallback changed from "public" to "website_cms_template_dev" so event categories save correctly.
+- **Calendar search and filters:** EventsFilterBar added: row 1 = search input + Reset button (right justified); row 2 = Categories, Tags, Memberships multi-select. Client-side filtering; loads taxonomy terms (event section), MAGs, and taxonomy relationships for visible events. Tags dropdown always visible between Categories and Memberships.
+- **Sessionlog planning (docs only):** Added architecture notes (one calendar; participants/resources assigned TO events; view switching = filter). Public vs Internal: event form selector (Public = public calendar, Internal = admin only), maps to event_type; calendar filter checkboxes (Public, Internal); public route only shows event_type='public'. Participant picker: search-based (combobox/modal). Resource picker: same pattern. Resources CRUD: resource table editor as sub-link under Calendar (/admin/events/resources).
+- **Next up:** See sessionlog — Feature guard, Public calendar/ICS, Resources CRUD, Participant/Resource pickers, Public vs Internal form control, Recurring events, Conflict checks. Key files: `src/app/admin/events/`, `src/components/events/`, `src/lib/supabase/events.ts`, `src/lib/supabase/taxonomy.ts`, `docs/sessionlog.md`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **taxonomy.ts:** Schema fallback `"public"` → `"website_cms_template_dev"` (11 occurrences) so taxonomy_relationships and taxonomy_terms use correct client schema.
+- **EventsFilterBar:** New component with search + Reset, Categories/Tags/Memberships filters.
+- **EventsPageClient:** Search, filter state; loads taxonomy terms, configs, MAGs, event taxonomy relationships; client-side filtering; Tags always rendered.
+- **sessionlog.md:** Architecture notes; Public vs Internal on form and calendar; participant/resource picker as search-based; Resources CRUD as sub-link under Calendar; public route only event_type='public'.
+
 ### 2026-02-06 CT (evening) - Gallery per-media MAG filter; Membership and media items planned
 
 **Context for Next Session:**

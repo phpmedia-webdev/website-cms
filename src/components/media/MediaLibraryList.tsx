@@ -18,6 +18,8 @@ interface MediaLibraryListProps {
   onSelectAll?: (selected: boolean) => void;
   onItemClick?: (media: MediaWithVariants) => void;
   onDelete?: () => void;
+  /** Media IDs that have at least one membership (for M badge) */
+  mediaIdsWithMembership?: Set<string>;
 }
 
 export function MediaLibraryList({
@@ -28,6 +30,7 @@ export function MediaLibraryList({
   onSelectAll,
   onItemClick,
   onDelete,
+  mediaIdsWithMembership,
 }: MediaLibraryListProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -100,6 +103,7 @@ export function MediaLibraryList({
                 />
               </th>
               <th className="p-3 text-left font-medium">Name</th>
+              <th className="p-3 text-left font-medium w-10">M</th>
               <th className="p-3 text-left font-medium w-32">Dimensions</th>
               <th className="p-3 text-left font-medium w-24">Size</th>
               <th className="p-3 text-left font-medium w-32">Created</th>
@@ -137,6 +141,18 @@ export function MediaLibraryList({
                         {item.slug}
                       </p>
                     </div>
+                  </td>
+                  <td className="p-3">
+                    {mediaIdsWithMembership?.has(item.id) ? (
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-xs dark:bg-red-900/40 dark:text-red-300"
+                        title="Membership restricted"
+                      >
+                        M
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
                   </td>
                   <td className="p-3 text-xs text-muted-foreground">
                     {item.original_width}×{item.original_height}px

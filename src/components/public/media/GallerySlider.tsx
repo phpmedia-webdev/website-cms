@@ -59,6 +59,14 @@ export function GallerySlider({
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
+      {current?.has_membership && (
+        <span
+          className="absolute top-2 right-2 z-20 inline-flex h-5 w-5 items-center justify-center rounded bg-red-100 text-red-700 font-semibold text-xs dark:bg-red-900/40 dark:text-red-300"
+          title="Membership restricted"
+        >
+          M
+        </span>
+      )}
       <div className="relative aspect-video w-full overflow-hidden bg-muted">
         {animation === "slide" ? (
           <div
