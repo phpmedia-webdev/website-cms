@@ -5,6 +5,7 @@
 
 import { createServerSupabaseClient } from "./client";
 import { getClientSchema } from "./schema";
+import { expandRecurringEvents, getOccurrencesInRange } from "@/lib/recurrence";
 
 const EVENTS_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -67,8 +68,8 @@ export interface Event {
 }
 
 /**
- * List events in a date range. Uses RPC get_events_dynamic.
- * Recurring events are returned as template rows; expansion happens in API layer.
+ * List events in a date range. Uses RPC get_events_dynamic, then expands
+ * recurring events (RRULE) into individual occurrences so the calendar shows each instance.
  */
 export async function getEvents(
   startDate: Date,
@@ -90,7 +91,31 @@ export async function getEvents(
     throw error;
   }
 
-  return (data ?? []) as Event[];
+  const raw = (data ?? []) as Event[];
+  return expandRecurringEvents(raw, startDate, endDate);
+}
+
+/** Public-only filter: not hidden, not membership-protected, published. */
+export function isPublicEvent(e: Event): boolean {
+  return (
+    e.access_level === "public" &&
+    e.visibility === "public" &&
+    e.status === "published"
+  );
+}
+
+/**
+ * List events visible on the public calendar and ICS feed.
+ * Same as getEvents then filtered to access_level=public, visibility=public, status=published
+ * (no members-only, no MAG-gated, no private/hidden, no draft/cancelled).
+ */
+export async function getPublicEvents(
+  startDate: Date,
+  endDate: Date,
+  schema?: string
+): Promise<Event[]> {
+  const events = await getEvents(startDate, endDate, schema);
+  return events.filter(isPublicEvent);
 }
 
 /**
@@ -209,14 +234,53 @@ export async function updateEvent(
 
 /**
  * Delete an event by ID. Uses .schema().from() for writes.
+ * For recurring events: creates one-off events for each past occurrence (so they remain on the calendar), then deletes the series.
  */
 export async function deleteEvent(
   id: string,
   schema?: string
 ): Promise<{ ok: true } | { error: string }> {
-  const supabase = createServerSupabaseClient();
   const schemaName = schema ?? getClientSchema();
+  const event = await getEventById(id, schemaName);
+  if (!event) {
+    return { error: "Event not found" };
+  }
 
+  if (event.recurrence_rule?.trim()) {
+    const rangeStart = new Date(event.start_date);
+    const now = new Date();
+    const occurrences = getOccurrencesInRange(event, rangeStart, now);
+    // Only preserve occurrences that have already ended (fully in the past)
+    const pastOccurrences = occurrences.filter(
+      (occ) => new Date(occ.end_date).getTime() <= now.getTime()
+    );
+    for (const occ of pastOccurrences) {
+      const insert: EventInsert = {
+        title: event.title,
+        start_date: occ.start_date,
+        end_date: occ.end_date,
+        timezone: event.timezone,
+        location: event.location,
+        link_url: event.link_url ?? null,
+        description: event.description,
+        recurrence_rule: null,
+        is_all_day: event.is_all_day,
+        access_level: event.access_level,
+        required_mag_id: event.required_mag_id,
+        visibility: event.visibility,
+        event_type: event.event_type,
+        status: event.status,
+        cover_image_id: event.cover_image_id ?? null,
+      };
+      const result = await createEvent(insert, schemaName);
+      if ("error" in result) {
+        console.error("deleteEvent: failed to create past occurrence:", result.error);
+        return { error: result.error };
+      }
+    }
+  }
+
+  const supabase = createServerSupabaseClient();
   const { error } = await supabase
     .schema(schemaName)
     .from("events")

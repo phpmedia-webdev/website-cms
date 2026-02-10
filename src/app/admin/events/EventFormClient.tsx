@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -12,10 +12,13 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -25,10 +28,20 @@ import {
 } from "@/components/ui/select";
 import { GalleryMediaPicker } from "@/components/galleries/GalleryMediaPicker";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
+import {
+  EventParticipantsResourcesTab,
+  type PendingParticipant,
+} from "@/components/events/EventParticipantsResourcesTab";
 import { getMediaWithVariants } from "@/lib/supabase/media";
 import { setTaxonomyForContent } from "@/lib/supabase/taxonomy";
-import { ArrowLeft, ImageIcon, X } from "lucide-react";
+import { ArrowLeft, Copy, ImageIcon, Trash2, X } from "lucide-react";
 import type { Event } from "@/lib/supabase/events";
+import {
+  buildRecurrenceRule,
+  parseRecurrenceRule,
+  RECURRENCE_PRESETS,
+  type RecurrencePreset,
+} from "@/lib/recurrenceForm";
 
 interface EventFormClientProps {
   event?: Event | null;
@@ -97,16 +110,31 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
 
   const [taxonomyCategoryIds, setTaxonomyCategoryIds] = useState<Set<string>>(new Set());
   const [taxonomyTagIds, setTaxonomyTagIds] = useState<Set<string>>(new Set());
+  const [pendingParticipants, setPendingParticipants] = useState<PendingParticipant[]>([]);
+  const [pendingResourceIds, setPendingResourceIds] = useState<string[]>([]);
+
+  const [recurrencePreset, setRecurrencePreset] = useState<RecurrencePreset>("none");
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string | null>(null);
+  const [recurrenceRuleRaw, setRecurrenceRuleRaw] = useState<string | null>(null);
+  const [showOnPublicCalendar, setShowOnPublicCalendar] = useState(false);
+  const [showPublicWarning, setShowPublicWarning] = useState(false);
 
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [pickerMedia, setPickerMedia] = useState<Awaited<ReturnType<typeof getMediaWithVariants>>>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Only set date/time defaults once for new events; avoid re-running when coverImageUrls changes
+  const newEventDefaultsSet = useRef(false);
 
   useEffect(() => {
     if (event) {
+      newEventDefaultsSet.current = false;
       setTitle(event.title);
       setStartDate(toDateLocal(event.start_date));
       setStartTime(event.is_all_day ? "" : toDatetimeLocal(event.start_date).split("T")[1] ?? "");
@@ -122,15 +150,25 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
       setCoverImagePreviewUrl(cid ? coverImageUrls[cid] ?? null : null);
       setAccessLevel((event.access_level as "public" | "members" | "mag" | "private") ?? "public");
       setRequiredMagId(event.required_mag_id ?? null);
-    } else {
-      const now = new Date();
-      const pad = (n: number) => n.toString().padStart(2, "0");
-      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-      const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-      setStartDate(today);
-      setStartTime(time);
-      setEndDate(today);
-      setEndTime(time);
+      setShowOnPublicCalendar(event.visibility === "public");
+      const parsed = parseRecurrenceRule(event.recurrence_rule ?? null);
+      setRecurrencePreset(parsed.preset);
+      setRecurrenceEndDate(parsed.endDate);
+      setRecurrenceRuleRaw(parsed.rawRule);
+    } else if (!newEventDefaultsSet.current) {
+      // Set defaults once after mount so we don't overwrite user input on re-renders
+      const id = setTimeout(() => {
+        newEventDefaultsSet.current = true;
+        const now = new Date();
+        const pad = (n: number) => n.toString().padStart(2, "0");
+        const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        setStartDate(today);
+        setStartTime(time);
+        setEndDate(today);
+        setEndTime(time);
+      }, 0);
+      return () => clearTimeout(id);
     }
   }, [event, coverImageUrls]);
 
@@ -209,9 +247,13 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
       link_url: linkUrl.trim() || null,
       description: description.trim() || null,
       status,
+      recurrence_rule:
+        recurrenceRuleRaw ?? buildRecurrenceRule(recurrencePreset, recurrenceEndDate) ?? undefined,
       cover_image_id: coverImageId,
       access_level: accessLevel,
       required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
+      visibility: showOnPublicCalendar ? "public" : "private",
+      event_type: showOnPublicCalendar ? "public" : "meeting",
     };
 
     try {
@@ -243,6 +285,20 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
       if (eventId) {
         const termIds = [...taxonomyCategoryIds, ...taxonomyTagIds];
         await setTaxonomyForContent(eventId, "event", termIds);
+        for (const p of pendingParticipants) {
+          await fetch(`/api/events/${eventId}/participants`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ source_type: p.source_type, source_id: p.source_id }),
+          });
+        }
+        for (const resourceId of pendingResourceIds) {
+          await fetch(`/api/events/${eventId}/resources`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ resource_id: resourceId }),
+          });
+        }
       }
       if (!isEdit && eventId) {
         router.push(`/admin/events/${eventId}/edit`);
@@ -254,6 +310,79 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCopyAsNew = async () => {
+    if (!event) return;
+    setError(null);
+    setCopying(true);
+    const startISO = parseToISO(startDate, isAllDay ? null : startTime, isAllDay, false);
+    const endISO = isAllDay
+      ? parseToISO(endDate, null, true, true)
+      : parseToISO(endDate, endTime || "23:59", false);
+    if (new Date(startISO) > new Date(endISO)) {
+      setError("Start must be before end");
+      setCopying(false);
+      return;
+    }
+    const payload = {
+      title: title.trim(),
+      start_date: startISO,
+      end_date: endISO,
+      is_all_day: isAllDay,
+      location: location.trim() || null,
+      link_url: linkUrl.trim() || null,
+      description: description.trim() || null,
+      status: "draft" as const,
+      recurrence_rule:
+        recurrenceRuleRaw ?? buildRecurrenceRule(recurrencePreset, recurrenceEndDate) ?? undefined,
+      cover_image_id: coverImageId,
+      access_level: accessLevel,
+      required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
+      visibility: showOnPublicCalendar ? "public" : "private",
+      event_type: showOnPublicCalendar ? "public" : "meeting",
+    };
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Copy failed");
+      }
+      const json = await res.json();
+      const newId = json?.data?.id ?? null;
+      if (newId) {
+        router.push(`/admin/events/${newId}/edit`);
+        router.refresh();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Copy failed");
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!event?.id) return;
+    setError(null);
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Delete failed");
+      }
+      setShowDeleteConfirm(false);
+      router.push("/admin/events");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -271,22 +400,67 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
 
       <Card>
         <CardHeader className="pb-2 pt-4 px-4">
-          <div className="flex flex-row items-center justify-between w-full">
+          <div className="flex flex-row items-center justify-between w-full gap-4">
             <CardTitle className="text-lg">{isEdit ? "Edit Event" : "Add Event"}</CardTitle>
-            <div className="flex items-center gap-2">
-            <Label htmlFor="status" className="text-sm font-medium text-muted-foreground">Status</Label>
-            <select
-              id="status"
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as "draft" | "published")
-              }
-              className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-          </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {isEdit && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyAsNew}
+                    disabled={copying || saving || deleting}
+                  >
+                    <Copy className="h-4 w-4 mr-1" />
+                    {copying ? "Copying…" : "Copy as new"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={copying || saving || deleting}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete
+                  </Button>
+                  <span className="text-muted-foreground" aria-hidden="true">|</span>
+                </>
+              )}
+              <div className="flex items-center gap-2">
+                <Label htmlFor="status" className="text-sm font-medium text-muted-foreground">Status</Label>
+                <select
+                  id="status"
+                  value={status}
+                  onChange={(e) =>
+                    setStatus(e.target.value as "draft" | "published")
+                  }
+                  className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
+              <span className="text-muted-foreground" aria-hidden="true">|</span>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="show-on-public" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                  Show on public calendar
+                </Label>
+                <Switch
+                  id="show-on-public"
+                  checked={showOnPublicCalendar}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setShowPublicWarning(true);
+                    } else {
+                      setShowOnPublicCalendar(false);
+                    }
+                  }}
+                  aria-label="Show on public calendar"
+                />
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-2 px-4 pb-4">
@@ -325,6 +499,70 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
                 All day
               </Label>
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="recurrence" className="text-sm">Repeats</Label>
+              <Select
+                value={recurrencePreset}
+                onValueChange={(v) => {
+                  setRecurrencePreset(v as RecurrencePreset);
+                  setRecurrenceRuleRaw(null);
+                }}
+              >
+                <SelectTrigger id="recurrence" className="w-52">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECURRENCE_PRESETS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {recurrencePreset !== "none" && (
+              <div className="space-y-1">
+                <Label className="text-sm">End repeat</Label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="recurrence-end"
+                      checked={!recurrenceEndDate}
+                      onChange={() => setRecurrenceEndDate(null)}
+                      className="rounded-full border-input"
+                    />
+                    Never
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="recurrence-end"
+                      checked={!!recurrenceEndDate}
+                      onChange={() => {
+                        if (!recurrenceEndDate) {
+                          const d = new Date();
+                          const pad = (n: number) => n.toString().padStart(2, "0");
+                          setRecurrenceEndDate(
+                            `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+                          );
+                        }
+                      }}
+                      className="rounded-full border-input"
+                    />
+                    On date
+                  </label>
+                  {recurrenceEndDate && (
+                    <Input
+                      type="date"
+                      value={recurrenceEndDate}
+                      onChange={(e) => setRecurrenceEndDate(e.target.value || null)}
+                      className="w-40"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-sm">Start</Label>
@@ -381,13 +619,48 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
               </div>
             </div>
 
-            <Tabs defaultValue="cover" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="cover">Cover Image</TabsTrigger>
-                <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
-                <TabsTrigger value="membership">Memberships</TabsTrigger>
-              </TabsList>
-              <TabsContent value="cover" className="space-y-2 pt-4">
+            <Dialog open={showPublicWarning} onOpenChange={setShowPublicWarning}>
+              <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+                <DialogHeader>
+                  <DialogTitle className="text-destructive">Show on public calendar?</DialogTitle>
+                  <DialogDescription asChild>
+                    <p className="text-sm text-destructive">
+                      This event will be visible on the public-facing calendar. Who can view it can still be restricted by memberships. Only turn this on for events you want the public to see.
+                    </p>
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowPublicWarning(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      setShowOnPublicCalendar(true);
+                      setShowPublicWarning(false);
+                    }}
+                  >
+                    Yes, show on public calendar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Card className="bg-muted/40 border-muted">
+              <CardContent className="p-4 pt-4">
+                <Tabs defaultValue="cover" className="w-full">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="cover">Cover Image</TabsTrigger>
+                    <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
+                    <TabsTrigger value="membership">Memberships</TabsTrigger>
+                    <TabsTrigger value="participants-resources">Participants &amp; Resources</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="cover" className="space-y-2 pt-4">
                 <Label className="text-sm">Cover image</Label>
                 <div className="flex items-center gap-2">
                   {coverImageId && (coverImagePreviewUrl ?? coverImageUrls[coverImageId]) ? (
@@ -440,24 +713,18 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
                 </div>
               </TabsContent>
               <TabsContent value="taxonomy" className="pt-4">
-                {event?.id ? (
-                  <TaxonomyAssignmentForContent
-                    contentId={event.id}
-                    contentTypeSlug="event"
-                    section="event"
-                    sectionLabel="Event"
-                    embedded
-                    selectedCategoryIds={taxonomyCategoryIds}
-                    selectedTagIds={taxonomyTagIds}
-                    onCategoryToggle={handleCategoryToggle}
-                    onTagToggle={handleTagToggle}
-                    onInitialLoad={handleTaxonomyInitialLoad}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Save the event first to assign categories and tags.
-                  </p>
-                )}
+                <TaxonomyAssignmentForContent
+                  contentId={event?.id}
+                  contentTypeSlug="event"
+                  section="event"
+                  sectionLabel="Event"
+                  embedded
+                  selectedCategoryIds={taxonomyCategoryIds}
+                  selectedTagIds={taxonomyTagIds}
+                  onCategoryToggle={handleCategoryToggle}
+                  onTagToggle={handleTagToggle}
+                  onInitialLoad={event?.id ? handleTaxonomyInitialLoad : undefined}
+                />
               </TabsContent>
               <TabsContent value="membership" className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -504,7 +771,18 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
                   </div>
                 )}
               </TabsContent>
-            </Tabs>
+              <TabsContent value="participants-resources" className="pt-4">
+                <EventParticipantsResourcesTab
+                  eventId={event?.id}
+                  pendingParticipants={pendingParticipants}
+                  onPendingParticipantsChange={setPendingParticipants}
+                  pendingResourceIds={pendingResourceIds}
+                  onPendingResourceIdsChange={setPendingResourceIds}
+                />
+              </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" asChild>
@@ -540,6 +818,36 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
               onCancel={() => setShowImagePicker(false)}
             />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete event</DialogTitle>
+            <DialogDescription>
+              {recurrencePreset !== "none" || event?.recurrence_rule ? (
+                <>
+                  Past occurrences will be kept as separate one-off events. Future occurrences will be removed. This cannot be undone.
+                </>
+              ) : (
+                <>This cannot be undone.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,11 +1,12 @@
 "use client";
 
-import { add, sub } from "date-fns";
 import { ChevronLeft, ChevronsLeft, ChevronRight, ChevronsRight } from "lucide-react";
 import type { View } from "react-big-calendar";
+import { Navigate } from "react-big-calendar";
 
-const NAVIGATE_DATE = "DATE";
 const NAVIGATE_TODAY = "TODAY";
+const PREV = Navigate.PREVIOUS;
+const NEXT = Navigate.NEXT;
 
 interface CalendarToolbarProps {
   label: string;
@@ -15,6 +16,8 @@ interface CalendarToolbarProps {
   onView: (view: View) => void;
   views: View[];
   localizer?: { messages?: Record<string, string> };
+  /** When set, double arrows call this instead of onNavigate(DATE, ...); avoids library DATE handling issues. */
+  onBigStep?: (direction: "prev" | "next") => void;
 }
 
 /** Single arrow = smaller step; double arrow = bigger step. */
@@ -41,6 +44,7 @@ export function CalendarToolbar({
   onView,
   views,
   localizer,
+  onBigStep,
 }: CalendarToolbarProps) {
   const m = localizer?.messages ?? {};
   const messages = {
@@ -53,10 +57,10 @@ export function CalendarToolbar({
   };
   const { small, big } = getSteps(view);
 
-  const prevSmall = () => onNavigate(NAVIGATE_DATE, sub(date, { [small]: 1 }));
-  const prevBig = () => onNavigate(NAVIGATE_DATE, sub(date, { [big]: 1 }));
-  const nextSmall = () => onNavigate(NAVIGATE_DATE, add(date, { [small]: 1 }));
-  const nextBig = () => onNavigate(NAVIGATE_DATE, add(date, { [big]: 1 }));
+  const prevSmall = () => onNavigate(PREV);
+  const nextSmall = () => onNavigate(NEXT);
+  const prevBig = () => (onBigStep ? onBigStep("prev") : onNavigate(PREV));
+  const nextBig = () => (onBigStep ? onBigStep("next") : onNavigate(NEXT));
   const goToday = () => onNavigate(NAVIGATE_TODAY);
 
   return (

@@ -17,6 +17,37 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
 
 ---
 
+## Calendar event detail – One-step create & participants/resources UI (plan for review)
+
+**Goal:** Allow taxonomy and participants/resources to be set when creating a new event (one step). Participants: type + auto-suggest from all tenant team + all CRM contacts. Resources: multi-select dropdown.
+
+**Scope:** Event create/edit form (`EventFormClient.tsx`), Participants & Resources tab (`EventParticipantsResourcesTab.tsx` or inline), taxonomy tab. No sessionlog update until steps are reviewed and approved.
+
+### Step 1: Taxonomy on new events
+- [x] **1.1** In `EventFormClient`, show taxonomy UI for new events (when `!event?.id`): load event-scoped terms (section `event` / content type Event) and render category/tag checkboxes that update existing state (`taxonomyCategoryIds`, `taxonomyTagIds`). Reuse `TaxonomyAssignmentForContent` in a “create mode” (no `contentId`; controlled state only) or add a lightweight term list component that calls `handleCategoryToggle` / `handleTagToggle`. No API calls until save.
+- [x] **1.2** Keep current submit behavior: after `POST /api/events` returns `eventId`, call `setTaxonomyForContent(eventId, "event", termIds)` so taxonomy is applied on first save. No backend change.
+
+### Step 2: Participants tab – type + auto-suggest (all team + all CRM)
+- [x] **2.1** **Data source:** For both new and existing events, load full tenant team (`GET /api/settings/team`) and full CRM contacts (`GET /api/crm/contacts`). Build a single combined list for the participant picker (not limited to “existing participants”).
+- [x] **2.2** **UI:** Replace the current three dropdowns (“Add existing participant”, “Add from CRM contact”, “Add from team”) with a single **type-to-search + auto-suggest** control: input field with suggestion list below (e.g. use existing `AutoSuggestMulti` from `@/components/ui/auto-suggest-multi`). Options = team members + CRM contacts, with a stable composite id (e.g. `team_member:${user_id}` and `crm_contact:${contact_id}`) so selections can be mapped to `source_type` / `source_id` when saving.
+- [x] **2.3** **New events:** When `!event?.id`, store selected participants in form state as “pending” (e.g. `pendingParticipants: { source_type, source_id }[]`). On submit: create event, then for each pending participant call `POST /api/events/:eventId/participants` with `source_type` and `source_id` (existing API). Then redirect (e.g. to edit page) or stay on list.
+- [x] **2.4** **Existing events:** When `event?.id`, keep current behavior: add/remove via existing participant APIs; optionally use the same auto-suggest UI (one combined “participants” field) for consistency.
+
+### Step 3: Resources tab – multi-select dropdown
+- [x] **3.1** Change resources from single-select dropdown to **multi-select**: an event may have more than one resource. Use a multi-select component (e.g. `AutoSuggestMulti` for consistency, or a dropdown that allows multiple selection). Data source remains `GET /api/events/resources` (calendar resources).
+- [x] **3.2** **New events:** When `!event?.id`, store selected resource ids in form state as “pending” (e.g. `pendingResourceIds: string[]`). On submit: create event, then for each id call `POST /api/events/:eventId/resources` with `resource_id`. Then redirect or stay on list.
+- [x] **3.3** **Existing events:** When `event?.id`, keep current assign/remove behavior; ensure the UI shows all assigned resources and allows adding/removing multiple.
+
+### Step 4: Show Participants & Resources tab for new events
+- [x] **4.1** In `EventFormClient`, remove the “Save the event first to assign participants and resources” message for new events. Render the participants/resources UI for both create and edit; when creating, it only updates pending state and applies on submit (Steps 2.3 and 3.2).
+
+### Step 5: Testing and docs
+- [ ] **5.1** Test create flow: set title, dates, taxonomy, participants (team + contacts via type/auto-suggest), resources (multi-select), submit once; confirm event is created with taxonomy and assignments applied.
+- [ ] **5.2** Test edit flow: existing event still loads and saves participants/resources and taxonomy correctly.
+- [ ] **5.3** After review and implementation, add summary to sessionlog/changelog per project workflow.
+
+---
+
 ## Implementation Phases (Priority Order)
 
 ### Phase 00: Supabase Auth Integration

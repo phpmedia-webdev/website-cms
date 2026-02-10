@@ -98,6 +98,9 @@ export default async function PublicLayout({
               My Website
             </Link>
             <nav className="flex items-center gap-4">
+              <Link href="/events" className="text-sm hover:underline">
+                Events
+              </Link>
               <Link href="/blog" className="text-sm hover:underline">
                 Blog
               </Link>

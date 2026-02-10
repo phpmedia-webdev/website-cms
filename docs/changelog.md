@@ -9,6 +9,32 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-10 CT (afternoon) - Calendar: public calendar, ICS, resource filter fix, session wrap
+
+**Context for Next Session:**
+- **Next session may be on another machine.** Read [sessionlog.md](./sessionlog.md) first; it has handoff context (repo, pnpm, calendar state, key paths, next up). Then read this changelog entry and the previous one.
+- **Calendar module:** Admin calendar complete (CRUD, recurrence, one-step create, filters, Resources CRUD at /admin/events/resources). **Public calendar** at **/events** (public layout): Events nav link in header; page fetches GET /api/events/public; click event → detail modal; "Subscribe to calendar (ICS)" in header and modal. **Public = not hidden, not membership-protected:** `access_level=public`, `visibility=public`, `status=published`. ICS feed: GET /api/events/ics (same filter). Resource/participant filter on admin calendar now works for recurring events (assignments requested by real event ID; filter lookup uses eventIdForEdit(e.id)).
+- **Key files:** `src/lib/supabase/events.ts` (getPublicEvents, isPublicEvent), `src/app/api/events/public/route.ts`, `src/app/api/events/public/[id]/route.ts`, `src/app/api/events/ics/route.ts`, `src/app/(public)/events/` (page + PublicCalendarPageClient), `src/app/(public)/layout.tsx` (Events nav), `src/app/admin/events/EventsPageClient.tsx` (real IDs for assignments + filter).
+- **Next up (optional):** Resources CRUD polish, conflict check (14–17), Step 5 testing/docs. Feature guard (32) deferred. No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Public calendar & ICS:** GET /api/events/public (list public-only events), GET /api/events/public/[id] (single event or occurrence; 404 if not public), GET /api/events/ics (text/calendar feed, public-only). isPublicEvent() and getPublicEvents() in events.ts. Public page at /events with EventsCalendar, detail modal, ICS subscribe link. Events link in public header nav. EventsCalendar accepts optional onSelectEvent for public detail modal.
+- **Resource/participant filter (recurring):** EventsPageClient requests assignments by real event IDs (eventIdForEdit); filter uses real ID when looking up eventResourceMap/eventParticipantMap so recurring occurrences show correctly when filtering by resource or participant.
+- **Participants & Resources tab:** Empty resources state has button "Add resources (Calendar → Resources)" linking to /admin/events/resources. Defensive parsing for resources API response shape.
+- **Session wrap:** Sessionlog updated with Context for Next Session for handoff to another machine. Planlog: public calendar/ICS treated as done (sessionlog next-up list updated).
+
+### 2026-02-10 CT - Calendar: one-step create (taxonomy, participants, resources)
+
+**Context for Next Session:**
+- **Calendar one-step create** is done: new events can set taxonomy, participants (team + CRM), and resources before first save; all applied on submit. Taxonomy: create mode in `TaxonomyAssignmentForContent` (optional `contentId`). Participants: single type-to-search (AutoSuggestMulti) from full team + CRM; composite ids `team_member:id` / `crm_contact:id`; pending state for new events, POST after create. Resources: multi-select (AutoSuggestMulti); pending resource ids for new events, POST after create. Participants & Resources tab shown for both create and edit (no "save first" gate).
+- **Next up:** See sessionlog — Resources CRUD, conflict check, public calendar/ICS, then optional items. Feature guard (32) deferred. Key files: `EventFormClient.tsx`, `EventParticipantsResourcesTab.tsx`, `TaxonomyAssignmentForContent.tsx`, planlog "Calendar event detail – One-step create".
+
+**Changes:**
+- **Taxonomy on new events:** `TaxonomyAssignmentForContent` supports create mode (`contentId` optional); load terms only, controlled state; EventFormClient shows taxonomy tab for new events; taxonomy applied via `setTaxonomyForContent` after POST (unchanged).
+- **Participants tab:** Replaced three dropdowns with one AutoSuggestMulti (team + CRM contacts, composite ids). New events: `pendingParticipants` state, applied on submit via POST `/api/events/:id/participants`. Existing events: add/remove via same UI and existing APIs.
+- **Resources tab:** Single-select → AutoSuggestMulti (multi-select). New events: `pendingResourceIds`, applied on submit via POST `/api/events/:id/resources`. Existing events: add/remove via API.
+- **Sessionlog:** Trimmed to lean format; phase checklist and one-step details moved to planlog/changelog.
+
 ### 2026-02-09 CT (evening) - Calendar: taxonomy fix, search/filters, sessionlog planning
 
 **Context for Next Session:**

@@ -419,3 +419,41 @@ export async function setCrmContactStatuses(
   }
   return setSetting("crm.contact_statuses", normalized);
 }
+
+/** Calendar resource type option (slug stored on resource, label for UI). */
+export interface CalendarResourceTypeOption {
+  slug: string;
+  label: string;
+}
+
+const DEFAULT_CALENDAR_RESOURCE_TYPES: CalendarResourceTypeOption[] = [
+  { slug: "room", label: "Room" },
+  { slug: "equipment", label: "Equipment" },
+  { slug: "video", label: "Video" },
+];
+
+/**
+ * Get calendar resource types (ordered list for Settings > Customizer > Calendar and Resources dropdown).
+ */
+export async function getCalendarResourceTypes(): Promise<CalendarResourceTypeOption[]> {
+  const raw = await getSetting<CalendarResourceTypeOption[]>("calendar.resource_types");
+  if (Array.isArray(raw) && raw.length > 0) return raw;
+  return DEFAULT_CALENDAR_RESOURCE_TYPES;
+}
+
+/**
+ * Set calendar resource types.
+ */
+export async function setCalendarResourceTypes(
+  types: CalendarResourceTypeOption[]
+): Promise<boolean> {
+  const normalized = types
+    .filter((t) => t && typeof t.slug === "string" && typeof t.label === "string")
+    .map((t) => ({
+      slug: t.slug.trim().toLowerCase().replace(/\s+/g, "-"),
+      label: t.label.trim(),
+    }));
+  const slugs = normalized.map((t) => t.slug);
+  if (new Set(slugs).size !== slugs.length) return false; // duplicate slugs
+  return setSetting("calendar.resource_types", normalized);
+}

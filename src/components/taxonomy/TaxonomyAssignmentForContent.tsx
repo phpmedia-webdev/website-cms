@@ -14,8 +14,9 @@ import {
 import type { TaxonomyTerm } from "@/types/taxonomy";
 
 interface TaxonomyAssignmentForContentProps {
-  contentId: string;
-  /** Stored in taxonomy_relationships.content_type (e.g. post, crm_contact). */
+  /** Omit for "create mode": load terms only, no API fetch; use embedded + controlled state. */
+  contentId?: string;
+  /** Stored in taxonomy_relationships.content_type (e.g. post, event). */
   contentTypeSlug: string;
   /** Section for term filtering (section_taxonomy_config.section_name). If omitted, contentTypeSlug is used. */
   section?: string;
@@ -27,7 +28,8 @@ interface TaxonomyAssignmentForContentProps {
   disabled?: boolean;
   /**
    * Embedded mode: no separate Save button. Parent saves taxonomy with main Update.
-   * Requires selectedCategoryIds, selectedTagIds, onCategoryToggle, onTagToggle, onInitialLoad.
+   * When contentId is set: requires selectedCategoryIds, selectedTagIds, onCategoryToggle, onTagToggle, onInitialLoad.
+   * When contentId is omitted (create mode): requires selectedCategoryIds, selectedTagIds, onCategoryToggle, onTagToggle only.
    */
   embedded?: boolean;
   selectedCategoryIds?: Set<string>;
@@ -92,6 +94,7 @@ export function TaxonomyAssignmentForContent({
   }, []);
 
   useEffect(() => {
+    // Create mode: no contentId → no API fetch; parent owns state via embedded + controlled props.
     if (!contentId || !contentTypeSlug || loading) return;
     const key = `${contentId}:${contentTypeSlug}`;
     if (embedded && initialLoadDoneRef.current === key) return;

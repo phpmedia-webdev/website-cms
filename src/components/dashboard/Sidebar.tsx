@@ -35,6 +35,7 @@ import {
   BookOpen,
   Briefcase,
   Calendar,
+  Box,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canAccessFeature } from "@/lib/admin/route-features";
@@ -85,6 +86,11 @@ const settingsSubNav: { name: string; href: string; icon: typeof Settings; admin
 ];
 
 const SIDEBAR_SUPPORT_OPEN = "sidebar-support-open";
+
+const eventsSubNav: { name: string; href: string; icon: typeof Calendar }[] = [
+  { name: "Calendar", href: "/admin/events", icon: Calendar },
+  { name: "Resources", href: "/admin/events/resources", icon: Box },
+];
 
 const supportSubNav: { name: string; href: string; icon: typeof LifeBuoy }[] = [
   { name: "Quick Support", href: "/admin/support/quick-support", icon: MessageCircle },
@@ -140,6 +146,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
   const [crmOpen, setCrmOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [contentOpen, setContentOpen] = useState(false);
+  const [eventsOpen, setEventsOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
 
@@ -298,6 +305,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isCrm) setCrmOpen(true);
       if (isMedia) setMediaOpen(true);
       if (isContent) setContentOpen(true);
+      if (isEvents) setEventsOpen(true);
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
@@ -312,6 +320,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setMediaOpen(false);
       setContentOpen(false);
+      setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -333,6 +342,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
+      setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -355,6 +365,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setContentOpen(false);
+      setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -377,6 +388,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       setCrmOpen(false);
       setMediaOpen(false);
       setContentOpen(false);
+      setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -392,6 +404,21 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     } catch { /* ignore */ }
   };
 
+  const toggleEvents = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !eventsOpen;
+    setEventsOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMediaOpen(false);
+      setContentOpen(false);
+      setSettingsOpen(false);
+      setSupportOpen(false);
+      setSuperOpen(false);
+    }
+  };
+
   const toggleSettings = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -401,6 +428,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       setCrmOpen(false);
       setMediaOpen(false);
       setContentOpen(false);
+      setEventsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
       try {
@@ -425,6 +453,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       setCrmOpen(false);
       setMediaOpen(false);
       setContentOpen(false);
+      setEventsOpen(false);
       setSettingsOpen(false);
       setSuperOpen(false);
       try {
@@ -698,20 +727,59 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
           )}
         </div>
         )}
-        {/* Calendar (root nav, under Content) */}
+        {/* Calendar twirldown (Calendar, Resources) */}
         {showCalendar && (
-        <Link
-          href="/admin/events"
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors pt-1 mt-1",
-            isEvents
-              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        <div className="pt-1">
+          <div
+            className={cn(
+              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
+              isEvents && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
+            )}
+          >
+            <Link
+              href="/admin/events"
+              className={cn(
+                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
+                isEvents ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <Calendar className="h-5 w-5" />
+              Calendar
+            </Link>
+            <button
+              type="button"
+              onClick={toggleEvents}
+              className={cn(
+                "p-1 rounded transition-colors",
+                isEvents ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+              aria-expanded={eventsOpen}
+            >
+              {eventsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          </div>
+          {eventsOpen && (
+            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+              {eventsSubNav.map((sub) => {
+                const isSubActive = pathname === sub.href;
+                const SubIcon = sub.icon;
+                return (
+                  <Link
+                    key={sub.href}
+                    href={sub.href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    <SubIcon className="h-4 w-4" />
+                    {sub.name}
+                  </Link>
+                );
+              })}
+            </div>
           )}
-        >
-          <Calendar className="h-5 w-5" />
-          Calendar
-        </Link>
+        </div>
         )}
 
         {/* Settings twirldown */}

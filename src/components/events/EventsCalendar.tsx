@@ -1,17 +1,59 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, type View } from "react-big-calendar";
+import Agenda from "react-big-calendar/lib/Agenda";
 import format from "date-fns/format";
 import parse from "date-fns/parse";
 import startOfWeek from "date-fns/startOfWeek";
 import getDay from "date-fns/getDay";
+import addDays from "date-fns/addDays";
+import endOfDay from "date-fns/endOfDay";
+import { add, sub } from "date-fns";
 import enUS from "date-fns/locale/en-US";
 import type { Event } from "@/lib/supabase/events";
+import { eventIdForEdit } from "@/lib/recurrence";
 import { CalendarToolbar } from "./CalendarToolbar";
+import { Badge } from "@/components/ui/badge";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./events-calendar.css";
+
+const AGENDA_PAST_DAYS = 30;
+
+const CalendarViewContext = createContext<View>("month");
+
+/** Agenda range that includes past days (e.g. 30 back, 30 forward). */
+function agendaRangeWithPast(
+  date: Date,
+  opts: { length?: number; localizer?: { add: (d: Date, n: number, u: string) => Date } }
+) {
+  const length = opts?.length ?? 30;
+  const localizer = opts?.localizer;
+  const add = (d: Date, n: number) =>
+    localizer ? localizer.add(d, n, "day") : addDays(d, n);
+  return {
+    start: add(date, -AGENDA_PAST_DAYS),
+    end: add(date, length),
+  };
+}
+
+/** Agenda header title for the extended range. */
+function agendaTitle(
+  start: Date,
+  opts: { length?: number; localizer?: { format: (r: { start: Date; end: Date }, f: string) => string } }
+) {
+  const r = agendaRangeWithPast(start, opts);
+  return opts?.localizer?.format?.({ start: r.start, end: r.end }, "agendaHeaderFormat") ?? `${r.start.toDateString()} – ${r.end.toDateString()}`;
+}
+
+/** Agenda view that includes past days in range. Uses default Agenda with custom range + title. */
+function AgendaWithPastRange(props: React.ComponentProps<typeof Agenda>) {
+  return <Agenda {...props} />;
+}
+AgendaWithPastRange.range = agendaRangeWithPast;
+AgendaWithPastRange.navigate = Agenda.navigate;
+AgendaWithPastRange.title = agendaTitle;
 
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({
@@ -29,6 +71,30 @@ export interface RBCEvent {
   title: string;
   id?: string;
   resource?: unknown;
+}
+
+/** Custom event cell: "Past" badge only in Agenda view; other views show title only to avoid breaking layout. */
+function EventWithPastBadge(
+  props: { event: RBCEvent; title: string; [key: string]: unknown }
+) {
+  const currentView = useContext(CalendarViewContext);
+  const { event, title } = props;
+  const isPast = event?.end ? new Date(event.end) < new Date() : false;
+  const showBadge = currentView === "agenda" && isPast;
+
+  if (currentView !== "agenda") {
+    return <>{title}</>;
+  }
+  return (
+    <span className="rbc-event-content-with-badge flex items-center gap-2 flex-wrap">
+      <span className="truncate">{title}</span>
+      {showBadge && (
+        <Badge variant="secondary" className="text-[10px] font-normal shrink-0">
+          Past
+        </Badge>
+      )}
+    </span>
+  );
 }
 
 /** Week view: "Feb 9 – Feb 15, 2025" */
@@ -59,6 +125,8 @@ export interface EventsCalendarProps {
   onViewChange: (view: View) => void;
   onRangeChange?: (range: { start: Date; end: Date }) => void;
   height?: number;
+  /** When set, called instead of navigating to admin edit (e.g. for public calendar detail). */
+  onSelectEvent?: (event: RBCEvent) => void;
 }
 
 export function EventsCalendar({
@@ -69,15 +137,64 @@ export function EventsCalendar({
   onViewChange,
   onRangeChange,
   height = 500,
+  onSelectEvent: onSelectEventProp,
 }: EventsCalendarProps) {
   const router = useRouter();
   const rbcEvents = useMemo(() => events.map(toRBCEvent), [events]);
 
+  const viewsConfig = useMemo(
+    () => ({
+      month: true,
+      week: true,
+      day: true,
+      agenda: AgendaWithPastRange,
+    }),
+    []
+  );
+
+  // Big-step navigation: we compute the new date and call onDateChange so double arrows work in all views
+  const onBigStep = useCallback(
+    (direction: "prev" | "next") => {
+      const step =
+        view === "month"
+          ? { years: 1 }
+          : view === "week" || view === "agenda"
+            ? { months: 1 }
+            : { weeks: 1 };
+      const newDate = direction === "prev" ? sub(date, step) : add(date, step);
+      onDateChange(newDate);
+    },
+    [date, view, onDateChange]
+  );
+
+  const components = useMemo(
+    () => ({
+      toolbar: (props: React.ComponentProps<typeof CalendarToolbar>) => (
+        <CalendarToolbar {...props} onBigStep={onBigStep} />
+      ),
+      event: EventWithPastBadge,
+    }),
+    [onBigStep]
+  );
+
   const handleSelectEvent = useCallback(
     (event: RBCEvent) => {
-      if (event.id) router.push(`/admin/events/${event.id}/edit`);
+      if (onSelectEventProp) {
+        onSelectEventProp(event);
+        return;
+      }
+      const id = event.id ? eventIdForEdit(event.id) : null;
+      if (id) router.push(`/admin/events/${id}/edit`);
     },
-    [router]
+    [onSelectEventProp, router]
+  );
+
+  // react-big-calendar calls onNavigate(newDate, view, action); forward the date so single and double arrows both work
+  const handleNavigate = useCallback(
+    (newDate: Date) => {
+      if (newDate instanceof Date) onDateChange(newDate);
+    },
+    [onDateChange]
   );
 
   const handleRangeChange = useCallback(
@@ -86,7 +203,11 @@ export function EventsCalendar({
       if (Array.isArray(range)) {
         const start = range[0];
         const end = range[range.length - 1];
-        if (start && end) onRangeChange({ start, end });
+        if (start && end) {
+          // Day view passes a single date [startOfDay]; use full day so events that day are fetched
+          const endDate = range.length === 1 ? endOfDay(start) : end;
+          onRangeChange({ start, end: endDate });
+        }
       } else {
         onRangeChange(range);
       }
@@ -96,24 +217,26 @@ export function EventsCalendar({
 
   return (
     <div className="events-calendar rbc-theme-override w-full h-full min-w-0">
-      <Calendar
-        localizer={localizer}
-        events={rbcEvents}
-        date={date}
-        view={view}
-        onNavigate={onDateChange}
-        onView={onViewChange}
-        onRangeChange={handleRangeChange}
-        onSelectEvent={handleSelectEvent}
-        views={["month", "week", "day", "agenda"]}
-        components={{ toolbar: CalendarToolbar }}
-        formats={{
-          dayHeaderFormat: "cccc, MMM d, yyyy",
-          dayRangeHeaderFormat,
-        }}
-        style={{ height }}
-        popup
-      />
+      <CalendarViewContext.Provider value={view}>
+        <Calendar
+          localizer={localizer}
+          events={rbcEvents}
+          date={date}
+          view={view}
+          onNavigate={handleNavigate}
+          onView={onViewChange}
+          onRangeChange={handleRangeChange}
+          onSelectEvent={handleSelectEvent}
+          views={viewsConfig}
+          components={components}
+          formats={{
+            dayHeaderFormat: "cccc, MMM d, yyyy",
+            dayRangeHeaderFormat,
+          }}
+          style={{ height }}
+          popup
+        />
+      </CalendarViewContext.Provider>
     </div>
   );
 }

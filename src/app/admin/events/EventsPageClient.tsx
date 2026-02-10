@@ -14,6 +14,7 @@ import {
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 import { Plus } from "lucide-react";
 import type { Event } from "@/lib/supabase/events";
+import { eventIdForEdit } from "@/lib/recurrence";
 import type { View } from "react-big-calendar";
 
 function useContainerHeight(minHeight = 400) {
@@ -49,6 +50,13 @@ export function EventsPageClient({
   const [filterCategoryIds, setFilterCategoryIds] = useState<Set<string>>(new Set());
   const [filterTagIds, setFilterTagIds] = useState<Set<string>>(new Set());
   const [filterMembershipIds, setFilterMembershipIds] = useState<Set<string>>(new Set());
+  const [filterPublic, setFilterPublic] = useState(true);
+  const [filterInternal, setFilterInternal] = useState(true);
+  const [filterParticipantIds, setFilterParticipantIds] = useState<Set<string>>(new Set());
+  const [filterResourceIds, setFilterResourceIds] = useState<Set<string>>(new Set());
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [eventParticipantMap, setEventParticipantMap] = useState<Map<string, Set<string>>>(new Map());
+  const [eventResourceMap, setEventResourceMap] = useState<Map<string, Set<string>>>(new Map());
 
   const [terms, setTerms] = useState<TaxonomyTerm[]>([]);
   const [configs, setConfigs] = useState<SectionTaxonomyConfig[]>([]);
@@ -88,8 +96,9 @@ export function EventsPageClient({
       setEventTaxonomyMap(new Map());
       return;
     }
-    const ids = events.map((e) => e.id);
-    getContentTaxonomyRelationships(ids)
+    // Use real event IDs only (recurring events have synthetic ids that don't exist in taxonomy_relationships)
+    const realIds = [...new Set(events.map((e) => eventIdForEdit(e.id)))];
+    getContentTaxonomyRelationships(realIds)
       .then((rels) => {
         const termIdToType = new Map<string, "category" | "tag">();
         terms.forEach((t) => termIdToType.set(t.id, t.type as "category" | "tag"));
@@ -105,6 +114,32 @@ export function EventsPageClient({
       })
       .catch(() => setEventTaxonomyMap(new Map()));
   }, [events, terms]);
+
+  useEffect(() => {
+    if (events.length === 0 || (filterParticipantIds.size === 0 && filterResourceIds.size === 0)) {
+      setEventParticipantMap(new Map());
+      setEventResourceMap(new Map());
+      return;
+    }
+    // Use real event IDs only: recurring events have synthetic ids (realId--timestamp); assignments are stored per real event
+    const realIds = [...new Set(events.map((e) => eventIdForEdit(e.id)))];
+    fetch(`/api/events/assignments?ids=${realIds.join(",")}`)
+      .then((r) => (r.ok ? r.json() : { data: {} }))
+      .then(({ data }) => {
+        const pMap = new Map<string, Set<string>>();
+        const rMap = new Map<string, Set<string>>();
+        const pa = (data?.participantAssignments ?? {}) as Record<string, string[]>;
+        const ra = (data?.resourceAssignments ?? {}) as Record<string, string[]>;
+        Object.entries(pa).forEach(([eid, arr]) => pMap.set(eid, new Set(arr)));
+        Object.entries(ra).forEach(([eid, arr]) => rMap.set(eid, new Set(arr)));
+        setEventParticipantMap(pMap);
+        setEventResourceMap(rMap);
+      })
+      .catch(() => {
+        setEventParticipantMap(new Map());
+        setEventResourceMap(new Map());
+      });
+  }, [events, filterParticipantIds.size, filterResourceIds.size]);
 
   const { categories, tags } = useMemo(
     () => getTermsForContentSection(terms, configs, "event"),
@@ -135,7 +170,7 @@ export function EventsPageClient({
 
     if (filterCategoryIds.size > 0) {
       list = list.filter((e) => {
-        const t = eventTaxonomyMap.get(e.id);
+        const t = eventTaxonomyMap.get(eventIdForEdit(e.id));
         if (!t) return false;
         return t.categoryIds.some((id) => filterCategoryIds.has(id));
       });
@@ -143,7 +178,7 @@ export function EventsPageClient({
 
     if (filterTagIds.size > 0) {
       list = list.filter((e) => {
-        const t = eventTaxonomyMap.get(e.id);
+        const t = eventTaxonomyMap.get(eventIdForEdit(e.id));
         if (!t) return false;
         return t.tagIds.some((id) => filterTagIds.has(id));
       });
@@ -158,6 +193,31 @@ export function EventsPageClient({
       );
     }
 
+    if (filterPublic !== filterInternal) {
+      if (filterPublic) {
+        list = list.filter((e) => e.visibility === "public");
+      } else {
+        list = list.filter((e) => e.visibility === "private");
+      }
+    }
+
+    if (filterParticipantIds.size > 0) {
+      list = list.filter((e) => {
+        const realId = eventIdForEdit(e.id);
+        const pSet = eventParticipantMap.get(realId);
+        if (!pSet) return false;
+        return [...filterParticipantIds].some((id) => pSet.has(id));
+      });
+    }
+    if (filterResourceIds.size > 0) {
+      list = list.filter((e) => {
+        const realId = eventIdForEdit(e.id);
+        const rSet = eventResourceMap.get(realId);
+        if (!rSet) return false;
+        return [...filterResourceIds].some((id) => rSet.has(id));
+      });
+    }
+
     return list;
   }, [
     events,
@@ -165,7 +225,13 @@ export function EventsPageClient({
     filterCategoryIds,
     filterTagIds,
     filterMembershipIds,
+    filterPublic,
+    filterInternal,
+    filterParticipantIds,
+    filterResourceIds,
     eventTaxonomyMap,
+    eventParticipantMap,
+    eventResourceMap,
   ]);
 
   const handleResetFilters = useCallback(() => {
@@ -173,6 +239,10 @@ export function EventsPageClient({
     setFilterCategoryIds(new Set());
     setFilterTagIds(new Set());
     setFilterMembershipIds(new Set());
+    setFilterPublic(true);
+    setFilterInternal(true);
+    setFilterParticipantIds(new Set());
+    setFilterResourceIds(new Set());
   }, []);
 
   const fetchEvents = useCallback(async (start: Date, end: Date) => {
@@ -199,6 +269,11 @@ export function EventsPageClient({
     },
     [fetchEvents]
   );
+
+  // react-big-calendar calls onNavigate(newDate, view, action); use first arg so arrows update date
+  const handleDateChange = useCallback((newDate: Date) => {
+    setDate(newDate);
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 h-[calc(100vh-11rem)]">
@@ -227,6 +302,24 @@ export function EventsPageClient({
           selectedCategoryIds={filterCategoryIds}
           selectedTagIds={filterTagIds}
           selectedMembershipIds={filterMembershipIds}
+          filterPublic={filterPublic}
+          filterInternal={filterInternal}
+          onFilterPublicChange={(checked) => {
+            setFilterPublic(checked);
+            if (!checked && !filterInternal) setFilterInternal(true);
+          }}
+          onFilterInternalChange={(checked) => {
+            setFilterInternal(checked);
+            if (!checked && !filterPublic) setFilterPublic(true);
+          }}
+          filterParticipantIds={filterParticipantIds}
+          filterResourceIds={filterResourceIds}
+          onFilterParticipantsResourcesApply={(pIds, rIds) => {
+            setFilterParticipantIds(pIds);
+            setFilterResourceIds(rIds);
+          }}
+          showParticipantsModal={showParticipantsModal}
+          onShowParticipantsModalChange={setShowParticipantsModal}
           onCategoryToggle={(id, checked) => {
             setFilterCategoryIds((prev) => {
               const next = new Set(prev);
@@ -266,7 +359,7 @@ export function EventsPageClient({
           events={filteredEvents}
           date={date}
           view={view}
-          onDateChange={setDate}
+          onDateChange={handleDateChange}
           onViewChange={setView}
           onRangeChange={handleRangeChange}
           height={calendarHeight}

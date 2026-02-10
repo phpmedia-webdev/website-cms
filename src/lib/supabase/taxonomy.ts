@@ -439,7 +439,8 @@ export async function getContentTaxonomyRelationships(
     if (error) throw error;
     return (data as { content_id: string; content_type: string; term_id: string }[]) || [];
   } catch (e) {
-    console.error("getContentTaxonomyRelationships:", e);
+    if (process.env.NODE_ENV === "development" && e != null && typeof e === "object" && ("message" in e || "stack" in e))
+      console.warn("getContentTaxonomyRelationships:", e);
     return [];
   }
 }
