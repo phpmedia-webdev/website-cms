@@ -36,6 +36,15 @@
 
 ---
 
+## Next up (ideas)
+
+- [ ] **Calendar: "My View"** — Quick filter that auto-filters events to show only events for the logged-in user (e.g. events where I'm a participant).
+- [ ] **CRM: Bulk operations** — Bulk select contacts; add to list, membership, or taxonomy. Bulk select and delete; bulk export.
+- [ ] **CRM: Import and export** — Import/export for CRM (e.g. use twidget.io for list building, or build and email to user). Field mapping for import/export.
+- [ ] **Emailer: Node.js built-in** — Implement built-in email tool for sending email messages (export is ready to download).
+
+---
+
 ## Paused / Later
 
 - **Phase 12** AnyChat (12B), Marketing/Vbout (12A) — after calendar.
