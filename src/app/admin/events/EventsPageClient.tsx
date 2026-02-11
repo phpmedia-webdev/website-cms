@@ -13,6 +13,8 @@ import {
 } from "@/lib/supabase/taxonomy";
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 import { Plus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { Event } from "@/lib/supabase/events";
 import { eventIdForEdit } from "@/lib/recurrence";
 import type { View } from "react-big-calendar";
@@ -57,6 +59,9 @@ export function EventsPageClient({
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [eventParticipantMap, setEventParticipantMap] = useState<Map<string, Set<string>>>(new Map());
   const [eventResourceMap, setEventResourceMap] = useState<Map<string, Set<string>>>(new Map());
+
+  const [myViewEnabled, setMyViewEnabled] = useState(false);
+  const [myParticipantId, setMyParticipantId] = useState<string | null>(null);
 
   const [terms, setTerms] = useState<TaxonomyTerm[]>([]);
   const [configs, setConfigs] = useState<SectionTaxonomyConfig[]>([]);
@@ -116,7 +121,20 @@ export function EventsPageClient({
   }, [events, terms]);
 
   useEffect(() => {
-    if (events.length === 0 || (filterParticipantIds.size === 0 && filterResourceIds.size === 0)) {
+    fetch("/api/events/me-participant-id")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data: { participantId?: string | null }) =>
+        setMyParticipantId(data.participantId ?? null)
+      )
+      .catch(() => setMyParticipantId(null));
+  }, []);
+
+  useEffect(() => {
+    const needAssignments =
+      myViewEnabled ||
+      filterParticipantIds.size > 0 ||
+      filterResourceIds.size > 0;
+    if (events.length === 0 || !needAssignments) {
       setEventParticipantMap(new Map());
       setEventResourceMap(new Map());
       return;
@@ -139,7 +157,7 @@ export function EventsPageClient({
         setEventParticipantMap(new Map());
         setEventResourceMap(new Map());
       });
-  }, [events, filterParticipantIds.size, filterResourceIds.size]);
+  }, [events, myViewEnabled, filterParticipantIds.size, filterResourceIds.size]);
 
   const { categories, tags } = useMemo(
     () => getTermsForContentSection(terms, configs, "event"),
@@ -157,6 +175,18 @@ export function EventsPageClient({
 
   const filteredEvents = useMemo(() => {
     let list = events;
+
+    if (myViewEnabled) {
+      if (myParticipantId == null) {
+        list = [];
+      } else {
+        list = list.filter((e) => {
+          const realId = eventIdForEdit(e.id);
+          const pSet = eventParticipantMap.get(realId);
+          return pSet != null && pSet.has(myParticipantId);
+        });
+      }
+    }
 
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -221,6 +251,8 @@ export function EventsPageClient({
     return list;
   }, [
     events,
+    myViewEnabled,
+    myParticipantId,
     search,
     filterCategoryIds,
     filterTagIds,
@@ -277,19 +309,39 @@ export function EventsPageClient({
 
   return (
     <div className="flex flex-col gap-6 h-[calc(100vh-11rem)]">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 shrink-0">
+        <div className="flex-1 min-w-0">
           <h1 className="text-3xl font-bold">Calendar</h1>
           <p className="text-muted-foreground mt-2">
             Manage events and recurring schedules
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/events/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Event
-          </Link>
-        </Button>
+        <div className="flex flex-1 items-center justify-center shrink-0">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="my-view"
+              checked={myViewEnabled}
+              onCheckedChange={setMyViewEnabled}
+              disabled={myParticipantId == null}
+              aria-label="My View: only events where you are a participant"
+            />
+            <Label
+              htmlFor="my-view"
+              className="text-sm font-medium cursor-pointer select-none"
+              title="Only events where you're a participant"
+            >
+              My View
+            </Label>
+          </div>
+        </div>
+        <div className="flex flex-1 justify-end shrink-0">
+          <Button asChild>
+            <Link href="/admin/events/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Event
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="shrink-0">
@@ -354,6 +406,13 @@ export function EventsPageClient({
             className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg"
             aria-hidden="true"
           />
+        )}
+        {myViewEnabled && filteredEvents.length === 0 && !loading && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-muted/30">
+            <p className="text-sm text-muted-foreground">
+              No events where you&apos;re a participant
+            </p>
+          </div>
         )}
         <EventsCalendar
           events={filteredEvents}

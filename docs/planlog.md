@@ -564,6 +564,7 @@ For session continuity (current focus, next up, handoff), see [sessionlog.md](./
   - [x] MAG and marketing list assignment in detail view
   - [ ] **Optional:** Combined Activity Stream dashboard widget (all contacts, merged view)
   - [ ] **Deferred:** "Manual push to external CRM" button; dedicated TagManager/MAGAssignment/ExternalCRMPush components (functionality in ContactTaxonomyBlock, ContactCardRight, etc.)
+  - [ ] **CRM contacts list:** Pagination (25/50/100), row selection (Check all = all filtered), bulk action bar (right of search), bulk actions (Export, Add to list, Remove from list, Change status, Taxonomy single-term add/remove, Delete soft, Restore, Empty trash). Trash: soft delete, Show Trashed filter, Empty trash with dire warning. Full steps → [sessionlog.md](./sessionlog.md) "CRM Contacts List — implementation steps".
 
 - [x] Create CRM API endpoints
   - [x] `GET /api/crm/contacts` — list (admin)

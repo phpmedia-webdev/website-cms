@@ -9,6 +9,17 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-10 CT (evening) - CRM contacts list plan; session wrap
+
+**Context for Next Session:**
+- **Next focus:** CRM Contacts List — pagination, selection, bulk actions, and trash. Full implementation steps are in [sessionlog.md](./sessionlog.md) under **"CRM Contacts List — implementation steps"** (16 steps: pagination, selection, bulk action bar, Export/Add to list/Remove from list/Change status/Taxonomy/Delete/Restore/Empty trash, Show Trashed filter, backend/DB for trashed state and bulk APIs).
+- **This session:** Planning only. No code or database changes. Calendar module remains at a good stopping point (public calendar, ICS, filters). No RLS or DB left in a vulnerable state.
+- **Key file for next work:** `src/app/admin/crm/contacts/ContactsListClient.tsx`; server: `page.tsx`, `src/lib/supabase/crm.ts`.
+
+**Changes:**
+- **Sessionlog:** Current Focus set to CRM Contacts List. Added full "CRM Contacts List — implementation steps" (pagination 25/50/100, footer left=page size / center=pages / right=count; checkbox column, Check all cycle, selection persists across bulk actions; bulk dropdown right of search; Export, Add to list, Remove from list, Change status, Taxonomy single-term add/remove, Delete soft, Restore, Empty trash with dire warning; Show Trashed filter; backend trashed state and bulk APIs).
+- **Planlog:** Phase 07 — added CRM contacts list enhancement item referencing sessionlog.
+
 ### 2026-02-10 CT (afternoon) - Calendar: public calendar, ICS, resource filter fix, session wrap
 
 **Context for Next Session:**

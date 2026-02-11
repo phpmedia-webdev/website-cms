@@ -102,13 +102,6 @@ The developer announces the **start** and **end** of work sessions. Sessions are
 
 A developer typically starts a new chat when context becomes too large, to prevent performance degradation and keep responses focused.
 
-1. Get today’s date and time for reference.
-2. Read the docs in the `.cursor` folder.
-3. Read the root documents in the `docs` folder.
-4. Consult `prd.md` and `prd-technical.md` to see what we are building.
-5. Consult the **last entry** in `changelog.md` for previous context to carry into this session.
-6. Consult `sessionlog.md` for any open items to complete.
-7. Review `planlog.md` to set the next development focus.
 
 ### Ending a work session
 

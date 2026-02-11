@@ -141,6 +141,24 @@ export async function getEventsResourceAssignments(
   return map;
 }
 
+/** Get participant id for a team member (auth user id). Returns null if no row exists. */
+export async function getParticipantIdByTeamMemberUserId(
+  userId: string,
+  schema?: string
+): Promise<string | null> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? getClientSchema();
+  const { data } = await supabase
+    .schema(schemaName)
+    .from("participants")
+    .select("id")
+    .eq("source_type", "team_member")
+    .eq("source_id", userId)
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 /** Ensure a participant row exists; return participant id. Creates from source_type/source_id if not exists. */
 export async function ensureParticipant(
   sourceType: "crm_contact" | "team_member",

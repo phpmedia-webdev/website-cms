@@ -31,6 +31,7 @@ import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssi
 import {
   EventParticipantsResourcesTab,
   type PendingParticipant,
+  type ParticipantsSnapshotItem,
 } from "@/components/events/EventParticipantsResourcesTab";
 import { getMediaWithVariants } from "@/lib/supabase/media";
 import { setTaxonomyForContent } from "@/lib/supabase/taxonomy";
@@ -129,8 +130,18 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [participantsForConflictCheck, setParticipantsForConflictCheck] = useState<
+    ParticipantsSnapshotItem[]
+  >([]);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [conflictList, setConflictList] = useState<
+    { eventId: string; title: string; start_date: string; end_date: string }[]
+  >([]);
+
   // Only set date/time defaults once for new events; avoid re-running when coverImageUrls changes
   const newEventDefaultsSet = useRef(false);
+  const skipConflictCheckRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (event) {
@@ -257,6 +268,33 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
     };
 
     try {
+      if (
+        !skipConflictCheckRef.current &&
+        participantsForConflictCheck.length > 0
+      ) {
+        const conflictRes = await fetch("/api/events/check-conflicts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            start_date: startISO,
+            end_date: endISO,
+            participants: participantsForConflictCheck,
+            exclude_event_id: event?.id ?? undefined,
+          }),
+        });
+        const conflictData = await conflictRes.json().catch(() => ({}));
+        const conflicts = Array.isArray(conflictData?.conflicts)
+          ? conflictData.conflicts
+          : [];
+        if (conflicts.length > 0) {
+          setConflictList(conflicts);
+          setShowConflictDialog(true);
+          setSaving(false);
+          return;
+        }
+      }
+      skipConflictCheckRef.current = false;
+
       let eventId: string | null = null;
       if (isEdit && event) {
         const res = await fetch(`/api/events/${event.id}`, {
@@ -464,7 +502,7 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
           </div>
         </CardHeader>
         <CardContent className="pt-2 px-4 pb-4">
-          <form onSubmit={handleSubmit} className="space-y-4 w-full min-w-0">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 w-full min-w-0">
             {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
@@ -778,6 +816,7 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
                   onPendingParticipantsChange={setPendingParticipants}
                   pendingResourceIds={pendingResourceIds}
                   onPendingResourceIdsChange={setPendingResourceIds}
+                  onParticipantsSnapshot={setParticipantsForConflictCheck}
                 />
               </TabsContent>
                 </Tabs>
@@ -818,6 +857,44 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
               onCancel={() => setShowImagePicker(false)}
             />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Participant conflict</DialogTitle>
+            <DialogDescription>
+              Some participants are already in other events during this time. Save anyway?
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="text-sm list-disc list-inside space-y-1 max-h-48 overflow-auto">
+            {conflictList.map((c) => (
+              <li key={`${c.eventId}-${c.start_date}`}>
+                {c.title} — {new Date(c.start_date).toLocaleString()} to{" "}
+                {new Date(c.end_date).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowConflictDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                skipConflictCheckRef.current = true;
+                setShowConflictDialog(false);
+                formRef.current?.requestSubmit();
+              }}
+            >
+              Save anyway
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

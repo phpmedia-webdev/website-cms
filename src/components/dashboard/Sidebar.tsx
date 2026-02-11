@@ -58,11 +58,6 @@ const mediaSubNav: { name: string; href: string; icon: typeof Image; featureSlug
 const SIDEBAR_MEDIA_OPEN = "sidebar-media-open";
 
 const SIDEBAR_CONTENT_OPEN = "sidebar-content-open";
-
-const contentSubNav: { name: string; href: string; icon: typeof FileText; featureSlug: string }[] = [
-  { name: "Posts & Pages", href: "/admin/content", icon: FileText, featureSlug: "content" },
-];
-
 const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 
 const crmSubNav: { name: string; href: string; icon: typeof Users; featureSlug: string }[] = [
@@ -145,7 +140,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
   const [supportOpen, setSupportOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
-  const [contentOpen, setContentOpen] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
@@ -186,7 +180,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isDashboard) {
         setCrmOpen(false);
         setMediaOpen(false);
-        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -201,7 +194,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isCrm) {
         setCrmOpen(true);
         setMediaOpen(false);
-        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -216,7 +208,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isMedia) {
         setCrmOpen(false);
         setMediaOpen(true);
-        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -228,25 +219,9 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
-      if (isContent) {
-        setCrmOpen(false);
-        setMediaOpen(false);
-        setContentOpen(true);
-        setSettingsOpen(false);
-        setSupportOpen(false);
-        setSuperOpen(false);
-        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
-        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "true");
-        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
-        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
-        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
-        return;
-      }
       if (isSettings) {
         setCrmOpen(false);
         setMediaOpen(false);
-        setContentOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         setSettingsOpen(true);
@@ -261,7 +236,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isSupport) {
         setCrmOpen(false);
         setMediaOpen(false);
-        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(true);
         setSuperOpen(false);
@@ -276,7 +250,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       if (isSuper) {
         setCrmOpen(false);
         setMediaOpen(false);
-        setContentOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(true);
@@ -291,7 +264,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       // Other routes: collapse all
       setCrmOpen(false);
       setMediaOpen(false);
-      setContentOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
@@ -304,13 +276,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     } catch {
       if (isCrm) setCrmOpen(true);
       if (isMedia) setMediaOpen(true);
-      if (isContent) setContentOpen(true);
       if (isEvents) setEventsOpen(true);
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMedia, isContent, isEvents, isSettings, isSupport, isSuper]);
+  }, [pathname, isCrm, isMedia, isEvents, isSettings, isSupport, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -319,7 +290,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setCrmOpen(next);
     if (next) {
       setMediaOpen(false);
-      setContentOpen(false);
       setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
@@ -334,29 +304,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     } catch { /* ignore */ }
   };
 
-  const toggleContent = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const next = !contentOpen;
-    setContentOpen(next);
-    if (next) {
-      setCrmOpen(false);
-      setMediaOpen(false);
-      setEventsOpen(false);
-      setSettingsOpen(false);
-      setSupportOpen(false);
-      try {
-        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
-        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
-        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
-      } catch { /* ignore */ }
-    }
-    try {
-      localStorage.setItem(SIDEBAR_CONTENT_OPEN, next ? "true" : "false");
-    } catch { /* ignore */ }
-  };
-
   const toggleMedia = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -364,7 +311,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setMediaOpen(next);
     if (next) {
       setCrmOpen(false);
-      setContentOpen(false);
       setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
@@ -387,7 +333,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
-      setContentOpen(false);
       setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
@@ -412,7 +357,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
-      setContentOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
@@ -427,7 +371,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
-      setContentOpen(false);
       setEventsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
@@ -452,7 +395,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     if (next) {
       setCrmOpen(false);
       setMediaOpen(false);
-      setContentOpen(false);
       setEventsOpen(false);
       setSettingsOpen(false);
       setSuperOpen(false);
@@ -668,64 +610,20 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
           )}
         </div>
         )}
-        {/* Content twirldown (Posts & Pages) */}
+        {/* Content (single link) */}
         {showContent && (
-        <div className="pt-1">
-          <div
-            className={cn(
-              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
-              isContent && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
-            )}
-          >
-            <Link
-              href="/admin/content"
-              className={cn(
-                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
-                isContent ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <FileText className="h-5 w-5" />
-              Content
-            </Link>
-            <button
-              type="button"
-              onClick={toggleContent}
-              className={cn(
-                "p-1 rounded transition-colors",
-                isContent ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-              aria-expanded={contentOpen}
-            >
-              {contentOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          </div>
-          {contentOpen && (
-            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {contentSubNav
-                .filter((sub) => canAccessFeature(effectiveFeatureSlugs, sub.featureSlug))
-                .map((sub) => {
-                  const isSubActive =
-                    pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
-                  const SubIcon = sub.icon;
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                        isSubActive
-                          ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      )}
-                    >
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </Link>
-                  );
-                })}
-            </div>
+        <Link
+          href="/admin/content"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            isContent
+              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           )}
-        </div>
+        >
+          <FileText className="h-5 w-5" />
+          Content
+        </Link>
         )}
         {/* Calendar twirldown (Calendar, Resources) */}
         {showCalendar && (

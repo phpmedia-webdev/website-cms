@@ -5,7 +5,8 @@
 
 import { createServerSupabaseClient } from "./client";
 import { getClientSchema } from "./schema";
-import { expandRecurringEvents, getOccurrencesInRange } from "@/lib/recurrence";
+import { expandRecurringEvents, getOccurrencesInRange, eventIdForEdit } from "@/lib/recurrence";
+import { getEventsParticipantAssignments } from "./participants-resources";
 
 const EVENTS_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -292,4 +293,52 @@ export async function deleteEvent(
     return { error: error.message };
   }
   return { ok: true };
+}
+
+/** Conflict check: events (or occurrences) that overlap [startDate, endDate] and have any of the given participant ids. */
+export interface ParticipantConflict {
+  eventId: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+}
+
+export async function getParticipantConflicts(
+  startDate: Date,
+  endDate: Date,
+  participantIds: string[],
+  excludeEventId?: string | null,
+  schema?: string
+): Promise<ParticipantConflict[]> {
+  if (participantIds.length === 0) return [];
+  const schemaName = schema ?? EVENTS_SCHEMA;
+  const events = await getEvents(startDate, endDate, schemaName);
+  const realIds = [...new Set(events.map((e) => eventIdForEdit(e.id)))].filter(
+    (id) => id !== excludeEventId
+  );
+  if (realIds.length === 0) return [];
+  const participantMap = await getEventsParticipantAssignments(realIds, schemaName);
+  const participantSet = new Set(participantIds);
+  const conflicts: ParticipantConflict[] = [];
+  const startMs = startDate.getTime();
+  const endMs = endDate.getTime();
+  for (const ev of events) {
+    const realId = eventIdForEdit(ev.id);
+    if (realId === excludeEventId) continue;
+    const pSet = participantMap.get(realId);
+    if (!pSet) continue;
+    const hasParticipant = [...participantSet].some((id) => pSet.has(id));
+    if (!hasParticipant) continue;
+    const evStart = new Date(ev.start_date).getTime();
+    const evEnd = new Date(ev.end_date).getTime();
+    if (evStart < endMs && evEnd > startMs) {
+      conflicts.push({
+        eventId: realId,
+        title: ev.title,
+        start_date: ev.start_date,
+        end_date: ev.end_date,
+      });
+    }
+  }
+  return conflicts;
 }

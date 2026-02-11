@@ -21,6 +21,8 @@ interface Resource {
   resource_type: string;
 }
 
+export type ParticipantsSnapshotItem = { source_type: string; source_id: string };
+
 interface EventParticipantsResourcesTabProps {
   /** Omit for new-event (create) mode: use pending state and callbacks only. */
   eventId?: string | null;
@@ -32,6 +34,8 @@ interface EventParticipantsResourcesTabProps {
   pendingResourceIds?: string[];
   /** Create mode: called when user adds/removes pending resources. */
   onPendingResourceIdsChange?: (ids: string[]) => void;
+  /** Called when the list of participants (to be saved) changes. Used for conflict check. */
+  onParticipantsSnapshot?: (list: ParticipantsSnapshotItem[]) => void;
 }
 
 function toCompositeId(sourceType: "team_member" | "crm_contact", sourceId: string): string {
@@ -54,6 +58,7 @@ export function EventParticipantsResourcesTab({
   onPendingParticipantsChange,
   pendingResourceIds = [],
   onPendingResourceIdsChange,
+  onParticipantsSnapshot,
 }: EventParticipantsResourcesTabProps) {
   const isCreateMode = !eventId;
 
@@ -100,6 +105,21 @@ export function EventParticipantsResourcesTab({
   useEffect(() => {
     loadAssignments();
   }, [loadAssignments]);
+
+  useEffect(() => {
+    if (!onParticipantsSnapshot) return;
+    if (isCreateMode) {
+      onParticipantsSnapshot(pendingParticipants);
+      return;
+    }
+    const list: ParticipantsSnapshotItem[] = participantIds
+      .map((pid) => {
+        const p = participants.find((x) => x.id === pid);
+        return p ? { source_type: p.source_type, source_id: p.source_id } : null;
+      })
+      .filter((x): x is ParticipantsSnapshotItem => x != null);
+    onParticipantsSnapshot(list);
+  }, [isCreateMode, pendingParticipants, participantIds, participants, onParticipantsSnapshot]);
 
   const contactLabel = (c: { full_name?: string; email?: string }) =>
     (c.full_name?.trim() || c.email || "Contact") as string;

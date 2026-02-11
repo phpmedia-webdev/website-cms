@@ -105,3 +105,19 @@ When the developer is in learning mode or asks for explanation, provide feedback
   - Deployment and CI/CD best practices
 - **Integration approach:** Use Context7 insights to inform coding decisions and suggest modern patterns
 - **Documentation priority:** Always check Context7 before implementing new features or solving complex problems
+
+1. Get today’s date and time for reference.
+2. **Required: read these documents to get up to speed.** Use the Read tool to open each file. Do not skip or rely on partial/limited reads for the core docs. Complete this checklist before responding to the user's session-start message.
+
+**Checklist — read in full (use Read tool, no line limits):**
+
+- **Cursor rules (this project):**  
+  `.cursor/rules/coding.mdc`, `.cursor/rules/sessions.mdc`, `.cursor/rules/supabase.mdc`, `.cursor/rules/Context7-MCP.md`
+- **Docs (root of `docs/`):**  
+  `docs/prd.md`, `docs/prd-technical.md`, `docs/sessionlog.md`, `docs/prd-planned.md`
+- **Changelog:**  
+  `docs/changelog.md` — at least the **last entry** in full plus its "Context for Next Session" (read from top until you have that; use a line limit only if the file is very long, and ensure the latest entry is included).
+- **Planlog:**  
+  `docs/planlog.md` — read enough to see current phases and next focus (e.g. first 150–200 lines or full file if shorter).
+
+**Then:** Use the checklist above so you have read: cursor rules, prd, prd-technical, sessionlog, prd-planned, changelog (last entry + context), planlog (current focus). Summarize for the user: current focus, recent context from changelog, and next up from sessionlog/planlog.
