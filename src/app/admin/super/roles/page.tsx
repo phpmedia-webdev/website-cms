@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { RolesManager } from "@/components/superadmin/RolesManager";
+import { RolesList } from "@/components/superadmin/RolesList";
 
 /**
- * Superadmin Roles: configure which features each role can access.
+ * Superadmin Roles: list roles; click a role to edit its features.
  * Only accessible to superadmin.
  */
 export default async function SuperadminRolesPage() {
@@ -18,11 +18,11 @@ export default async function SuperadminRolesPage() {
       <div>
         <h1 className="text-3xl font-bold">Roles &amp; Features</h1>
         <p className="text-muted-foreground mt-2">
-          Assign features to each role. Effective access for a user is the intersection of their role’s features and the tenant’s enabled features.
+          Select a role to assign features. Effective access for a user is the intersection of their role’s features and the tenant’s enabled features.
         </p>
       </div>
 
-      <RolesManager />
+      <RolesList />
     </div>
   );
 }

@@ -9,6 +9,49 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-11 CT - Feature Guard: sidebar order, roles CRUD, feature registry 1:1, ghosted display, Settings
+
+**Context for Next Session:**
+- **Feature Guard / Roles & Features** is in place: sidebar order matches design (Dashboard → OmniChat → CRM → Marketing → Calendar → Media → Content → Settings → Support); Roles list page with Add/Delete role (system roles Admin, Editor, Creator, Viewer locked); per-role feature editor at `/admin/super/roles/[roleSlug]`; feature registry aligned 1:1 with sidebar via migrations 103–105; route-features map all paths to slugs; blocked sidebar items shown **ghosted** (visible, non-clickable) for upsell; Settings sub-items in role assignment and sidebar are General, Style, Taxonomy, Customizer, Users; My Profile always visible (no feature gate). Run migrations 103, 104, 105 in Supabase SQL Editor if not already applied.
+- **Next up:** See [sessionlog.md](./sessionlog.md) — Pre-launch cleanup & code review, RAG Page Builder. Key files: `src/components/dashboard/Sidebar.tsx`, `src/lib/admin/route-features.ts`, `src/components/superadmin/RolesList.tsx`, `src/components/superadmin/RolesManager.tsx`, `src/lib/supabase/feature-registry.ts`, `supabase/migrations/103_*.sql`, `104_*.sql`, `105_*.sql`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Sidebar:** Reordered to Dashboard, OmniChat, CRM (Contacts, Forms, Form Submissions, Memberships, Code Generator), Marketing (Lists), Calendar (Calendar, Resources), Media (Library, Galleries), Content, Settings, Support; Calendar as main nav after Marketing; OmniChat single link; Marketing twirldown with Lists.
+- **Roles & Features:** List page at `/admin/super/roles` with cards; click role → editor at `/admin/super/roles/[roleSlug]` (no role dropdown). Add role (dialog: slug, label, description); Delete role with confirm (system roles non-deletable, lock icon). API: POST /api/admin/roles, DELETE /api/admin/roles/[roleSlug]; feature-registry: createRole, deleteRole, getRoleBySlug, SYSTEM_ROLE_SLUGS.
+- **Feature registry 1:1 with sidebar:** Migration 103 adds/orders omnichat, form_submissions, lists, calendar, events, resources, library, support + children; 104 adds Settings children (general, style, taxonomy, customizer, users); 105 disables legacy settings rows (fonts_colors, content_types, content_fields, settings_crm, security, api). Roles API uses listFeatures(false) so only enabled features show.
+- **Route-features:** pathToFeatureSlug for all new paths (library, form_submissions, omnichat, lists, events, resources, support children, settings children); /admin/settings/profile → null (always allowed); FEATURE_PARENT_SLUG and SIDEBAR_FEATURE_MAP updated. Sidebar mediaSubNav uses library; crmSubNav uses form_submissions.
+- **Ghosted display:** Sidebar shows all sections; items without access render as greyed, non-clickable (opacity-50, cursor-not-allowed, title "Upgrade your plan to access"). Single links (Dashboard, OmniChat, Content) and twirldowns (CRM, Marketing, Calendar, Media, Settings) support ghosted; sub-items within a section can be link or ghosted by feature. Support remains always clickable.
+- **Settings:** Sidebar settingsSubNav has featureSlug for General, Style, Taxonomy, Customizer, Users; My Profile has no featureSlug (always visible). Route guards for /admin/settings/* by slug; FEATURE_PARENT_SLUG for settings children. Role assignment shows only those five under Settings.
+
+### 2026-02-11 CT (later) - Bulk Set CRM Fields (Standard + Custom)
+
+**Context for Next Session:**
+- **Bulk Set CRM Fields** is live: one bulk action in the contacts list dropdown, **"Set CRM Fields"**, replaces the former "Change status" item. Dialog step 1: choose **Standard field** or **Custom field**. Standard: set Status for all selected (existing `POST /api/crm/contacts/bulk-status`). Custom: pick one custom field, set value or "Clear value" for all selected (new `POST /api/crm/contacts/custom-fields/bulk`); value inputs by type (text, textarea, select, multiselect, checkbox, etc.). Plan doc `docs/bulk-custom-fields-plan.md` can be archived or removed; implementation steps 1–4 complete; optional cap/toast (step 5) skipped for v1.
+- **Next up:** See [sessionlog.md](./sessionlog.md) and [planlog.md](./planlog.md). Consider adding planlog item for "Bulk Set CRM Fields" and checking it off if not already done.
+- **Key files:** `src/components/crm/SetCrmFieldsDialog.tsx`, `src/app/admin/crm/contacts/ContactsListClient.tsx` (bulk menu + dialog), `src/app/api/crm/contacts/custom-fields/bulk/route.ts`, `src/lib/supabase/crm.ts` (`upsertContactCustomFieldValueBulk`). `ChangeStatusDialog` no longer used in list flow (file remains).
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Backend:** `upsertContactCustomFieldValueBulk(contactIds, customFieldId, value)` in `crm.ts`; bulk upsert into `crm_contact_custom_fields`; `value: null` clears for selected contacts.
+- **API:** `POST /api/crm/contacts/custom-fields/bulk` — body `{ contactIds, custom_field_id, value }`; auth, validation (non-empty contactIds, valid custom_field_id), calls bulk upsert.
+- **Dialog:** `SetCrmFieldsDialog` — step 1: Standard field | Custom field; Standard = Status only (status chips, submit to bulk-status); Custom = fetch custom field definitions, pick one field, value by type or "Clear value", submit to custom-fields/bulk. Back/Cancel; reset on close.
+- **Contacts list:** Bulk menu "Change status" replaced with **"Set CRM Fields"**; `SetCrmFieldsDialog` with `contactStatuses` and `onSuccess` refresh. `ChangeStatusDialog` removed from this flow.
+
+### 2026-02-11 CT - CRM Contacts List complete (pagination, bulk actions, trash)
+
+**Context for Next Session:**
+- **CRM Contacts List** is complete: pagination (25/50/100), row selection and Check all, bulk action bar (search + Show trash + Bulk actions), Export (CSV/PDF, core + custom fields, 10k cap), Add to list, Remove from list, Change status, Taxonomy (single category/tag add or remove), Delete (soft), Restore, Empty trash (confirmation with dire warning), Show Trashed filter. Backend: `deleted_at` on `crm_contacts` (migration 102), list RPC excludes trashed; bulk APIs for status, list add/remove, taxonomy, soft delete, restore, purge. Purge and single-contact delete clear `taxonomy_relationships` so no orphaned records.
+- **Next up:** See [sessionlog.md](./sessionlog.md) — Emailer (built-in), Complete Feature Guard. Key paths: `src/app/admin/crm/contacts/ContactsListClient.tsx`, `src/lib/supabase/crm.ts`, `src/components/crm/`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Pagination & selection:** `ContactsListClient` — pageSize 25/50/100, currentPage, footer (page size, Prev/Next, “Showing X–Y of Z”), checkbox column, selectedIds, Check all cycle, selection persists across bulk actions.
+- **Bulk actions:** Dropdown right of search. Export (dialog: format, field selector core + custom, 10k limit, immediate download), Add to list, Remove from list, Change status (dialog), Taxonomy (single term add/remove dialog), Delete (soft, confirm dialog), Restore (when viewing trash), Empty trash (disabled when no trashed; confirm with dire warning).
+- **Trash:** Migration 102 — `deleted_at` on `crm_contacts`; `get_contacts_dynamic` excludes trashed; `getTrashedContacts()`, Show trash (N) / Show active contacts inline with search. Restore and Empty trash APIs; purge and `deleteContact()` delete `taxonomy_relationships` for contact(s) first to avoid orphans.
+- **APIs:** `bulk-status`, `bulk-delete`, `bulk-restore`, `purge-trash`, `taxonomy/bulk`; list add/remove already present. `crm.ts`: `updateContactsStatusBulk`, `softDeleteContactsBulk`, `restoreContactsBulk`, `purgeAllTrashedContacts`; `crm-taxonomy.ts`: `addContactsToTermBulk`, `removeContactsFromTermBulk`.
+- **Sessionlog:** Completed CRM steps removed; Current Focus and Context updated. **Planlog:** CRM contacts list item checked off.
+
 ### 2026-02-10 CT (evening) - CRM contacts list plan; session wrap
 
 **Context for Next Session:**

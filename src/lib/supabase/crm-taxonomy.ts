@@ -32,3 +32,53 @@ export async function getContactTaxonomyTermIds(
     term_id: r.term_id,
   }));
 }
+
+/** Add a single term (category or tag) to multiple contacts. Skips contacts that already have the term. */
+export async function addContactsToTermBulk(
+  contactIds: string[],
+  termId: string
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) return { success: true, error: null };
+  const existing = await getContactTaxonomyTermIds(contactIds);
+  const alreadyHave = new Set(
+    existing.filter((r) => r.term_id === termId).map((r) => r.contact_id)
+  );
+  const toAdd = contactIds.filter((id) => !alreadyHave.has(id));
+  if (toAdd.length === 0) return { success: true, error: null };
+  const supabase = createServerSupabaseClient();
+  const rows = toAdd.map((content_id) => ({
+    content_id,
+    content_type: "crm_contact" as const,
+    term_id: termId,
+  }));
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from("taxonomy_relationships")
+    .insert(rows);
+  if (error) {
+    console.error("addContactsToTermBulk:", error.message);
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}
+
+/** Remove a single term from multiple contacts. */
+export async function removeContactsFromTermBulk(
+  contactIds: string[],
+  termId: string
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) return { success: true, error: null };
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(SCHEMA)
+    .from("taxonomy_relationships")
+    .delete()
+    .eq("content_type", "crm_contact")
+    .eq("term_id", termId)
+    .in("content_id", contactIds);
+  if (error) {
+    console.error("removeContactsFromTermBulk:", error.message);
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}

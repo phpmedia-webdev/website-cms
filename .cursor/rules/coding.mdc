@@ -72,6 +72,12 @@ When the developer is in learning mode or asks for explanation, provide feedback
 - Don't install packages unless asked
 - Prefer iteration and modularization over code duplication
 
+## MVT (Module Version Tracker)
+
+- **Location:** `docs/mvt.md` — the Module Version Tracker and code sitemap for this app. It travels with the repo; every fork has its own copy.
+- **Purpose:** (1) At-a-glance module versions and status; (2) high-level folder structure / code sitemap for quickly locating code (e.g. for hand tweaks); (3) per-module boundaries (code paths, folder structure), data/schema (tables, migrations, RPCs), and prerequisites for drop-and-replace updates.
+- **When to update:** When adding, renaming, or significantly changing a module (new or removed routes, components, or lib under that feature), update the relevant module section in `docs/mvt.md`: version if appropriate, folder structure / code paths, and data/schema/prerequisites if migrations or dependencies changed.
+- **Structure:** Keep the document’s sections — at-a-glance table, code sitemap (high-level tree), per-module sections with Version, Folder structure, Data/schema, Prerequisites. See `docs/mvt.md` for the current structure and conventions.
 
 ## Debug Code Guidelines
 - **Always comment out debug code** for easy cleanup later
@@ -114,7 +120,7 @@ When the developer is in learning mode or asks for explanation, provide feedback
 - **Cursor rules (this project):**  
   `.cursor/rules/coding.mdc`, `.cursor/rules/sessions.mdc`, `.cursor/rules/supabase.mdc`, `.cursor/rules/Context7-MCP.md`
 - **Docs (root of `docs/`):**  
-  `docs/prd.md`, `docs/prd-technical.md`, `docs/sessionlog.md`, `docs/prd-planned.md`
+  `docs/prd.md`, `docs/prd-technical.md`, `docs/sessionlog.md`
 - **Changelog:**  
   `docs/changelog.md` — at least the **last entry** in full plus its "Context for Next Session" (read from top until you have that; use a line limit only if the file is very long, and ensure the latest entry is included).
 - **Planlog:**  

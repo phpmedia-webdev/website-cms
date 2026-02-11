@@ -5,6 +5,7 @@ import {
   listRoles,
   listRoleFeatureIds,
   featuresForRoleOrTenantUI,
+  createRole,
 } from "@/lib/supabase/feature-registry";
 
 /**
@@ -23,7 +24,7 @@ export async function GET() {
 
     const [roles, allFeatures] = await Promise.all([
       listRoles(),
-      listFeatures(true),
+      listFeatures(false), // only enabled features (role assignment shows canonical list)
     ]);
     const features = featuresForRoleOrTenantUI(allFeatures);
 
@@ -41,6 +42,50 @@ export async function GET() {
     console.error("GET /api/admin/roles:", error);
     return NextResponse.json(
       { error: "Failed to fetch roles and features" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/admin/roles
+ * Create a new role (superadmin only). Body: { slug, label, description? }.
+ */
+export async function POST(request: Request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !isSuperadmin(user)) {
+      return NextResponse.json(
+        { error: "Unauthorized: Superadmin access required" },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const slug = typeof body.slug === "string" ? body.slug : "";
+    const label = typeof body.label === "string" ? body.label : "";
+    const description = typeof body.description === "string" ? body.description : undefined;
+
+    if (!slug.trim() && !label.trim()) {
+      return NextResponse.json(
+        { error: "slug and label are required" },
+        { status: 400 }
+      );
+    }
+
+    const role = await createRole({ slug: slug || label, label: label || slug, description });
+    if (!role) {
+      return NextResponse.json(
+        { error: "Failed to create role (invalid slug or duplicate)" },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(role);
+  } catch (error) {
+    console.error("POST /api/admin/roles:", error);
+    return NextResponse.json(
+      { error: "Failed to create role" },
       { status: 500 }
     );
   }

@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { getMarketingLists } from "@/lib/supabase/crm";
+import { getMarketingLists, getMarketingListContactCounts } from "@/lib/supabase/crm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ListChecks } from "lucide-react";
 
 export default async function ListsPage() {
-  const lists = await getMarketingLists();
+  const [lists, contactCounts] = await Promise.all([
+    getMarketingLists(),
+    getMarketingListContactCounts(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -45,6 +48,7 @@ export default async function ListsPage() {
                     <th className="text-left font-medium p-3">Slug</th>
                     <th className="text-left font-medium p-3">Description</th>
                     <th className="text-left font-medium p-3">Created</th>
+                    <th className="text-right font-medium p-3">Contacts</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -65,6 +69,9 @@ export default async function ListsPage() {
                       <td className="p-3 text-muted-foreground">{list.description ?? "—"}</td>
                       <td className="p-3 text-muted-foreground">
                         {list.created_at ? new Date(list.created_at).toLocaleDateString() : "—"}
+                      </td>
+                      <td className="p-3 text-right text-muted-foreground tabular-nums">
+                        {contactCounts[list.id] ?? 0}
                       </td>
                     </tr>
                   ))}

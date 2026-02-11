@@ -51,7 +51,7 @@ interface SidebarProps {
 }
 
 const mediaSubNav: { name: string; href: string; icon: typeof Image; featureSlug: string }[] = [
-  { name: "Library", href: "/admin/media", icon: Image, featureSlug: "media" },
+  { name: "Library", href: "/admin/media", icon: Image, featureSlug: "library" },
   { name: "Galleries", href: "/admin/galleries", icon: Folder, featureSlug: "galleries" },
 ];
 
@@ -60,32 +60,39 @@ const SIDEBAR_MEDIA_OPEN = "sidebar-media-open";
 const SIDEBAR_CONTENT_OPEN = "sidebar-content-open";
 const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 
+/** CRM subnav: Contacts, Forms, Form Submissions, Memberships, Code Generator. OmniChat and Marketing are top-level. */
 const crmSubNav: { name: string; href: string; icon: typeof Users; featureSlug: string }[] = [
   { name: "Contacts", href: "/admin/crm/contacts", icon: Users, featureSlug: "contacts" },
-  { name: "OmniChat", href: "/admin/crm/omnichat", icon: MessageCircle, featureSlug: "crm" },
   { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList, featureSlug: "forms" },
-  { name: "Form submissions", href: "/admin/crm/forms/submissions", icon: Inbox, featureSlug: "forms" },
-  { name: "Marketing", href: "/admin/crm/marketing", icon: Mail, featureSlug: "marketing" },
-  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks, featureSlug: "marketing" },
+  { name: "Form Submissions", href: "/admin/crm/forms/submissions", icon: Inbox, featureSlug: "form_submissions" },
   { name: "Memberships", href: "/admin/crm/memberships", icon: Folder, featureSlug: "memberships" },
   { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
 ];
 
-const settingsSubNav: { name: string; href: string; icon: typeof Settings; adminOnly?: boolean }[] = [
-  { name: "General", href: "/admin/settings/general", icon: Settings },
-  { name: "Style", href: "/admin/settings/style", icon: Palette },
-  { name: "Taxonomy", href: "/admin/settings/taxonomy", icon: Tags },
-  { name: "Customizer", href: "/admin/settings/customizer", icon: Sliders },
-  { name: "Users", href: "/admin/settings/users", icon: Users, adminOnly: true },
+/** Marketing: landing page with Lists as subnav. */
+const SIDEBAR_MARKETING_OPEN = "sidebar-marketing-open";
+const marketingSubNav: { name: string; href: string; icon: typeof ListChecks }[] = [
+  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks },
+];
+
+/** Calendar: main nav section (after Marketing) with Calendar + Resources. */
+const SIDEBAR_CALENDAR_OPEN = "sidebar-calendar-open";
+const calendarSubNav: { name: string; href: string; icon: typeof Calendar | typeof Box }[] = [
+  { name: "Calendar", href: "/admin/events", icon: Calendar },
+  { name: "Resources", href: "/admin/events/resources", icon: Box },
+];
+
+/** Settings sub-nav. featureSlug = role-assignable; no featureSlug = always visible (My Profile). */
+const settingsSubNav: { name: string; href: string; icon: typeof Settings; featureSlug?: string; adminOnly?: boolean }[] = [
+  { name: "General", href: "/admin/settings/general", icon: Settings, featureSlug: "general" },
+  { name: "Style", href: "/admin/settings/style", icon: Palette, featureSlug: "style" },
+  { name: "Taxonomy", href: "/admin/settings/taxonomy", icon: Tags, featureSlug: "taxonomy" },
+  { name: "Customizer", href: "/admin/settings/customizer", icon: Sliders, featureSlug: "customizer" },
+  { name: "Users", href: "/admin/settings/users", icon: Users, featureSlug: "users", adminOnly: true },
   { name: "My Profile", href: "/admin/settings/profile", icon: User },
 ];
 
 const SIDEBAR_SUPPORT_OPEN = "sidebar-support-open";
-
-const eventsSubNav: { name: string; href: string; icon: typeof Calendar }[] = [
-  { name: "Calendar", href: "/admin/events", icon: Calendar },
-  { name: "Resources", href: "/admin/events/resources", icon: Box },
-];
 
 const supportSubNav: { name: string; href: string; icon: typeof LifeBuoy }[] = [
   { name: "Quick Support", href: "/admin/support/quick-support", icon: MessageCircle },
@@ -110,10 +117,19 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
   const supabase = getSupabaseClient();
   const isSettings = pathname === "/admin/settings" || pathname?.startsWith("/admin/settings/");
   const isSupport = pathname === "/admin/support" || pathname?.startsWith("/admin/support/");
-  const isCrm = pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/");
+  const isCrm =
+    (pathname === "/admin/crm" || pathname?.startsWith("/admin/crm/")) &&
+    !pathname?.startsWith("/admin/crm/omnichat") &&
+    !pathname?.startsWith("/admin/crm/marketing") &&
+    pathname !== "/admin/crm/lists" &&
+    !pathname?.startsWith("/admin/crm/lists/");
+  const isMarketing =
+    pathname === "/admin/crm/marketing" ||
+    pathname === "/admin/crm/lists" ||
+    pathname?.startsWith("/admin/crm/lists/");
+  const isEvents = pathname === "/admin/events" || pathname?.startsWith("/admin/events/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
   const isContent = pathname === "/admin/content" || pathname?.startsWith("/admin/content/");
-  const isEvents = pathname === "/admin/events" || pathname?.startsWith("/admin/events/");
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
 
   const showDashboard =
@@ -129,18 +145,24 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     canAccessFeature(effectiveFeatureSlugs, "code_generator");
   const showMedia =
     canAccessFeature(effectiveFeatureSlugs, "media") ||
+    canAccessFeature(effectiveFeatureSlugs, "library") ||
     canAccessFeature(effectiveFeatureSlugs, "galleries");
   const showContent = canAccessFeature(effectiveFeatureSlugs, "content");
+  const showMarketing = canAccessFeature(effectiveFeatureSlugs, "marketing");
   const showCalendar =
     canAccessFeature(effectiveFeatureSlugs, "content") ||
-    canAccessFeature(effectiveFeatureSlugs, "calendar");
+    canAccessFeature(effectiveFeatureSlugs, "calendar") ||
+    canAccessFeature(effectiveFeatureSlugs, "events") ||
+    canAccessFeature(effectiveFeatureSlugs, "resources");
   const showSettings = canAccessFeature(effectiveFeatureSlugs, "settings");
+  const showOmniChat = canAccessFeature(effectiveFeatureSlugs, "crm");
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
+  const [marketingOpen, setMarketingOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
-  const [eventsOpen, setEventsOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
 
@@ -179,11 +201,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     try {
       if (isDashboard) {
         setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
         setMediaOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -191,13 +217,53 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
-      if (isCrm) {
+      if (isCrm && !isMarketing) {
         setCrmOpen(true);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
         setMediaOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "true");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+        return;
+      }
+      if (isMarketing) {
+        setCrmOpen(false);
+        setMarketingOpen(true);
+        setCalendarOpen(false);
+        setMediaOpen(false);
+        setSettingsOpen(false);
+        setSupportOpen(false);
+        setSuperOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "true");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+        return;
+      }
+      if (isEvents) {
+        setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(true);
+        setMediaOpen(false);
+        setSettingsOpen(false);
+        setSupportOpen(false);
+        setSuperOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "true");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -207,11 +273,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       }
       if (isMedia) {
         setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
         setMediaOpen(true);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "true");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -221,11 +291,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       }
       if (isSettings) {
         setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
         setMediaOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         setSettingsOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -235,11 +309,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       }
       if (isSupport) {
         setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
         setMediaOpen(false);
         setSettingsOpen(false);
         setSupportOpen(true);
         setSuperOpen(false);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -249,11 +327,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       }
       if (isSuper) {
         setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
         setMediaOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -263,25 +345,30 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       }
       // Other routes: collapse all
       setCrmOpen(false);
+      setMarketingOpen(false);
+      setCalendarOpen(false);
       setMediaOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
       localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+      localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+      localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
       localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
       localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
       localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
     } catch {
-      if (isCrm) setCrmOpen(true);
+      if (isCrm && !isMarketing) setCrmOpen(true);
+      if (isMarketing) setMarketingOpen(true);
+      if (isEvents) setCalendarOpen(true);
       if (isMedia) setMediaOpen(true);
-      if (isEvents) setEventsOpen(true);
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMedia, isEvents, isSettings, isSupport, isSuper]);
+  }, [pathname, isCrm, isMarketing, isEvents, isMedia, isSettings, isSupport, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -289,11 +376,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     const next = !crmOpen;
     setCrmOpen(next);
     if (next) {
+      setMarketingOpen(false);
+      setCalendarOpen(false);
       setMediaOpen(false);
-      setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -304,6 +394,60 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     } catch { /* ignore */ }
   };
 
+  const toggleMarketing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !marketingOpen;
+    setMarketingOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setCalendarOpen(false);
+      setMediaOpen(false);
+      setSettingsOpen(false);
+      setSupportOpen(false);
+      setSuperOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_MARKETING_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
+  const toggleCalendar = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !calendarOpen;
+    setCalendarOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMarketingOpen(false);
+      setMediaOpen(false);
+      setSettingsOpen(false);
+      setSupportOpen(false);
+      setSuperOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_CALENDAR_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
   const toggleMedia = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -311,11 +455,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setMediaOpen(next);
     if (next) {
       setCrmOpen(false);
-      setEventsOpen(false);
+      setMarketingOpen(false);
+      setCalendarOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       } catch { /* ignore */ }
@@ -332,12 +479,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setSuperOpen(next);
     if (next) {
       setCrmOpen(false);
+      setMarketingOpen(false);
+      setCalendarOpen(false);
       setMediaOpen(false);
-      setEventsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -349,20 +499,6 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     } catch { /* ignore */ }
   };
 
-  const toggleEvents = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const next = !eventsOpen;
-    setEventsOpen(next);
-    if (next) {
-      setCrmOpen(false);
-      setMediaOpen(false);
-      setSettingsOpen(false);
-      setSupportOpen(false);
-      setSuperOpen(false);
-    }
-  };
-
   const toggleSettings = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -370,12 +506,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setSettingsOpen(next);
     if (next) {
       setCrmOpen(false);
+      setMarketingOpen(false);
+      setCalendarOpen(false);
       setMediaOpen(false);
-      setEventsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -394,12 +533,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     setSupportOpen(next);
     if (next) {
       setCrmOpen(false);
+      setMarketingOpen(false);
+      setCalendarOpen(false);
       setMediaOpen(false);
-      setEventsOpen(false);
       setSettingsOpen(false);
       setSuperOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -460,8 +602,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       </div>
       <nav className="flex-1 flex flex-col min-h-0 p-4">
         <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
-        {/* Dashboard first */}
-        {showDashboard && (
+        {/* Dashboard: always visible; ghosted (greyed, non-clickable) when no access */}
+        {showDashboard ? (
         <Link
           href="/admin/dashboard"
           className={cn(
@@ -474,62 +616,89 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
           <LayoutDashboard className="h-5 w-5" />
           Dashboard
         </Link>
+        ) : (
+        <span
+          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
+          title="Upgrade your plan to access"
+        >
+          <LayoutDashboard className="h-5 w-5" />
+          Dashboard
+        </span>
         )}
-        {/* CRM twirldown (right after Dashboard) */}
-        {showCrm && (
+        {/* OmniChat: always visible; ghosted when no access */}
+        {showOmniChat ? (
+        <Link
+          href="/admin/crm/omnichat"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            pathname === "/admin/crm/omnichat" || pathname?.startsWith("/admin/crm/omnichat/")
+              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+        >
+          <MessageCircle className="h-5 w-5" />
+          OmniChat
+        </Link>
+        ) : (
+        <span
+          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
+          title="Upgrade your plan to access"
+        >
+          <MessageCircle className="h-5 w-5" />
+          OmniChat
+        </span>
+        )}
+        {/* CRM twirldown: always visible; ghosted when no access */}
         <div className="pt-1">
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
-              isCrm && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
-            )}
-          >
-            <Link
-              href="/admin/crm/contacts"
+          {showCrm ? (
+          <>
+            <div
               className={cn(
-                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
-                isCrm ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+                isCrm && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
               )}
             >
-              <Building2 className="h-5 w-5 flex-shrink-0" />
-              CRM
-            </Link>
-            {newContactsCount > 0 && (
-              <span
-                className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white"
-                title={`${newContactsCount} contact(s) with status New`}
+              <Link
+                href="/admin/crm/contacts"
+                className={cn(
+                  "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                  isCrm ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
               >
-                {newContactsCount > 99 ? "99+" : newContactsCount}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={toggleCrm}
-              className={cn(
-                "p-1 rounded transition-colors",
-                isCrm ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                <Building2 className="h-5 w-5 flex-shrink-0" />
+                CRM
+              </Link>
+              {newContactsCount > 0 && (
+                <span
+                  className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white"
+                  title={`${newContactsCount} contact(s) with status New`}
+                >
+                  {newContactsCount > 99 ? "99+" : newContactsCount}
+                </span>
               )}
-              aria-expanded={crmOpen}
-            >
-              {crmOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          </div>
-          {crmOpen && (
-            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {crmSubNav
-                .filter(
-                  (sub) =>
-                    canAccessFeature(effectiveFeatureSlugs, "crm") ||
-                    canAccessFeature(effectiveFeatureSlugs, sub.featureSlug)
-                )
-                .map((sub) => {
+              <button
+                type="button"
+                onClick={toggleCrm}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  isCrm ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+                aria-expanded={crmOpen}
+              >
+                {crmOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {crmOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {crmSubNav.map((sub) => {
+                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "crm") || canAccessFeature(effectiveFeatureSlugs, sub.featureSlug);
                   const isSubActive =
                     sub.href === "/admin/crm/forms"
                       ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
                         !pathname?.startsWith("/admin/crm/forms/submissions")
                       : pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                   const SubIcon = sub.icon;
-                  return (
+                  return hasSubAccess ? (
                     <Link
                       key={sub.href}
                       href={sub.href}
@@ -541,77 +710,171 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
                       <SubIcon className="h-4 w-4" />
                       {sub.name}
                     </Link>
+                  ) : (
+                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </span>
                   );
                 })}
-            </div>
+              </div>
+            )}
+          </>
+          ) : (
+          <span
+            className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
+            title="Upgrade your plan to access"
+          >
+            <Building2 className="h-5 w-5 flex-shrink-0" />
+            CRM
+          </span>
           )}
         </div>
-        )}
-        {/* Media twirldown (Library, Galleries) */}
-        {showMedia && (
+        {/* Marketing twirldown: always visible; ghosted when no access */}
         <div className="pt-1">
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
-              isMedia && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
-            )}
-          >
-            <Link
-              href="/admin/media"
+          {showMarketing ? (
+          <>
+            <div
               className={cn(
-                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
-                isMedia ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+                isMarketing && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
               )}
             >
-              <Image className="h-5 w-5 flex-shrink-0" />
-              Media
-            </Link>
-            <button
-              type="button"
-              onClick={toggleMedia}
-              className={cn(
-                "p-1 rounded transition-colors",
-                isMedia ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-              aria-expanded={mediaOpen}
-            >
-              {mediaOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          </div>
-          {mediaOpen && (
-            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {mediaSubNav
-                .filter(
-                  (sub) =>
-                    canAccessFeature(effectiveFeatureSlugs, "media") ||
-                    canAccessFeature(effectiveFeatureSlugs, sub.featureSlug)
-                )
-                .map((sub) => {
-                  const isSubActive =
-                    pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+              <Link
+                href="/admin/crm/marketing"
+                className={cn(
+                  "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                  isMarketing ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <Mail className="h-5 w-5 flex-shrink-0" />
+                Marketing
+              </Link>
+              <button
+                type="button"
+                onClick={toggleMarketing}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  isMarketing ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+                aria-expanded={marketingOpen}
+              >
+                {marketingOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {marketingOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {marketingSubNav.map((sub) => {
+                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "marketing") || canAccessFeature(effectiveFeatureSlugs, "lists");
+                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                   const SubIcon = sub.icon;
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                        isSubActive
-                          ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      )}
-                    >
+                  return hasSubAccess ? (
+                    <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
                       <SubIcon className="h-4 w-4" />
                       {sub.name}
                     </Link>
+                  ) : (
+                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </span>
                   );
                 })}
-            </div>
+              </div>
+            )}
+          </>
+          ) : (
+          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+            <Mail className="h-5 w-5 flex-shrink-0" />
+            Marketing
+          </span>
           )}
         </div>
-        )}
-        {/* Content (single link) */}
-        {showContent && (
+        {/* Calendar twirldown: always visible; ghosted when no access */}
+        <div className="pt-1">
+          {showCalendar ? (
+          <>
+            <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isEvents && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
+              <Link href="/admin/events" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isEvents ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                <Calendar className="h-5 w-5 flex-shrink-0" />
+                Calendar
+              </Link>
+              <button type="button" onClick={toggleCalendar} className={cn("p-1 rounded transition-colors", isEvents ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={calendarOpen}>
+                {calendarOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {calendarOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {calendarSubNav.map((sub) => {
+                  const slug = sub.href === "/admin/events" ? "events" : "resources";
+                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "calendar") || canAccessFeature(effectiveFeatureSlugs, slug);
+                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                  const SubIcon = sub.icon;
+                  return hasSubAccess ? (
+                    <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  ) : (
+                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </>
+          ) : (
+          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+            <Calendar className="h-5 w-5 flex-shrink-0" />
+            Calendar
+          </span>
+          )}
+        </div>
+        {/* Media twirldown: always visible; ghosted when no access */}
+        <div className="pt-1">
+          {showMedia ? (
+          <>
+            <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isMedia && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
+              <Link href="/admin/media" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isMedia ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                <Image className="h-5 w-5 flex-shrink-0" />
+                Media
+              </Link>
+              <button type="button" onClick={toggleMedia} className={cn("p-1 rounded transition-colors", isMedia ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={mediaOpen}>
+                {mediaOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {mediaOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {mediaSubNav.map((sub) => {
+                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "media") || canAccessFeature(effectiveFeatureSlugs, "library") || canAccessFeature(effectiveFeatureSlugs, sub.featureSlug);
+                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                  const SubIcon = sub.icon;
+                  return hasSubAccess ? (
+                    <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  ) : (
+                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </>
+          ) : (
+          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+            <Image className="h-5 w-5 flex-shrink-0" />
+            Media
+          </span>
+          )}
+        </div>
+        {/* Content: always visible; ghosted when no access */}
+        {showContent ? (
         <Link
           href="/admin/content"
           className={cn(
@@ -624,118 +887,67 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
           <FileText className="h-5 w-5" />
           Content
         </Link>
+        ) : (
+        <span
+          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
+          title="Upgrade your plan to access"
+        >
+          <FileText className="h-5 w-5" />
+          Content
+        </span>
         )}
-        {/* Calendar twirldown (Calendar, Resources) */}
-        {showCalendar && (
+        {/* Settings twirldown: always visible; ghosted when no access */}
         <div className="pt-1">
-          <div
-            className={cn(
-              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
-              isEvents && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
-            )}
-          >
-            <Link
-              href="/admin/events"
-              className={cn(
-                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
-                isEvents ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Calendar className="h-5 w-5" />
-              Calendar
-            </Link>
-            <button
-              type="button"
-              onClick={toggleEvents}
-              className={cn(
-                "p-1 rounded transition-colors",
-                isEvents ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-              aria-expanded={eventsOpen}
-            >
-              {eventsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          </div>
-          {eventsOpen && (
-            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {eventsSubNav.map((sub) => {
-                const isSubActive = pathname === sub.href;
-                const SubIcon = sub.icon;
-                return (
-                  <Link
-                    key={sub.href}
-                    href={sub.href}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
-                  >
-                    <SubIcon className="h-4 w-4" />
-                    {sub.name}
-                  </Link>
-                );
-              })}
+          {showSettings ? (
+          <>
+            <div className={cn("flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium", isSettings && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
+              <Link href="/admin/settings" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2", isSettings ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                <Settings className="h-5 w-5" />
+                Settings
+              </Link>
+              <button type="button" onClick={toggleSettings} className={cn("p-1 rounded transition-colors", isSettings ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={settingsOpen}>
+                {settingsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
             </div>
+            {settingsOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {settingsSubNav
+                  .filter((sub) => !("adminOnly" in sub && sub.adminOnly) || canManageTeam)
+                  .map((sub) => {
+                    const isSubActive = pathname === sub.href;
+                    const SubIcon = sub.icon;
+                    const alwaysVisible = !("featureSlug" in sub && sub.featureSlug);
+                    const hasAccess = alwaysVisible || canAccessFeature(effectiveFeatureSlugs, "settings") || (sub.featureSlug && canAccessFeature(effectiveFeatureSlugs, sub.featureSlug));
+                    if (alwaysVisible) {
+                      return (
+                        <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                          <SubIcon className="h-4 w-4" />
+                          {sub.name}
+                        </Link>
+                      );
+                    }
+                    return hasAccess ? (
+                      <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
+                    ) : (
+                      <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </span>
+                    );
+                  })}
+              </div>
+            )}
+          </>
+          ) : (
+          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+            <Settings className="h-5 w-5" />
+            Settings
+          </span>
           )}
         </div>
-        )}
-
-        {/* Settings twirldown */}
-        {showSettings && (
-        <div className="pt-1">
-          <div
-            className={cn(
-              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
-              isSettings && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
-            )}
-          >
-            <Link
-              href="/admin/settings"
-              className={cn(
-                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
-                isSettings ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Settings className="h-5 w-5" />
-              Settings
-            </Link>
-            <button
-              type="button"
-              onClick={toggleSettings}
-              className={cn(
-                "p-1 rounded transition-colors",
-                isSettings ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-              aria-expanded={settingsOpen}
-            >
-              {settingsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          </div>
-          {settingsOpen && (
-            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {settingsSubNav
-                .filter((sub) => !("adminOnly" in sub && sub.adminOnly) || canManageTeam)
-                .map((sub) => {
-                  const isSubActive = pathname === sub.href;
-                  const SubIcon = sub.icon;
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                        isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      )}
-                    >
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </Link>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-        )}
 
         {/* Support twirldown (Quick Support, Knowledge Base) */}
         <div className="pt-1">

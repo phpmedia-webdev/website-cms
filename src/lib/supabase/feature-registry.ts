@@ -9,6 +9,13 @@ import type { AdminRole, FeatureRegistry } from "@/types/feature-registry";
 /** Slug for the Superadmin feature. Global, not toggleable in Roles or Tenant Features UI. */
 export const SUPERADMIN_FEATURE_SLUG = "superadmin";
 
+/** System roles that cannot be deleted (Admin, Editor, Creator, Viewer). */
+export const SYSTEM_ROLE_SLUGS = ["admin", "editor", "creator", "viewer"] as const;
+
+export function isSystemRole(slug: string): boolean {
+  return (SYSTEM_ROLE_SLUGS as readonly string[]).includes(slug);
+}
+
 /** Exclude Superadmin from lists used for role/tenant feature toggles (it is always available). */
 export function featuresForRoleOrTenantUI(features: FeatureRegistry[]): FeatureRegistry[] {
   return features.filter((f) => f.slug !== SUPERADMIN_FEATURE_SLUG);
@@ -74,6 +81,59 @@ export async function listRoles(): Promise<AdminRole[]> {
     return [];
   }
   return (data as AdminRole[]) ?? [];
+}
+
+export async function getRoleBySlug(roleSlug: string): Promise<AdminRole | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("admin_roles")
+    .select("*")
+    .eq("slug", roleSlug)
+    .maybeSingle();
+  if (error) {
+    console.error("getRoleBySlug:", error);
+    return null;
+  }
+  return (data as AdminRole) ?? null;
+}
+
+export type CreateRoleInput = { slug: string; label: string; description?: string | null };
+
+/** Create a new role (is_system: false). Caller must enforce superadmin. */
+export async function createRole(input: CreateRoleInput): Promise<AdminRole | null> {
+  const supabase = createServerSupabaseClient();
+  const slug = input.slug.trim().toLowerCase().replace(/\s+/g, "_");
+  if (!/^[a-z0-9_]+$/.test(slug)) return null;
+  if (isSystemRole(slug)) return null;
+  const { data, error } = await supabase
+    .from("admin_roles")
+    .insert({
+      slug,
+      label: input.label.trim() || slug,
+      description: input.description?.trim() || null,
+      is_system: false,
+    })
+    .select()
+    .single();
+  if (error) {
+    console.error("createRole:", error);
+    return null;
+  }
+  return data as AdminRole;
+}
+
+/** Delete a role only if it is not a system role. Caller must enforce superadmin. */
+export async function deleteRole(roleSlug: string): Promise<boolean> {
+  const role = await getRoleBySlug(roleSlug);
+  if (!role) return false;
+  if (role.is_system || isSystemRole(role.slug)) return false;
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase.from("admin_roles").delete().eq("slug", roleSlug);
+  if (error) {
+    console.error("deleteRole:", error);
+    return false;
+  }
+  return true;
 }
 
 export async function listRoleFeatureIds(roleSlug: string): Promise<string[]> {

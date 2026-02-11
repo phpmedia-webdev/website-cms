@@ -1142,20 +1142,57 @@ pnpm run build
 
 ---
 
-## Future Enhancements
+## Planned Features & Future Enhancements
 
-For planned features and future enhancements, see [prd-planned.md](./prd-planned.md).
-
-This includes:
-- AI Chatbot with RAG (Retrieval-Augmented Generation)
-- Digital Business Card Feature
-- Customizable Banner Component
-- SEO tools, analytics integration, content scheduling
-- Multi-language support
-- Membership system enhancements
-- Developer Workflow with Content Placeholders (onboarding checklist)
-- And other planned features
+The following are planned for future phases (post-MVP). Technical implementation details, database schemas, and API specs that were in the former **prd-planned.md** have been omitted here; that document is archived for reference.
 
 ---
 
-**Note:** Technical implementation details, database schemas, API specifications, and development patterns have been moved to [prd-technical.md](./prd-technical.md) to keep this document focused on product requirements and business logic.
+### Developer Workflow with Content Placeholders
+
+Collaborative setup: developers create placeholder content (Lorem Ipsum, dummy images) to build components; clients complete placeholders with real content. Dashboard checklist tracks incomplete items; placeholders cannot be published until replaced. Status tracking (placeholder / published), quick-edit from checklist, progress percentage. Phases: status tracking → checklist widget → placeholder helpers → analytics.
+
+---
+
+### AI Chatbot with RAG (Retrieval-Augmented Generation)
+
+CMS content as knowledge base: posts, pages, galleries, events, forms indexed and used for RAG. Public chat widget; membership-aware responses; admin config (LLM provider, prompts, indexing). Conversation history; optional CRM linkage. Phases: RAG + indexing → chat UI → membership/CRM integration → analytics and training.
+
+---
+
+### Digital Business Card Feature
+
+Team member profiles with shareable digicard URLs; PWA for mobile; QR codes and social sharing; one-tap vCard download to device contacts. Admin manages profiles (name, title, contact, photo, social links). Phases: profiles + digicard display → PWA/mobile → sharing/QR → vCard and analytics.
+
+---
+
+### Customizable Banner Component
+
+Tenant admins create announcement banners (info, warning, promotion). Rich text, optional CTA, image; scheduling (start/end date); page targeting (homepage, specific pages, or all); priority when multiple active; optional dismissible with user preference. Component hides when no active banner. Phases: basic banner → rich content/CTA → targeting/scheduling → dismissible and analytics.
+
+---
+
+### Color Palette Promotion System
+
+Superadmin can promote exceptional client-created color palettes to the global preset library. Browse custom palettes across client schemas; preview and promote with attribution; original stays in client schema. Phases: superadmin browse → promote + metadata → filtering/preview → optional “submit for review.”
+
+---
+
+### Roku App Development (Not MVP)
+
+Roku channel for member video on TV; BrightScript + SceneGraph. Delivers streams (HLS/DASH) with member auth and MAG-aware access. Vimeo domain restriction may not apply to app playback—verify OTT/API options. Phases: research (Vimeo/hosting) → auth → backend API for catalog/stream URLs → channel build → testing. Post-MVP only.
+
+---
+
+### Other Planned Items
+
+- **SEO & discovery:** SEO tools, sitemap generation
+- **Analytics:** Analytics integration, content scheduling
+- **Content:** Multi-language support
+- **Membership:** Payment integration, subscriptions, activity tracking, expiration reminders, referral system, member directory with privacy controls
+- **Admin:** User roles and permissions refinement; design system presets and component library documentation; component versioning and changelog
+- **Operations:** Automated backup scheduling for archives
+
+---
+
+**Note:** Technical implementation details, database schemas, API specifications, and development patterns for the current product are in [prd-technical.md](./prd-technical.md). The full planned-features document (with detailed schemas) is archived as **prd-planned.md**.

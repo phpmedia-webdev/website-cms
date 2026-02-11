@@ -44,6 +44,8 @@ export interface CrmContact {
   message: string | null;
   created_at: string;
   updated_at: string;
+  /** Set when contact is soft-deleted (trashed). Null = active. */
+  deleted_at?: string | null;
 }
 
 export interface CrmNote {
@@ -176,7 +178,7 @@ export interface MarketingListSearchResult {
   slug: string;
 }
 
-/** Get all contacts (RPC). */
+/** Get all contacts (RPC). Excludes trashed. */
 export async function getContacts(): Promise<CrmContact[]> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase.rpc("get_contacts_dynamic", {
@@ -187,6 +189,43 @@ export async function getContacts(): Promise<CrmContact[]> {
     return [];
   }
   return (data as CrmContact[]) || [];
+}
+
+/** Get trashed contacts only (for "Show Trashed" view). */
+export async function getTrashedContacts(): Promise<CrmContact[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("*")
+    .not("deleted_at", "is", null)
+    .order("updated_at", { ascending: false });
+  if (error) {
+    console.error("Error fetching trashed contacts:", { message: error.message, code: error.code });
+    return [];
+  }
+  return (data as CrmContact[]) ?? [];
+}
+
+import { EXPORT_MAX_RECORDS, EXPORT_CONTACT_FIELDS } from "../crm-export";
+export { EXPORT_MAX_RECORDS, EXPORT_CONTACT_FIELDS };
+
+/** Get contacts by IDs (for export). Returns at most EXPORT_MAX_RECORDS. Excludes trashed. */
+export async function getContactsByIds(ids: string[]): Promise<CrmContact[]> {
+  if (ids.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const limited = ids.slice(0, EXPORT_MAX_RECORDS);
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("*")
+    .is("deleted_at", null)
+    .in("id", limited);
+  if (error) {
+    console.error("Error fetching contacts by IDs:", formatSupabaseError(error));
+    return [];
+  }
+  return (data as CrmContact[]) ?? [];
 }
 
 /** Get one contact by id (RPC). */
@@ -216,6 +255,7 @@ export async function getContactByEmail(email: string | null | undefined): Promi
     .from("crm_contacts")
     .select("*")
     .eq("email", email.trim().toLowerCase())
+    .is("deleted_at", null)
     .limit(1);
   if (error) {
     console.error("Error fetching contact by email:", formatSupabaseError(error));
@@ -225,13 +265,14 @@ export async function getContactByEmail(email: string | null | undefined): Promi
   return rows[0] ?? null;
 }
 
-/** Count contacts with status "New" (work-to-do indicator for sidebar badge). Status is stored as slug (e.g. "new"). */
+/** Count contacts with status "New" (work-to-do indicator for sidebar badge). Excludes trashed. */
 export async function getNewContactsCount(): Promise<number> {
   const supabase = createServerSupabaseClient();
   const { count, error } = await supabase
     .schema(CRM_SCHEMA)
     .from("crm_contacts")
     .select("*", { count: "exact", head: true })
+    .is("deleted_at", null)
     .ilike("status", CRM_STATUS_SLUG_NEW);
   if (error) {
     console.error("Error counting New contacts:", formatSupabaseError(error));
@@ -444,6 +485,32 @@ export async function getContactCustomFields(contactId: string): Promise<Contact
   return (data as ContactCustomFieldValue[]) || [];
 }
 
+/** Bulk custom field values for export: one row per (contact_id, custom_field_id). */
+export interface ContactCustomFieldValueBulk {
+  contact_id: string;
+  custom_field_id: string;
+  value: string | null;
+}
+
+/** Get custom field values for many contacts (for export). Returns at most EXPORT_MAX_RECORDS contacts. */
+export async function getContactCustomFieldValuesForContactIds(
+  contactIds: string[]
+): Promise<ContactCustomFieldValueBulk[]> {
+  if (contactIds.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const limited = contactIds.slice(0, EXPORT_MAX_RECORDS);
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_custom_fields")
+    .select("contact_id, custom_field_id, value")
+    .in("contact_id", limited);
+  if (error) {
+    console.error("Error fetching bulk contact custom fields:", formatSupabaseError(error));
+    return [];
+  }
+  return (data as ContactCustomFieldValueBulk[]) ?? [];
+}
+
 /** Get MAGs assigned to a contact (RPC). */
 export async function getContactMags(contactId: string): Promise<ContactMag[]> {
   const supabase = createServerSupabaseClient();
@@ -494,6 +561,25 @@ export async function getAllContactMarketingLists(): Promise<{ contact_id: strin
   }));
 }
 
+/** Get contact count per marketing list (for list table). Returns map of list_id -> count. */
+export async function getMarketingListContactCounts(): Promise<Record<string, number>> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_marketing_lists")
+    .select("list_id");
+  if (error) {
+    console.error("Error fetching marketing list contact counts:", formatSupabaseError(error));
+    return {};
+  }
+  const rows = (data as { list_id: string }[]) ?? [];
+  const counts: Record<string, number> = {};
+  for (const { list_id } of rows) {
+    counts[list_id] = (counts[list_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /** Create a contact (write via .schema().from()). */
 export async function createContact(
   payload: Partial<Omit<CrmContact, "id" | "created_at" | "updated_at">>
@@ -532,9 +618,23 @@ export async function updateContact(
   return { contact: data as CrmContact, error: null };
 }
 
-/** Delete a contact (write). Related rows in crm_notes, crm_contact_mags, etc. cascade. */
+/**
+ * Permanently delete a contact (write).
+ * Removes taxonomy_relationships for this contact first (no FK; would orphan).
+ * crm_notes, crm_contact_mags, crm_contact_custom_fields, etc. cascade via FK.
+ */
 export async function deleteContact(id: string): Promise<{ success: boolean; error: Error | null }> {
   const supabase = createServerSupabaseClient();
+  const { error: taxErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("taxonomy_relationships")
+    .delete()
+    .eq("content_type", "crm_contact")
+    .eq("content_id", id);
+  if (taxErr) {
+    console.error("Error deleting contact taxonomy:", { message: taxErr.message, code: taxErr.code });
+    return { success: false, error: new Error(taxErr.message) };
+  }
   const { error } = await supabase
     .schema(CRM_SCHEMA)
     .from("crm_contacts")
@@ -719,6 +819,25 @@ export async function addContactToMarketingList(
   return { success: true, error: null };
 }
 
+/** Add multiple contacts to a marketing list (bulk). Contacts already in the list are skipped (no error). */
+export async function addContactsToMarketingListBulk(
+  contactIds: string[],
+  listId: string
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) return { success: true, error: null };
+  const supabase = createServerSupabaseClient();
+  const rows = contactIds.map((contact_id) => ({ contact_id, list_id: listId }));
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_marketing_lists")
+    .upsert(rows, { onConflict: "contact_id,list_id", ignoreDuplicates: true });
+  if (error) {
+    console.error("Error bulk adding contacts to marketing list:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}
+
 /** Remove contact from marketing list (write). */
 export async function removeContactFromMarketingList(
   contactId: string,
@@ -736,6 +855,135 @@ export async function removeContactFromMarketingList(
     return { success: false, error: new Error(error.message) };
   }
   return { success: true, error: null };
+}
+
+/** Remove multiple contacts from a marketing list (bulk). */
+export async function removeContactsFromMarketingListBulk(
+  contactIds: string[],
+  listId: string
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) return { success: true, error: null };
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_marketing_lists")
+    .delete()
+    .eq("list_id", listId)
+    .in("contact_id", contactIds);
+  if (error) {
+    console.error("Error bulk removing contacts from marketing list:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}
+
+/** Bulk update contact status. */
+export async function updateContactsStatusBulk(
+  contactIds: string[],
+  status: string
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) return { success: true, error: null };
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .update({ status: status.trim(), updated_at: new Date().toISOString() })
+    .in("id", contactIds);
+  if (error) {
+    console.error("Error bulk updating contact status:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}
+
+/** Soft-delete (trash) contacts. Sets deleted_at so they are hidden from default list; recoverable with restore. */
+export async function softDeleteContactsBulk(
+  contactIds: string[]
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) return { success: true, error: null };
+  const supabase = createServerSupabaseClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .update({ deleted_at: now, updated_at: now })
+    .in("id", contactIds)
+    .is("deleted_at", null);
+  if (error) {
+    console.error("Error bulk soft-deleting contacts:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}
+
+/** Restore (un-trash) contacts. Clears deleted_at so they reappear in the active list. */
+export async function restoreContactsBulk(
+  contactIds: string[]
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) return { success: true, error: null };
+  const supabase = createServerSupabaseClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .update({ deleted_at: null, updated_at: now })
+    .in("id", contactIds)
+    .not("deleted_at", "is", null);
+  if (error) {
+    console.error("Error bulk restoring contacts:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}
+
+/**
+ * Permanently delete all trashed contacts. Cannot be undone.
+ * Deletes in order to avoid orphans:
+ * - taxonomy_relationships (content_type='crm_contact') has no FK to crm_contacts, so we delete explicitly.
+ * - crm_notes, crm_contact_custom_fields, crm_contact_mags, crm_consents, crm_contact_marketing_lists
+ *   have ON DELETE CASCADE and are removed automatically when contacts are deleted.
+ * - form_submissions.contact_id and similar use ON DELETE SET NULL.
+ */
+export async function purgeAllTrashedContacts(): Promise<{
+  success: boolean;
+  count?: number;
+  error: Error | null;
+}> {
+  const supabase = createServerSupabaseClient();
+  const { data: toDelete, error: selectErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("id")
+    .not("deleted_at", "is", null);
+  if (selectErr) {
+    console.error("Error counting trashed contacts:", { message: selectErr.message, code: selectErr.code });
+    return { success: false, error: new Error(selectErr.message) };
+  }
+  const ids = (toDelete as { id: string }[] | null) ?? [];
+  if (ids.length === 0) return { success: true, count: 0, error: null };
+
+  // Remove taxonomy assignments (no FK to crm_contacts; would otherwise orphan)
+  const { error: taxErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("taxonomy_relationships")
+    .delete()
+    .eq("content_type", "crm_contact")
+    .in("content_id", ids);
+  if (taxErr) {
+    console.error("Error purging contact taxonomy:", { message: taxErr.message, code: taxErr.code });
+    return { success: false, error: new Error(taxErr.message) };
+  }
+
+  const { error: deleteErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .delete()
+    .not("deleted_at", "is", null);
+  if (deleteErr) {
+    console.error("Error purging trashed contacts:", { message: deleteErr.message, code: deleteErr.code });
+    return { success: false, error: new Error(deleteErr.message) };
+  }
+  return { success: true, count: ids.length, error: null };
 }
 
 /** Create a marketing list (write). */
@@ -835,6 +1083,32 @@ export async function upsertContactCustomFieldValue(
     return { error: new Error(error.message) };
   }
   return { error: null };
+}
+
+/** Set or clear one custom field value for many contacts (bulk upsert). */
+export async function upsertContactCustomFieldValueBulk(
+  contactIds: string[],
+  customFieldId: string,
+  value: string | null
+): Promise<{ success: boolean; error: Error | null }> {
+  if (contactIds.length === 0) {
+    return { success: true, error: null };
+  }
+  const supabase = createServerSupabaseClient();
+  const rows = contactIds.map((contact_id) => ({
+    contact_id,
+    custom_field_id: customFieldId,
+    value: value ?? null,
+  }));
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_custom_fields")
+    .upsert(rows, { onConflict: "contact_id,custom_field_id" });
+  if (error) {
+    console.error("Error bulk upserting contact custom fields:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
 }
 
 // ==================== Form registry ====================

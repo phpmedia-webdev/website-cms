@@ -14,17 +14,31 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (pathname === "/admin/dashboard" || pathname.startsWith("/admin/dashboard/")) return null;
 
   if (pathname === "/admin/content" || pathname.startsWith("/admin/content/")) return "content";
-  if (pathname === "/admin/media" || pathname.startsWith("/admin/media/")) return "media";
+  if (pathname === "/admin/media" || pathname.startsWith("/admin/media/")) return "library";
   if (pathname === "/admin/galleries" || pathname.startsWith("/admin/galleries/")) return "galleries";
-  // CRM sub-routes: each has its own feature slug (order matters: more specific first)
+  // CRM sub-routes: more specific first
   if (pathname.startsWith("/admin/crm/contacts")) return "contacts";
+  if (pathname.startsWith("/admin/crm/forms/submissions")) return "form_submissions";
   if (pathname.startsWith("/admin/crm/forms")) return "forms";
   if (pathname.startsWith("/admin/crm/marketing")) return "marketing";
-  if (pathname.startsWith("/admin/crm/lists")) return "marketing";
+  if (pathname.startsWith("/admin/crm/lists")) return "lists";
   if (pathname.startsWith("/admin/crm/memberships/code-generator")) return "code_generator";
   if (pathname.startsWith("/admin/crm/memberships")) return "memberships";
+  if (pathname.startsWith("/admin/crm/omnichat")) return "omnichat";
   if (pathname.startsWith("/admin/crm")) return "crm";
+  // Events / Calendar
+  if (pathname.startsWith("/admin/events/resources")) return "resources";
+  if (pathname.startsWith("/admin/events")) return "events";
+  if (pathname.startsWith("/admin/settings/profile")) return null; // My Profile always allowed for logged-in
+  if (pathname.startsWith("/admin/settings/general")) return "general";
+  if (pathname.startsWith("/admin/settings/style")) return "style";
+  if (pathname.startsWith("/admin/settings/taxonomy")) return "taxonomy";
+  if (pathname.startsWith("/admin/settings/customizer")) return "customizer";
+  if (pathname.startsWith("/admin/settings/users")) return "users";
   if (pathname.startsWith("/admin/settings")) return "settings";
+  if (pathname.startsWith("/admin/support/knowledge-base")) return "knowledge_base";
+  if (pathname.startsWith("/admin/support/quick-support")) return "quick_support";
+  if (pathname.startsWith("/admin/support")) return "support";
   if (pathname.startsWith("/admin/super")) return "superadmin";
 
   return null;
@@ -33,16 +47,32 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
 /** Feature slugs that correspond to top-level sidebar sections (for filtering nav). */
 export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
   dashboard: "dashboard",
+  omnichat: "omnichat",
   content: "content",
   media: "media",
+  library: "library",
   galleries: "galleries",
   crm: "crm",
   contacts: "contacts",
   forms: "forms",
+  form_submissions: "form_submissions",
   marketing: "marketing",
+  lists: "lists",
   memberships: "memberships",
   code_generator: "code_generator",
+  calendar: "calendar",
+  events: "events",
+  resources: "resources",
   settings: "settings",
+  general: "general",
+  style: "style",
+  taxonomy: "taxonomy",
+  customizer: "customizer",
+  users: "users",
+  support: "support",
+  quick_support: "quick_support",
+  knowledge_base: "knowledge_base",
+  workhub: "workhub",
   superadmin: "superadmin",
 };
 
@@ -50,11 +80,23 @@ export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
 const FEATURE_PARENT_SLUG: Record<string, string> = {
   contacts: "crm",
   forms: "crm",
-  marketing: "crm",
+  form_submissions: "crm",
   memberships: "crm",
   code_generator: "crm",
+  omnichat: "crm",
+  lists: "marketing",
   galleries: "media",
   library: "media",
+  events: "calendar",
+  resources: "calendar",
+  quick_support: "support",
+  knowledge_base: "support",
+  workhub: "support",
+  general: "settings",
+  style: "settings",
+  taxonomy: "settings",
+  customizer: "settings",
+  users: "settings",
 };
 
 /**
