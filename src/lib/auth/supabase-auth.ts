@@ -202,7 +202,8 @@ export async function getCurrentUserFromRequest(
     };
 
     const { data: { session } } = await supabase.auth.getSession();
-    const aal = (session?.aal as "aal1" | "aal2") ?? "aal1";
+    const sessionWithAal = session as { aal?: "aal1" | "aal2" } | null;
+    const aal = (sessionWithAal?.aal ?? "aal1") as "aal1" | "aal2";
 
     return {
       user: authUser,

@@ -11,9 +11,12 @@ import { getCurrentUserFromRequest, validateTenantAccess } from "./lib/auth/supa
 import { requiresAAL2, isDevModeBypassEnabled } from "./lib/auth/mfa";
 import { getSiteModeForEdge } from "./lib/site-mode";
 
+/** Response with getSetCookie (Fetch spec; not on all TS libs). */
+type ResponseWithGetSetCookie = Response & { getSetCookie?(): string[] };
+
 /** Copy Set-Cookie headers from carrier onto target (e.g. redirect) so session stays in sync. */
 function copyCookiesTo(target: NextResponse, carrier: NextResponse): void {
-  const setCookies = typeof (carrier as Response).getSetCookie === "function" ? (carrier as Response).getSetCookie() : [];
+  const setCookies = (carrier as ResponseWithGetSetCookie).getSetCookie?.() ?? [];
   setCookies.forEach((cookie) => target.headers.append("Set-Cookie", cookie));
 }
 

@@ -7,17 +7,15 @@
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
 import { getClientSchema } from "./schema";
 
-const _supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const _supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_ENV_ERROR =
+  "Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required";
 
-if (!_supabaseUrl || !_supabaseAnonKey) {
-  throw new Error(
-    "Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required"
-  );
+function getSupabaseEnv(): { url: string; anonKey: string } {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) throw new Error(SUPABASE_ENV_ERROR);
+  return { url, anonKey };
 }
-
-const supabaseUrl = _supabaseUrl;
-const supabaseAnonKey = _supabaseAnonKey;
 
 /**
  * Create a Supabase client for client-side usage (browser).
@@ -27,23 +25,19 @@ const supabaseAnonKey = _supabaseAnonKey;
  * @returns Supabase client configured for browser usage
  */
 export function createClientSupabaseClient() {
-  // Always create client - schema is optional for auth operations
+  const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
   try {
     const schema = getClientSchema();
-    // Auth operations don't need schema, but database queries do
     return createBrowserClient(supabaseUrl, supabaseAnonKey, {
       db: {
         schema: schema,
       },
       auth: {
-        // Ensure auth works even if schema is custom
         persistSession: true,
         autoRefreshToken: true,
       },
     });
   } catch (error) {
-    // If schema is not set, create client without schema (will use default/public schema)
-    // This is fine for auth operations
     console.warn("Client schema not configured, using default schema for auth:", error);
     return createBrowserClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -66,18 +60,16 @@ export function createClientSupabaseClient() {
  */
 export function createServerSupabaseClient() {
   const { createClient } = require("@supabase/supabase-js");
+  const { url } = getSupabaseEnv();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
+
   if (!serviceRoleKey) {
     throw new Error(
       "SUPABASE_SERVICE_ROLE_KEY environment variable is required for server-side operations"
     );
   }
 
-  // Note: Supabase PostgREST doesn't support custom schemas via db.schema option
-  // We'll use fully qualified table names (schema.table) in queries instead
-  // The client is created without schema config, and we'll use schema.table format
-  return createClient(supabaseUrl, serviceRoleKey, {
+  return createClient(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -95,7 +87,7 @@ export function createServerSupabaseClient() {
  * @returns Supabase client configured for SSR with user authentication
  */
 export async function createServerSupabaseClientSSR() {
-  // Import cookies dynamically to avoid top-level import issues
+  const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
   const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
 
