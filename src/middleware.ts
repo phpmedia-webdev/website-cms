@@ -1,6 +1,8 @@
 /**
  * Next.js middleware for route protection.
  * Validates Supabase Auth session before allowing access to protected routes.
+ * Uses a single response as cookie carrier so Supabase session refresh (setAll) is
+ * written to the response and forwarded on redirects, avoiding ERR_TOO_MANY_REDIRECTS.
  */
 
 import { NextResponse } from "next/server";
@@ -9,8 +11,17 @@ import { getCurrentUserFromRequest, validateTenantAccess } from "./lib/auth/supa
 import { requiresAAL2, isDevModeBypassEnabled } from "./lib/auth/mfa";
 import { getSiteModeForEdge } from "./lib/site-mode";
 
+/** Copy Set-Cookie headers from carrier onto target (e.g. redirect) so session stays in sync. */
+function copyCookiesTo(target: NextResponse, carrier: NextResponse): void {
+  const setCookies = typeof (carrier as Response).getSetCookie === "function" ? (carrier as Response).getSetCookie() : [];
+  setCookies.forEach((cookie) => target.headers.append("Set-Cookie", cookie));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Cookie carrier: Supabase session refresh writes here; we return this or copy to redirects
+  const cookieCarrier = NextResponse.next({ request: { headers: request.headers } });
 
   // Coming soon: read from DB (tenant_sites.site_mode) when NEXT_PUBLIC_CLIENT_SCHEMA is set; otherwise live
   const siteMode = await getSiteModeForEdge();
@@ -41,11 +52,15 @@ export async function middleware(request: NextRequest) {
 
   // Redirect /admin to /admin/dashboard if authenticated, or /admin/login if not
   if (pathname === "/admin") {
-    const user = await getCurrentUserFromRequest(request);
+    const { user } = await getCurrentUserFromRequest(request, cookieCarrier);
     if (user && validateTenantAccess(user)) {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      copyCookiesTo(res, cookieCarrier);
+      return res;
     }
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    const res = NextResponse.redirect(new URL("/admin/login", request.url));
+    copyCookiesTo(res, cookieCarrier);
+    return res;
   }
 
   // Check if route is protected (all /admin/* except /admin/login)
@@ -53,99 +68,94 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = pathname.startsWith("/admin/login");
   const isSuperadminRoute = pathname.startsWith("/admin/super");
 
-  // Get current user from Supabase Auth session
-  const user = await getCurrentUserFromRequest(request);
+  // Get current user and session from Supabase Auth (writes refresh cookies to cookieCarrier; session.aal for 2FA)
+  const { user, session } = await getCurrentUserFromRequest(request, cookieCarrier);
 
   // If accessing protected route, validate authentication and tenant access
   if (isProtectedRoute) {
     if (!user) {
-      // No user session, redirect to login
       const loginUrl = new URL("/admin/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
+      const res = NextResponse.redirect(loginUrl);
+      copyCookiesTo(res, cookieCarrier);
+      return res;
     }
 
-    // Superadmin routes require superadmin role
     if (isSuperadminRoute) {
       if (user.metadata.type !== "superadmin" || user.metadata.role !== "superadmin") {
-        // Not a superadmin, redirect to dashboard
-        return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+        const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
+        copyCookiesTo(res, cookieCarrier);
+        return res;
       }
-      // Superadmin can access any schema, skip tenant validation
     } else {
-      // Regular admin routes: validate user has admin type (superadmin or admin)
       if (user.metadata.type !== "superadmin" && user.metadata.type !== "admin") {
-        // Not an admin user, redirect to login
         const loginUrl = new URL("/admin/login", request.url);
         loginUrl.searchParams.set("redirect", pathname);
-        return NextResponse.redirect(loginUrl);
+        const res = NextResponse.redirect(loginUrl);
+        copyCookiesTo(res, cookieCarrier);
+        return res;
       }
-
-      // Validate tenant access (ensures user can access this deployment's schema)
-      // Superadmins bypass this check, but regular admins must match tenant_id
       if (user.metadata.type !== "superadmin" && !validateTenantAccess(user)) {
-        // Invalid tenant access, redirect to login
         const loginUrl = new URL("/admin/login", request.url);
         loginUrl.searchParams.set("redirect", pathname);
-        return NextResponse.redirect(loginUrl);
+        const res = NextResponse.redirect(loginUrl);
+        copyCookiesTo(res, cookieCarrier);
+        return res;
       }
     }
 
-    // Check 2FA requirements (AAL2 enforcement)
-    // Dev mode bypass - skip 2FA check in development if enabled
+    // Don't redirect to MFA challenge when already on challenge or enroll (avoids redirect loop)
+    const isMfaChallengeOrEnroll =
+      pathname.startsWith("/admin/mfa/challenge") || pathname.startsWith("/admin/mfa/enroll");
     const devBypass = isDevModeBypassEnabled();
-    if (!devBypass) {
+    const currentAAL = session?.aal ?? "aal1";
+    if (!devBypass && !isMfaChallengeOrEnroll) {
       const needsAAL2 = await requiresAAL2(user, pathname);
-      if (needsAAL2) {
-        // Get current AAL from session
-        const { getAAL } = await import("./lib/auth/mfa");
-        const currentAAL = await getAAL(user);
-        if (currentAAL !== "aal2") {
-          // Redirect to MFA challenge
-          const challengeUrl = new URL("/admin/mfa/challenge", request.url);
-          challengeUrl.searchParams.set("redirect", pathname);
-          return NextResponse.redirect(challengeUrl);
-        }
+      if (needsAAL2 && currentAAL !== "aal2") {
+        const challengeUrl = new URL("/admin/mfa/challenge", request.url);
+        challengeUrl.searchParams.set("redirect", pathname);
+        const res = NextResponse.redirect(challengeUrl);
+        copyCookiesTo(res, cookieCarrier);
+        return res;
       }
     }
   }
 
-  // Member area: require auth and type member (or admin/superadmin for testing)
   const isMemberRoute = pathname.startsWith("/members");
   if (isMemberRoute) {
     if (!user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
+      const res = NextResponse.redirect(loginUrl);
+      copyCookiesTo(res, cookieCarrier);
+      return res;
     }
     const type = user.metadata?.type;
     if (type !== "member" && type !== "admin" && type !== "superadmin") {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
+      const res = NextResponse.redirect(loginUrl);
+      copyCookiesTo(res, cookieCarrier);
+      return res;
     }
-    return NextResponse.next();
+    return cookieCarrier;
   }
 
-  // For login page, redirect to dashboard if already logged in
   if (isAuthRoute) {
     if (user && validateTenantAccess(user)) {
-      // Check if user is admin type
       if (user.metadata.type === "superadmin" || user.metadata.type === "admin") {
-        // User is already logged in, redirect to dashboard
-        return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+        const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
+        copyCookiesTo(res, cookieCarrier);
+        return res;
       }
     }
-    // Not logged in or not admin, allow access to login page
-    return NextResponse.next();
+    return cookieCarrier;
   }
 
-  // All other routes continue normally
-  const res = NextResponse.next();
   if (isPublicRoute) {
-    res.headers.set("Cache-Control", noStore);
+    cookieCarrier.headers.set("Cache-Control", noStore);
   }
-  return res;
+  return cookieCarrier;
 }
 
 export const config = {

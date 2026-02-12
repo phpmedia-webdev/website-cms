@@ -93,47 +93,74 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   }
 }
 
+/** NextResponse type for middleware cookie carrier (avoid circular dep). */
+type MiddlewareResponse = {
+  cookies: { set: (name: string, value: string, options?: Record<string, unknown>) => void };
+};
+
+/** Result of getCurrentUserFromRequest: user plus session for AAL check in middleware. */
+export interface UserFromRequestResult {
+  user: AuthUser | null;
+  /** Session from the same request; use session.aal for 2FA check in middleware. */
+  session: { aal?: "aal1" | "aal2" } | null;
+}
+
 /**
- * Get current user from middleware (handles cookies from NextRequest).
- * This version extracts the JWT token from cookies and validates it.
- * 
+ * Get current user and session from middleware (handles cookies from NextRequest).
+ * If response is provided, session refresh cookies are written to it so the browser
+ * stays in sync (required to avoid redirect loops on Vercel/Edge).
+ * Returns session so middleware can read session.aal for 2FA (getAAL uses service-role client and has no session in Edge).
+ *
  * @param request - NextRequest from middleware
- * @returns Authenticated user with metadata or null
+ * @param response - Optional NextResponse to write Set-Cookie to (recommended in middleware)
+ * @returns { user, session } for use in middleware; session.aal is "aal1" | "aal2"
  */
 export async function getCurrentUserFromRequest(
-  request: Request
-): Promise<AuthUser | null> {
+  request: Request,
+  response?: MiddlewareResponse
+): Promise<UserFromRequestResult> {
+  const empty: UserFromRequestResult = { user: null, session: null };
   try {
-    // Use @supabase/ssr createServerClient for proper cookie handling in middleware
     const { createServerClient } = await import("@supabase/ssr");
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
+
     if (!supabaseUrl || !supabaseAnonKey) {
-      return null;
+      return empty;
     }
 
-    // Create a server client that can read cookies from the request
+    const hasCookiesApi = "cookies" in request && typeof (request as { cookies?: { getAll?: () => { name: string; value: string }[] } }).cookies?.getAll === "function";
+
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
-          // Extract cookies from request headers
+          if (hasCookiesApi) {
+            return (request as { cookies: { getAll: () => { name: string; value: string }[] } }).cookies.getAll();
+          }
           const cookieHeader = request.headers.get("cookie") || "";
+          if (!cookieHeader.trim()) return [];
           return cookieHeader.split("; ").map((cookie) => {
-            const [name, ...rest] = cookie.split("=");
-            return {
-              name: name.trim(),
-              value: decodeURIComponent(rest.join("=")),
-            };
+            const eq = cookie.indexOf("=");
+            const name = (eq === -1 ? cookie : cookie.slice(0, eq)).trim();
+            let value = eq === -1 ? "" : cookie.slice(eq + 1).trim();
+            try {
+              value = decodeURIComponent(value);
+            } catch {
+              /* keep value as-is */
+            }
+            return { name, value };
           });
         },
-        setAll() {
-          // No-op in middleware - cookies are set via response
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          if (response?.cookies) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          }
         },
       },
     });
-    
-    // Get user from session (may throw AuthApiError if refresh token is invalid/expired)
+
     let user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null;
     let error: { message?: string } | null = null;
     try {
@@ -141,24 +168,20 @@ export async function getCurrentUserFromRequest(
       user = result.data.user;
       error = result.error;
     } catch (authError) {
-      // Invalid/expired refresh token: treat as no session, don't log to avoid console noise
       const msg = (authError as Error)?.message ?? "";
       if (!msg.includes("Refresh Token") && !msg.includes("refresh_token")) {
         console.error("Error getting current user from request:", authError);
       }
-      return null;
+      return empty;
     }
 
     if (error || !user) {
-      return null;
+      return empty;
     }
 
-    // Extract metadata
     const metadata = user.user_metadata as unknown as UserMetadata;
-    
-    // Validate metadata structure
     if (!metadata || !metadata.type) {
-      return null;
+      return empty;
     }
 
     const displayName =
@@ -166,7 +189,7 @@ export async function getCurrentUserFromRequest(
         ? (user.user_metadata as { display_name: string }).display_name
         : null;
 
-    return {
+    const authUser: AuthUser = {
       id: user.id,
       email: user.email || "",
       display_name: displayName || null,
@@ -177,12 +200,20 @@ export async function getCurrentUserFromRequest(
         allowed_schemas: metadata.allowed_schemas,
       },
     };
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const aal = (session?.aal as "aal1" | "aal2") ?? "aal1";
+
+    return {
+      user: authUser,
+      session: session ? { aal } : null,
+    };
   } catch (err) {
     const msg = (err as Error)?.message ?? "";
     if (!msg.includes("Refresh Token") && !msg.includes("refresh_token")) {
       console.error("Error getting current user from request:", err);
     }
-    return null;
+    return empty;
   }
 }
 

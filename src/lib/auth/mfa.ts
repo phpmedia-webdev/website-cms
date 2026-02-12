@@ -214,17 +214,13 @@ export async function getAAL(
 }
 
 /**
- * Check if development mode bypasses 2FA requirements.
- * 
- * @returns true if dev mode is enabled and 2FA should be bypassed
+ * Check if 2FA requirements are bypassed (dev/staging).
+ * When NEXT_PUBLIC_DEV_BYPASS_2FA=true (or "1"), 2FA is skipped so you can test without MFA.
+ * Works in any environment (local and Vercel preview/staging). For production, leave unset.
+ *
+ * @returns true if bypass is enabled
  */
 export function isDevModeBypassEnabled(): boolean {
-  // Only allow bypass in development environment
-  if (process.env.NODE_ENV !== "development") {
-    return false;
-  }
-
-  // Check for explicit dev bypass flag
   const devBypass = process.env.NEXT_PUBLIC_DEV_BYPASS_2FA;
   return devBypass === "true" || devBypass === "1";
 }
