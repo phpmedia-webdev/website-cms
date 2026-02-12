@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { getContentById, getContentTypes } from "@/lib/supabase/content";
-import { ContentEditorForm } from "@/components/content/ContentEditorForm";
+import { ContentEditorForm, type ContentEditorFormHandle } from "@/components/content/ContentEditorForm";
+import { Button } from "@/components/ui/button";
 import type { ContentRow, ContentType } from "@/types/content";
 
 export function EditContentClient() {
@@ -17,6 +18,8 @@ export function EditContentClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [useForAgentTraining, setUseForAgentTraining] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const formRef = useRef<ContentEditorFormHandle>(null);
 
   useEffect(() => {
     if (!id) {
@@ -71,23 +74,42 @@ export function EditContentClient() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center gap-3">
-        <Link
-          href="/admin/content"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Link>
-        <span className="font-bold text-2xl">Edit Content</span>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/content"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Link>
+          <span className="font-bold text-2xl">Edit Content</span>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={handleCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={() => formRef.current?.save()} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              "Update"
+            )}
+          </Button>
+        </div>
       </header>
       <ContentEditorForm
+        ref={formRef}
         item={item}
         types={types}
         onSaved={handleSaved}
         onCancel={handleCancel}
         useForAgentTraining={useForAgentTraining}
         onUseForAgentTrainingChange={setUseForAgentTraining}
+        onSavingChange={setSaving}
       />
     </div>
   );

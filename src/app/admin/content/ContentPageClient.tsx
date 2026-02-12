@@ -11,6 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { TaxonomyMultiSelect, type TaxonomyMultiSelectOption } from "@/components/media/TaxonomyMultiSelect";
 import type { ContentListItem, ContentType } from "@/types/content";
 import type { TaxonomyTerm } from "@/types/taxonomy";
@@ -33,6 +40,7 @@ export function ContentPageClient() {
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [filterMembershipOnly, setFilterMembershipOnly] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   useEffect(() => {
     const type = searchParams.get("type");
@@ -134,8 +142,12 @@ export function ContentPageClient() {
   };
 
   const handleAdd = () => {
-    const query = typeFilter ? `?type=${encodeURIComponent(typeFilter)}` : "";
-    router.push(`/admin/content/new${query}`);
+    setAddModalOpen(true);
+  };
+
+  const handleSelectTypeForNew = (typeSlug: string) => {
+    setAddModalOpen(false);
+    router.push(`/admin/content/new?type=${encodeURIComponent(typeSlug)}`);
   };
 
   const handleEdit = (c: ContentListItem) => {
@@ -179,6 +191,39 @@ export function ContentPageClient() {
               <Plus className="h-4 w-4 mr-2" />
               Add New
             </Button>
+            <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
+              <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>Choose content type</DialogTitle>
+                  <DialogDescription>
+                    Select the type of content you want to create. This cannot be changed after creation.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-2 py-2 min-h-[320px] max-h-[min(70vh,520px)] overflow-y-auto">
+                  {contentTypesForLibrary.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No content types available.</p>
+                  ) : (
+                    contentTypesForLibrary.map((t) => (
+                      <Button
+                        key={t.id}
+                        variant="outline"
+                        className="h-auto w-full justify-start py-3 px-4 text-left"
+                        onClick={() => handleSelectTypeForNew(t.slug)}
+                      >
+                        <span className="flex min-w-0 w-full flex-col items-start gap-1.5 text-left">
+                          <span className="font-medium">{t.label}</span>
+                          {t.description ? (
+                            <span className="text-sm text-muted-foreground font-normal break-words text-balance">
+                              {t.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </Button>
+                    ))
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardHeader>
         <CardContent>

@@ -149,6 +149,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Status:** Complete. Content flag `use_for_agent_training`; live endpoint GET /api/rag/knowledge?part=N; dashboard metric and multi-URL copy; auto-split by token limit (8k default).
 
+- **Packing (implemented):** Pack by article so whole items stay in one URL; oversize non-FAQ sub-split with "Blog post"/"Continued from" headers. **FAQ content:** never split between URLs; each FAQ document is one atomic unit.
+
 ### Phase 16: RAG Chatbot
 
 **Status:** Future (vector DB, content indexing, RAG retrieval, LLM, chat widget, membership-aware).
@@ -175,6 +177,17 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [ ] Security review (auth, RLS, input validation, per-feature pass)
 - [ ] Optimization (bundle, queries, caching); modular alignment to feature boundaries
 - [ ] Optional: per-module version marking
+
+### Performance & Caching (Load Times)
+
+Planned steps to reduce sluggishness and improve public-site load times. See PRD — Performance (Speed). Implement in roughly this order.
+
+- [ ] **Cache site mode in middleware.** Right now every request runs `getSiteModeForEdge()` and hits Supabase for `tenant_sites.site_mode`. Add a short-lived cache (e.g. 30–60s per schema) in Edge so most requests skip the DB. *Helps: removes one DB round-trip from every single request before the page even runs.*
+- [ ] **Cache integrations in public layout.** Public layout calls `getIntegrations()` (RPC) on every public page load. Cache the result (e.g. `unstable_cache` or short TTL) or move to build-time/env if rarely changed. *Helps: avoids repeated RPC on every navigation; layout stays fast.*
+- [ ] **ISR / revalidate on public pages.** Homepage and public content pages use `force-dynamic` and refetch on every request. Where acceptable, remove `force-dynamic` and add `revalidate = 60` (or 300) so Next.js serves cached HTML and revalidates in the background. *Helps: most hits get cached HTML; only first request or after revalidate interval hits server/DB.*
+- [ ] **Cache-Control on public HTML responses.** For cacheable public routes, set `Cache-Control` (e.g. `public, s-maxage=60, stale-while-revalidate=300`) on the response so Vercel edge can cache full HTML. *Helps: CDN can serve cached pages without hitting the server.*
+- [ ] **Keep middleware minimal.** Avoid extra auth or DB work for purely public paths; ensure matcher and logic stay lean. *Helps: every request pays the middleware cost; less work per request = lower latency.*
+- [ ] **Hot-path DB indexes.** Ensure indexes exist for queries used on every request (e.g. `tenant_sites.schema_name`, content by type/slug/status, integrations). *Helps: prevents a single slow query from making the whole site feel sluggish.*
 
 ---
 

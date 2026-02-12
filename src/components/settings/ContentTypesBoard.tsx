@@ -41,7 +41,9 @@ export function ContentTypesBoard() {
     fetchTypes();
   }, [fetchTypes]);
 
-  const sorted = [...types].sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "", undefined, { sensitivity: "base" }));
+  // Exclude Page: structure is built in code, not as a content library type (per product decision).
+  const typesForDisplay = types.filter((t) => t.slug !== "page");
+  const sorted = [...typesForDisplay].sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "", undefined, { sensitivity: "base" }));
 
   const openAdd = () => {
     setEditing(null);
@@ -126,7 +128,7 @@ export function ContentTypesBoard() {
                 Content Types
               </CardTitle>
               <CardDescription>
-                Core types (post, page, snippet, quote, article) are seeded by default. Sorted alphabetically by label.
+                Core types (post, snippet, quote, article, FAQ) cannot be deleted. Page is not shown—structure is built in code. Sorted alphabetically by label.
               </CardDescription>
             </div>
             <Button onClick={openAdd}>
@@ -164,7 +166,14 @@ export function ContentTypesBoard() {
                       <td className="px-3 py-2 text-sm text-muted-foreground">{t.description ?? "—"}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(t)} aria-label="Edit">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEdit(t)}
+                            aria-label="Edit"
+                            disabled={t.is_core}
+                            title={t.is_core ? "Core types cannot be edited" : "Edit"}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button

@@ -44,6 +44,7 @@ import { GalleryPickerModal } from "./GalleryPickerModal";
 interface RichTextEditorProps {
   content?: Record<string, unknown> | null;
   onChange?: (content: Record<string, unknown>) => void;
+  onCharCountChange?: (count: number) => void;
   placeholder?: string;
 }
 
@@ -60,6 +61,7 @@ const BLOCK_OPTIONS = [
 export function RichTextEditor({
   content,
   onChange,
+  onCharCountChange,
   placeholder = "Start writing...",
 }: RichTextEditorProps) {
   const [, setTick] = useState(0);
@@ -89,6 +91,7 @@ export function RichTextEditor({
     ],
     content: content || "",
     onUpdate: ({ editor }) => {
+      onCharCountChange?.(editor.getText().length);
       if (onChange) {
         onChange(editor.getJSON());
       }
@@ -96,7 +99,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[300px] p-4",
+          "prose prose-sm sm:prose lg:prose-lg dark:prose-invert w-full max-w-full focus:outline-none min-h-[300px] p-4",
         spellcheck: "true",
       },
       // Allow native browser context menu (e.g. spell-check suggestions) — do not prevent default
@@ -112,12 +115,13 @@ export function RichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
+    onCharCountChange?.(editor.getText().length);
     const onSelectionUpdate = () => forceToolbarUpdate();
     editor.on("selectionUpdate", onSelectionUpdate);
     return () => {
       editor.off("selectionUpdate", onSelectionUpdate);
     };
-  }, [editor, forceToolbarUpdate]);
+  }, [editor, forceToolbarUpdate, onCharCountChange]);
 
   const blockValue = (() => {
     if (!editor) return "paragraph";
@@ -187,6 +191,7 @@ export function RichTextEditor({
   const switchToCodeView = () => {
     if (!editor) return;
     setCodeViewHtml(editor.getHTML());
+    onCharCountChange?.(editor.getText().length);
     setCodeView(true);
   };
 
@@ -194,8 +199,9 @@ export function RichTextEditor({
     if (!editor) return;
     try {
       editor.commands.setContent(codeViewHtml.trim() || "<p></p>", true, undefined, {
-        errorOnInvalidContent: true,
+        preserveWhitespace: "full",
       });
+      onCharCountChange?.(editor.getText().length);
       setCodeView(false);
       forceToolbarUpdate();
     } catch {
@@ -444,15 +450,22 @@ export function RichTextEditor({
         )}
       </div>
       {codeView ? (
-        <textarea
-          value={codeViewHtml}
-          onChange={(e) => setCodeViewHtml(e.target.value)}
-          className="w-full min-h-[300px] p-4 font-mono text-sm border-0 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset bg-muted/30 resize-y"
-          placeholder="Edit HTML…"
-          spellCheck={false}
-        />
+        <div className="relative">
+          <textarea
+            value={codeViewHtml}
+            onChange={(e) => {
+              setCodeViewHtml(e.target.value);
+              onCharCountChange?.(e.target.value.length);
+            }}
+            className="w-full min-h-[300px] p-4 font-mono text-sm border-0 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset bg-muted/30 resize-y"
+            placeholder="Edit HTML…"
+            spellCheck={false}
+          />
+        </div>
       ) : (
-        <EditorContent editor={editor} />
+        <div className="px-[10%] w-full [&_.ProseMirror]:!max-w-full [&_.ProseMirror]:w-full [&>div]:max-w-full [&>div]:w-full">
+          <EditorContent editor={editor} />
+        </div>
       )}
 
       <Dialog open={linkModalOpen} onOpenChange={(open) => !open && closeLinkModal()}>

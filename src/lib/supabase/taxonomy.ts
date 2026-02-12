@@ -33,8 +33,9 @@ function termsForSection(
     );
   };
 
+  // No section config (e.g. content type "faq" with no taxonomy assigned): show none, not all terms.
   if (!config) {
-    return { categories, tags };
+    return { categories: [], tags: [] };
   }
 
   const catSlugs = config.category_slugs;

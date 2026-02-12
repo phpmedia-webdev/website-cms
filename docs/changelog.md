@@ -11,6 +11,30 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-13 CT - RAG doc packer, content types (FAQ/Quote), Add New modal, robots.txt, RAG warning
+
+**Context for Next Session:**
+- **RAG:** Article-based packing in `src/lib/rag.ts` (whole articles per URL; FAQ never split; oversize articles sub-split with "Blog post"/"Continued from" headers). Configurable via `RAG_MAX_TOKENS_PER_PART`. robots.txt disallows `/api/rag/`. Dashboard shows instructional note when partCount >= 5. Cache getRagStats() skipped (bot-only, sparse traffic).
+- **Content types:** FAQ added (migration 107); Page removed from UI and from DB (migrations 107, 108). Core types (Post, Snippet, Quote, Article, FAQ) cannot be edited/deleted in Settings > Content Types. Add New opens modal to choose type; type fixed on document (new + edit). Custom fields moved to dedicated tab; "No custom fields for this content type" when none.
+- **Templates:** New FAQ content gets body template (Topic/Q/A, single line); new Quote gets "Quote: … / Author: …" instructional template. Taxonomy shows empty when no section config (e.g. FAQ).
+- **UX:** Add Content and Edit Content pages have Cancel/Create or Cancel/Update in header (duplicate of footer). Add New type modal taller, scrollable, spacing between label and description.
+- **Key files:** `src/lib/rag.ts`, `src/app/robots.ts`, `src/components/dashboard/RagKnowledgeCard.tsx`, `src/app/admin/content/ContentPageClient.tsx`, `src/components/content/ContentEditorForm.tsx`, `src/components/settings/ContentTypesBoard.tsx`, `src/app/admin/content/new/ContentNewClient.tsx`, `src/app/admin/content/[id]/edit/EditContentClient.tsx`, `src/lib/supabase/taxonomy.ts`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **RAG doc packer:** packArticlesIntoSegments() packs by article; FAQ type never split; oversize non-FAQ sub-split with headers. getRagContentRows() joins content_types for type_slug. getMaxTokensPerPart() + RAG_MAX_TOKENS_PER_PART env.
+- **robots.txt:** `src/app/robots.ts` disallows `/api/rag/` so crawlers don't index RAG URL; bot still uses public URL.
+- **RAG warning:** RagKnowledgeCard shows instructional note when partCount >= 5 (scale back or shorten content).
+- **Content types:** Migration 107 adds FAQ; 108 removes Page content and type. ContentTypesBoard and Content list/Add New exclude Page. Core types: Edit and Delete disabled in Settings.
+- **Add New flow:** Modal to choose type → navigate to /admin/content/new?type=slug. Content type fixed on document (new and edit).
+- **Custom fields:** New tab "Custom fields" after Membership; empty state "No custom fields for this content type."
+- **FAQ/Quote templates:** getFaqTemplateBody() and getQuoteTemplateBody() prefill body on create (initial state so Tiptap shows on first paint). Taxonomy: no section config → empty categories/tags (e.g. FAQ).
+- **Header actions:** ContentNewClient and EditContentClient have Cancel + Create/Update in header (form ref + onSavingChange).
+- **Add New modal:** Taller (max-h 70vh/520px), label/description spacing, scroll when many types.
+- **Docs:** Sessionlog and planlog RAG optimization items checked off; sessionlog cleaned; FAQ packing rule in planlog/mvt/sessionlog.
+
+---
+
 ### 2026-02-12 CT (evening) - Vercel deploy: redirect loop, MFA flow, verify still stuck
 
 **Context for Next Session:**

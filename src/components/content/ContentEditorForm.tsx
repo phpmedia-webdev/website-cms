@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import { useSlug } from "@/hooks/useSlug";
 import {
   insertContent,
@@ -35,12 +35,44 @@ export interface ContentEditorFormProps {
   /** When set, checkbox is controlled by parent (e.g. rendered in page header). */
   useForAgentTraining?: boolean;
   onUseForAgentTrainingChange?: (value: boolean) => void;
+  /** Called when saving state changes (e.g. for header buttons to show loading). */
+  onSavingChange?: (saving: boolean) => void;
+}
+
+export interface ContentEditorFormHandle {
+  save: () => void;
+}
+
+/** Tiptap JSON body for new FAQ content (Topic / Q / A template). Single line between each item; parser uses Topic:/Q:/A: prefixes. */
+function getFaqTemplateBody(): Record<string, unknown> {
+  return {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Topic: add your topic here (required)" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Q: Follow this format. Add a question here." }] },
+      { type: "paragraph", content: [{ type: "text", text: "A: Put the answer here" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Q: Next Question here" }] },
+      { type: "paragraph", content: [{ type: "text", text: "A: Answer here. Add as many FAQ's as needed." }] },
+    ],
+  };
+}
+
+/** Tiptap JSON body for new Quote content (Quote / Author template). */
+function getQuoteTemplateBody(): Record<string, unknown> {
+  return {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Quote: Add the quote or testimonial text here." }] },
+      { type: "paragraph", content: [{ type: "text", text: "Author: Name, title, or attribution." }] },
+    ],
+  };
 }
 
 /**
  * Shared add/edit content form (no dialog). Use in full-page editor or inside a modal.
+ * Pass a ref to trigger save() from outside (e.g. header buttons).
  */
-export function ContentEditorForm({
+const ContentEditorFormComponent = ({
   item,
   types,
   onSaved,
@@ -48,12 +80,22 @@ export function ContentEditorForm({
   initialContentTypeSlug,
   useForAgentTraining: controlledUseForAgentTraining,
   onUseForAgentTrainingChange,
-}: ContentEditorFormProps) {
+  onSavingChange,
+}: ContentEditorFormProps,
+ref: React.Ref<ContentEditorFormHandle>) => {
   const [contentTypeId, setContentTypeId] = useState("");
   const [name, setName] = useState("");
   const [slug, setSlug, slugFromTitle] = useSlug("");
-  // Initialize body from item so editor gets content on first paint (Tiptap only uses content as initial state)
-  const [data, setData] = useState<Record<string, unknown> | null>(item?.body ?? null);
+  // Initialize body from item or content-type template on first paint (Tiptap only uses content as initial state)
+  const [data, setData] = useState<Record<string, unknown> | null>(
+    () =>
+      item?.body ??
+      (initialContentTypeSlug === "faq"
+        ? getFaqTemplateBody()
+        : initialContentTypeSlug === "quote"
+          ? getQuoteTemplateBody()
+          : null)
+  );
   const [excerpt, setExcerpt] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
   const [saving, setSaving] = useState(false);
@@ -74,6 +116,8 @@ export function ContentEditorForm({
   const [internalUseForAgentTraining, setInternalUseForAgentTraining] = useState<boolean>(
     item?.use_for_agent_training ?? false
   );
+  const [bodyCharCount, setBodyCharCount] = useState(0);
+  const handleSaveRef = useRef<() => void>(() => {});
   const useForAgentTraining =
     controlledUseForAgentTraining !== undefined ? controlledUseForAgentTraining : internalUseForAgentTraining;
   const setUseForAgentTraining =
@@ -113,7 +157,13 @@ export function ContentEditorForm({
       setContentTypeId(defaultTypeId);
       setName("");
       setSlug("");
-      setData(null);
+      setData(
+        initialContentTypeSlug === "faq"
+          ? getFaqTemplateBody()
+          : initialContentTypeSlug === "quote"
+            ? getQuoteTemplateBody()
+            : null
+      );
       setExcerpt("");
       setStatus("draft");
       setSlugManuallyEdited(false);
@@ -214,6 +264,12 @@ export function ContentEditorForm({
       setSaving(false);
     }
   };
+  handleSaveRef.current = handleSave;
+
+  useImperativeHandle(ref, () => ({ save: () => handleSaveRef.current?.() }), []);
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
 
   const taxonomyAssignment =
     isEdit && item && currentType ? (
@@ -278,19 +334,21 @@ export function ContentEditorForm({
       <div className="grid grid-cols-1 md:grid-cols-[60%_40%] gap-4">
         <Card>
           <CardContent className="pt-6 space-y-4">
-            {isEdit ? (
+            {(isEdit || initialContentTypeSlug) ? (
               <div className="space-y-2">
-                <Label>Content type</Label>
-                <p className="text-sm text-muted-foreground">{currentType?.label ?? "—"}</p>
+                <Label className="text-base font-semibold">Content type</Label>
+                <div className="rounded-md border border-input bg-muted/50 px-3 py-2.5">
+                  <p className="text-base font-medium">{currentType?.label ?? "—"}</p>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="content-type">Content type</Label>
+                <Label htmlFor="content-type" className="text-base font-semibold">Content type</Label>
                 <select
                   id="content-type"
                   value={contentTypeId}
                   onChange={(e) => setContentTypeId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-base"
                 >
                   <option value="">Select type…</option>
                   {types.map((t) => (
@@ -353,14 +411,24 @@ export function ContentEditorForm({
       </div>
 
       <div className="space-y-2">
-        <Label>Body</Label>
-        <RichTextEditor key={item?.id ?? "new"} content={data} onChange={setData} placeholder="Body content…" />
+        <div className="flex items-center justify-between">
+          <Label>Body</Label>
+          <span className="text-sm text-muted-foreground">{bodyCharCount.toLocaleString()} characters</span>
+        </div>
+        <RichTextEditor
+          key={item?.id ?? "new"}
+          content={data}
+          onChange={setData}
+          onCharCountChange={setBodyCharCount}
+          placeholder="Body content…"
+        />
       </div>
 
       <Tabs defaultValue="taxonomy" className="w-full">
         <TabsList>
           <TabsTrigger value="taxonomy">Taxonomy settings</TabsTrigger>
           <TabsTrigger value="membership">Membership settings</TabsTrigger>
+          <TabsTrigger value="custom-fields">Custom fields</TabsTrigger>
         </TabsList>
         <TabsContent value="taxonomy" className="space-y-4">
           {taxonomyAssignment}
@@ -373,59 +441,6 @@ export function ContentEditorForm({
               placeholder="Brief description"
             />
           </div>
-          {fieldDefs.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium">Custom fields</h3>
-              <div className="space-y-4">
-                {fieldDefs.map((f) => (
-                  <div key={f.id} className="space-y-2">
-                    <Label htmlFor={`cf-${f.key}`}>{f.label}</Label>
-                    {f.type === "textarea" ? (
-                      <textarea
-                        id={`cf-${f.key}`}
-                        value={String(customFields[f.key] ?? "")}
-                        onChange={(e) =>
-                          setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
-                        }
-                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      />
-                    ) : f.type === "checkbox" ? (
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`cf-${f.key}`}
-                          checked={!!customFields[f.key]}
-                          onCheckedChange={(v) =>
-                            setCustomFields((prev) => ({ ...prev, [f.key]: !!v }))
-                          }
-                        />
-                      </div>
-                    ) : f.type === "number" ? (
-                      <Input
-                        id={`cf-${f.key}`}
-                        type="number"
-                        value={customFields[f.key] != null ? String(customFields[f.key]) : ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setCustomFields((prev) => ({
-                            ...prev,
-                            [f.key]: v === "" ? null : Number(v),
-                          }));
-                        }}
-                      />
-                    ) : (
-                      <Input
-                        id={`cf-${f.key}`}
-                        value={String(customFields[f.key] ?? "")}
-                        onChange={(e) =>
-                          setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </TabsContent>
         <TabsContent value="membership" className="space-y-4">
           <Card>
@@ -491,6 +506,60 @@ export function ContentEditorForm({
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="custom-fields" className="space-y-4">
+          {fieldDefs.length > 0 ? (
+            <div className="space-y-4">
+              {fieldDefs.map((f) => (
+                <div key={f.id} className="space-y-2">
+                  <Label htmlFor={`cf-${f.key}`}>{f.label}</Label>
+                  {f.type === "textarea" ? (
+                    <textarea
+                      id={`cf-${f.key}`}
+                      value={String(customFields[f.key] ?? "")}
+                      onChange={(e) =>
+                        setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
+                      }
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  ) : f.type === "checkbox" ? (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`cf-${f.key}`}
+                        checked={!!customFields[f.key]}
+                        onCheckedChange={(v) =>
+                          setCustomFields((prev) => ({ ...prev, [f.key]: !!v }))
+                        }
+                      />
+                    </div>
+                  ) : f.type === "number" ? (
+                    <Input
+                      id={`cf-${f.key}`}
+                      type="number"
+                      value={customFields[f.key] != null ? String(customFields[f.key]) : ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setCustomFields((prev) => ({
+                          ...prev,
+                          [f.key]: v === "" ? null : Number(v),
+                        }));
+                      }}
+                    />
+                  ) : (
+                    <Input
+                      id={`cf-${f.key}`}
+                      value={String(customFields[f.key] ?? "")}
+                      onChange={(e) =>
+                        setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
+                      }
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No custom fields for this content type.</p>
+          )}
+        </TabsContent>
       </Tabs>
 
       <div className="flex justify-end gap-2 pt-4">
@@ -512,4 +581,6 @@ export function ContentEditorForm({
       </div>
     </div>
   );
-}
+};
+
+export const ContentEditorForm = forwardRef(ContentEditorFormComponent);

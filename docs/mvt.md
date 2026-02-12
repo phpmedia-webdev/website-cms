@@ -297,6 +297,7 @@ When you drop a new version of a module, replace the listed code paths and run t
 - **Data / schema:**
   - **Content table (client schema):** Add column `use_for_agent_training` boolean DEFAULT false. No separate RAG “page” tables; segments are computed at request time.
   - **Migrations:** New migration in client schema: `ALTER TABLE content ADD COLUMN use_for_agent_training boolean DEFAULT false;` (and any RPC updates if content is read via RPC).
+- **Packing (design):** When implementing article-based packing: keep whole articles in one URL; **FAQ content type must never be split between URLs** (each FAQ doc is one atomic segment).
 - **Prerequisites:** Content module (content table, content types, Tiptap body). Uses existing content read paths; RAG endpoint may need schema-aware content fetch (same as admin content list filtered by flag).
 
 ---

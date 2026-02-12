@@ -50,6 +50,11 @@ export function RagKnowledgeCard({
           <p className="text-xs text-muted-foreground mt-0.5">
             Content marked &quot;Use for Agent Training&quot; is included. Add the URL(s) below to your chatbot when you retrain.
           </p>
+          {partCount >= 5 && (
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">
+              Many parts can slow training and increase load. Consider scaling back &quot;Use for Agent Training&quot; on some content, or use shorter excerpts and snippets.
+            </p>
+          )}
         </CardContent>
       </Card>
 
