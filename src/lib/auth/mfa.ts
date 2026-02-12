@@ -3,7 +3,7 @@
  * Handles TOTP enrollment, challenge, and verification.
  */
 
-import { createServerSupabaseClient } from "@/lib/supabase/client";
+import { createServerSupabaseClient, createServerSupabaseClientSSR } from "@/lib/supabase/client";
 import { createClientSupabaseClient } from "@/lib/supabase/client";
 import type { AuthUser } from "./supabase-auth";
 
@@ -129,7 +129,8 @@ export async function verifyMFA(
 
 /**
  * Get all enrolled MFA factors for the current user.
- * 
+ * Uses SSR client so the request's session (cookies) is used; service role has no user context.
+ *
  * @returns Array of enrolled factors, or error
  */
 export async function getEnrolledFactors(): Promise<{
@@ -137,7 +138,7 @@ export async function getEnrolledFactors(): Promise<{
   error: Error | null;
 }> {
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClientSSR();
 
     const { data, error } = await supabase.auth.mfa.listFactors();
 
