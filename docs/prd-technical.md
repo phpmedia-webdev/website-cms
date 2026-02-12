@@ -246,10 +246,10 @@ All text-based content types (posts, pages, snippets, quotes, articles, custom) 
 - Third-party integrations: name (google_analytics, visitor_tracking, simple_commenter)
 - Configuration: enabled flag, config (JSONB) for vendor-specific settings
 
-**SimpleCommenter (simple_commenter) — development/client feedback tool:**
-- **Purpose:** Clients add pinpoint annotations and comments on the site during development or staging so developers can implement changes accurately. **Not** a blog or article comment system.
-- **Config:** `domain` (e.g. staging or project domain). Script: `https://simplecommenter.com/js/comments.min.js?domain={domain}`.
-- **When to enable:** Dev/staging only. **Disable in production.**
+**SimpleCommenter (simple_commenter) — hybrid tenant feedback tool for iterative updates:**
+- **Purpose:** Lets the tenant communicate iterative update requests: pinpoint annotations and comments on the site so developers can implement changes accurately. **Not** a blog or article comment system.
+- **Deployment:** Script is always deployed on forked tenant sites. Tenant can turn it on via a special URL, add comments, and turn it off when not required. Available in production.
+- **Config:** `domain` (e.g. tenant production or staging domain). Script: `https://simplecommenter.com/js/comments.min.js?domain={domain}`.
 - **Script injection:** Public layout loads the script when `simple_commenter` is enabled and `config.domain` is set. Uses `strategy="lazyOnload"`.
 - **Blog comments:** A separate feature (native or third-party) if ever needed. SimpleCommenter is unrelated.
 

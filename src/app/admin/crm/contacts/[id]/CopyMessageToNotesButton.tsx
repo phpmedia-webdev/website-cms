@@ -45,7 +45,7 @@ export function CopyMessageToNotesButton({ contactId, message }: CopyMessageToNo
       disabled={!hasMessage || loading}
     >
       <Copy className="h-3 w-3 mr-1" />
-      {loading ? "Copying…" : "Copy To Notes"}
+      {loading ? "Copying…" : "Copy To Activity Stream"}
     </Button>
   );
 }

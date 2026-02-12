@@ -2,8 +2,8 @@
  * Integration management utilities for third-party scripts.
  * Handles Google Analytics, VisitorTracking.com, and SimpleCommenter.com configuration.
  *
- * SimpleCommenter is a development/client feedback tool (pinpoint annotations on the site
- * during dev/staging). Turn off in production. It is not a blog comment system.
+ * SimpleCommenter is a hybrid tenant feedback tool for iterative updates: script is always
+ * deployed on forked tenant sites; tenant turns it on via a special URL, adds comments, turns off when not needed. Not a blog comment system.
  *
  * Per prd-technical: read operations use RPC (not .from()); RPCs in public schema query client schema.
  */

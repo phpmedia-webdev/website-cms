@@ -136,7 +136,7 @@ export function IntegrationsManager() {
     const descriptions: Record<string, string> = {
       google_analytics: "Website analytics and visitor tracking via Google Analytics 4 (GA4)",
       visitor_tracking: "Visitor tracking and analytics service",
-      simple_commenter: "Client feedback tool for dev/staging: pinpoint annotations on the site. Disable in production. Not for blog comments.",
+      simple_commenter: "Hybrid tenant feedback tool: tenant turns on via special URL, adds pinpoint comments for iterative updates, turns off when not needed. Script always deployed on forked sites. Not for blog comments.",
     };
     return descriptions[name] || "";
   };

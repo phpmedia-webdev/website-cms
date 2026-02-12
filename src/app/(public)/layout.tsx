@@ -81,7 +81,7 @@ export default async function PublicLayout({
         </>
       )}
 
-      {/* SimpleCommenter: dev/staging client feedback tool (pinpoint annotations). Disable in production. Not blog comments. */}
+      {/* SimpleCommenter: tenant feedback tool for iterative updates (special URL to turn on, add comments, turn off). Always deployed on forked sites. Not blog comments. */}
       {scActive && (
         <Script
           src={`https://simplecommenter.com/js/comments.min.js?domain=${simpleCommenter.config.domain}`}

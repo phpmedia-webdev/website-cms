@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Users, Search, X, ChevronLeft, ChevronRight, ChevronDown, Trash2 } from "lucide-react";
+import { Plus, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CrmContact, ContactMag, ContactMarketingList, Mag, MarketingList } from "@/lib/supabase/crm";
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
@@ -19,6 +18,8 @@ import { SetCrmFieldsDialog } from "@/components/crm/SetCrmFieldsDialog";
 import { TaxonomyBulkDialog } from "@/components/crm/TaxonomyBulkDialog";
 import { ConfirmTrashDialog } from "@/components/crm/ConfirmTrashDialog";
 import { ConfirmEmptyTrashDialog } from "@/components/crm/ConfirmEmptyTrashDialog";
+import { ContactsListFilters } from "@/components/crm/ContactsListFilters";
+import { ContactsListBulkBar } from "@/components/crm/ContactsListBulkBar";
 
 interface ContactWithRelations extends CrmContact {
   mags: { mag_id: string; mag_name: string }[];
@@ -247,174 +248,47 @@ export function ContactsListClient({
         </Link>
       </div>
 
-      {/* Line 1: Filter selectors + Clear all far right */}
-      <div className="flex flex-wrap items-center gap-2 justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-          >
-            <option value="">All Statuses</option>
-            {contactStatuses.map((s) => (
-              <option key={s.slug} value={s.slug}>{s.label}</option>
-            ))}
-          </select>
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            value={selectedMagId}
-            onChange={(e) => setSelectedMagId(e.target.value)}
-          >
-            <option value="">All Memberships</option>
-            {mags.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            value={selectedListId}
-            onChange={(e) => setSelectedListId(e.target.value)}
-          >
-            <option value="">All Lists</option>
-            {marketingLists.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            value={selectedCategoryId}
-            onChange={(e) => setSelectedCategoryId(e.target.value)}
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            value={selectedTagId}
-            onChange={(e) => setSelectedTagId(e.target.value)}
-          >
-            <option value="">All Tags</option>
-            {tags.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </div>
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 text-xs shrink-0">
-            <X className="h-3 w-3 mr-1" />
-            Clear all
-          </Button>
-        )}
-      </div>
+      <ContactsListFilters
+        selectedStatus={selectedStatus}
+        onSelectedStatusChange={setSelectedStatus}
+        selectedMagId={selectedMagId}
+        onSelectedMagIdChange={setSelectedMagId}
+        selectedListId={selectedListId}
+        onSelectedListIdChange={setSelectedListId}
+        selectedCategoryId={selectedCategoryId}
+        onSelectedCategoryIdChange={setSelectedCategoryId}
+        selectedTagId={selectedTagId}
+        onSelectedTagIdChange={setSelectedTagId}
+        resetFilters={resetFilters}
+        hasFilters={hasFilters}
+        contactStatuses={contactStatuses}
+        mags={mags}
+        marketingLists={marketingLists}
+        categories={categories}
+        tags={tags}
+      />
 
-      {/* Line 2: Search + Show trash + Bulk actions */}
-      <div className="flex flex-wrap items-center gap-2 justify-between">
-        <div className="relative max-w-md">
-          <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search name, email, phone…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-7 h-8 text-sm"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          {hasTrashedContacts && !showTrashed && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700"
-              onClick={() => setShowTrashed(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5 mr-1" />
-              Show trash ({trashedContacts.length})
-            </Button>
-          )}
-          {showTrashed && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8"
-              onClick={() => setShowTrashed(false)}
-            >
-              Show active contacts
-            </Button>
-          )}
-          <div className="relative" ref={bulkMenuRef}>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1"
-            disabled={!hasSelection}
-            onClick={() => hasSelection && setBulkMenuOpen((o) => !o)}
-            aria-expanded={bulkMenuOpen}
-            aria-haspopup="true"
-            aria-label="Bulk actions"
-          >
-            Bulk actions
-            <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-          </Button>
-          {bulkMenuOpen && hasSelection && (
-            <ul
-              className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] rounded-md border bg-background py-1 shadow-md"
-              role="menu"
-            >
-              <li role="none">
-                <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => { setBulkMenuOpen(false); setExportDialogOpen(true); }}>
-                  Export
-                </button>
-              </li>
-              <li role="none">
-                <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => { setBulkMenuOpen(false); setAddToListDialogOpen(true); }}>
-                  Add to list
-                </button>
-              </li>
-              <li role="none">
-                <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => { setBulkMenuOpen(false); setRemoveFromListDialogOpen(true); }}>
-                  Remove from list
-                </button>
-              </li>
-              <li role="none">
-                <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => { setBulkMenuOpen(false); setCrmFieldsDialogOpen(true); }}>
-                  Set CRM Fields
-                </button>
-              </li>
-              <li role="none">
-                <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => { setBulkMenuOpen(false); setTaxonomyDialogOpen(true); }}>
-                  Taxonomy
-                </button>
-              </li>
-              <li role="none">
-                <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => { setBulkMenuOpen(false); setTrashConfirmOpen(true); }}>
-                  Delete
-                </button>
-              </li>
-              <li role="none">
-                <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" onClick={() => handleRestore()} disabled={restoreLoading || !showTrashed}>
-                  {restoreLoading ? "Restoring…" : "Restore"}
-                </button>
-              </li>
-              <li role="separator" className="my-1 border-t" />
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50 disabled:pointer-events-none"
-                  disabled={!hasTrashedContacts}
-                  onClick={() => { setBulkMenuOpen(false); setEmptyTrashDialogOpen(true); }}
-                >
-                  Empty trash
-                </button>
-              </li>
-            </ul>
-          )}
-          </div>
-        </div>
-      </div>
+      <ContactsListBulkBar
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        showTrashed={showTrashed}
+        onShowTrashedChange={setShowTrashed}
+        hasTrashedContacts={hasTrashedContacts}
+        trashedCount={trashedContacts.length}
+        hasSelection={hasSelection}
+        bulkMenuOpen={bulkMenuOpen}
+        onBulkMenuOpenChange={setBulkMenuOpen}
+        bulkMenuRef={bulkMenuRef}
+        onExport={() => setExportDialogOpen(true)}
+        onAddToList={() => setAddToListDialogOpen(true)}
+        onRemoveFromList={() => setRemoveFromListDialogOpen(true)}
+        onSetCrmFields={() => setCrmFieldsDialogOpen(true)}
+        onTaxonomy={() => setTaxonomyDialogOpen(true)}
+        onTrash={() => setTrashConfirmOpen(true)}
+        onRestore={handleRestore}
+        restoreLoading={restoreLoading}
+        onEmptyTrash={() => setEmptyTrashDialogOpen(true)}
+      />
 
       {restoreError && (
         <p className="text-sm text-destructive" role="alert">

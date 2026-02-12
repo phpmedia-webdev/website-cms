@@ -9,6 +9,32 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+---
+
+## 🚀 MILESTONE — LAUNCH TO PRODUCTION (2026-02-12)
+
+**This release marks the first production launch.** The application is deployed to a live domain on Vercel and is **LIVE**. Pre-launch refactor and documentation are complete; Main and Dev branches are in place for CI/CD. Post-launch: full smoke test on live site, then security check and OWASP review.
+
+---
+
+### 2026-02-12 CT - Session wrap: refactor, SimpleCommenter docs, branches, milestone
+
+**Context for Next Session:**
+- **MILESTONE:** App is ready for production deploy. After pushing this commit, deploy to Vercel and go LIVE. Then: full smoke test on live domain → security check and outstanding updates → full OWASP review.
+- **Branches:** `main` (production) and `dev` (integration/staging) exist on origin. Work on `dev`, merge to `main` for releases; CI/CD can deploy `main` → production, optionally `dev` → staging.
+- **Refactor (done):** ContactDetailClient split into ContactNotesSection, ContactCustomFieldsSection, ContactMarketingListsSection, ContactMagsSection; suggested items for Marketing Lists and Memberships; Sidebar nav → `sidebar-config.ts`; ContactsListClient → ContactsListFilters and ContactsListBulkBar. Copy label "Copy To Activity Stream." Fixes: showMags declaration order, ContactMagsSection confirm-remove dialog.
+- **SimpleCommenter:** PRD and docs updated: production deployment tool, script always on forked tenant sites; tenant turns on via special URL, adds comments, turns off when not needed. Not dev-only; not for blog comments.
+- **Key files:** `src/components/crm/Contact*Section.tsx`, `ContactsListFilters.tsx`, `ContactsListBulkBar.tsx`, `src/components/dashboard/sidebar-config.ts`, `docs/prd.md` (Third-Party Integrations), `IntegrationsManager.tsx`, `integrations.ts`, `(public)/layout.tsx`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Refactor:** ContactNotesSection, ContactCustomFieldsSection, ContactMarketingListsSection, ContactMagsSection; Marketing Lists and Memberships suggested items when search empty; sidebar-config.ts; ContactsListFilters and ContactsListBulkBar. Copy button label "Copy To Activity Stream." Bug fixes: showMags before useEffect; ContactMagsSection confirm-remove dialog.
+- **SimpleCommenter:** PRD, prd-technical, IntegrationsManager, layout comment, integrations.ts JSDoc — now described as hybrid tenant feedback tool, always deployed on forked sites, tenant on/off via special URL.
+- **Git:** `dev` branch created and pushed; `main` and `dev` ready for CI/CD.
+- **Session docs:** Sessionlog and changelog updated; milestone noted.
+
+---
+
 ### 2026-02-11 CT (later) - Content fixes, add/edit layout, RAG bot URL, Quick Support
 
 **Context for Next Session:**

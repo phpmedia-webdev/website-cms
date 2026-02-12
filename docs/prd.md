@@ -127,10 +127,11 @@ Superadmin configures integrations at `/admin/super/integrations`. Scripts are i
 
 - **Google Analytics** — Website analytics (GA4). Config: Measurement ID.
 - **VisitorTracking.com** — Visitor tracking and analytics. Config: Website ID.
-- **SimpleCommenter.com** — **Development/client feedback tool only.** Not a blog comment system.
-  - **Purpose:** During site development or staging, clients add pinpoint annotations and comments on the live site so developers can implement changes accurately.
-  - **Usage:** Enable only on dev/staging. **Turn off in production.**
-  - **Config:** Domain (e.g. project or staging domain). Script loads from SimpleCommenter.com when enabled.
+- **SimpleCommenter.com** — **Hybrid tenant feedback tool for iterative updates.** Not a blog comment system.
+  - **Purpose:** Lets the tenant communicate iterative update requests to the developer: pinpoint annotations and comments on the live site so changes can be implemented accurately.
+  - **Deployment:** The script is always deployed on forked tenant sites. Superadmin configures it at `/admin/super/integrations` (domain, enabled/disabled).
+  - **Usage:** The tenant can turn the tool on via a special URL, add comments where needed, then turn it off when not required. It stays available in production as a channel for ongoing feedback.
+  - **Config:** Domain (e.g. tenant's production or staging domain). Script loads from SimpleCommenter.com when enabled.
   - **Do not use** for blog post comments, article discussions, or any public-facing comment feature. Blog comments (if needed) are a separate, future consideration.
 
 ### Multi-Schema Strategy

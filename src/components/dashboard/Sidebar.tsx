@@ -9,38 +9,38 @@ import {
   LayoutDashboard,
   FileText,
   Image,
-  Folder,
-  ClipboardList,
-  Inbox,
   Settings,
   Shield,
   LogOut,
   ArrowLeft,
-  Users,
   ChevronDown,
   ChevronRight,
   Type,
-  Palette,
-  Tags,
-  Code,
   Building2,
   Mail,
-  ListChecks,
-  KeyRound,
-  ShieldCheck,
-  User,
-  Sliders,
   LifeBuoy,
   MessageCircle,
-  BookOpen,
-  Briefcase,
   Calendar,
-  Box,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canAccessFeature } from "@/lib/admin/route-features";
-
-const SIDEBAR_SETTINGS_OPEN = "sidebar-settings-open";
+import {
+  SIDEBAR_SETTINGS_OPEN,
+  SIDEBAR_MEDIA_OPEN,
+  SIDEBAR_CONTENT_OPEN,
+  SIDEBAR_CRM_OPEN,
+  SIDEBAR_MARKETING_OPEN,
+  SIDEBAR_CALENDAR_OPEN,
+  SIDEBAR_SUPPORT_OPEN,
+  SIDEBAR_SUPER_OPEN,
+  mediaSubNav,
+  crmSubNav,
+  marketingSubNav,
+  calendarSubNav,
+  settingsSubNav,
+  supportSubNav,
+  superadminSubNav,
+} from "./sidebar-config";
 
 interface SidebarProps {
   isSuperadmin?: boolean;
@@ -49,67 +49,6 @@ interface SidebarProps {
   /** If true, show Settings → Users link. Only admins (tenant admin or superadmin) can manage team. */
   canManageTeam?: boolean;
 }
-
-const mediaSubNav: { name: string; href: string; icon: typeof Image; featureSlug: string }[] = [
-  { name: "Library", href: "/admin/media", icon: Image, featureSlug: "library" },
-  { name: "Galleries", href: "/admin/galleries", icon: Folder, featureSlug: "galleries" },
-];
-
-const SIDEBAR_MEDIA_OPEN = "sidebar-media-open";
-
-const SIDEBAR_CONTENT_OPEN = "sidebar-content-open";
-const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
-
-/** CRM subnav: Contacts, Forms, Form Submissions, Memberships, Code Generator. OmniChat and Marketing are top-level. */
-const crmSubNav: { name: string; href: string; icon: typeof Users; featureSlug: string }[] = [
-  { name: "Contacts", href: "/admin/crm/contacts", icon: Users, featureSlug: "contacts" },
-  { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList, featureSlug: "forms" },
-  { name: "Form Submissions", href: "/admin/crm/forms/submissions", icon: Inbox, featureSlug: "form_submissions" },
-  { name: "Memberships", href: "/admin/crm/memberships", icon: Folder, featureSlug: "memberships" },
-  { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
-];
-
-/** Marketing: landing page with Lists as subnav. */
-const SIDEBAR_MARKETING_OPEN = "sidebar-marketing-open";
-const marketingSubNav: { name: string; href: string; icon: typeof ListChecks }[] = [
-  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks },
-];
-
-/** Calendar: main nav section (after Marketing) with Calendar + Resources. */
-const SIDEBAR_CALENDAR_OPEN = "sidebar-calendar-open";
-const calendarSubNav: { name: string; href: string; icon: typeof Calendar | typeof Box }[] = [
-  { name: "Calendar", href: "/admin/events", icon: Calendar },
-  { name: "Resources", href: "/admin/events/resources", icon: Box },
-];
-
-/** Settings sub-nav. featureSlug = role-assignable; no featureSlug = always visible (My Profile). */
-const settingsSubNav: { name: string; href: string; icon: typeof Settings; featureSlug?: string; adminOnly?: boolean }[] = [
-  { name: "General", href: "/admin/settings/general", icon: Settings, featureSlug: "general" },
-  { name: "Style", href: "/admin/settings/style", icon: Palette, featureSlug: "style" },
-  { name: "Taxonomy", href: "/admin/settings/taxonomy", icon: Tags, featureSlug: "taxonomy" },
-  { name: "Customizer", href: "/admin/settings/customizer", icon: Sliders, featureSlug: "customizer" },
-  { name: "Users", href: "/admin/settings/users", icon: Users, featureSlug: "users", adminOnly: true },
-  { name: "My Profile", href: "/admin/settings/profile", icon: User },
-];
-
-const SIDEBAR_SUPPORT_OPEN = "sidebar-support-open";
-
-const supportSubNav: { name: string; href: string; icon: typeof LifeBuoy }[] = [
-  { name: "Quick Support", href: "/admin/support/quick-support", icon: MessageCircle },
-  { name: "Knowledge Base", href: "/admin/support/knowledge-base", icon: BookOpen },
-  { name: "WorkHub", href: "https://desktop.phpmedia.com/", icon: Briefcase },
-];
-
-const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
-
-const superadminSubNav = [
-  { name: "Dashboard", href: "/admin/super", icon: Shield },
-  { name: "Tenant Sites", href: "/admin/super/tenant-sites", icon: Building2 },
-  { name: "Tenant Users", href: "/admin/super/tenant-users", icon: Users },
-  { name: "Roles", href: "/admin/super/roles", icon: ShieldCheck },
-  { name: "Code Library", href: "/admin/super/code-library", icon: Code },
-  { name: "Security", href: "/admin/super/security", icon: Shield },
-];
 
 export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", canManageTeam = false }: SidebarProps) {
   const pathname = usePathname();
