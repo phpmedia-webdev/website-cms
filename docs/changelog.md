@@ -32,6 +32,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 - **Header actions:** ContentNewClient and EditContentClient have Cancel + Create/Update in header (form ref + onSavingChange).
 - **Add New modal:** Taller (max-h 70vh/520px), label/description spacing, scroll when many types.
 - **Docs:** Sessionlog and planlog RAG optimization items checked off; sessionlog cleaned; FAQ packing rule in planlog/mvt/sessionlog.
+- **Pre-launch cleanup & code review:** Dead code removed (ChangeStatusDialog, PostEditor). Stale 2FA TODOs removed in integrations; getAAL implemented in GET/PUT /api/admin/integrations. Code review: security (RLS, no secrets in client, auth + 2FA on integrations); modular alignment (routes/lib vs mvt.md). Refactor: ContactDetailClient → ContactNotesSection, ContactCustomFieldsSection, ContactMarketingListsSection, ContactMagsSection; Marketing Lists/Memberships suggested items; Sidebar → sidebar-config.ts; ContactsListClient → ContactsListFilters, ContactsListBulkBar. Planlog "Code Review, Security & Modular Alignment" checked off. Security module discussed.
 
 ---
 

@@ -198,9 +198,7 @@ export function RichTextEditor({
   const switchToVisualView = () => {
     if (!editor) return;
     try {
-      editor.commands.setContent(codeViewHtml.trim() || "<p></p>", true, undefined, {
-        preserveWhitespace: "full",
-      });
+      editor.commands.setContent(codeViewHtml.trim() || "<p></p>", true);
       onCharCountChange?.(editor.getText().length);
       setCodeView(false);
       forceToolbarUpdate();
