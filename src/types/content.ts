@@ -54,6 +54,8 @@ export interface ContentListItem {
   /** public | members | mag; used for membership indicator (red "M") and optional "Is Membership" filter. */
   access_level?: string | null;
   updated_at: string;
+  /** Include in RAG Knowledge Export for chatbot training. */
+  use_for_agent_training?: boolean;
 }
 
 /** Full content row for edit (from content table / get_content_by_id_dynamic). */
@@ -76,6 +78,8 @@ export interface ContentRow {
   section_restrictions: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  /** Include in RAG Knowledge Export for chatbot training. */
+  use_for_agent_training?: boolean;
 }
 
 export interface Gallery {

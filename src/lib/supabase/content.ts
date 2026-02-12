@@ -40,7 +40,8 @@ export async function getSnippetOptions(
 export async function getContentTypes(): Promise<ContentType[]> {
   const supabase = createClientSupabaseClient();
 
-  const { data: rpcData, error: rpcError } = await supabase.rpc("get_content_types_dynamic", {
+  // RPCs live in public schema; client default schema is client DB schema
+  const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc("get_content_types_dynamic", {
     schema_name: CONTENT_SCHEMA,
   });
   if (!rpcError && rpcData) {
@@ -125,7 +126,7 @@ export async function deleteContentType(id: string): Promise<boolean> {
 export async function getContentListWithTypes(): Promise<ContentListItem[]> {
   const supabase = createClientSupabaseClient();
 
-  const { data: rpcData, error: rpcError } = await supabase.rpc("get_content_list_with_types_dynamic", {
+  const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc("get_content_list_with_types_dynamic", {
     schema_name: CONTENT_SCHEMA,
   });
   if (!rpcError && rpcData) {
@@ -139,11 +140,11 @@ export async function getContentListWithTypes(): Promise<ContentListItem[]> {
   }
 
   type Rel = { slug: string; label: string };
-  type Row = { id: string; content_type_id: string; title: string; slug: string; status: string; access_level: string | null; updated_at: string; content_types: Rel | Rel[] | null };
+  type Row = { id: string; content_type_id: string; title: string; slug: string; status: string; access_level: string | null; updated_at: string; use_for_agent_training?: boolean; content_types: Rel | Rel[] | null };
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
-    .select("id, content_type_id, title, slug, status, access_level, updated_at, content_types!content_type_id(slug, label)")
+    .select("id, content_type_id, title, slug, status, access_level, updated_at, use_for_agent_training, content_types!content_type_id(slug, label)")
     .order("updated_at", { ascending: false });
   if (error) {
     console.error("getContentListWithTypes direct query failed:", { message: error.message, code: error.code });
@@ -162,6 +163,7 @@ export async function getContentListWithTypes(): Promise<ContentListItem[]> {
       status: r.status,
       access_level: r.access_level ?? null,
       updated_at: r.updated_at,
+      use_for_agent_training: r.use_for_agent_training ?? false,
     };
   });
 }
@@ -169,7 +171,7 @@ export async function getContentListWithTypes(): Promise<ContentListItem[]> {
 export async function getContentById(id: string): Promise<ContentRow | null> {
   const supabase = createClientSupabaseClient();
 
-  const { data: rpcData, error: rpcError } = await supabase.rpc("get_content_by_id_dynamic", {
+  const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc("get_content_by_id_dynamic", {
     schema_name: CONTENT_SCHEMA,
     content_id_param: id,
   });
@@ -207,7 +209,7 @@ export async function getContentByIdServer(
   const { data, error } = await supabase
     .schema(schemaName)
     .from("content")
-    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at, use_for_agent_training")
     .eq("id", id)
     .maybeSingle();
   if (error) {
@@ -270,7 +272,7 @@ export async function getPublishedContentByTypeAndSlug(
 export async function getPublishedPosts(limit = 50): Promise<ContentRow[]> {
   const supabase = createServerSupabaseClient();
 
-  const { data, error } = await supabase.rpc("get_published_posts_dynamic", {
+  const { data, error } = await supabase.schema("public").rpc("get_published_posts_dynamic", {
     schema_name: CONTENT_SCHEMA,
     limit_param: limit,
   });
@@ -299,15 +301,18 @@ export async function insertContent(row: {
   required_mag_id?: string | null;
   visibility_mode?: string | null;
   restricted_message?: string | null;
+  use_for_agent_training?: boolean;
 }): Promise<{ id: string } | null> {
   const supabase = createClientSupabaseClient();
+  const insertRow = {
+    ...row,
+    custom_fields: row.custom_fields ?? {},
+    use_for_agent_training: row.use_for_agent_training ?? false,
+  };
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
-    .insert({
-      ...row,
-      custom_fields: row.custom_fields ?? {},
-    })
+    .insert(insertRow)
     .select("id")
     .single();
   if (error) {
@@ -332,12 +337,23 @@ export async function updateContent(
     required_mag_id: string | null;
     visibility_mode: string | null;
     restricted_message: string | null;
+    use_for_agent_training: boolean;
   }>
 ): Promise<boolean> {
   const supabase = createClientSupabaseClient();
-  const { error } = await supabase.schema(CONTENT_SCHEMA).from("content").update(row).eq("id", id);
+  const { data: updated, error } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content")
+    .update(row)
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
   if (error) {
     console.error("updateContent:", error);
+    return false;
+  }
+  if (updated == null) {
+    console.warn("updateContent: no row updated (0 rows affected)");
     return false;
   }
   return true;
@@ -359,7 +375,7 @@ export async function deleteContent(id: string): Promise<boolean> {
 
 export async function getContentTypeFields(): Promise<ContentTypeField[]> {
   const supabase = createClientSupabaseClient();
-  const { data: rpcData, error: rpcError } = await supabase.rpc("get_content_type_fields_dynamic", {
+  const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc("get_content_type_fields_dynamic", {
     schema_name: CONTENT_SCHEMA,
   });
   if (!rpcError && rpcData) {
@@ -387,7 +403,7 @@ export async function getContentTypeFields(): Promise<ContentTypeField[]> {
 
 export async function getContentTypeFieldsByContentType(contentTypeId: string): Promise<ContentTypeField[]> {
   const supabase = createClientSupabaseClient();
-  const { data: rpcData, error: rpcError } = await supabase.rpc(
+  const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc(
     "get_content_type_fields_by_content_type_dynamic",
     { schema_name: CONTENT_SCHEMA, content_type_id_param: contentTypeId }
   );

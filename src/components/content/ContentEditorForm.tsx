@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 
 export interface ContentEditorFormProps {
@@ -31,6 +32,9 @@ export interface ContentEditorFormProps {
   onCancel: () => void;
   /** When creating, preselect this content type by slug (e.g. from ?type=post). */
   initialContentTypeSlug?: string;
+  /** When set, checkbox is controlled by parent (e.g. rendered in page header). */
+  useForAgentTraining?: boolean;
+  onUseForAgentTrainingChange?: (value: boolean) => void;
 }
 
 /**
@@ -42,11 +46,14 @@ export function ContentEditorForm({
   onSaved,
   onCancel,
   initialContentTypeSlug,
+  useForAgentTraining: controlledUseForAgentTraining,
+  onUseForAgentTrainingChange,
 }: ContentEditorFormProps) {
   const [contentTypeId, setContentTypeId] = useState("");
   const [name, setName] = useState("");
   const [slug, setSlug, slugFromTitle] = useSlug("");
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  // Initialize body from item so editor gets content on first paint (Tiptap only uses content as initial state)
+  const [data, setData] = useState<Record<string, unknown> | null>(item?.body ?? null);
   const [excerpt, setExcerpt] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
   const [saving, setSaving] = useState(false);
@@ -64,6 +71,13 @@ export function ContentEditorForm({
   const [restrictedMessage, setRestrictedMessage] = useState(item?.restricted_message || "");
   const [requiredMagId, setRequiredMagId] = useState<string>(item?.required_mag_id || "");
   const [availableMags, setAvailableMags] = useState<{ id: string; name: string; uid: string }[]>([]);
+  const [internalUseForAgentTraining, setInternalUseForAgentTraining] = useState<boolean>(
+    item?.use_for_agent_training ?? false
+  );
+  const useForAgentTraining =
+    controlledUseForAgentTraining !== undefined ? controlledUseForAgentTraining : internalUseForAgentTraining;
+  const setUseForAgentTraining =
+    onUseForAgentTrainingChange ?? setInternalUseForAgentTraining;
 
   const isEdit = !!item;
   const postType = types.find((t) => t.slug === "post");
@@ -93,6 +107,8 @@ export function ContentEditorForm({
       setVisibilityMode((item.visibility_mode as "hidden" | "message") || "hidden");
       setRestrictedMessage(item.restricted_message || "");
       setRequiredMagId(item.required_mag_id || "");
+      if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(item.use_for_agent_training ?? false);
+      else setInternalUseForAgentTraining(item.use_for_agent_training ?? false);
     } else {
       setContentTypeId(defaultTypeId);
       setName("");
@@ -108,8 +124,10 @@ export function ContentEditorForm({
       setVisibilityMode("hidden");
       setRestrictedMessage("");
       setRequiredMagId("");
+      if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(false);
+      else setInternalUseForAgentTraining(false);
     }
-  }, [item, defaultTypeId]);
+  }, [item, defaultTypeId, onUseForAgentTrainingChange]);
 
   useEffect(() => {
     fetch("/api/crm/mags")
@@ -164,6 +182,7 @@ export function ContentEditorForm({
         visibility_mode: visibilityMode,
         restricted_message: restrictedMessage.trim() || null,
         required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
+        use_for_agent_training: useForAgentTraining,
       };
 
       if (isEdit && item) {
@@ -174,12 +193,18 @@ export function ContentEditorForm({
           await setTaxonomyForContent(item.id, currentType.slug, allIds);
         }
       } else {
-        await insertContent({
+        const insertPayload = {
           ...payload,
           content_type_id: contentTypeId,
           featured_image_id: null,
           custom_fields: customFields,
-        });
+        };
+        const insertResult = await insertContent(insertPayload);
+        if (!insertResult) throw new Error("Insert failed");
+        if (currentType) {
+          const allIds = [...selectedCategoryIds, ...selectedTagIds];
+          await setTaxonomyForContent(insertResult.id, currentType.slug, allIds);
+        }
       }
       onSaved();
     } catch (e) {
@@ -190,232 +215,285 @@ export function ContentEditorForm({
     }
   };
 
+  const taxonomyAssignment =
+    isEdit && item && currentType ? (
+      <TaxonomyAssignmentForContent
+        contentId={item.id}
+        contentTypeSlug={currentType.slug}
+        sectionLabel={currentType.label}
+        disabled={saving}
+        embedded
+        selectedCategoryIds={selectedCategoryIds}
+        selectedTagIds={selectedTagIds}
+        onCategoryToggle={(id, checked) => {
+          setSelectedCategoryIds((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(id);
+            else next.delete(id);
+            return next;
+          });
+        }}
+        onTagToggle={(id, checked) => {
+          setSelectedTagIds((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(id);
+            else next.delete(id);
+            return next;
+          });
+        }}
+        onInitialLoad={({ categoryIds, tagIds }) => {
+          setSelectedCategoryIds(new Set(categoryIds));
+          setSelectedTagIds(new Set(tagIds));
+        }}
+      />
+    ) : currentType ? (
+      <TaxonomyAssignmentForContent
+        contentTypeSlug={currentType.slug}
+        sectionLabel={currentType.label}
+        disabled={saving}
+        embedded
+        selectedCategoryIds={selectedCategoryIds}
+        selectedTagIds={selectedTagIds}
+        onCategoryToggle={(id, checked) => {
+          setSelectedCategoryIds((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(id);
+            else next.delete(id);
+            return next;
+          });
+        }}
+        onTagToggle={(id, checked) => {
+          setSelectedTagIds((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(id);
+            else next.delete(id);
+            return next;
+          });
+        }}
+      />
+    ) : null;
+
   return (
-    <div className="space-y-4">
-      {isEdit ? (
-        <div className="space-y-2">
-          <Label>Type</Label>
-          <p className="text-sm text-muted-foreground">{currentType?.label ?? "—"}</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <Label htmlFor="content-type">Content type</Label>
-          <select
-            id="content-type"
-            value={contentTypeId}
-            onChange={(e) => setContentTypeId(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Select type…</option>
-            {types.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="content-name">Name</Label>
-        <Input
-          id="content-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Title"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="content-slug">Slug</Label>
-        <Input
-          id="content-slug"
-          value={slug}
-          onChange={(e) => {
-            setSlug(e.target.value);
-            setSlugManuallyEdited(true);
-          }}
-          placeholder="url-slug"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Body</Label>
-        <RichTextEditor content={data} onChange={setData} placeholder="Body content…" />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="content-excerpt">Excerpt</Label>
-        <Input
-          id="content-excerpt"
-          value={excerpt}
-          onChange={(e) => setExcerpt(e.target.value)}
-          placeholder="Brief description"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="content-status">Status</Label>
-        <select
-          id="content-status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as "draft" | "published")}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
-        </select>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Membership Protection</CardTitle>
-          <CardDescription>
-            Control who can view this content on the public site.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-2 block">Access Level</label>
-            <select
-              value={accessLevel}
-              onChange={(e) => setAccessLevel(e.target.value as "public" | "members" | "mag")}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="public">Public</option>
-              <option value="members">Members only</option>
-              <option value="mag">Specific membership(s)</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-2 block">When restricted (visibility)</label>
-            <select
-              value={visibilityMode}
-              onChange={(e) => setVisibilityMode(e.target.value as "hidden" | "message")}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              disabled={accessLevel === "public"}
-            >
-              <option value="hidden">Hide content</option>
-              <option value="message">Show message</option>
-            </select>
-          </div>
-          {accessLevel === "mag" && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">Required Membership</label>
-              <select
-                value={requiredMagId}
-                onChange={(e) => setRequiredMagId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Select membership…</option>
-                {availableMags.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.uid})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {accessLevel !== "public" && visibilityMode === "message" && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">Restricted Message</label>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-[60%_40%] gap-4">
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            {isEdit ? (
+              <div className="space-y-2">
+                <Label>Content type</Label>
+                <p className="text-sm text-muted-foreground">{currentType?.label ?? "—"}</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="content-type">Content type</Label>
+                <select
+                  id="content-type"
+                  value={contentTypeId}
+                  onChange={(e) => setContentTypeId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select type…</option>
+                  {types.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="content-name">Name</Label>
               <Input
-                value={restrictedMessage}
-                onChange={(e) => setRestrictedMessage(e.target.value)}
-                placeholder="e.g. Sign in to view this content"
-                className="w-full"
+                id="content-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Title"
               />
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <Label htmlFor="content-slug">Slug</Label>
+              <Input
+                id="content-slug"
+                value={slug}
+                onChange={(e) => {
+                  setSlug(e.target.value);
+                  setSlugManuallyEdited(true);
+                }}
+                placeholder="url-slug"
+              />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="content-status">Status</Label>
+              <select
+                id="content-status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as "draft" | "published")}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="content-use-for-agent-training"
+                checked={useForAgentTraining}
+                onCheckedChange={(v) => setUseForAgentTraining(!!v)}
+              />
+              <Label htmlFor="content-use-for-agent-training" className="font-normal cursor-pointer">
+                Use for AI Agent Training
+              </Label>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      {fieldDefs.length > 0 && (
-        <div className="space-y-4 pt-2 border-t">
-          <h3 className="text-sm font-medium">Custom fields</h3>
-          <div className="space-y-4">
-            {fieldDefs.map((f) => (
-              <div key={f.id} className="space-y-2">
-                <Label htmlFor={`cf-${f.key}`}>{f.label}</Label>
-                {f.type === "textarea" ? (
-                  <textarea
-                    id={`cf-${f.key}`}
-                    value={String(customFields[f.key] ?? "")}
-                    onChange={(e) =>
-                      setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
-                    }
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                ) : f.type === "checkbox" ? (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`cf-${f.key}`}
-                      checked={!!customFields[f.key]}
-                      onCheckedChange={(v) =>
-                        setCustomFields((prev) => ({ ...prev, [f.key]: !!v }))
-                      }
-                    />
-                  </div>
-                ) : f.type === "number" ? (
-                  <Input
-                    id={`cf-${f.key}`}
-                    type="number"
-                    value={customFields[f.key] != null ? String(customFields[f.key]) : ""}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setCustomFields((prev) => ({
-                        ...prev,
-                        [f.key]: v === "" ? null : Number(v),
-                      }));
-                    }}
-                  />
-                ) : (
-                  <Input
-                    id={`cf-${f.key}`}
-                    value={String(customFields[f.key] ?? "")}
-                    onChange={(e) =>
-                      setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
-                    }
-                  />
-                )}
-              </div>
-            ))}
+      <div className="space-y-2">
+        <Label>Body</Label>
+        <RichTextEditor key={item?.id ?? "new"} content={data} onChange={setData} placeholder="Body content…" />
+      </div>
+
+      <Tabs defaultValue="taxonomy" className="w-full">
+        <TabsList>
+          <TabsTrigger value="taxonomy">Taxonomy settings</TabsTrigger>
+          <TabsTrigger value="membership">Membership settings</TabsTrigger>
+        </TabsList>
+        <TabsContent value="taxonomy" className="space-y-4">
+          {taxonomyAssignment}
+          <div className="space-y-2">
+            <Label htmlFor="content-excerpt">Excerpt</Label>
+            <Input
+              id="content-excerpt"
+              value={excerpt}
+              onChange={(e) => setExcerpt(e.target.value)}
+              placeholder="Brief description"
+            />
           </div>
-        </div>
-      )}
+          {fieldDefs.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">Custom fields</h3>
+              <div className="space-y-4">
+                {fieldDefs.map((f) => (
+                  <div key={f.id} className="space-y-2">
+                    <Label htmlFor={`cf-${f.key}`}>{f.label}</Label>
+                    {f.type === "textarea" ? (
+                      <textarea
+                        id={`cf-${f.key}`}
+                        value={String(customFields[f.key] ?? "")}
+                        onChange={(e) =>
+                          setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
+                        }
+                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    ) : f.type === "checkbox" ? (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`cf-${f.key}`}
+                          checked={!!customFields[f.key]}
+                          onCheckedChange={(v) =>
+                            setCustomFields((prev) => ({ ...prev, [f.key]: !!v }))
+                          }
+                        />
+                      </div>
+                    ) : f.type === "number" ? (
+                      <Input
+                        id={`cf-${f.key}`}
+                        type="number"
+                        value={customFields[f.key] != null ? String(customFields[f.key]) : ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setCustomFields((prev) => ({
+                            ...prev,
+                            [f.key]: v === "" ? null : Number(v),
+                          }));
+                        }}
+                      />
+                    ) : (
+                      <Input
+                        id={`cf-${f.key}`}
+                        value={String(customFields[f.key] ?? "")}
+                        onChange={(e) =>
+                          setCustomFields((prev) => ({ ...prev, [f.key]: e.target.value }))
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="membership" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Membership Protection</CardTitle>
+              <CardDescription>
+                Control who can view this content on the public site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Access Level</label>
+                <select
+                  value={accessLevel}
+                  onChange={(e) => setAccessLevel(e.target.value as "public" | "members" | "mag")}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="public">Public</option>
+                  <option value="members">Members only</option>
+                  <option value="mag">Specific membership(s)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">When restricted (visibility)</label>
+                <select
+                  value={visibilityMode}
+                  onChange={(e) => setVisibilityMode(e.target.value as "hidden" | "message")}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  disabled={accessLevel === "public"}
+                >
+                  <option value="hidden">Hide content</option>
+                  <option value="message">Show message</option>
+                </select>
+              </div>
+              {accessLevel === "mag" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Required Membership</label>
+                  <select
+                    value={requiredMagId}
+                    onChange={(e) => setRequiredMagId(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select membership…</option>
+                    {availableMags.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.uid})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {accessLevel !== "public" && visibilityMode === "message" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Restricted Message</label>
+                  <Input
+                    value={restrictedMessage}
+                    onChange={(e) => setRestrictedMessage(e.target.value)}
+                    placeholder="e.g. Sign in to view this content"
+                    className="w-full"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-      {isEdit && item && currentType && (
-        <div className="space-y-2 pt-2 border-t">
-          <h3 className="text-sm font-medium">Categories &amp; Tags</h3>
-          <TaxonomyAssignmentForContent
-            contentId={item.id}
-            contentTypeSlug={currentType.slug}
-            sectionLabel={currentType.label}
-            disabled={saving}
-            embedded
-            selectedCategoryIds={selectedCategoryIds}
-            selectedTagIds={selectedTagIds}
-            onCategoryToggle={(id, checked) => {
-              setSelectedCategoryIds((prev) => {
-                const next = new Set(prev);
-                if (checked) next.add(id);
-                else next.delete(id);
-                return next;
-              });
-            }}
-            onTagToggle={(id, checked) => {
-              setSelectedTagIds((prev) => {
-                const next = new Set(prev);
-                if (checked) next.add(id);
-                else next.delete(id);
-                return next;
-              });
-            }}
-            onInitialLoad={({ categoryIds, tagIds }) => {
-              setSelectedCategoryIds(new Set(categoryIds));
-              setSelectedTagIds(new Set(tagIds));
-            }}
-          />
-        </div>
-      )}
-
-      <div className="flex gap-2 pt-4">
+      <div className="flex justify-end gap-2 pt-4">
         <Button variant="outline" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>

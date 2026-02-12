@@ -1,6 +1,8 @@
 import { StatsCard } from "@/components/dashboard/StatsCard";
+import { RagKnowledgeCard } from "@/components/dashboard/RagKnowledgeCard";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
+import { getRagStats, getRagBaseUrl } from "@/lib/rag";
 import { FileText, Folder, Image, ClipboardList } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -32,6 +34,21 @@ export default async function DashboardPage() {
   } catch (error) {
     // Stats will remain at 0 if there's an error
     // Error is silently handled to prevent page breakage
+  }
+
+  let ragStats = { totalTokens: 0, partCount: 0, totalChars: 0 };
+  let ragUrls: string[] = [];
+  try {
+    ragStats = await getRagStats();
+    const baseUrl = getRagBaseUrl();
+    if (baseUrl && ragStats.partCount > 0) {
+      ragUrls = Array.from(
+        { length: ragStats.partCount },
+        (_, i) => `${baseUrl}/api/rag/knowledge?part=${i + 1}`
+      );
+    }
+  } catch {
+    // RAG stats optional
   }
 
   return (
@@ -67,6 +84,15 @@ export default async function DashboardPage() {
           value={stats.forms}
           icon={ClipboardList}
           description="Active forms"
+        />
+      </div>
+
+      <div className="space-y-4">
+        <RagKnowledgeCard
+          totalTokens={ragStats.totalTokens}
+          partCount={ragStats.partCount}
+          totalChars={ragStats.totalChars}
+          urls={ragUrls}
         />
       </div>
     </div>

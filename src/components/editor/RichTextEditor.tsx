@@ -72,6 +72,7 @@ export function RichTextEditor({
   const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       Image.configure({
@@ -95,7 +96,12 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm sm:prose lg:prose-lg xl:prose-2xl dark:prose-invert mx-auto focus:outline-none min-h-[300px] p-4",
+          "prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[300px] p-4",
+        spellcheck: "true",
+      },
+      // Allow native browser context menu (e.g. spell-check suggestions) — do not prevent default
+      handleDOMEvents: {
+        contextmenu: () => false,
       },
     },
   });

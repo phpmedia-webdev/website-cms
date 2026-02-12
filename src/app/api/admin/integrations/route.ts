@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getAAL } from "@/lib/auth/mfa";
 import { getIntegrations, updateIntegration } from "@/lib/supabase/integrations";
 
 /**
  * GET /api/admin/integrations
- * Get all integration settings (superadmin only)
+ * Get all integration settings (superadmin only). Requires 2FA (aal2).
  */
 export async function GET() {
   try {
-    // Check if user is superadmin
     const user = await getCurrentUser();
     if (!user || !isSuperadmin(user)) {
       return NextResponse.json(
@@ -17,14 +17,13 @@ export async function GET() {
       );
     }
 
-    // TODO: Add 2FA check (aal2) when 2FA is implemented
-    // const aal = await getAAL(user);
-    // if (aal !== "aal2") {
-    //   return NextResponse.json(
-    //     { error: "2FA required for this operation" },
-    //     { status: 403 }
-    //   );
-    // }
+    const aal = await getAAL(user);
+    if (aal !== "aal2") {
+      return NextResponse.json(
+        { error: "2FA required for this operation" },
+        { status: 403 }
+      );
+    }
 
     const integrations = await getIntegrations();
 
@@ -40,11 +39,10 @@ export async function GET() {
 
 /**
  * PUT /api/admin/integrations
- * Update integration configuration (superadmin only)
+ * Update integration configuration (superadmin only). Requires 2FA (aal2).
  */
 export async function PUT(request: Request) {
   try {
-    // Check if user is superadmin
     const user = await getCurrentUser();
     if (!user || !isSuperadmin(user)) {
       return NextResponse.json(
@@ -53,14 +51,13 @@ export async function PUT(request: Request) {
       );
     }
 
-    // TODO: Add 2FA check (aal2) when 2FA is implemented
-    // const aal = await getAAL(user);
-    // if (aal !== "aal2") {
-    //   return NextResponse.json(
-    //     { error: "2FA required for this operation" },
-    //     { status: 403 }
-    //   );
-    // }
+    const aal = await getAAL(user);
+    if (aal !== "aal2") {
+      return NextResponse.json(
+        { error: "2FA required for this operation" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { name, enabled, config } = body;

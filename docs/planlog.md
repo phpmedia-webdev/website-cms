@@ -147,7 +147,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 ### Phase 16a: RAG Knowledge Document Export
 
-**Status:** Planned (future). Single document for external AI agents; content flag, build, unlisted URL, admin regenerate/copy URL.
+**Status:** Complete. Content flag `use_for_agent_training`; live endpoint GET /api/rag/knowledge?part=N; dashboard metric and multi-URL copy; auto-split by token limit (8k default).
 
 ### Phase 16: RAG Chatbot
 

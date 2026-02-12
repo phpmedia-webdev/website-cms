@@ -16,6 +16,7 @@ export function EditContentClient() {
   const [types, setTypes] = useState<ContentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [useForAgentTraining, setUseForAgentTraining] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -27,6 +28,7 @@ export function EditContentClient() {
       .then(([row, typeList]) => {
         setItem(row ?? null);
         setTypes(typeList.filter((t) => t.slug !== "page"));
+        if (row) setUseForAgentTraining(row.use_for_agent_training ?? false);
         if (!row) setError("Content not found");
       })
       .catch((e) => {
@@ -69,7 +71,7 @@ export function EditContentClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <header className="flex items-center gap-3">
         <Link
           href="/admin/content"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -77,16 +79,15 @@ export function EditContentClient() {
           <ArrowLeft className="h-4 w-4" />
           Back
         </Link>
-      </div>
-      <div>
-        <h1 className="text-2xl font-bold">Edit content</h1>
-        <p className="text-muted-foreground mt-1">{item.title || item.slug || "—"}</p>
-      </div>
+        <span className="font-bold text-2xl">Edit Content</span>
+      </header>
       <ContentEditorForm
         item={item}
         types={types}
         onSaved={handleSaved}
         onCancel={handleCancel}
+        useForAgentTraining={useForAgentTraining}
+        onUseForAgentTrainingChange={setUseForAgentTraining}
       />
     </div>
   );

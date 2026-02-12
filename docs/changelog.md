@@ -9,6 +9,30 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-02-11 CT (later) - Content fixes, add/edit layout, RAG bot URL, Quick Support
+
+**Context for Next Session:**
+- **Content:** Dynamic RPCs (content + taxonomy) are called with `supabase.schema("public").rpc(...)` so PostgREST finds them; content data stays in tenant schema. Content editor loads body on first paint (form state init from `item.body`, RichTextEditor key by `item.id`). Add/edit page layout: header (Back + bold "Edit Content" or "Add Content"); two cards 60%/40% (left: type, name, slug; right: status, Use for AI Training); body editor; tabs Taxonomy settings / Membership settings; Cancel and Create/Update right-justified. Taxonomy saved after create. Debug logging removed from content.ts, ContentEditorForm, EditContentClient.
+- **RAG:** Dashboard RAG card shows "URL for your bot" (or "URLs for your bot") when partCount >= 1 so the single-URL case is visible and copyable.
+- **Quick Support:** Page reverted to simple embed (heading, description, iframe). No git push this session.
+- **Next up:** See [sessionlog.md](./sessionlog.md) — Pre-launch cleanup & code review. Key files: `src/lib/supabase/content.ts`, `src/lib/supabase/taxonomy.ts`, `src/components/content/ContentEditorForm.tsx`, `src/app/admin/content/[id]/edit/EditContentClient.tsx`, `src/components/dashboard/RagKnowledgeCard.tsx`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Content 404 fix:** All dynamic RPCs in `content.ts` and `taxonomy.ts` use `.schema("public").rpc(...)` so the browser client (default schema = tenant) finds the functions; data remains in tenant schema.
+- **Content editor:** Form initializes `data` from `item?.body`; RichTextEditor key `item?.id ?? "new"` so body appears on load and when switching items. Tiptap `immediatelyRender: false` to avoid SSR hydration warning.
+- **Content add/edit layout:** EditContentClient and ContentNewClient header: Back link + bold mode only. ContentEditorForm: 60/40 grid cards (left: content type, name, slug; right: status, Use for AI Training); full-width body editor; Tabs (Taxonomy settings: categories/tags, excerpt, custom fields; Membership settings: access level, visibility, MAG, restricted message); buttons right-justified. Taxonomy applied after insert for new content.
+- **RAG dashboard:** RagKnowledgeCard shows URL card when partCount >= 1 (title "URL for your bot" or "URLs for your bot"); single-URL case now copyable.
+- **Quick Support:** Restored to original (heading, description, iframe only).
+- **Cleanup:** Removed all [DEBUG] logs from content.ts, ContentEditorForm.tsx, EditContentClient.tsx; updateContent returns false when no row updated.
+
+### 2026-02-11 CT - Pre-launch cleanup: dead code, 2FA integrations, code review
+
+**Changes:**
+- **Dead code:** Removed unused `ChangeStatusDialog` (replaced by SetCrmFieldsDialog) and `PostEditor` (posts use content redirect).
+- **Integrations 2FA:** Removed stale TODOs; GET/PUT `/api/admin/integrations` now enforce getAAL (aal2); integrations page comment updated (middleware enforces 2FA for /admin/super).
+- **Code review:** Spot-checked security (RLS in migrations, no secrets in client, auth + 2FA) and modular alignment (routes/lib vs mvt.md). Sessionlog and planlog updated.
+
 ### 2026-02-11 CT - Feature Guard: sidebar order, roles CRUD, feature registry 1:1, ghosted display, Settings
 
 **Context for Next Session:**

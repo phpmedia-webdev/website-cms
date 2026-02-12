@@ -21,6 +21,7 @@
 | Auth / MFA  | 1.0     | Stable   |
 | Superadmin  | 1.0     | Stable   |
 | Public      | 1.0     | Stable   |
+| RAG Knowledge Export | 1.0 | Stable   |
 
 ---
 
@@ -57,6 +58,7 @@ src/
 │   └── api/                   # API routes
 │       ├── admin/             # code-snippets, color-palettes, tenant-sites, tenant-users, roles, profile, membership-codes, settings
 │       ├── auth/
+│       ├── rag/               # knowledge (GET ?part=N) — RAG Knowledge Export
 │       ├── crm/               # contacts, custom-fields, forms, lists, mags, memberships, export, bulk-*, taxonomy/bulk
 │       ├── events/             # route, [id], participants, resources, public, ics, check-conflicts
 │       ├── forms/[formId]/submit/
@@ -98,6 +100,7 @@ src/
 │   ├── recurrence.ts
 │   ├── recurrenceForm.ts
 │   ├── crm-export.ts
+│   ├── rag.ts                 # RAG assembly, token estimate, segment split (Knowledge Export)
 │   └── donor/                  # README (paste snippet code for AI)
 └── types/                      # Shared types
 ```
@@ -279,6 +282,22 @@ When you drop a new version of a module, replace the listed code paths and run t
   - **Public tables:** tenant_sites, tenant_users, tenant_user_assignments, feature_registry, tenant_features, admin_roles, code_snippets (public.code_snippets).
   - **Migrations:** 080 (code_snippets if in archive); 081–093 (feature_registry, tenant_sites, tenant_users, tenant_features, RLS, tenant_sites columns).
 - **Prerequisites:** Auth (superadmin role and 2FA). Superadmin-only routes.
+
+---
+
+### RAG Knowledge Export
+
+- **Version:** 1.0
+- **Folder structure (where to find / replace code):**
+  ```
+  src/app/api/rag/              # knowledge route (GET ?part=N)
+  src/app/admin/dashboard/      # Dashboard page — RAG metric widget + multi-URL info box
+  src/lib/rag.ts                 # Assembly (fetch content, Tiptap→text, segment by token limit), token/size helpers
+  ```
+- **Data / schema:**
+  - **Content table (client schema):** Add column `use_for_agent_training` boolean DEFAULT false. No separate RAG “page” tables; segments are computed at request time.
+  - **Migrations:** New migration in client schema: `ALTER TABLE content ADD COLUMN use_for_agent_training boolean DEFAULT false;` (and any RPC updates if content is read via RPC).
+- **Prerequisites:** Content module (content table, content types, Tiptap body). Uses existing content read paths; RAG endpoint may need schema-aware content fetch (same as admin content list filtered by flag).
 
 ---
 

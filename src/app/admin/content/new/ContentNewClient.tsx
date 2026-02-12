@@ -14,6 +14,7 @@ export function ContentNewClient() {
   const typeSlug = searchParams.get("type") ?? undefined;
   const [types, setTypes] = useState<ContentType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [useForAgentTraining, setUseForAgentTraining] = useState(false);
 
   useEffect(() => {
     getContentTypes().then((t) => {
@@ -39,7 +40,7 @@ export function ContentNewClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <header className="flex items-center gap-3">
         <Link
           href="/admin/content"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -47,17 +48,16 @@ export function ContentNewClient() {
           <ArrowLeft className="h-4 w-4" />
           Back
         </Link>
-      </div>
-      <div>
-        <h1 className="text-2xl font-bold">Add content</h1>
-        <p className="text-muted-foreground mt-1">Create a new post or content item.</p>
-      </div>
+        <span className="font-bold text-2xl">Add Content</span>
+      </header>
       <ContentEditorForm
         item={null}
         types={types}
         onSaved={handleSaved}
         onCancel={handleCancel}
         initialContentTypeSlug={typeSlug}
+        useForAgentTraining={useForAgentTraining}
+        onUseForAgentTrainingChange={setUseForAgentTraining}
       />
     </div>
   );

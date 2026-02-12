@@ -204,7 +204,7 @@ export async function getAllTaxonomyTerms(): Promise<TaxonomyTerm[]> {
   try {
     const supabase = createServerSupabaseClient();
     const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
-    const { data, error } = await supabase.rpc("get_taxonomy_terms_dynamic", {
+    const { data, error } = await supabase.schema("public").rpc("get_taxonomy_terms_dynamic", {
       schema_name: schema,
     });
 
@@ -234,7 +234,7 @@ export async function getSectionTaxonomyConfigs(): Promise<SectionTaxonomyConfig
   try {
     const supabase = createServerSupabaseClient();
     const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
-    const { data, error } = await supabase.rpc("get_section_taxonomy_configs_dynamic", {
+    const { data, error } = await supabase.schema("public").rpc("get_section_taxonomy_configs_dynamic", {
       schema_name: schema,
     });
 
@@ -267,7 +267,7 @@ export async function getTaxonomyTermsClient(): Promise<TaxonomyTerm[]> {
     // Try dynamic RPC first (use client schema)
     const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
     try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc("get_taxonomy_terms_dynamic", {
+      const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc("get_taxonomy_terms_dynamic", {
         schema_name: schema,
       });
       if (!rpcError && rpcData) {
@@ -282,7 +282,7 @@ export async function getTaxonomyTermsClient(): Promise<TaxonomyTerm[]> {
     
     // Try schema-specific RPC (if exists, for backward compatibility)
     try {
-      const { data: rpcData2, error: rpcError2 } = await supabase.rpc("get_taxonomy_terms");
+      const { data: rpcData2, error: rpcError2 } = await supabase.schema("public").rpc("get_taxonomy_terms");
       if (!rpcError2 && rpcData2) {
         return rpcData2 as TaxonomyTerm[];
       }
@@ -545,7 +545,7 @@ export async function getSectionConfigsClient(): Promise<SectionTaxonomyConfig[]
     // Try dynamic RPC first (use client schema)
     const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
     try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc("get_section_taxonomy_configs_dynamic", {
+      const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc("get_section_taxonomy_configs_dynamic", {
         schema_name: schema,
       });
       if (!rpcError && rpcData) {
@@ -560,7 +560,7 @@ export async function getSectionConfigsClient(): Promise<SectionTaxonomyConfig[]
     
     // Try schema-specific RPC (if exists, for backward compatibility)
     try {
-      const { data: rpcData2, error: rpcError2 } = await supabase.rpc("get_section_taxonomy_configs");
+      const { data: rpcData2, error: rpcError2 } = await supabase.schema("public").rpc("get_section_taxonomy_configs");
       if (!rpcError2 && rpcData2) {
         return rpcData2 as SectionTaxonomyConfig[];
       }

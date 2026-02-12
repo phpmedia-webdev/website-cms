@@ -5,20 +5,14 @@ import { IntegrationsManager } from "@/components/superadmin/IntegrationsManager
 /**
  * Superadmin integrations management page.
  * Only accessible to users with superadmin role.
- * Requires 2FA (aal2) - will be enforced when 2FA is implemented.
+ * 2FA (aal2) is enforced by middleware for /admin/super routes.
  */
 export default async function IntegrationsPage() {
   const user = await getCurrentUser();
 
-  // Redirect if not superadmin
   if (!user || !isSuperadmin(user)) {
     redirect("/admin/dashboard");
   }
-
-  // TODO: Add 2FA check (aal2) when 2FA is implemented
-  // if (user.metadata.role === "superadmin" && aal !== "aal2") {
-  //   redirect("/admin/mfa/challenge");
-  // }
 
   return (
     <div className="space-y-6">
