@@ -16,6 +16,25 @@ import { Shield, Loader2, XCircle } from "lucide-react";
 
 const supabase = getSupabaseClient();
 
+/** Verify MFA via API so the server sets AAL2 session cookies on the response before we redirect. */
+async function verifyMfaViaApi(
+  factorId: string,
+  challengeId: string,
+  code: string
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/auth/mfa/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ factorId, challengeId, code }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: (data.error as string) || res.statusText };
+  }
+  return { ok: true };
+}
+
 export default function MFAChallenge() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -122,25 +141,24 @@ export default function MFAChallenge() {
     }
 
     try {
-      // Verify the MFA code (timeout so we don't hang forever)
-      const verifyPromise = supabase.auth.mfa.verify({
-        factorId: selectedFactorId,
-        challengeId,
-        code,
-      });
+      // Verify via API so the server sets AAL2 session cookies on the response; then redirect.
+      // This avoids the client-side verify race where cookies weren't persisted before redirect on Vercel.
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Verification timed out. Please try again.")), 20000)
       );
-      const { error: verifyError } = await Promise.race([verifyPromise, timeoutPromise]);
+      const result = await Promise.race([
+        verifyMfaViaApi(selectedFactorId, challengeId, code),
+        timeoutPromise,
+      ]);
 
-      if (verifyError) {
-        setError(verifyError.message || "Invalid verification code. Please try again.");
+      if (!result.ok) {
+        setError(result.error || "Invalid verification code. Please try again.");
         setLoading(false);
         setCode("");
         return;
       }
 
-      // Success! Session is now AAL2. Full page redirect so middleware sees new cookies.
+      // Success; response already set session cookies. Full page redirect so middleware sees them.
       window.location.replace(redirectTo);
     } catch (err: any) {
       setError(err.message || "Failed to verify code");
