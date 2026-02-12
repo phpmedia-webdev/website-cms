@@ -16,6 +16,23 @@ import { Shield, Loader2, XCircle } from "lucide-react";
 
 const supabase = getSupabaseClient();
 
+/** Create MFA challenge via API so challenge and verify use same server IP (Supabase requirement). */
+async function createChallengeViaApi(
+  factorId: string
+): Promise<{ challengeId: string | null; error?: string }> {
+  const res = await fetch("/api/auth/mfa/challenge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ factorId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { challengeId: null, error: (data.error as string) || res.statusText };
+  }
+  return { challengeId: (data.challengeId as string) ?? null, error: undefined };
+}
+
 /** Verify MFA via API so the server sets AAL2 session cookies on the response before we redirect. */
 async function verifyMfaViaApi(
   factorId: string,
@@ -90,21 +107,19 @@ export default function MFAChallenge() {
 
   const createChallenge = async (factorId: string) => {
     try {
-      const { data, error: challengeError } = await supabase.auth.mfa.challenge({
-        factorId,
-      });
+      const { challengeId: id, error: challengeError } = await createChallengeViaApi(factorId);
 
       if (challengeError) {
-        setError(challengeError.message || "Failed to create challenge");
+        setError(challengeError);
         return;
       }
 
-      if (!data?.id) {
+      if (!id) {
         setError("No challenge ID returned");
         return;
       }
 
-      setChallengeId(data.id);
+      setChallengeId(id);
       setError(""); // Clear any previous errors
     } catch (err: any) {
       setError(err.message || "Failed to create challenge");
