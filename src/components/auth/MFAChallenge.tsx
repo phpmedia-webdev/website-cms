@@ -122,24 +122,26 @@ export default function MFAChallenge() {
     }
 
     try {
-      // Verify the MFA code
-      const { error: verifyError } = await supabase.auth.mfa.verify({
+      // Verify the MFA code (timeout so we don't hang forever)
+      const verifyPromise = supabase.auth.mfa.verify({
         factorId: selectedFactorId,
         challengeId,
         code,
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Verification timed out. Please try again.")), 20000)
+      );
+      const { error: verifyError } = await Promise.race([verifyPromise, timeoutPromise]);
 
       if (verifyError) {
         setError(verifyError.message || "Invalid verification code. Please try again.");
         setLoading(false);
-        // Clear code on error
         setCode("");
         return;
       }
 
-      // Success! Session is now upgraded to aal2
-      // Redirect to intended destination
-      router.push(redirectTo);
+      // Success! Session is now AAL2. Full page redirect so middleware sees new cookies.
+      window.location.replace(redirectTo);
     } catch (err: any) {
       setError(err.message || "Failed to verify code");
       setLoading(false);
