@@ -178,10 +178,10 @@ export async function POST(request: Request) {
         if (key === "message" || key === "email") continue;
         const v = payload[key];
         if (v == null || v === "") continue;
-        const existing = (existingContact as Record<string, unknown>)[key];
+        const existing = (existingContact as unknown as Record<string, unknown>)[key];
         const empty =
           existing == null || String(existing).trim() === "";
-        if (empty) (updatePayload as Record<string, unknown>)[key] = String(v);
+        if (empty) (updatePayload as unknown as Record<string, unknown>)[key] = String(v);
       }
       if (Object.keys(updatePayload).length > 0) {
         const { error: updateErr } = await updateContact(

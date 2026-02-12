@@ -37,7 +37,7 @@ export async function GET(
 
     const magIds = (data ?? [])
       .map((row: { mag_id: string }) => row.mag_id)
-      .filter((id) => typeof id === "string" && id.length > 0);
+      .filter((id: string) => id.length > 0);
     return NextResponse.json({ mag_ids: magIds });
   } catch (err) {
     console.error("Gallery MAGs GET error:", err);

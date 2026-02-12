@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import Link from "next/link";
  * 1. Default: Supabase redirects here with session in hash (#access_token=...&refresh_token=...).
  * 2. Query params: token_hash and type (if email template points here); we redirect to API route to verify.
  */
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -81,5 +81,19 @@ export default function AuthCallbackPage() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <p className="text-muted-foreground">Redirecting…</p>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <p className="text-muted-foreground">Loading…</p>
+        </div>
+      }
+    >
+      <AuthCallbackContent />
+    </Suspense>
   );
 }

@@ -53,7 +53,7 @@ async function postHandler(request: Request) {
     }
     const input: ResourceInsert = {
       name,
-      resource_type,
+      resource_type: resource_type as ResourceInsert["resource_type"],
       metadata: body?.metadata ?? null,
       is_exclusive: typeof body?.is_exclusive === "boolean" ? body.is_exclusive : true,
     };

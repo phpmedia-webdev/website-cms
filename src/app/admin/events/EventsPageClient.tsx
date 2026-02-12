@@ -90,7 +90,7 @@ export function EventsPageClient({
             name: String(m?.name ?? ""),
             uid: String(m?.uid ?? ""),
           }))
-          .filter((m) => m.id.length > 0);
+          .filter((m: { id: string }) => m.id.length > 0);
         setMags(normalized);
       })
       .catch(() => {});

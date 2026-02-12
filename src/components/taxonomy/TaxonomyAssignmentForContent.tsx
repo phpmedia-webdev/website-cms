@@ -137,11 +137,14 @@ export function TaxonomyAssignmentForContent({
 
   const handleSave = async () => {
     if (embedded) return;
+    const cid = contentId;
+    const slug = contentTypeSlug;
+    if (!cid || !slug) return;
     setSaving(true);
     try {
       if (onBeforeSave) await onBeforeSave();
       const allIds = [...selectedCategoryIds, ...selectedTagIds];
-      await setTaxonomyForContent(contentId, contentTypeSlug, allIds);
+      await setTaxonomyForContent(cid, slug, allIds);
       onSaved?.();
     } catch (e) {
       console.error("TaxonomyAssignmentForContent save:", e);

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { View } from "react-big-calendar";
-import format from "date-fns/format";
+import { format } from "date-fns";
 import type { Event } from "@/lib/supabase/events";
 import { EventsCalendar } from "@/components/events/EventsCalendar";
 import {

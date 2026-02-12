@@ -85,7 +85,7 @@ export function ContactsListBulkBar({
             Show active contacts
           </Button>
         )}
-        <div className="relative" ref={bulkMenuRef}>
+        <div className="relative" ref={bulkMenuRef as RefObject<HTMLDivElement>}>
           <Button
             variant="outline"
             size="sm"

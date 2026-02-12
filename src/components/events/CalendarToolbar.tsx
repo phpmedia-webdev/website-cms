@@ -125,7 +125,7 @@ export function CalendarToolbar({
                 className={`rbc-btn ${view === v ? "rbc-active" : ""}`}
                 onClick={() => onView(v)}
               >
-                {messages[v] ?? v}
+                {(messages as Record<string, string>)[v] ?? v}
               </button>
             ))}
           </span>

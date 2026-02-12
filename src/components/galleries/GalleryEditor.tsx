@@ -115,7 +115,7 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
             name: String(m?.name ?? ""),
             uid: String(m?.uid ?? ""),
           }))
-          .filter((m) => m.id.length > 0);
+          .filter((m: { id: string }) => m.id.length > 0);
         setAvailableMags(normalized);
       })
       .catch(() => setAvailableMags([]));
@@ -126,7 +126,7 @@ export function GalleryEditor({ gallery }: GalleryEditorProps) {
     if (gallery?.id) {
       fetch(`/api/galleries/${gallery.id}/mags`)
         .then((res) => (res.ok ? res.json() : { mag_ids: [] }))
-        .then(({ mag_ids }) => setSelectedMagIds((mag_ids ?? []).filter((id): id is string => Boolean(id))))
+        .then(({ mag_ids }) => setSelectedMagIds((mag_ids ?? []).filter((id: unknown): id is string => typeof id === "string" && id.length > 0)))
         .catch(() => setSelectedMagIds([]));
     }
   }, [gallery?.id]);

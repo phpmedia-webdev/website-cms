@@ -630,7 +630,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
             {crmOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {crmSubNav.map((sub) => {
-                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "crm") || canAccessFeature(effectiveFeatureSlugs, sub.featureSlug);
+                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "crm") || (sub.featureSlug ? canAccessFeature(effectiveFeatureSlugs, sub.featureSlug) : false);
                   const isSubActive =
                     sub.href === "/admin/crm/forms"
                       ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
@@ -787,7 +787,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
             {mediaOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {mediaSubNav.map((sub) => {
-                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "media") || canAccessFeature(effectiveFeatureSlugs, "library") || canAccessFeature(effectiveFeatureSlugs, sub.featureSlug);
+                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "media") || canAccessFeature(effectiveFeatureSlugs, "library") || (sub.featureSlug ? canAccessFeature(effectiveFeatureSlugs, sub.featureSlug) : false);
                   const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                   const SubIcon = sub.icon;
                   return hasSubAccess ? (

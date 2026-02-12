@@ -4,14 +4,17 @@ import { createContext, useCallback, useContext, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, type View } from "react-big-calendar";
 import Agenda from "react-big-calendar/lib/Agenda";
-import format from "date-fns/format";
-import parse from "date-fns/parse";
-import startOfWeek from "date-fns/startOfWeek";
-import getDay from "date-fns/getDay";
-import addDays from "date-fns/addDays";
-import endOfDay from "date-fns/endOfDay";
-import { add, sub } from "date-fns";
-import enUS from "date-fns/locale/en-US";
+import {
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  addDays,
+  endOfDay,
+  add,
+  sub,
+} from "date-fns";
+import { enUS } from "date-fns/locale/en-US";
 import type { Event } from "@/lib/supabase/events";
 import { eventIdForEdit } from "@/lib/recurrence";
 import { CalendarToolbar } from "./CalendarToolbar";
@@ -41,7 +44,7 @@ function agendaRangeWithPast(
 /** Agenda header title for the extended range. */
 function agendaTitle(
   start: Date,
-  opts: { length?: number; localizer?: { format: (r: { start: Date; end: Date }, f: string) => string } }
+  opts: { length?: number; localizer?: { add: (d: Date, n: number, u: string) => Date; format?: (r: { start: Date; end: Date }, f: string) => string } }
 ) {
   const r = agendaRangeWithPast(start, opts);
   return opts?.localizer?.format?.({ start: r.start, end: r.end }, "agendaHeaderFormat") ?? `${r.start.toDateString()} – ${r.end.toDateString()}`;
@@ -227,11 +230,12 @@ export function EventsCalendar({
           onView={onViewChange}
           onRangeChange={handleRangeChange}
           onSelectEvent={handleSelectEvent}
-          views={viewsConfig}
-          components={components}
+          views={viewsConfig as import("react-big-calendar").ViewsProps<RBCEvent, object>}
+          components={components as unknown as import("react-big-calendar").Components<RBCEvent, object>}
           formats={{
             dayHeaderFormat: "cccc, MMM d, yyyy",
-            dayRangeHeaderFormat,
+            dayRangeHeaderFormat: (range: { start: Date; end: Date }, culture?: string, local?: unknown) =>
+              dayRangeHeaderFormat(range, culture ?? "en", local),
           }}
           style={{ height }}
           popup
