@@ -11,6 +11,24 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-12 CT (evening) - Vercel deploy: redirect loop, MFA flow, verify still stuck
+
+**Context for Next Session:**
+- **Vercel:** App deploys; admin was blocked by ERR_TOO_MANY_REDIRECTS and MFA. Fixes applied (below). **MFA verify still not working:** user sees challenge, enters code, clicks Verify → stays on "Verifying..." and never completes (or redirect doesn’t land on dashboard). Next session: debug why — e.g. `mfa.verify()` not resolving on Vercel, cookies not persisting after verify, or middleware still not seeing AAL2 after full-page redirect.
+- **Done this session:** Middleware cookie carrier (setAll + copy to redirects) to fix redirect loop; skip MFA redirect when path is /admin/mfa/challenge or enroll; getCurrentUserFromRequest returns `{ user, session }` and middleware uses session.aal for AAL (getAAL used service-role, no session in Edge); 2FA bypass respects NEXT_PUBLIC_DEV_BYPASS_2FA in any env; getEnrolledFactors/hasEnrolledFactors use SSR client so server sees user’s factors; enroll page redirects to challenge when user already has factors; MFAChallenge: 20s timeout on verify + window.location.replace(redirectTo) after success. Build fixes: Session.aal type cast, client.ts getSupabaseEnv() for all clients, getSetCookie type in middleware.
+- **Key files:** `src/middleware.ts`, `src/lib/auth/supabase-auth.ts`, `src/lib/auth/mfa.ts`, `src/components/auth/MFAChallenge.tsx`, `src/app/admin/mfa/enroll/page.tsx`, `src/lib/supabase/client.ts`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Redirect loop (Vercel):** Cookie carrier in middleware; setAll writes refresh cookies to response; copyCookiesTo copies to redirects; skip AAL2 redirect on /admin/mfa/challenge and /admin/mfa/enroll.
+- **AAL in middleware:** getCurrentUserFromRequest returns `{ user, session }`; middleware uses session.aal instead of getAAL(user) (service-role has no session in Edge).
+- **2FA bypass:** isDevModeBypassEnabled() no longer requires NODE_ENV=development; only checks NEXT_PUBLIC_DEV_BYPASS_2FA.
+- **MFA server factors:** getEnrolledFactors() uses createServerSupabaseClientSSR() so challenge/enroll pages see user’s factors; enroll redirects to challenge when already enrolled.
+- **MFA verify UX:** 20s timeout on verify; success path uses window.location.replace(redirectTo). Verify still not completing in production — to be debugged next session.
+- **Build:** Session.aal type assertion; client.ts uses getSupabaseEnv() in createClientSupabaseClient, createServerSupabaseClient, createServerSupabaseClientSSR; ResponseWithGetSetCookie type for getSetCookie in middleware.
+
+---
+
 ## 🚀 MILESTONE — LAUNCH TO PRODUCTION (2026-02-12)
 
 **This release marks the first production launch.** The application is deployed to a live domain on Vercel and is **LIVE**. Pre-launch refactor and documentation are complete; Main and Dev branches are in place for CI/CD. Post-launch: full smoke test on live site, then security check and OWASP review.

@@ -31,4 +31,4 @@
 ---
 
 
-**Next up:** 🚀 **MILESTONE — Deploy to Vercel and go LIVE.** Then: full smoke test on live domain → security check → OWASP review. See changelog **"Context for Next Session"** (2026-02-12 entry) for handoff.
+**Next up:** **MFA verify on Vercel** — Challenge loads, user enters code, Verify sticks on "Verifying…" and doesn’t complete. Debug next session (mfa.verify response, cookie persistence, network). See changelog **"Context for Next Session"** (2026-02-12 evening entry) for full handoff.

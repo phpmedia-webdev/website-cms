@@ -29,7 +29,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [ ] Superadmin → Tenant Sites → [site] → Site URL field (for gallery standalone URL prefix)
 - [ ] Template (root) domain deployment: Vercel, env vars, superadmin user, test auth
 - [ ] Integrations: test script injection, enable/disable, superadmin-only access
-- [ ] 2FA: API route AAL checks; RLS for AAL if needed; edge cases (session refresh, last factor); testing
+- [ ] 2FA: API route AAL checks; RLS for AAL if needed; edge cases (session refresh, last factor); testing. **In progress:** MFA verify on Vercel — challenge shows but verify step sticks (debug next session).
 - [ ] SMS/Phone 2FA: deferred
 
 ### Phase 01: Foundation & Infrastructure
