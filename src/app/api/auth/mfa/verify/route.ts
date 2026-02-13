@@ -7,20 +7,38 @@ type CookieOptions = { path?: string; maxAge?: number; httpOnly?: boolean; secur
 
 /**
  * POST /api/auth/mfa/verify
- * Verifies MFA code server-side and sets the upgraded session (AAL2) in the response cookies.
- * Uses an explicit cookie carrier (like auth/callback) so cookies are attached to the
- * response we return, fixing "flash and reset" on Vercel.
+ * Verifies MFA code server-side and sets the upgraded session (AAL2) in the response.
+ * When ?redirect= is present and verification succeeds, returns 302 with Set-Cookie so the
+ * browser stores cookies and follows the redirect in one response (fixes "flash and reset" on Vercel).
+ * Accepts JSON body or application/x-www-form-urlencoded (for form POST).
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { factorId, challengeId, code } = body as {
-      factorId?: string;
-      challengeId?: string;
-      code?: string;
-    };
+    const requestUrl = new URL(request.url);
+    const redirectTo = requestUrl.searchParams.get("redirect");
+
+    let factorId: string | null = null;
+    let challengeId: string | null = null;
+    let code: string | null = null;
+
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      factorId = (formData.get("factorId") as string)?.trim() ?? null;
+      challengeId = (formData.get("challengeId") as string)?.trim() ?? null;
+      code = (formData.get("code") as string)?.trim() ?? null;
+    } else {
+      const body = await request.json();
+      const b = body as { factorId?: string; challengeId?: string; code?: string };
+      factorId = b.factorId?.trim() ?? null;
+      challengeId = b.challengeId?.trim() ?? null;
+      code = b.code?.trim() ?? null;
+    }
 
     if (!factorId || !challengeId || !code || code.length !== 6) {
+      if (redirectTo && redirectTo.startsWith("/")) {
+        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=missing&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin));
+      }
       return NextResponse.json(
         { error: "factorId, challengeId, and a 6-digit code are required" },
         { status: 400 }
@@ -48,30 +66,44 @@ export async function POST(request: NextRequest) {
       db: { schema: getClientSchema() },
     });
 
-    const { data, error } = await supabase.auth.mfa.verify({
+    const { error } = await supabase.auth.mfa.verify({
       factorId,
       challengeId,
-      code: code.trim(),
+      code,
     });
 
+    const setCookiesOn = (res: NextResponse) => {
+      cookiesToSet.forEach((c) => {
+        res.cookies.set(c.name, c.value, {
+          path: c.options?.path ?? "/",
+          maxAge: c.options?.maxAge,
+          httpOnly: c.options?.httpOnly,
+          secure: c.options?.secure,
+          sameSite: c.options?.sameSite ?? "lax",
+        });
+      });
+    };
+
     if (error) {
+      if (redirectTo && redirectTo.startsWith("/")) {
+        const back = NextResponse.redirect(new URL(`/admin/mfa/challenge?error=invalid&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin));
+        return back;
+      }
       return NextResponse.json(
         { error: error.message || "Invalid verification code" },
         { status: 401 }
       );
     }
 
-    const response = NextResponse.json({ success: true });
-    cookiesToSet.forEach((c) => {
-      response.cookies.set(c.name, c.value, {
-        path: c.options?.path ?? "/",
-        maxAge: c.options?.maxAge,
-        httpOnly: c.options?.httpOnly,
-        secure: c.options?.secure,
-        sameSite: c.options?.sameSite ?? "lax",
-      });
-    });
+    if (redirectTo && redirectTo.startsWith("/")) {
+      const redirectUrl = new URL(redirectTo, requestUrl.origin);
+      const res = NextResponse.redirect(redirectUrl);
+      setCookiesOn(res);
+      return res;
+    }
 
+    const response = NextResponse.json({ success: true });
+    setCookiesOn(response);
     return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Verification failed";

@@ -71,6 +71,29 @@ git stash pop
 git log --oneline -10
 ```
 
+### Current Branch
+```bash
+git branch --show-current
+```
+
+### Turn a Copied Folder Into a New Repo
+Use when you have a **physical copy** of a repo folder (e.g. for a new tenant) and you **removed the `.git`** folder. Run from inside that folder to create a fresh repo with no history link to the original.
+
+**Initialize and make first commit:**
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+```
+
+**Optional — attach a new remote and push (e.g. new empty repo on GitHub):**
+```bash
+git remote add origin <url-of-your-new-empty-repo>
+git branch -M main
+git push -u origin main
+```
+Use the URL of a **new empty repo** you create (GitHub/GitLab/etc.). Do not use the original repo’s URL if you want a separate project.
+
 ---
 
 ## pnpm Commands

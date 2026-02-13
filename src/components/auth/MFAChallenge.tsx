@@ -34,25 +34,6 @@ async function createChallengeViaApi(
   return { challengeId: (data.challengeId as string) ?? null, error: undefined };
 }
 
-/** Verify MFA via API so the server sets AAL2 session cookies on the response before we redirect. */
-async function verifyMfaViaApi(
-  factorId: string,
-  challengeId: string,
-  code: string
-): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch("/api/auth/mfa/verify", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ factorId, challengeId, code }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { ok: false, error: (data.error as string) || res.statusText };
-  }
-  return { ok: true };
-}
-
 export default function MFAChallenge() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -70,6 +51,13 @@ export default function MFAChallenge() {
   useEffect(() => {
     loadFactors();
   }, []);
+
+  // Show error when redirected back from verify API (e.g. invalid code)
+  useEffect(() => {
+    const err = searchParams.get("error");
+    if (err === "invalid") setError("Invalid or expired code. Please try again.");
+    if (err === "missing") setError("Missing code or session. Please try again.");
+  }, [searchParams]);
 
   const loadFactors = async () => {
     setLoadingFactors(true);
@@ -133,56 +121,6 @@ export default function MFAChallenge() {
     await createChallenge(factorId);
   };
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    if (!challengeId) {
-      setError("No challenge available. Please refresh the page.");
-      setLoading(false);
-      return;
-    }
-
-    if (!selectedFactorId) {
-      setError("No factor selected. Please refresh the page.");
-      setLoading(false);
-      return;
-    }
-
-    if (code.length !== 6) {
-      setError("Please enter a 6-digit code");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Verify via API so the server sets AAL2 session cookies on the response; then redirect.
-      // This avoids the client-side verify race where cookies weren't persisted before redirect on Vercel.
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Verification timed out. Please try again.")), 20000)
-      );
-      const result = await Promise.race([
-        verifyMfaViaApi(selectedFactorId, challengeId, code),
-        timeoutPromise,
-      ]);
-
-      if (!result.ok) {
-        setError(result.error || "Invalid verification code. Please try again.");
-        setLoading(false);
-        setCode("");
-        return;
-      }
-
-      // Success; response already set session cookies. Full page redirect so middleware sees them.
-      window.location.replace(redirectTo);
-    } catch (err: any) {
-      setError(err.message || "Failed to verify code");
-      setLoading(false);
-      setCode("");
-    }
-  };
-
   if (loadingFactors) {
     return (
       <Card>
@@ -224,14 +162,21 @@ export default function MFAChallenge() {
           </div>
         )}
 
-        {/* Code Input */}
-        <form onSubmit={handleVerify} className="space-y-4">
+        {/* Code Input — native form POST so browser gets 302 + Set-Cookie and follows redirect (fixes cookie persistence on Vercel) */}
+        <form
+          action={`/api/auth/mfa/verify?redirect=${encodeURIComponent(redirectTo)}`}
+          method="post"
+          className="space-y-4"
+        >
+          <input type="hidden" name="factorId" value={selectedFactorId ?? ""} />
+          <input type="hidden" name="challengeId" value={challengeId ?? ""} />
           <div className="space-y-2">
             <label htmlFor="code" className="text-sm font-medium">
               Verification Code
             </label>
             <Input
               id="code"
+              name="code"
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
@@ -258,17 +203,10 @@ export default function MFAChallenge() {
 
           <Button
             type="submit"
-            disabled={loading || code.length !== 6 || !challengeId}
+            disabled={code.length !== 6 || !challengeId || !selectedFactorId}
             className="w-full"
           >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              "Verify & Continue"
-            )}
+            Verify & Continue
           </Button>
         </form>
 
