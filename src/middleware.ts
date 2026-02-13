@@ -130,9 +130,11 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Don't redirect to MFA challenge when already on challenge or enroll (avoids redirect loop)
+    // Don't redirect to MFA challenge when on challenge, enroll, or success (avoids redirect loop)
     const isMfaChallengeOrEnroll =
-      pathname.startsWith("/admin/mfa/challenge") || pathname.startsWith("/admin/mfa/enroll");
+      pathname.startsWith("/admin/mfa/challenge") ||
+      pathname.startsWith("/admin/mfa/enroll") ||
+      pathname.startsWith("/admin/mfa/success");
     const devBypass = isDevModeBypassEnabled();
     const currentAAL = session?.aal ?? "aal1";
     if (!devBypass && !isMfaChallengeOrEnroll) {

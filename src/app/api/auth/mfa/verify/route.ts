@@ -5,11 +5,15 @@ import { getClientSchema } from "@/lib/supabase/schema";
 
 type CookieOptions = { path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" };
 
+/** One-time cookie to pass tokens to /admin/mfa/success (avoids 302 + Set-Cookie race). */
+const MFA_UPGRADE_COOKIE = "sb-mfa-upgrade";
+const MFA_UPGRADE_MAX_AGE = 60;
+
 /**
  * POST /api/auth/mfa/verify
- * Verifies MFA code server-side and sets the upgraded session (AAL2) in the response.
- * When ?redirect= is present and verification succeeds, returns 302 with Set-Cookie so the
- * browser stores cookies and follows the redirect in one response (fixes "flash and reset" on Vercel).
+ * Verifies MFA code server-side. When ?redirect= is present and verification succeeds,
+ * sets a short-lived cookie with tokens and redirects to /admin/mfa/success?redirect=...
+ * so the success handler can set the real session cookies in a normal GET (reliable on Vercel).
  * Accepts JSON body or application/x-www-form-urlencoded (for form POST).
  */
 export async function POST(request: NextRequest) {
@@ -47,11 +51,6 @@ export async function POST(request: NextRequest) {
 
     const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
     const cookiesToSet: { name: string; value: string; options?: CookieOptions }[] = [];
-    /** Resolved when SSR setAll runs (so we don't redirect before cookies are written). */
-    let resolveFlush: () => void;
-    const flushDone = new Promise<void>((r) => {
-      resolveFlush = r;
-    });
 
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
@@ -66,7 +65,6 @@ export async function POST(request: NextRequest) {
               options: c.options as CookieOptions,
             })
           );
-          resolveFlush?.();
         },
       },
       db: { schema: getClientSchema() },
@@ -77,25 +75,6 @@ export async function POST(request: NextRequest) {
       challengeId,
       code,
     });
-
-    // Ensure session is in storage and setAll runs (SSR emits MFA_CHALLENGE_VERIFIED / SIGNED_IN async)
-    // AuthMFAVerifyResponseData has access_token/refresh_token at top level, not under .session
-    if (!error && data?.access_token) {
-      await supabase.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token ?? "",
-      });
-    }
-
-    // Wait for SSR cookie flush so redirect response includes Set-Cookie (avoids flash/reset on Vercel)
-    if (!error && redirectTo?.startsWith("/")) {
-      await Promise.race([
-        flushDone,
-        new Promise<void>((_, rej) => setTimeout(() => rej(new Error("cookie_flush_timeout")), 3000)),
-      ]).catch(() => {
-        /* timeout: still redirect, cookies may be empty (client will re-challenge) */
-      });
-    }
 
     const setCookiesOn = (res: NextResponse) => {
       cookiesToSet.forEach((c) => {
@@ -120,10 +99,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Redirect flow: pass tokens via short-lived cookie; success route sets real session and redirects
     if (redirectTo && redirectTo.startsWith("/")) {
-      const redirectUrl = new URL(redirectTo, requestUrl.origin);
-      const res = NextResponse.redirect(redirectUrl);
-      setCookiesOn(res);
+      const payload = JSON.stringify({
+        access_token: data!.access_token,
+        refresh_token: data!.refresh_token ?? "",
+      });
+      const value = Buffer.from(payload, "utf8").toString("base64url");
+      const successUrl = new URL("/admin/mfa/success", requestUrl.origin);
+      successUrl.searchParams.set("redirect", redirectTo);
+      const res = NextResponse.redirect(successUrl);
+      res.cookies.set(MFA_UPGRADE_COOKIE, value, {
+        path: "/admin/mfa",
+        maxAge: MFA_UPGRADE_MAX_AGE,
+        httpOnly: true,
+        secure: requestUrl.protocol === "https:",
+        sameSite: "lax",
+      });
       return res;
     }
 
