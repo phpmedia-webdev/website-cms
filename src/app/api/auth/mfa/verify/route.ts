@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     if (!factorId || !challengeId || !code || code.length !== 6) {
       if (redirectTo && redirectTo.startsWith("/")) {
-        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=missing&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin));
+        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=missing&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
       }
       return NextResponse.json(
         { error: "factorId, challengeId, and a 6-digit code are required" },
@@ -90,8 +90,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       if (redirectTo && redirectTo.startsWith("/")) {
-        const back = NextResponse.redirect(new URL(`/admin/mfa/challenge?error=invalid&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin));
-        return back;
+        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=invalid&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
       }
       return NextResponse.json(
         { error: error.message || "Invalid verification code" },
