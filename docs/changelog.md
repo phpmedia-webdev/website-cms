@@ -11,6 +11,20 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-12 CT - MFA: set cookies on success page (one-time token)
+
+**Context for Next Session:**
+- **MFA Vercel fix:** Cookies are now set on the success page document response instead of the API. Verify API stores session cookies in `mfa_upgrade_tokens`, redirects 302 to `/mfa/success?t=TOKEN`; success page (Server Component) reads token, sets cookies via `cookies().set()`, deletes token, renders. Run migration **110_mfa_upgrade_tokens.sql** in Supabase SQL Editor before testing.
+- **Key files:** `src/app/api/auth/mfa/verify/route.ts`, `src/app/mfa/success/page.tsx`, `supabase/migrations/110_mfa_upgrade_tokens.sql`.
+
+**Changes:**
+- **Migration 110:** `public.mfa_upgrade_tokens` table (token, cookies jsonb, expires_at); RLS on, service-role only.
+- **Verify API:** On success with redirect, insert cookies into table, redirect 302 to `/mfa/success?t=...` (no Set-Cookie on API).
+- **Success page:** Read `t`, load cookies from DB, set via next/headers `cookies()`, delete token; redirect to challenge if missing/expired.
+- **MFAChallenge:** Handle `error=expired` and `error=server` from URL.
+
+---
+
 ### 2026-02-12 CT (late) - MFA: form POST for reliable cookie persistence
 
 **Context for Next Session:**

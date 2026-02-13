@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getSupabaseEnv } from "@/lib/supabase/client";
+import { getSupabaseEnv, createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
 
 type CookieOptions = { path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" };
@@ -94,19 +94,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return 200 + HTML with meta refresh so browser applies Set-Cookie before redirect.
-    // Browsers often don't send cookies set on 303 redirect responses.
-    // Redirect to /mfa/success first (1s) so success page can show countdown, then user goes to admin.
+    // Set cookies on the SUCCESS PAGE document response instead of here, so they persist on Vercel.
+    // Store cookies in one-time table; redirect to /mfa/success?t=TOKEN; success page sets cookies and renders.
     if (redirectTo && redirectTo.startsWith("/")) {
-      const successUrl = `/mfa/success?redirect=${encodeURIComponent(redirectTo)}`;
-      const escapedUrl = successUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-      const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="1;url=${escapedUrl}"></head><body><p>Redirecting...</p></body></html>`;
-      const res = new NextResponse(html, {
-        status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-      setCookiesOn(res);
-      return res;
+      const admin = createServerSupabaseClient();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      const { data: row, error: insertError } = await admin
+        .from("mfa_upgrade_tokens")
+        .insert({
+          cookies: cookiesToSet.map((c) => ({
+            name: c.name,
+            value: c.value,
+            options: c.options ?? {},
+          })),
+          expires_at: expiresAt,
+        })
+        .select("token")
+        .single();
+
+      if (insertError || !row?.token) {
+        console.error("MFA verify: failed to store upgrade token", insertError);
+        return NextResponse.redirect(
+          new URL(`/mfa/challenge?error=server&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin),
+          303
+        );
+      }
+
+      const successUrl = `/mfa/success?t=${row.token}&redirect=${encodeURIComponent(redirectTo)}`;
+      return NextResponse.redirect(new URL(successUrl, requestUrl.origin), 303);
     }
 
     const response = NextResponse.json({ success: true });

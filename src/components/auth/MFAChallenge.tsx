@@ -53,11 +53,13 @@ export default function MFAChallenge() {
     loadFactors();
   }, []);
 
-  // Show error when redirected back from verify API (e.g. invalid code)
+  // Show error when redirected back from verify API
   useEffect(() => {
     const err = searchParams.get("error");
     if (err === "invalid") setError("Invalid or expired. Click \"Get new challenge\" below, then enter your current code.");
     if (err === "missing") setError("Missing code or session. Please try again.");
+    if (err === "expired") setError("Verification link expired. Please enter your code again.");
+    if (err === "server") setError("Something went wrong. Please try again.");
   }, [searchParams]);
 
   const loadFactors = async () => {
