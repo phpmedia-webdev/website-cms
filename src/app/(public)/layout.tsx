@@ -6,6 +6,9 @@ import { PublicHeaderAuth } from "@/components/public/PublicHeaderAuth";
 import { PublicHeaderMembersNav } from "@/components/public/PublicHeaderMembersNav";
 import { getCurrentSessionUser } from "@/lib/auth/session";
 
+// Force dynamic: public pages use session (cookies) and Supabase; avoid static generation at build time.
+export const dynamic = "force-dynamic";
+
 export default async function PublicLayout({
   children,
 }: {

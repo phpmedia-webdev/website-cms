@@ -4,6 +4,9 @@ import { loadDesignSystem } from "@/lib/design-system";
 import { DesignSystemProvider } from "@/components/design-system/DesignSystemProvider";
 import { PublicPageTracker } from "@/components/public/PublicPageTracker";
 
+// Force dynamic so build never runs layout/page code (avoids Supabase/cookies during static generation).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "CMS Admin",
   description: "Headless CMS Administration",
