@@ -108,7 +108,8 @@ export async function POST(request: NextRequest) {
       const value = Buffer.from(payload, "utf8").toString("base64url");
       const successUrl = new URL("/admin/mfa/success", requestUrl.origin);
       successUrl.searchParams.set("redirect", redirectTo);
-      const res = NextResponse.redirect(successUrl);
+      // 303 See Other so browser follows with GET (307 would preserve POST → 405 on success route)
+      const res = NextResponse.redirect(successUrl, 303);
       res.cookies.set(MFA_UPGRADE_COOKIE, value, {
         path: "/admin/mfa",
         maxAge: MFA_UPGRADE_MAX_AGE,
