@@ -1,16 +1,16 @@
 /**
  * GET /admin/mfa/success
  * Intermediate step after MFA verify: reads short-lived upgrade cookie, sets Supabase
- * session (AAL2) on the response, then redirects. Ensures cookies are set in a normal
- * GET so the next request (dashboard) has the session (avoids 302 + Set-Cookie race).
+ * session (AAL2) on the response, then redirects. Uses next/headers cookies() for
+ * setAll so cookies are written the same way as the auth callback and createServerSupabaseClientSSR.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabaseEnv } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
 
 const MFA_UPGRADE_COOKIE = "sb-mfa-upgrade";
-const MFA_UPGRADE_MAX_AGE = 60;
 
 function decodeUpgradeCookie(value: string): { access_token: string; refresh_token: string } | null {
   try {
@@ -41,23 +41,17 @@ export async function GET(request: NextRequest) {
   }
 
   const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
-  const cookiesToSet: { name: string; value: string; path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" }[] = [];
-  let resolveFlush: () => void;
-  const flushDone = new Promise<void>((r) => {
-    resolveFlush = r;
-  });
+  const cookieStore = await cookies();
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookies: { name: string; value: string; options?: Record<string, unknown> }[]) {
-        cookies.forEach((c) => {
+      setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+        cookiesToSet.forEach((c) => {
           const opts = c.options as { path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" } | undefined;
-          cookiesToSet.push({
-            name: c.name,
-            value: c.value,
+          cookieStore.set(c.name, c.value, {
             path: opts?.path ?? "/",
             maxAge: opts?.maxAge,
             httpOnly: opts?.httpOnly,
@@ -65,7 +59,6 @@ export async function GET(request: NextRequest) {
             sameSite: (opts?.sameSite as "lax" | "strict") ?? "lax",
           });
         });
-        resolveFlush?.();
       },
     },
     db: { schema: getClientSchema() },
@@ -80,24 +73,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/mfa/challenge?error=invalid&redirect=" + encodeURIComponent(safeRedirect), requestUrl.origin));
   }
 
-  // Wait for SSR onAuthStateChange to call setAll so redirect includes AAL2 cookies (avoids flash back to challenge)
-  await Promise.race([
-    flushDone,
-    new Promise<void>((_, rej) => setTimeout(() => rej(new Error("cookie_flush_timeout")), 3000)),
-  ]).catch(() => {
-    /* timeout: still redirect, cookies may be empty */
-  });
-
   const res = NextResponse.redirect(new URL(safeRedirect, requestUrl.origin), 303);
-  cookiesToSet.forEach((c) => {
-    res.cookies.set(c.name, c.value, {
-      path: c.path ?? "/",
-      maxAge: c.maxAge,
-      httpOnly: c.httpOnly,
-      secure: c.secure,
-      sameSite: c.sameSite ?? "lax",
-    });
-  });
   // Clear the one-time upgrade cookie
   res.cookies.set(MFA_UPGRADE_COOKIE, "", { path: "/admin/mfa", maxAge: 0 });
 
