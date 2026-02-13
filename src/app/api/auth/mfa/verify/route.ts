@@ -85,11 +85,14 @@ export async function POST(request: NextRequest) {
     };
 
     if (error) {
+      const msg = (error.message ?? "").toLowerCase();
+      const isExpired = msg.includes("expired") || msg.includes("expire") || (error as { code?: string }).code === "otp_expired";
+      const errorParam = isExpired ? "expired" : "invalid";
       if (redirectTo && redirectTo.startsWith("/")) {
-        return NextResponse.redirect(new URL(`/mfa/challenge?error=invalid&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
+        return NextResponse.redirect(new URL(`/mfa/challenge?error=${errorParam}&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
       }
       return NextResponse.json(
-        { error: error.message || "Invalid verification code" },
+        { error: error.message || (isExpired ? "Challenge expired" : "Invalid verification code") },
         { status: 401 }
       );
     }

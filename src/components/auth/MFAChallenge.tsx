@@ -56,9 +56,9 @@ export default function MFAChallenge() {
   // Show error when redirected back from verify API
   useEffect(() => {
     const err = searchParams.get("error");
-    if (err === "invalid") setError("Invalid or expired. Click \"Get new challenge\" below, then enter your current code.");
+    if (err === "invalid") setError("Invalid code. Check the 6 digits and try again, or click \"Get new challenge\" first.");
     if (err === "missing") setError("Missing code or session. Please try again.");
-    if (err === "expired") setError("Verification link expired. Please enter your code again.");
+    if (err === "expired") setError("Challenge expired. Click \"Get new challenge\" below, then enter your current code.");
     if (err === "server") setError("Something went wrong. Please try again.");
   }, [searchParams]);
 
@@ -208,7 +208,7 @@ export default function MFAChallenge() {
               disabled={!challengeId}
             />
             <p className="text-xs text-muted-foreground">
-              Enter the 6-digit code from your authenticator app. Waited for a new code?{" "}
+              Enter the 6-digit code from your authenticator app. Codes change every 30 seconds; if this page has been open a while, click &quot;Get new challenge&quot; first.{" "}
               <button
                 type="button"
                 onClick={handleRefreshChallenge}

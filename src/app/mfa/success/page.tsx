@@ -24,29 +24,34 @@ export default async function MFASuccessPage({
     redirect(`/mfa/challenge?redirect=${encodeURIComponent(safeRedirect)}`);
   }
 
-  const admin = createServerSupabaseClient();
-  const { data: row, error } = await admin
-    .from("mfa_upgrade_tokens")
-    .select("cookies")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
+  try {
+    const admin = createServerSupabaseClient();
+    const { data: row, error } = await admin
+      .from("mfa_upgrade_tokens")
+      .select("cookies")
+      .eq("token", token)
+      .gt("expires_at", new Date().toISOString())
+      .single();
 
-  if (error || !row?.cookies || !Array.isArray(row.cookies)) {
-    redirect(`/mfa/challenge?error=expired&redirect=${encodeURIComponent(safeRedirect)}`);
-  }
+    if (error || !row?.cookies || !Array.isArray(row.cookies)) {
+      redirect(`/mfa/challenge?error=expired&redirect=${encodeURIComponent(safeRedirect)}`);
+    }
 
-  const cookieStore = await cookies();
-  for (const c of row.cookies as CookieRow[]) {
-    cookieStore.set(c.name, c.value, {
-      path: c.options?.path ?? "/",
-      maxAge: c.options?.maxAge,
-      httpOnly: c.options?.httpOnly,
-      secure: c.options?.secure,
-      sameSite: (c.options?.sameSite as "lax" | "strict" | "none") ?? "lax",
-    });
+    const cookieStore = await cookies();
+    for (const c of row.cookies as CookieRow[]) {
+      cookieStore.set(c.name, c.value, {
+        path: c.options?.path ?? "/",
+        maxAge: c.options?.maxAge,
+        httpOnly: c.options?.httpOnly,
+        secure: c.options?.secure,
+        sameSite: (c.options?.sameSite as "lax" | "strict" | "none") ?? "lax",
+      });
+    }
+    await admin.from("mfa_upgrade_tokens").delete().eq("token", token);
+  } catch (err) {
+    console.error("MFA success page:", err);
+    redirect(`/mfa/challenge?error=server&redirect=${encodeURIComponent(safeRedirect)}`);
   }
-  await admin.from("mfa_upgrade_tokens").delete().eq("token", token);
 
   return (
     <div className="w-full max-w-md text-center">
