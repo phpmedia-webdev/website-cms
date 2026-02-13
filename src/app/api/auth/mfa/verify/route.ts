@@ -47,6 +47,11 @@ export async function POST(request: NextRequest) {
 
     const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
     const cookiesToSet: { name: string; value: string; options?: CookieOptions }[] = [];
+    /** Resolved when SSR setAll runs (so we don't redirect before cookies are written). */
+    let resolveFlush: () => void;
+    const flushDone = new Promise<void>((r) => {
+      resolveFlush = r;
+    });
 
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
@@ -61,16 +66,35 @@ export async function POST(request: NextRequest) {
               options: c.options as CookieOptions,
             })
           );
+          resolveFlush?.();
         },
       },
       db: { schema: getClientSchema() },
     });
 
-    const { error } = await supabase.auth.mfa.verify({
+    const { data, error } = await supabase.auth.mfa.verify({
       factorId,
       challengeId,
       code,
     });
+
+    // Ensure session is in storage and setAll runs (SSR emits MFA_CHALLENGE_VERIFIED / SIGNED_IN async)
+    if (!error && data?.session) {
+      await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token ?? "",
+      });
+    }
+
+    // Wait for SSR cookie flush so redirect response includes Set-Cookie (avoids flash/reset on Vercel)
+    if (!error && redirectTo?.startsWith("/")) {
+      await Promise.race([
+        flushDone,
+        new Promise<void>((_, rej) => setTimeout(() => rej(new Error("cookie_flush_timeout")), 3000)),
+      ]).catch(() => {
+        /* timeout: still redirect, cookies may be empty (client will re-challenge) */
+      });
+    }
 
     const setCookiesOn = (res: NextResponse) => {
       cookiesToSet.forEach((c) => {
