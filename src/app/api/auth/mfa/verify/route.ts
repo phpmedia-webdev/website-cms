@@ -7,9 +7,9 @@ type CookieOptions = { path?: string; maxAge?: number; httpOnly?: boolean; secur
 
 /**
  * POST /api/auth/mfa/verify
- * Verifies MFA code server-side. On success, sets Supabase AAL2 session cookies on the
- * redirect response and redirects directly to the target (e.g. /admin/dashboard).
- * Skips the success page since cookies are set in this response.
+ * Verifies MFA code server-side. On success, sets AAL2 session cookies and redirects to
+ * /admin/mfa/success (intermediate page) so the browser applies cookies before the final
+ * redirect to dashboard. Some browsers don't apply Set-Cookie before following redirect.
  * Accepts JSON body or application/x-www-form-urlencoded (for form POST).
  */
 export async function POST(request: NextRequest) {
@@ -96,10 +96,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Redirect flow: set AAL2 cookies on response and redirect directly to target
+    // Redirect to intermediate success page so browser applies cookies before final redirect
     if (redirectTo && redirectTo.startsWith("/")) {
-      const targetUrl = new URL(redirectTo, requestUrl.origin);
-      const res = NextResponse.redirect(targetUrl, 303);
+      const successUrl = new URL("/admin/mfa/success", requestUrl.origin);
+      successUrl.searchParams.set("redirect", redirectTo);
+      const res = NextResponse.redirect(successUrl, 303);
       setCookiesOn(res);
       return res;
     }

@@ -1,54 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { applyMfaUpgrade } from "@/app/admin/mfa/success/actions";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
-export default function MFASuccessClient() {
-  const searchParams = useSearchParams();
-  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
-
-  const redirectTo = searchParams.get("redirect") || "/admin/dashboard";
-  const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/admin/dashboard";
+export default function MFASuccessClient({ redirect }: { redirect: string }) {
+  const safeRedirect = redirect.startsWith("/") ? redirect : "/admin/dashboard";
 
   useEffect(() => {
-    let mounted = true;
-
-    async function run() {
-      const result = await applyMfaUpgrade();
-      if (!mounted) return;
-
-      // MFA_TRACE: client received Server Action result
-      console.log("MFA_TRACE [MFASuccessClient] applyMfaUpgrade result:", result.ok, result.error);
-
-      if (result.ok) {
-        setStatus("ok");
-        // Brief delay so browser can apply Set-Cookie from Server Action response before navigation
-        await new Promise((r) => setTimeout(r, 400));
-        console.log("MFA_TRACE [MFASuccessClient] redirecting to", safeRedirect);
-        window.location.replace(safeRedirect);
-      } else {
-        setStatus("error");
-        const params = new URLSearchParams({ error: result.error || "invalid", redirect: safeRedirect });
-        window.location.replace(`/admin/mfa/challenge?${params}`);
-      }
-    }
-
-    run();
-    return () => {
-      mounted = false;
-    };
+    // Brief delay so browser has applied Set-Cookie from verify redirect before we navigate
+    const t = setTimeout(() => {
+      window.location.replace(safeRedirect);
+    }, 100);
+    return () => clearTimeout(t);
   }, [safeRedirect]);
 
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      <p className="text-muted-foreground">
-        {status === "loading" && "Completing sign-in..."}
-        {status === "ok" && "Redirecting..."}
-        {status === "error" && "Something went wrong. Redirecting..."}
-      </p>
+      <p className="text-muted-foreground">Redirecting...</p>
     </div>
   );
 }

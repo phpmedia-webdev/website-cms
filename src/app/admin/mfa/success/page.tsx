@@ -1,14 +1,10 @@
-import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import MFASuccessClient from "@/components/auth/MFASuccessClient";
-
-const MFA_UPGRADE_COOKIE = "sb-mfa-upgrade";
 
 /**
  * GET /admin/mfa/success
- * Renders a page that runs applyMfaUpgrade (Server Action) on mount.
- * The Server Action sets AAL2 session cookies; the client then redirects.
- * Using a page + Server Action ensures cookies are written before the redirect.
+ * Intermediate page after MFA verify. AAL2 cookies are set in the verify redirect response;
+ * this page lets the browser apply them before we redirect to the final destination.
+ * No Server Action — just client-side redirect.
  */
 export default async function MFASuccessPage({
   searchParams,
@@ -16,20 +12,9 @@ export default async function MFASuccessPage({
   searchParams: Promise<{ redirect?: string }>;
 }) {
   const params = await searchParams;
-  const redirectTo = params.redirect || "/admin/dashboard";
-  const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/admin/dashboard";
-
-  const cookieStore = await cookies();
-  const upgradeCookie = cookieStore.get(MFA_UPGRADE_COOKIE)?.value;
-  // MFA_TRACE: success page load; did upgrade cookie arrive from verify redirect?
-  console.log("MFA_TRACE [success page] upgradeCookie present:", !!upgradeCookie, "cookie names:", cookieStore.getAll().map((c) => c.name));
-  if (!upgradeCookie) {
-    redirect(`/admin/mfa/challenge?error=missing&redirect=${encodeURIComponent(safeRedirect)}`);
-  }
-
   return (
     <div className="container mx-auto max-w-md py-8">
-      <MFASuccessClient />
+      <MFASuccessClient redirect={params.redirect || "/admin/dashboard"} />
     </div>
   );
 }
