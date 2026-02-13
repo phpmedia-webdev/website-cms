@@ -193,7 +193,7 @@ export default function MFAChallenge() {
               });
               if (res.type === "opaqueredirect" || res.status === 303 || res.status === 302) {
                 const location = res.headers.get("Location") || "";
-                if (location.includes("/admin/mfa/challenge")) {
+                if (location.includes("/mfa/challenge") || location.includes("/admin/mfa/challenge")) {
                   const url = new URL(location, window.location.origin);
                   const err = url.searchParams.get("error");
                   setError(err === "invalid" ? "Invalid or expired. Click \"Get new challenge\" below, then enter your current code." : "Verification failed");
@@ -210,7 +210,7 @@ export default function MFAChallenge() {
               // Cookies are in the response. Navigate to success page first so browser does a full
               // page load (which reliably sends cookies), then success page redirects to dashboard.
               const target = redirectTo.startsWith("/") ? redirectTo : "/admin/dashboard";
-              window.location.href = `/admin/mfa/success?redirect=${encodeURIComponent(target)}`;
+              window.location.href = `/mfa/success?redirect=${encodeURIComponent(target)}`;
             } catch (err) {
               setError(err instanceof Error ? err.message : "Verification failed");
               setLoading(false);

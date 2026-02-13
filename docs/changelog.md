@@ -11,6 +11,22 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-12 CT (late) - MFA standalone flow, success page with delay
+
+**Context for Next Session:**
+- **MFA flow:** Standalone `/mfa/challenge` and `/mfa/success` pages (minimal layout, no admin sidebar). After verify, user lands on success page with "Success!" and 3-second countdown, then redirects to admin dashboard. Gives browser time to apply session cookies before final redirect.
+- **Key files:** `src/app/mfa/` (layout, challenge, success), `src/components/auth/MFAChallenge.tsx`, `src/components/auth/MFASuccessClient.tsx`, `src/middleware.ts`, `src/app/api/auth/mfa/verify/route.ts`. Admin `/admin/mfa/challenge` and `/admin/mfa/success` redirect to `/mfa/*` for backward compat.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Standalone MFA:** New `/mfa` route group with minimal layout; challenge and success pages.
+- **Success page:** MFASuccessClient shows "Success!" with checkmark, 3-second countdown, then redirect to admin.
+- **Middleware:** Redirects to `/mfa/challenge` when AAL2 needed; `isMfaChallengeOrEnroll` includes `/mfa/challenge` and `/mfa/success`.
+- **Verify flow:** MFAChallenge fetch POST → verify API returns 200 + Set-Cookie → client navigates to `/mfa/success?redirect=...` → success page waits 3s → redirect.
+- **Cleanup:** Removed MFA_TRACE logs from verify route.
+
+---
+
 ### 2026-02-13 CT - RAG doc packer, content types (FAQ/Quote), Add New modal, robots.txt, RAG warning
 
 **Context for Next Session:**

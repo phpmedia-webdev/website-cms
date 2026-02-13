@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     if (!factorId || !challengeId || !code || code.length !== 6) {
       if (redirectTo && redirectTo.startsWith("/")) {
-        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=missing&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
+        return NextResponse.redirect(new URL(`/mfa/challenge?error=missing&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
       }
       return NextResponse.json(
         { error: "factorId, challengeId, and a 6-digit code are required" },
@@ -54,8 +54,6 @@ export async function POST(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookies: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          // MFA_TRACE: Supabase auth client requested these cookies (from mfa.verify)
-          console.log("MFA_TRACE [verify] setAll called, count:", cookies.length, "names:", cookies.map((c) => c.name));
           cookies.forEach((c) =>
             cookiesToSet.push({
               name: c.name,
@@ -88,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       if (redirectTo && redirectTo.startsWith("/")) {
-        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=invalid&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
+        return NextResponse.redirect(new URL(`/mfa/challenge?error=invalid&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
       }
       return NextResponse.json(
         { error: error.message || "Invalid verification code" },

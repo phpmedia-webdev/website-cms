@@ -1,25 +1,15 @@
-import { getCurrentUser } from "@/lib/auth/supabase-auth";
-import { getEnrolledFactors } from "@/lib/auth/mfa";
 import { redirect } from "next/navigation";
-import MFAChallenge from "@/components/auth/MFAChallenge";
 
-export default async function MFAChallengePage() {
-  // Check if user is authenticated
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/admin/login");
-  }
-
-  // Check if user has enrolled factors
-  const { factors } = await getEnrolledFactors();
-  if (factors.length === 0) {
-    // No factors enrolled, redirect to enrollment
-    redirect("/admin/mfa/enroll");
-  }
-
-  return (
-    <div className="container mx-auto max-w-md py-8">
-      <MFAChallenge />
-    </div>
-  );
+/** Redirect to standalone MFA challenge page. */
+export default async function AdminMfaChallengeRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string; error?: string }>;
+}) {
+  const params = await searchParams;
+  const q = new URLSearchParams();
+  if (params.redirect) q.set("redirect", params.redirect);
+  if (params.error) q.set("error", params.error);
+  const query = q.toString();
+  redirect(query ? `/mfa/challenge?${query}` : "/mfa/challenge");
 }

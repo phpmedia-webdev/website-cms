@@ -22,4 +22,4 @@
 ---
 
 
-**Next up:** **MFA verify on Vercel** — Challenge loads, user enters code, Verify sticks on "Verifying…" and doesn't complete. Debug next session (mfa.verify response, cookie persistence, network). See changelog **"Context for Next Session"** (2026-02-12 evening entry) for full handoff.
+**Next up:** Test MFA flow on Vercel — standalone `/mfa` flow with success page and 3s delay. See changelog **"Context for Next Session"** (2026-02-12 late entry).
