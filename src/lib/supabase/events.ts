@@ -295,6 +295,50 @@ export async function deleteEvent(
   return { ok: true };
 }
 
+/** Count all events (for dashboard). Does not expand recurring; counts event rows. */
+export async function getEventsCount(schema?: string): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? getClientSchema();
+  const { count, error } = await supabase
+    .schema(schemaName)
+    .from("events")
+    .select("*", { count: "exact", head: true });
+  if (error) {
+    console.error("getEventsCount:", error);
+    return 0;
+  }
+  return typeof count === "number" ? count : 0;
+}
+
+/** Count events by event_type for dashboard "top by category". */
+export async function getEventsCountByType(
+  schema?: string
+): Promise<{ total: number; byType: { event_type: string | null; count: number }[] }> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? getClientSchema();
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("events")
+    .select("event_type");
+  if (error) {
+    console.error("getEventsCountByType:", error);
+    return { total: 0, byType: [] };
+  }
+  const rows = (data as { event_type: string | null }[]) ?? [];
+  const total = rows.length;
+  const map = new Map<string | null, number>();
+  for (const r of rows) {
+    const t = r.event_type ?? "(none)";
+    map.set(t, (map.get(t) ?? 0) + 1);
+  }
+  const byType = [...map.entries()].map(([event_type, count]) => ({
+    event_type: event_type === "(none)" ? null : event_type,
+    count,
+  }));
+  byType.sort((a, b) => b.count - a.count);
+  return { total, byType };
+}
+
 /** Conflict check: events (or occurrences) that overlap [startDate, endDate] and have any of the given participant ids. */
 export interface ParticipantConflict {
   eventId: string;

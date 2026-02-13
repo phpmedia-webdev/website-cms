@@ -6,7 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { ImageIcon } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
 
 /**
  * Member profile form: display name (username) and avatar URL.
@@ -21,6 +23,7 @@ export function MemberProfileForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -106,15 +109,33 @@ export function MemberProfileForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="member-avatar-url">Avatar URL</Label>
-            <Input
-              id="member-avatar-url"
-              type="url"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://…"
+            <div className="flex gap-2 items-center">
+              <Input
+                id="member-avatar-url"
+                type="url"
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                placeholder="https://…"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAvatarPickerOpen(true)}
+                className="shrink-0"
+              >
+                <ImageIcon className="h-4 w-4 mr-1" />
+                Choose from Media Library
+              </Button>
+            </div>
+            <AvatarMediaPicker
+              open={avatarPickerOpen}
+              onOpenChange={setAvatarPickerOpen}
+              onSelect={(url) => setAvatarUrl(url)}
             />
             <p className="text-xs text-muted-foreground">
-              Paste a link to an image. Avatar upload may be added later.
+              Paste a link or choose an image from the media library.
             </p>
           </div>
           {message && (

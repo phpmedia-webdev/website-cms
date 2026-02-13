@@ -11,6 +11,21 @@ import type { ContentType, ContentListItem, ContentRow, ContentTypeField } from 
 const CONTENT_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
 
+/** Server-only: count content items (for dashboard). */
+export async function getContentCount(schema?: string): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? CONTENT_SCHEMA;
+  const { count, error } = await supabase
+    .schema(schemaName)
+    .from("content")
+    .select("*", { count: "exact", head: true });
+  if (error) {
+    console.error("getContentCount:", error);
+    return 0;
+  }
+  return typeof count === "number" ? count : 0;
+}
+
 /** Server-only: list content items of type "snippet" for dropdowns (e.g. Coming Soon message). */
 export async function getSnippetOptions(
   schema?: string

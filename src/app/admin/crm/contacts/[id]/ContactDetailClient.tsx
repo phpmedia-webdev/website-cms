@@ -15,6 +15,12 @@ export type ContactDetailSection = "notes" | "customFields" | "marketingLists" |
 interface ContactDetailClientProps {
   contactId: string;
   initialNotes: CrmNote[];
+  /** Contact created_at for Activity Stream "Contact added" system line. */
+  contactCreatedAt?: string | null;
+  /** Form submissions for this contact (Activity Stream "Submitted [Form name]" rows). */
+  initialFormSubmissions?: { form_id: string; submitted_at: string }[];
+  /** Map form_id -> form name for labelling submissions. */
+  formNameById?: Record<string, string>;
   /** All CRM custom field definitions (from Settings/Forms); shown for every contact with value or empty. */
   initialCustomFieldDefinitions: CrmCustomField[];
   /** This contact's custom field values (from crm_contact_custom_fields). */
@@ -33,6 +39,9 @@ interface ContactDetailClientProps {
 export function ContactDetailClient({
   contactId,
   initialNotes,
+  contactCreatedAt,
+  initialFormSubmissions,
+  formNameById,
   initialCustomFieldDefinitions,
   initialContactCustomFieldValues,
   initialForms,
@@ -86,6 +95,11 @@ export function ContactDetailClient({
         <ContactNotesSection
           contactId={contactId}
           initialNotes={initialNotes}
+          contactCreatedAt={contactCreatedAt}
+          initialFormSubmissions={initialFormSubmissions}
+          formNameById={formNameById}
+          initialMags={initialMags?.map((m) => ({ mag_name: m.mag_name, assigned_at: m.assigned_at }))}
+          initialMarketingLists={initialMarketingLists?.map((m) => ({ list_name: m.list_name, added_at: m.added_at }))}
           noteTypes={initialNoteTypes}
         />
       )}

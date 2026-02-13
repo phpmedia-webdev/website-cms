@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Shield, KeyRound } from "lucide-react";
+import { Shield, KeyRound, ImageIcon } from "lucide-react";
 import MFAManagement from "@/components/auth/MFAManagement";
+import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import {
   validatePassword,
@@ -60,6 +61,7 @@ export function ProfileSettingsContent({
   const [passwordError, setPasswordError] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [dismiss2FABanner, setDismiss2FABanner] = useState(false);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/profile")
@@ -220,12 +222,30 @@ export function ProfileSettingsContent({
           </div>
           <div>
             <Label htmlFor="avatar_url">Avatar URL</Label>
-            <Input
-              id="avatar_url"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://..."
-              type="url"
+            <div className="flex gap-2 items-center">
+              <Input
+                id="avatar_url"
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                placeholder="https://..."
+                type="url"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAvatarPickerOpen(true)}
+                className="shrink-0"
+              >
+                <ImageIcon className="h-4 w-4 mr-1" />
+                Choose from Media Library
+              </Button>
+            </div>
+            <AvatarMediaPicker
+              open={avatarPickerOpen}
+              onOpenChange={setAvatarPickerOpen}
+              onSelect={(url) => setAvatarUrl(url)}
             />
           </div>
           <div>

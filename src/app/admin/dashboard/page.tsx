@@ -1,43 +1,80 @@
 import { StatsCard } from "@/components/dashboard/StatsCard";
-import { RagKnowledgeCard } from "@/components/dashboard/RagKnowledgeCard";
+import { FormSubmissionsMetricCard } from "@/components/dashboard/FormSubmissionsMetricCard";
+import { EventsMetricCard } from "@/components/dashboard/EventsMetricCard";
+import { DashboardTabsClient } from "./DashboardTabsClient";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getRagStats, getRagBaseUrl } from "@/lib/rag";
-import { FileText, Folder, Image, ClipboardList } from "lucide-react";
+import {
+  getContactsCount,
+  getFormSubmissionsCount,
+  getDashboardActivity,
+} from "@/lib/supabase/crm";
+import { getContentCount } from "@/lib/supabase/content";
+import { getEventsCount, getEventsCountByType } from "@/lib/supabase/events";
+import { Users, Image, FileText } from "lucide-react";
+
+function sinceIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
 
 export default async function DashboardPage() {
-  const supabase = createServerSupabaseClient();
   const schema = getClientSchema();
+  const supabase = createServerSupabaseClient();
 
-  // Fetch stats with error handling
-  let stats = {
-    posts: 0,
-    galleries: 0,
-    media: 0,
-    forms: 0,
-  };
-
-  try {
-    const [postsResult, galleriesResult, mediaResult, formsResult] = await Promise.all([
-      supabase.schema(schema).from("posts").select("id", { count: "exact", head: true }),
-      supabase.schema(schema).from("galleries").select("id", { count: "exact", head: true }),
-      supabase.schema(schema).from("media").select("id", { count: "exact", head: true }),
-      supabase.schema(schema).from("forms").select("id", { count: "exact", head: true }),
-    ]);
-
-    stats = {
-      posts: postsResult.count || 0,
-      galleries: galleriesResult.count || 0,
-      media: mediaResult.count || 0,
-      forms: formsResult.count || 0,
-    };
-  } catch (error) {
-    // Stats will remain at 0 if there's an error
-    // Error is silently handled to prevent page breakage
-  }
-
+  let contactsCount = 0;
+  let formSubs1d = 0;
+  let formSubs7d = 0;
+  let formSubs30d = 0;
+  let formSubsAll = 0;
+  let contentCount = 0;
+  let mediaCount = 0;
+  let eventsCount = 0;
+  let eventsByType = { total: 0, byType: [] as { event_type: string | null; count: number }[] };
+  let activityItems: Awaited<ReturnType<typeof getDashboardActivity>> = [];
   let ragStats = { totalTokens: 0, partCount: 0, totalChars: 0 };
   let ragUrls: string[] = [];
+
+  try {
+    const [
+      contactsRes,
+      form1d,
+      form7d,
+      form30d,
+      formAll,
+      contentRes,
+      mediaRes,
+      eventsRes,
+      eventsByTypeRes,
+      activityRes,
+    ] = await Promise.all([
+      getContactsCount(),
+      getFormSubmissionsCount(sinceIso(1)),
+      getFormSubmissionsCount(sinceIso(7)),
+      getFormSubmissionsCount(sinceIso(30)),
+      getFormSubmissionsCount(),
+      getContentCount(schema),
+      supabase.schema(schema).from("media").select("id", { count: "exact", head: true }),
+      getEventsCount(schema),
+      getEventsCountByType(schema),
+      getDashboardActivity(50),
+    ]);
+    contactsCount = contactsRes;
+    formSubs1d = form1d;
+    formSubs7d = form7d;
+    formSubs30d = form30d;
+    formSubsAll = formAll;
+    contentCount = contentRes;
+    mediaCount = mediaRes.count ?? 0;
+    eventsCount = eventsRes;
+    eventsByType = eventsByTypeRes;
+    activityItems = activityRes;
+  } catch (e) {
+    // Metrics optional; leave at 0
+  }
+
   try {
     ragStats = await getRagStats();
     const baseUrl = getRagBaseUrl();
@@ -48,7 +85,7 @@ export default async function DashboardPage() {
       );
     }
   } catch {
-    // RAG stats optional
+    // RAG optional
   }
 
   return (
@@ -60,41 +97,41 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Metric blocks at top */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatsCard
-          title="Posts"
-          value={stats.posts}
-          icon={FileText}
-          description="Total blog posts"
+          title="Total Contacts"
+          value={contactsCount}
+          icon={Users}
+          description="CRM contacts"
+        />
+        <FormSubmissionsMetricCard
+          count1d={formSubs1d}
+          count7d={formSubs7d}
+          count30d={formSubs30d}
+          countAll={formSubsAll}
         />
         <StatsCard
-          title="Galleries"
-          value={stats.galleries}
-          icon={Folder}
-          description="Gallery collections"
+          title="Content items"
+          value={contentCount}
+          icon={FileText}
+          description="Blog & pages"
         />
         <StatsCard
           title="Media"
-          value={stats.media}
+          value={mediaCount}
           icon={Image}
           description="Images and videos"
         />
-        <StatsCard
-          title="Forms"
-          value={stats.forms}
-          icon={ClipboardList}
-          description="Active forms"
-        />
+        <EventsMetricCard total={eventsCount} byType={eventsByType.byType} />
       </div>
 
-      <div className="space-y-4">
-        <RagKnowledgeCard
-          totalTokens={ragStats.totalTokens}
-          partCount={ragStats.partCount}
-          totalChars={ragStats.totalChars}
-          urls={ragUrls}
-        />
-      </div>
+      {/* Tabs: default Activity, then RAG */}
+      <DashboardTabsClient
+        activityItems={activityItems}
+        ragStats={ragStats}
+        ragUrls={ragUrls}
+      />
     </div>
   );
 }

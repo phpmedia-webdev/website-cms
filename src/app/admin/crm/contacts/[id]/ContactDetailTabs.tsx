@@ -15,6 +15,11 @@ type TabValue = "notes" | "taxonomy" | "customFields" | "marketingLists" | "memb
 interface ContactDetailTabsProps {
   contactId: string;
   initialNotes: CrmNote[];
+  contactCreatedAt?: string | null;
+  /** Form submissions for this contact (Activity Stream "Submitted [Form name]" rows). */
+  initialFormSubmissions?: { form_id: string; submitted_at: string }[];
+  /** Map form_id -> form name for labelling submissions. */
+  formNameById?: Record<string, string>;
   initialCustomFieldDefinitions: CrmCustomField[];
   initialContactCustomFieldValues: ContactCustomFieldValue[];
   initialForms: Form[];
@@ -30,6 +35,9 @@ interface ContactDetailTabsProps {
 export function ContactDetailTabs({
   contactId,
   initialNotes,
+  contactCreatedAt,
+  initialFormSubmissions,
+  formNameById,
   initialCustomFieldDefinitions,
   initialContactCustomFieldValues,
   initialForms,
@@ -126,6 +134,9 @@ export function ContactDetailTabs({
               <ContactDetailClient
                 contactId={contactId}
                 initialNotes={initialNotes}
+                contactCreatedAt={contactCreatedAt}
+                initialFormSubmissions={initialFormSubmissions}
+                formNameById={formNameById}
                 initialCustomFieldDefinitions={initialCustomFieldDefinitions}
                 initialContactCustomFieldValues={initialContactCustomFieldValues}
                 initialForms={initialForms}

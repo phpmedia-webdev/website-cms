@@ -133,6 +133,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
+  // Refresh badge when CRM data changes (bulk action, import, etc.) without leaving the page.
+  useEffect(() => {
+    const onCrmDataChanged = () => fetchNewContactsCount();
+    window.addEventListener("crm-data-changed", onCrmDataChanged);
+    return () => window.removeEventListener("crm-data-changed", onCrmDataChanged);
+  }, []);
+
   // Pathname-driven sidebar: Dashboard collapses all; only one section open at a time
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -567,13 +574,10 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
         {/* OmniChat: always visible; ghosted when no access */}
         {showOmniChat ? (
         <Link
-          href="/admin/crm/omnichat"
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-            pathname === "/admin/crm/omnichat" || pathname?.startsWith("/admin/crm/omnichat/")
-              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          )}
+          href="https://chat.phpmedia.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         >
           <MessageCircle className="h-5 w-5" />
           OmniChat

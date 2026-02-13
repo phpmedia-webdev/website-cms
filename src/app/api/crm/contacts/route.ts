@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
-import { getContacts, createContact } from "@/lib/supabase/crm";
+import { getContacts, createContact, createNote } from "@/lib/supabase/crm";
 
 /**
  * GET /api/crm/contacts
@@ -49,6 +49,10 @@ export async function POST(request: Request) {
         { error: error.message || "Failed to create contact" },
         { status: 500 }
       );
+    }
+
+    if (created?.id) {
+      await createNote(created.id, "Contact added", user.id, "contact_added");
     }
 
     return NextResponse.json(created);

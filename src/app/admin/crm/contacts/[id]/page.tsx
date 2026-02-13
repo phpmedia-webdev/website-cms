@@ -6,6 +6,7 @@ import {
   getCrmCustomFields,
   getContactCustomFields,
   getForms,
+  getFormSubmissionsByContactId,
   getContactMags,
   getContactMarketingLists,
   getMarketingLists,
@@ -27,13 +28,14 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [contact, notes, customFieldDefinitions, contactCustomFieldValues, forms, mags, contactMarketingLists, allMarketingLists, noteTypes, contactStatuses] =
+  const [contact, notes, customFieldDefinitions, contactCustomFieldValues, forms, formSubmissions, mags, contactMarketingLists, allMarketingLists, noteTypes, contactStatuses] =
     await Promise.all([
       getContactById(id),
       getContactNotes(id),
       getCrmCustomFields(),
       getContactCustomFields(id),
       getForms(),
+      getFormSubmissionsByContactId(id),
       getContactMags(id),
       getContactMarketingLists(id),
       getMarketingLists(),
@@ -178,6 +180,9 @@ export default async function ContactDetailPage({
       <ContactDetailTabs
         contactId={id}
         initialNotes={notes}
+        contactCreatedAt={contact.created_at}
+        initialFormSubmissions={formSubmissions}
+        formNameById={Object.fromEntries(forms.map((f) => [f.id, f.name]))}
         initialCustomFieldDefinitions={customFieldDefinitions}
         initialContactCustomFieldValues={contactCustomFieldValues}
         initialForms={forms}

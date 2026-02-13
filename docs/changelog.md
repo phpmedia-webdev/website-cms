@@ -11,6 +11,25 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-12 CT - Session wrap-up: Activity Stream, dashboard restructure, OmniChat link, RAG header
+
+**Context for Next Session:**
+- **Dashboard:** Metric blocks at top (Total Contacts, Form submissions with 24h/7d/30d/all, Content items, Media, Events with by-type). Tabs: Activity (default) | RAG. Activity tab shows combined stream (notes, form submissions, contact added) with search and type filter; RAG tab shows knowledge card with updated header. All working.
+- **CRM:** Per-contact Activity Stream extended (Contact added, Form submissions, MAG assignments, Marketing list joins). Sidebar "New" badge refreshes after bulk actions and import via `crm-data-changed` event. Import refreshes and dispatches event; "Back to contacts" for navigation.
+- **OmniChat:** Sidebar link now points to https://chat.phpmedia.com, opens in new tab.
+- **API/integrations:** Discussed: no public API; Anychat (push to CRM) and VBout (send contacts/lists, receive activity) will use secret-per-tenant or webhook verification to protect endpoints. Rate limiting not needed for admin-only marketing routes.
+- **Key files:** `src/app/admin/dashboard/page.tsx`, `DashboardTabsClient.tsx`, `FormSubmissionsMetricCard.tsx`, `EventsMetricCard.tsx`, `DashboardActivityStream.tsx`, `RagKnowledgeCard.tsx`, `src/components/dashboard/Sidebar.tsx`, `src/lib/supabase/crm.ts` (getContactsCount, getFormSubmissionsCount, getDashboardActivity), `src/components/crm/ContactNotesSection.tsx`, `docs/sessionlog.md`, `docs/planlog.md`.
+
+**Changes:**
+- **Activity Stream (per contact):** Contact added line; form submissions ("Submitted [Form name]"); MAG assignments ("Added to [MAG name]"); marketing list joins ("Added to list [name]"). getFormSubmissionsByContactId() in crm.ts.
+- **CRM sidebar badge:** Sidebar listens for `crm-data-changed`; ContactsListClient and import page dispatch it after bulk actions/import; badge refetches without full reload.
+- **Admin dashboard restructure:** Metric row (contacts, form submissions with period buttons, content count, media, events with by-type). Tabs: Activity (combined stream, filters) | RAG. getContentCount(), getEventsCount(), getEventsCountByType() added.
+- **RAG card header:** "RAG (Retrieval Augmented Generation) Knowledge for AI Agent Training".
+- **OmniChat:** Link href https://chat.phpmedia.com, target _blank, rel noopener noreferrer.
+- **Docs:** Sessionlog trimmed; planlog Activity Stream dashboard widget checked off; changelog context for next session.
+
+---
+
 ### 2026-02-12 CT - MFA: set cookies on success page (one-time token)
 
 **Context for Next Session:**

@@ -7,9 +7,22 @@ import { Label } from "@/components/ui/label";
 import { Plus, Search, Trash2 } from "lucide-react";
 import type { CrmNote } from "@/lib/supabase/crm";
 
+/** Display row: either a real note or a system line (e.g. "Contact added"). */
+type ActivityRow = CrmNote | { id: string; body: string; created_at: string; note_type: string | null; isSystem: true };
+
 interface ContactNotesSectionProps {
   contactId: string;
   initialNotes: CrmNote[];
+  /** When set, show a "Contact added" system line at the appropriate position in the stream. */
+  contactCreatedAt?: string | null;
+  /** Form submissions for this contact (show "Submitted [Form name]" rows). */
+  initialFormSubmissions?: { form_id: string; submitted_at: string }[];
+  /** Map form_id -> form name for labelling submissions. */
+  formNameById?: Record<string, string>;
+  /** MAG assignments for this contact (show "Added to [MAG name]" rows). */
+  initialMags?: { mag_name: string; assigned_at: string }[];
+  /** Marketing list memberships (show "Added to list [name]" rows). */
+  initialMarketingLists?: { list_name: string; added_at: string }[];
   noteTypes?: string[];
 }
 
@@ -20,6 +33,11 @@ interface ContactNotesSectionProps {
 export function ContactNotesSection({
   contactId,
   initialNotes,
+  contactCreatedAt,
+  initialFormSubmissions = [],
+  formNameById = {},
+  initialMags = [],
+  initialMarketingLists = [],
   noteTypes = ["call", "task", "email", "meeting"],
 }: ContactNotesSectionProps) {
   const [notes, setNotes] = useState(initialNotes);
@@ -34,15 +52,58 @@ export function ContactNotesSection({
     setNotes(initialNotes);
   }, [initialNotes]);
 
+  const allActivityRows: ActivityRow[] = useMemo(() => {
+    const list: ActivityRow[] = [...notes];
+    if (contactCreatedAt) {
+      list.push({
+        id: "contact-added",
+        body: "Contact added",
+        created_at: contactCreatedAt,
+        note_type: "contact_added",
+        isSystem: true,
+      });
+    }
+    initialFormSubmissions.forEach((sub, i) => {
+      const formName = formNameById[sub.form_id] ?? "Form";
+      list.push({
+        id: `form-submission-${i}-${sub.submitted_at}`,
+        body: `Submitted ${formName}`,
+        created_at: sub.submitted_at,
+        note_type: "form_submission",
+        isSystem: true,
+      });
+    });
+    initialMags.forEach((mag, i) => {
+      list.push({
+        id: `mag-assignment-${i}-${mag.assigned_at}`,
+        body: `Added to ${mag.mag_name}`,
+        created_at: mag.assigned_at,
+        note_type: "mag_assignment",
+        isSystem: true,
+      });
+    });
+    initialMarketingLists.forEach((ml, i) => {
+      list.push({
+        id: `marketing-list-${i}-${ml.added_at}`,
+        body: `Added to list ${ml.list_name}`,
+        created_at: ml.added_at,
+        note_type: "marketing_list",
+        isSystem: true,
+      });
+    });
+    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return list;
+  }, [notes, contactCreatedAt, initialFormSubmissions, formNameById, initialMags, initialMarketingLists]);
+
   const filteredNotes = useMemo(() => {
-    if (!noteSearch.trim()) return notes;
+    if (!noteSearch.trim()) return allActivityRows;
     const q = noteSearch.toLowerCase();
-    return notes.filter(
+    return allActivityRows.filter(
       (n) =>
         n.body.toLowerCase().includes(q) ||
         (n.note_type && n.note_type.toLowerCase().includes(q))
     );
-  }, [notes, noteSearch]);
+  }, [allActivityRows, noteSearch]);
 
   const openAddNoteModal = () => {
     setEditingNote(null);
@@ -135,30 +196,46 @@ export function ContactNotesSection({
           <div className="max-h-64 overflow-y-auto space-y-1">
             {filteredNotes.length === 0 ? (
               <p className="text-xs text-muted-foreground py-3 text-center">
-                {notes.length === 0 ? "No activity yet" : "No activity matches your search"}
+                {allActivityRows.length === 0 ? "No activity yet" : "No activity matches your search"}
               </p>
             ) : (
-              filteredNotes.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  className="w-full text-left rounded px-2 py-1.5 hover:bg-muted/50 transition-colors text-sm"
-                  onClick={() => openEditNoteModal(n)}
-                >
-                  <p className="truncate">{n.body}</p>
-                  <p className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1.5">
-                    <span>{new Date(n.created_at).toLocaleString()}</span>
-                    {n.note_type && (
-                      <span className="inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
-                        {n.note_type}
-                      </span>
-                    )}
-                    {n.updated_at && n.updated_at !== n.created_at && (
-                      <span className="italic">(edited)</span>
-                    )}
-                  </p>
-                </button>
-              ))
+              filteredNotes.map((n) => {
+                const isSystem = "isSystem" in n && n.isSystem;
+                const className = "w-full text-left rounded px-2 py-1.5 text-sm " + (isSystem ? "" : "hover:bg-muted/50 transition-colors");
+                return isSystem ? (
+                  <div key={n.id} className={className}>
+                    <p className="truncate">{n.body}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1.5">
+                      <span>{new Date(n.created_at).toLocaleString()}</span>
+                      {n.note_type && (
+                        <span className="inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
+                          {n.note_type}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    key={n.id}
+                    type="button"
+                    className={className}
+                    onClick={() => openEditNoteModal(n as CrmNote)}
+                  >
+                    <p className="truncate">{n.body}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1.5">
+                      <span>{new Date(n.created_at).toLocaleString()}</span>
+                      {n.note_type && (
+                        <span className="inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
+                          {n.note_type}
+                        </span>
+                      )}
+                      {"updated_at" in n && n.updated_at && n.updated_at !== n.created_at && (
+                        <span className="italic">(edited)</span>
+                      )}
+                    </p>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>

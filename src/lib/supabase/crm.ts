@@ -265,6 +265,21 @@ export async function getContactByEmail(email: string | null | undefined): Promi
   return rows[0] ?? null;
 }
 
+/** Count all contacts. Excludes trashed. */
+export async function getContactsCount(): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  const { count, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("*", { count: "exact", head: true })
+    .is("deleted_at", null);
+  if (error) {
+    console.error("Error counting contacts:", formatSupabaseError(error));
+    return 0;
+  }
+  return typeof count === "number" ? count : 0;
+}
+
 /** Count contacts with status "New" (work-to-do indicator for sidebar badge). Excludes trashed. */
 export async function getNewContactsCount(): Promise<number> {
   const supabase = createServerSupabaseClient();
@@ -276,6 +291,24 @@ export async function getNewContactsCount(): Promise<number> {
     .ilike("status", CRM_STATUS_SLUG_NEW);
   if (error) {
     console.error("Error counting New contacts:", formatSupabaseError(error));
+    return 0;
+  }
+  return typeof count === "number" ? count : 0;
+}
+
+/** Count form submissions, optionally since a date (ISO string). */
+export async function getFormSubmissionsCount(since?: string): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  let q = supabase
+    .schema(CRM_SCHEMA)
+    .from("form_submissions")
+    .select("*", { count: "exact", head: true });
+  if (since) {
+    q = q.gte("submitted_at", since);
+  }
+  const { count, error } = await q;
+  if (error) {
+    console.error("Error counting form submissions:", formatSupabaseError(error));
     return 0;
   }
   return typeof count === "number" ? count : 0;
@@ -1307,4 +1340,116 @@ export async function getFormSubmissions(formId: string): Promise<FormSubmission
   }
   const rows = (data as Record<string, unknown>[] | null) ?? [];
   return rows.map(normalizeSubmissionRow);
+}
+
+/** List form submissions for a contact (for Activity Stream). Tenant schema only. */
+export async function getFormSubmissionsByContactId(contactId: string): Promise<FormSubmission[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("form_submissions")
+    .select("*")
+    .eq("contact_id", contactId)
+    .order("submitted_at", { ascending: false });
+  if (error) {
+    console.error("Error fetching form submissions by contact:", formatSupabaseError(error));
+    return [];
+  }
+  const rows = (data as Record<string, unknown>[] | null) ?? [];
+  return rows.map(normalizeSubmissionRow);
+}
+
+/** Dashboard activity item (merged from notes, form submissions, contact created). */
+export interface DashboardActivityItem {
+  type: "note" | "form_submission" | "contact_added";
+  at: string;
+  contactId: string;
+  contactName: string;
+  body?: string;
+  noteType?: string | null;
+  formName?: string;
+}
+
+/** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. */
+export async function getDashboardActivity(limit = 50): Promise<DashboardActivityItem[]> {
+  const supabase = createServerSupabaseClient();
+  const [notesData, subsData, contactsData] = await Promise.all([
+    supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_notes")
+      .select("id, contact_id, body, created_at, note_type")
+      .order("created_at", { ascending: false })
+      .limit(Math.floor(limit / 2)),
+    supabase
+      .schema(CRM_SCHEMA)
+      .from("form_submissions")
+      .select("id, contact_id, form_id, submitted_at")
+      .order("submitted_at", { ascending: false })
+      .limit(Math.floor(limit / 2)),
+    supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contacts")
+      .select("id, full_name, first_name, last_name, email, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const notes = (notesData.data as { id: string; contact_id: string; body: string; created_at: string; note_type: string | null }[] | null) ?? [];
+  const subs = (subsData.data as { id: string; contact_id: string | null; form_id: string; submitted_at: string }[] | null) ?? [];
+  const contacts = (contactsData.data as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; email: string | null; created_at: string }[] | null) ?? [];
+
+  const contactIds = new Set<string>();
+  notes.forEach((n) => contactIds.add(n.contact_id));
+  subs.forEach((s) => { if (s.contact_id) contactIds.add(s.contact_id); });
+  contacts.forEach((c) => contactIds.add(c.id));
+
+  let contactNames: Record<string, string> = {};
+  if (contactIds.size > 0) {
+    const { data: contactRows } = await supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contacts")
+      .select("id, full_name, first_name, last_name, email")
+      .in("id", [...contactIds]);
+    const rows = (contactRows as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; email: string | null }[] | null) ?? [];
+    for (const r of rows) {
+      const name = r.full_name?.trim() || [r.first_name, r.last_name].filter(Boolean).join(" ") || r.email || "Contact";
+      contactNames[r.id] = name;
+    }
+  }
+
+  const forms = await getForms();
+  const formNameById: Record<string, string> = Object.fromEntries(forms.map((f) => [f.id, f.name]));
+
+  const items: DashboardActivityItem[] = [];
+  for (const n of notes) {
+    items.push({
+      type: "note",
+      at: n.created_at,
+      contactId: n.contact_id,
+      contactName: contactNames[n.contact_id] ?? "Contact",
+      body: n.body,
+      noteType: n.note_type,
+    });
+  }
+  for (const s of subs) {
+    if (!s.contact_id) continue;
+    items.push({
+      type: "form_submission",
+      at: s.submitted_at,
+      contactId: s.contact_id,
+      contactName: contactNames[s.contact_id] ?? "Contact",
+      formName: formNameById[s.form_id] ?? "Form",
+    });
+  }
+  for (const c of contacts) {
+    items.push({
+      type: "contact_added",
+      at: c.created_at,
+      contactId: c.id,
+      contactName: contactNames[c.id] ?? "Contact",
+    });
+  }
+  items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return items.slice(0, limit);
 }

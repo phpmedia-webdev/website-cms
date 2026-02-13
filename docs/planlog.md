@@ -68,7 +68,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Status:** Core complete (schema, contacts list + detail, Activity Stream, taxonomy, custom fields, MAGs, marketing lists, forms, submissions, bulk actions, trash).
 
-- [ ] Optional: `crm_consents`; auto-assign tags on form submit; central automations layer; push to external CRM; Activity Stream dashboard widget
+- [x] Activity Stream dashboard widget (combined activity stream + filters on admin dashboard)
+- [ ] Optional: `crm_consents`; auto-assign tags on form submit; central automations layer; push to external CRM
 
 ### Phase 08: Forms Management
 

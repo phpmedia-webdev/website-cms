@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Users, ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import type { CrmContact, ContactMag, ContactMarketingList, Mag, MarketingList } from "@/lib/supabase/crm";
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
@@ -103,6 +103,13 @@ export function ContactsListClient({
 
   const hasSelection = selectedIds.size > 0;
   const hasTrashedContacts = trashedContacts.length > 0;
+
+  const refreshListAndBadge = () => {
+    router.refresh();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("crm-data-changed"));
+    }
+  };
 
   const baseContacts = showTrashed ? trashedContacts : contacts;
 
@@ -240,12 +247,20 @@ export function ContactsListClient({
                 : `${contacts.length} contact${contacts.length === 1 ? "" : "s"}`}
           </p>
         </div>
-        <Link href="/admin/crm/contacts/new">
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-1" />
-            New contact
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/admin/crm/contacts/import">
+            <Button variant="outline" size="sm" className="h-8 gap-1">
+              <Upload className="h-3.5 w-3.5" />
+              Import
+            </Button>
+          </Link>
+          <Link href="/admin/crm/contacts/new">
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              New contact
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <ContactsListFilters
@@ -466,21 +481,21 @@ export function ContactsListClient({
         onOpenChange={setAddToListDialogOpen}
         selectedIds={selectedIds}
         marketingLists={marketingLists}
-        onSuccess={() => router.refresh()}
+        onSuccess={refreshListAndBadge}
       />
       <RemoveFromListDialog
         open={removeFromListDialogOpen}
         onOpenChange={setRemoveFromListDialogOpen}
         selectedIds={selectedIds}
         marketingLists={marketingLists}
-        onSuccess={() => router.refresh()}
+        onSuccess={refreshListAndBadge}
       />
       <SetCrmFieldsDialog
         open={crmFieldsDialogOpen}
         onOpenChange={setCrmFieldsDialogOpen}
         selectedIds={selectedIds}
         contactStatuses={contactStatuses}
-        onSuccess={() => router.refresh()}
+        onSuccess={refreshListAndBadge}
       />
       <TaxonomyBulkDialog
         open={taxonomyDialogOpen}
@@ -488,19 +503,19 @@ export function ContactsListClient({
         selectedIds={selectedIds}
         categories={categories}
         tags={tags}
-        onSuccess={() => router.refresh()}
+        onSuccess={refreshListAndBadge}
       />
       <ConfirmTrashDialog
         open={trashConfirmOpen}
         onOpenChange={setTrashConfirmOpen}
         selectedIds={selectedIds}
-        onSuccess={() => router.refresh()}
+        onSuccess={refreshListAndBadge}
       />
       <ConfirmEmptyTrashDialog
         open={emptyTrashDialogOpen}
         onOpenChange={setEmptyTrashDialogOpen}
         trashedCount={trashedContacts.length}
-        onSuccess={() => router.refresh()}
+        onSuccess={refreshListAndBadge}
       />
     </div>
   );
