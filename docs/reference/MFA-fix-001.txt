@@ -1,0 +1,266 @@
+You are an expert Full-Stack Developer specializing in Next.js, Supabase authentication (including MFA/2FA implementation), and Vercel deployment. Your primary goal is to diagnose and provide a precise solution for a recurring loop issue during the second-factor authentication process for Super Admins.
+
+The application stack is:
+- Frontend/Framework: Next.js
+- IDE: Cursor IDE
+- Backend/Database: Supabase
+- Hosting: Vercel
+- Authentication: Supabase Auth Component
+
+The issue occurs specifically when a user with the 'superadmin' role attempts to log in:
+1. Basic authentication succeeds.
+2. The application correctly identifies the role as 'superadmin' and redirects to the MFA challenge.
+3. The user enters a valid code from their Google Authenticator.
+4. The MFA challenge is accepted (the code is verified).
+5. Immediately after acceptance, the page flashes, and the user is redirected back to the *same* MFA challenge, creating an infinite loop where the second factor cannot be completed.
+
+The core task is to identify the likely cause of this immediate re-prompting after successful MFA verification and provide actionable steps to resolve the infinite MFA loop for Super Admins using Supabase MFA.
+****************************************************
+Claude Opus 4.1 Response
+Based on your description, this is a classic session/token management issue after MFA verification in Supabase. Here's my diagnosis and solution:
+
+Root Cause Analysis
+
+The infinite loop occurs because after successful MFA verification, the session isn't being properly updated with the MFA completion status. Supabase Auth maintains an aal (Authenticator Assurance Level) in the session that needs to be elevated from aal1 to aal2 after MFA.
+
+Solution Implementation:
+
+1. Fix the MFA Verification Handler
+
+// app/auth/mfa/verify/route.ts or similar
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+
+export async function POST(request: Request) {
+  const { factorId, code } = await request.json()
+  const supabase = createRouteHandlerClient({ cookies })
+
+  // Verify the MFA challenge
+  const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+    factorId,
+    code,
+  })
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+
+  // CRITICAL: Refresh the session after MFA verification
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  
+  if (sessionError || !session) {
+    return NextResponse.json({ error: 'Session refresh failed' }, { status: 401 })
+  }
+
+  // Verify AAL level is now 2
+  if (session.aal !== 'aal2') {
+    // Force session refresh if AAL not updated
+    await supabase.auth.refreshSession()
+  }
+
+  return NextResponse.json({ 
+    success: true, 
+    aal: session.aal,
+    redirectTo: '/dashboard' // or wherever superadmins should go
+  })
+}
+
+2. Update Middleware to Check AAL Level
+
+// middleware.ts
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req, res })
+
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    return NextResponse.redirect(new URL('/login', req.url))
+  }
+
+  // Check if user is superadmin
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single()
+
+  if (profile?.role === 'superadmin') {
+    // Check AAL level for superadmins
+    const { data: { aal, amr } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+
+    // If AAL is not aal2 and path is not MFA page, redirect to MFA
+    if (aal !== 'aal2' && !req.nextUrl.pathname.startsWith('/auth/mfa')) {
+      return NextResponse.redirect(new URL('/auth/mfa', req.url))
+    }
+
+    // If AAL is aal2 and user is on MFA page, redirect to dashboard
+    if (aal === 'aal2' && req.nextUrl.pathname.startsWith('/auth/mfa')) {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+  }
+
+  return res
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/auth/mfa']
+}
+
+3. Fix the MFA Challenge Component
+
+// app/auth/mfa/page.tsx or components/MFAChallenge.tsx
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
+
+export default function MFAChallenge() {
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const supabase = createClientComponentClient()
+  const router = useRouter()
+
+  useEffect(() => {
+    // Check if already MFA authenticated
+    checkMFAStatus()
+  }, [])
+
+  const checkMFAStatus = async () => {
+    const { data: { aal } } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    
+    if (aal === 'aal2') {
+      // Already MFA authenticated, redirect
+      router.push('/dashboard')
+    }
+  }
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      // Get the factor ID
+      const { data: factors } = await supabase.auth.mfa.listFactors()
+      const totpFactor = factors?.totp?.[0]
+
+      if (!totpFactor) {
+        throw new Error('No TOTP factor found')
+      }
+
+      // Create challenge and verify in one call
+      const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: totpFactor.id,
+        code: code,
+      })
+
+      if (error) throw error
+
+      // IMPORTANT: Wait for session to update
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Refresh the page to update session cookies
+      router.refresh()
+      
+      // Then redirect
+      router.push('/dashboard')
+
+    } catch (err: any) {
+      setError(err.message || 'Verification failed')
+      setCode('')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleVerify}>
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Enter 6-digit code"
+        maxLength={6}
+        pattern="[0-9]{6}"
+        required
+      />
+      {error && <p className="error">{error}</p>}
+      <button type="submit" disabled={loading}>
+        {loading ? 'Verifying...' : 'Verify'}
+      </button>
+    </form>
+  )
+}
+
+4. Environment Configuration Check
+
+Ensure your .env.local has the correct Supabase URL and keys:
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+5. Quick Debugging Steps
+
+Add this debug component to verify session state:
+// components/SessionDebug.tsx
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+
+export default function SessionDebug() {
+  const [sessionInfo, setSessionInfo] = useState<any>(null)
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+      
+      setSessionInfo({
+        hasSession: !!session,
+        userId: session?.user?.id,
+        aal: aalData?.aal,
+        amr: aalData?.amr,
+        expiresAt: session?.expires_at,
+      })
+    }
+
+    checkSession()
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      checkSession()
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (process.env.NODE_ENV !== 'development') return null
+
+  return (
+    <pre style={{ position: 'fixed', bottom: 0, right: 0, background: '#000', color: '#0f0', padding: '10px' }}>
+      {JSON.stringify(sessionInfo, null, 2)}
+    </pre>
+  )
+}
+
+Immediate Action Items
+
+Clear all cookies in your browser for the domain
+Restart your Next.js dev server
+Check Supabase Dashboard → Authentication → Policies to ensure MFA is properly configured
+Verify your Supabase version is up to date: npm update @supabase/supabase-js @supabase/auth-helpers-nextjs
+
+The key issue is likely that after MFA verification, the session isn't being properly refreshed with the elevated AAL level. The solution above ensures proper session management and prevents the infinite loop.
+
+
+
