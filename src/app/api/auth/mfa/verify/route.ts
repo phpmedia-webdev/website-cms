@@ -5,15 +5,11 @@ import { getClientSchema } from "@/lib/supabase/schema";
 
 type CookieOptions = { path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" };
 
-/** One-time cookie to pass tokens to /admin/mfa/success (avoids 302 + Set-Cookie race). */
-const MFA_UPGRADE_COOKIE = "sb-mfa-upgrade";
-const MFA_UPGRADE_MAX_AGE = 60;
-
 /**
  * POST /api/auth/mfa/verify
- * Verifies MFA code server-side. When ?redirect= is present and verification succeeds,
- * sets a short-lived cookie with tokens and redirects to /admin/mfa/success?redirect=...
- * so the success handler can set the real session cookies in a normal GET (reliable on Vercel).
+ * Verifies MFA code server-side. On success, sets Supabase AAL2 session cookies on the
+ * redirect response and redirects directly to the target (e.g. /admin/dashboard).
+ * Skips the success page since cookies are set in this response.
  * Accepts JSON body or application/x-www-form-urlencoded (for form POST).
  */
 export async function POST(request: NextRequest) {
@@ -100,28 +96,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Redirect flow: pass tokens via short-lived cookie; success route sets real session and redirects
+    // Redirect flow: set AAL2 cookies on response and redirect directly to target
     if (redirectTo && redirectTo.startsWith("/")) {
-      // MFA_TRACE: verify succeeded; cookiesToSet from Supabase (may be empty if setAll never ran)
-      console.log("MFA_TRACE [verify] success, cookiesToSet:", cookiesToSet.length, "redirect:", redirectTo);
-      const payload = JSON.stringify({
-        access_token: data!.access_token,
-        refresh_token: data!.refresh_token ?? "",
-      });
-      const value = Buffer.from(payload, "utf8").toString("base64url");
-      const successUrl = new URL("/admin/mfa/success", requestUrl.origin);
-      successUrl.searchParams.set("redirect", redirectTo);
-      // 303 See Other so browser follows with GET (307 would preserve POST → 405 on success route)
-      const res = NextResponse.redirect(successUrl, 303);
-      // Add Supabase AAL2 session cookies from mfa.verify (they were in cookiesToSet but never sent)
+      const targetUrl = new URL(redirectTo, requestUrl.origin);
+      const res = NextResponse.redirect(targetUrl, 303);
       setCookiesOn(res);
-      res.cookies.set(MFA_UPGRADE_COOKIE, value, {
-        path: "/admin/mfa",
-        maxAge: MFA_UPGRADE_MAX_AGE,
-        httpOnly: true,
-        secure: requestUrl.protocol === "https:",
-        sameSite: "lax",
-      });
       return res;
     }
 
