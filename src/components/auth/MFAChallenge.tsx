@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -277,9 +278,9 @@ export default function MFAChallenge() {
           <p>• Codes expire after 30 seconds</p>
           <p>• If you&apos;re having trouble, try refreshing the page</p>
           <p className="pt-2">
-            <a href="/admin/login/recover" className="underline hover:text-foreground">
+            <Link href="/admin/login/recover" className="underline hover:text-foreground">
               Lost your device? Recover MFA (superadmin)
-            </a>
+            </Link>
           </p>
         </div>
       </CardContent>
