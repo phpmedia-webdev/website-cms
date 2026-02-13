@@ -79,10 +79,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Ensure session is in storage and setAll runs (SSR emits MFA_CHALLENGE_VERIFIED / SIGNED_IN async)
-    if (!error && data?.session) {
+    // AuthMFAVerifyResponseData has access_token/refresh_token at top level, not under .session
+    if (!error && data?.access_token) {
       await supabase.auth.setSession({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token ?? "",
+        access_token: data.access_token,
+        refresh_token: data.refresh_token ?? "",
       });
     }
 
