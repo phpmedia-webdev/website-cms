@@ -137,9 +137,15 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/admin/mfa/success");
     const devBypass = isDevModeBypassEnabled();
     const currentAAL = session?.aal ?? "aal1";
+    // MFA_TRACE: middleware AAL check on protected route
+    if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+      console.log("MFA_TRACE [middleware]", pathname, "session.aal:", currentAAL, "user:", !!user, "devBypass:", devBypass, "isMfaChallengeOrEnroll:", isMfaChallengeOrEnroll);
+    }
     if (!devBypass && !isMfaChallengeOrEnroll) {
       const needsAAL2 = await requiresAAL2(user, pathname);
       if (needsAAL2 && currentAAL !== "aal2") {
+        // MFA_TRACE: this is the redirect that causes the "flash back to challenge"
+        console.log("MFA_TRACE [middleware] REDIRECT to challenge: needsAAL2=true, currentAAL=", currentAAL);
         const challengeUrl = new URL("/admin/mfa/challenge", request.url);
         challengeUrl.searchParams.set("redirect", pathname);
         const res = NextResponse.redirect(challengeUrl);

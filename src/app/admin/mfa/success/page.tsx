@@ -20,7 +20,10 @@ export default async function MFASuccessPage({
   const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/admin/dashboard";
 
   const cookieStore = await cookies();
-  if (!cookieStore.get(MFA_UPGRADE_COOKIE)?.value) {
+  const upgradeCookie = cookieStore.get(MFA_UPGRADE_COOKIE)?.value;
+  // MFA_TRACE: success page load; did upgrade cookie arrive from verify redirect?
+  console.log("MFA_TRACE [success page] upgradeCookie present:", !!upgradeCookie, "cookie names:", cookieStore.getAll().map((c) => c.name));
+  if (!upgradeCookie) {
     redirect(`/admin/mfa/challenge?error=missing&redirect=${encodeURIComponent(safeRedirect)}`);
   }
 

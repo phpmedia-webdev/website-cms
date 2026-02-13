@@ -28,12 +28,18 @@ export async function applyMfaUpgrade(): Promise<{ ok: boolean; error?: string }
   const cookieStore = await cookies();
   const upgradeCookie = cookieStore.get(MFA_UPGRADE_COOKIE)?.value;
 
+  // MFA_TRACE: Server Action started; check if upgrade cookie arrived
+  const allCookies = cookieStore.getAll();
+  const upgradePresent = !!upgradeCookie;
+  console.log("MFA_TRACE [applyMfaUpgrade] start, upgradeCookie present:", upgradePresent, "all cookie names:", allCookies.map((c) => c.name));
+
   if (!upgradeCookie) {
     return { ok: false, error: "missing" };
   }
 
   const tokens = decodeUpgradeCookie(upgradeCookie);
   if (!tokens) {
+    console.log("MFA_TRACE [applyMfaUpgrade] decode failed");
     return { ok: false, error: "invalid" };
   }
 
@@ -49,6 +55,8 @@ export async function applyMfaUpgrade(): Promise<{ ok: boolean; error?: string }
         return cookieStore.getAll();
       },
       setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+        // MFA_TRACE: Supabase onAuthStateChange triggered setAll (session cookies)
+        console.log("MFA_TRACE [applyMfaUpgrade] setAll called, count:", cookiesToSet.length, "names:", cookiesToSet.map((c) => c.name));
         cookiesToSet.forEach((c) => {
           const opts = c.options as { path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" } | undefined;
           cookieStore.set(c.name, c.value, {
@@ -70,6 +78,9 @@ export async function applyMfaUpgrade(): Promise<{ ok: boolean; error?: string }
     refresh_token: tokens.refresh_token,
   });
 
+  // MFA_TRACE: setSession completed; did setAll run (before or after)?
+  console.log("MFA_TRACE [applyMfaUpgrade] setSession done, error:", error?.message ?? null);
+
   if (error) {
     return { ok: false, error: "invalid" };
   }
@@ -81,5 +92,7 @@ export async function applyMfaUpgrade(): Promise<{ ok: boolean; error?: string }
 
   cookieStore.set(MFA_UPGRADE_COOKIE, "", { path: "/admin/mfa", maxAge: 0 });
 
+  // MFA_TRACE: returning ok; cookies should be in response
+  console.log("MFA_TRACE [applyMfaUpgrade] returning ok");
   return { ok: true };
 }

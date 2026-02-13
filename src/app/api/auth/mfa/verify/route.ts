@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookies: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          // MFA_TRACE: Supabase auth client requested these cookies (from mfa.verify)
+          console.log("MFA_TRACE [verify] setAll called, count:", cookies.length, "names:", cookies.map((c) => c.name));
           cookies.forEach((c) =>
             cookiesToSet.push({
               name: c.name,
@@ -100,6 +102,8 @@ export async function POST(request: NextRequest) {
 
     // Redirect flow: pass tokens via short-lived cookie; success route sets real session and redirects
     if (redirectTo && redirectTo.startsWith("/")) {
+      // MFA_TRACE: verify succeeded; cookiesToSet from Supabase (may be empty if setAll never ran)
+      console.log("MFA_TRACE [verify] success, cookiesToSet:", cookiesToSet.length, "redirect:", redirectTo);
       const payload = JSON.stringify({
         access_token: data!.access_token,
         refresh_token: data!.refresh_token ?? "",

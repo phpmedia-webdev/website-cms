@@ -19,10 +19,14 @@ export default function MFASuccessClient() {
       const result = await applyMfaUpgrade();
       if (!mounted) return;
 
+      // MFA_TRACE: client received Server Action result
+      console.log("MFA_TRACE [MFASuccessClient] applyMfaUpgrade result:", result.ok, result.error);
+
       if (result.ok) {
         setStatus("ok");
         // Brief delay so browser can apply Set-Cookie from Server Action response before navigation
         await new Promise((r) => setTimeout(r, 400));
+        console.log("MFA_TRACE [MFASuccessClient] redirecting to", safeRedirect);
         window.location.replace(safeRedirect);
       } else {
         setStatus("error");
