@@ -42,6 +42,10 @@ export async function GET(request: NextRequest) {
 
   const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
   const cookiesToSet: { name: string; value: string; path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" }[] = [];
+  let resolveFlush: () => void;
+  const flushDone = new Promise<void>((r) => {
+    resolveFlush = r;
+  });
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -61,6 +65,7 @@ export async function GET(request: NextRequest) {
             sameSite: (opts?.sameSite as "lax" | "strict") ?? "lax",
           });
         });
+        resolveFlush?.();
       },
     },
     db: { schema: getClientSchema() },
@@ -75,7 +80,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/mfa/challenge?error=invalid&redirect=" + encodeURIComponent(safeRedirect), requestUrl.origin));
   }
 
-  const res = NextResponse.redirect(new URL(safeRedirect, requestUrl.origin));
+  // Wait for SSR onAuthStateChange to call setAll so redirect includes AAL2 cookies (avoids flash back to challenge)
+  await Promise.race([
+    flushDone,
+    new Promise<void>((_, rej) => setTimeout(() => rej(new Error("cookie_flush_timeout")), 3000)),
+  ]).catch(() => {
+    /* timeout: still redirect, cookies may be empty */
+  });
+
+  const res = NextResponse.redirect(new URL(safeRedirect, requestUrl.origin), 303);
   cookiesToSet.forEach((c) => {
     res.cookies.set(c.name, c.value, {
       path: c.path ?? "/",
