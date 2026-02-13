@@ -241,19 +241,18 @@ export async function requiresAAL2(
     return false;
   }
 
-  // Dev mode bypass for 2FA (development only)
+  // Dev mode bypass for 2FA (development only; set NEXT_PUBLIC_DEV_BYPASS_2FA=true to skip)
   if (isDevModeBypassEnabled()) {
     return false;
   }
 
-  // Superadmin: MFA is policy-only, not enforced by code. Superadmins can always access
-  // /admin/super (including Security) to manage or replace their authenticator.
-  if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
-    return false;
+  // Superadmin routes require aal2
+  if (route?.startsWith("/admin/super")) {
+    return true;
   }
 
-  // Superadmin routes (for non-superadmin users hitting them) still require aal2 if we ever allow that
-  if (route?.startsWith("/admin/super")) {
+  // Superadmin role always requires aal2
+  if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
     return true;
   }
 
