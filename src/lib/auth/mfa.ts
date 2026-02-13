@@ -227,8 +227,10 @@ export function isDevModeBypassEnabled(): boolean {
 }
 
 /**
- * Check if a route or role requires aal2 (2FA verified).
- * 
+ * Check if a route requires aal2 (2FA verified).
+ * All protected admin routes (dashboard, super, etc.) require AAL2 so users see the MFA challenge after login.
+ * Dev bypass: set NEXT_PUBLIC_DEV_BYPASS_2FA=true to skip.
+ *
  * @param user - Authenticated user
  * @param route - Optional route path to check
  * @returns true if aal2 is required, false otherwise
@@ -241,33 +243,13 @@ export async function requiresAAL2(
     return false;
   }
 
-  // Dev mode bypass for 2FA (development only; set NEXT_PUBLIC_DEV_BYPASS_2FA=true to skip)
   if (isDevModeBypassEnabled()) {
     return false;
   }
 
-  // Superadmin routes require aal2
-  if (route?.startsWith("/admin/super")) {
+  // All protected admin routes require AAL2 (challenge/enroll/success are excluded by middleware)
+  if (route?.startsWith("/admin") && !route.startsWith("/admin/login")) {
     return true;
-  }
-
-  // Superadmin role always requires aal2
-  if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
-    return true;
-  }
-
-  // Client admin sensitive routes require aal2
-  if (user.metadata.type === "admin") {
-    const sensitiveRoutes = [
-      "/admin/settings",
-      "/admin/crm/memberships",
-      "/admin/settings/archive",
-      "/admin/settings/reset",
-    ];
-
-    if (route && sensitiveRoutes.some((r) => route.startsWith(r))) {
-      return true;
-    }
   }
 
   return false;

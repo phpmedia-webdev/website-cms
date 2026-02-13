@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 
-/** Redirect to standalone MFA success page. */
-export default async function AdminMfaSuccessRedirect({
+/** MFA success: no longer used in flow (verify redirects directly to destination). Redirect to dashboard. */
+export default async function AdminMfaSuccessPage({
   searchParams,
 }: {
   searchParams: Promise<{ redirect?: string }>;
 }) {
   const params = await searchParams;
-  const query = params.redirect ? `?redirect=${encodeURIComponent(params.redirect)}` : "";
-  redirect(`/mfa/success${query}`);
+  const target = params.redirect?.startsWith("/") ? params.redirect : "/admin/dashboard";
+  redirect(target);
 }

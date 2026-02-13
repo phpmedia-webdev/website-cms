@@ -132,17 +132,25 @@ export async function middleware(request: NextRequest) {
 
     // Don't redirect to MFA challenge when on challenge, enroll, or success (avoids redirect loop)
     const isMfaChallengeOrEnroll =
-      pathname.startsWith("/mfa/challenge") ||
-      pathname.startsWith("/mfa/success") ||
       pathname.startsWith("/admin/mfa/challenge") ||
       pathname.startsWith("/admin/mfa/enroll") ||
       pathname.startsWith("/admin/mfa/success");
     const devBypass = isDevModeBypassEnabled();
     const currentAAL = session?.aal ?? "aal1";
+
+    // If already AAL2 and on MFA challenge/success page, send to dashboard (or redirect param)
+    if (currentAAL === "aal2" && isMfaChallengeOrEnroll) {
+      const redirectParam = request.nextUrl.searchParams.get("redirect");
+      const target = redirectParam && redirectParam.startsWith("/") ? redirectParam : "/admin/dashboard";
+      const res = NextResponse.redirect(new URL(target, request.url));
+      copyCookiesTo(res, cookieCarrier);
+      return res;
+    }
+
     if (!devBypass && !isMfaChallengeOrEnroll) {
       const needsAAL2 = await requiresAAL2(user, pathname);
       if (needsAAL2 && currentAAL !== "aal2") {
-        const challengeUrl = new URL("/mfa/challenge", request.url);
+        const challengeUrl = new URL("/admin/mfa/challenge", request.url);
         challengeUrl.searchParams.set("redirect", pathname);
         const res = NextResponse.redirect(challengeUrl);
         copyCookiesTo(res, cookieCarrier);

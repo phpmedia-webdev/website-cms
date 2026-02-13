@@ -17,6 +17,8 @@ import { Shield, Loader2, XCircle } from "lucide-react";
 
 const supabase = getSupabaseClient();
 
+const VERIFY_API = "/api/auth/mfa/verify";
+
 /** Create MFA challenge via API so challenge and verify use same server IP (Supabase requirement). */
 async function createChallengeViaApi(
   factorId: string
@@ -39,27 +41,72 @@ export default function MFAChallenge() {
   const searchParams = useSearchParams();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [factors, setFactors] = useState<any[]>([]);
   const [selectedFactorId, setSelectedFactorId] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [loadingFactors, setLoadingFactors] = useState(true);
   const [refreshingChallenge, setRefreshingChallenge] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [debugData, setDebugData] = useState<{
+    at: string;
+    serverSession: Record<string, unknown>;
+    urlParams: Record<string, string>;
+    referrer: string;
+    debugError?: string;
+  } | null>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
 
   const redirectTo = searchParams.get("redirect") || "/admin/dashboard";
+  const verifyAction = `${VERIFY_API}?redirect=${encodeURIComponent(redirectTo)}`;
+
+  const clearDebug = () => setDebugData(null);
+
+  const fetchDebug = async () => {
+    setDebugLoading(true);
+    try {
+      const res = await fetch("/api/auth/mfa/debug-session", { credentials: "include" });
+      const serverSession = await res.json().catch(() => ({ aal: null, hasSession: false, userId: null }));
+      const urlParams: Record<string, string> = {};
+      searchParams.forEach((v, k) => {
+        urlParams[k] = v;
+      });
+      setDebugData({
+        at: new Date().toISOString(),
+        serverSession: { ...serverSession },
+        urlParams,
+        referrer: typeof document !== "undefined" ? document.referrer || "(none)" : "(ssr)",
+      });
+    } catch (e) {
+      setDebugData({
+        at: new Date().toISOString(),
+        serverSession: {},
+        urlParams: {},
+        referrer: "(error)",
+        debugError: e instanceof Error ? e.message : "Failed to fetch debug",
+      });
+    } finally {
+      setDebugLoading(false);
+    }
+  };
 
   // Load enrolled factors on mount
   useEffect(() => {
     loadFactors();
   }, []);
 
-  // Show error when redirected back from verify API
+  // Load debug data once on mount (so we see what server sees when challenge page loads)
+  useEffect(() => {
+    fetchDebug();
+  }, []);
+
+  // Show error when redirected back from verify API or middleware (AAL not seen)
   useEffect(() => {
     const err = searchParams.get("error");
     if (err === "invalid") setError("Invalid code. Check the 6 digits and try again, or click \"Get new challenge\" first.");
     if (err === "missing") setError("Missing code or session. Please try again.");
     if (err === "expired") setError("Challenge expired. Click \"Get new challenge\" below, then enter your current code.");
-    if (err === "server") setError("Something went wrong. Please try again.");
+    if (err === "server") setError("Something went wrong. Please try again or contact support.");
+    if (err === "session") setError("Your verification wasn't recognized. Please enter your code again.");
   }, [searchParams]);
 
   const loadFactors = async () => {
@@ -175,16 +222,15 @@ export default function MFAChallenge() {
           </div>
         )}
 
-        {/* Code Input — form POST (full page navigation) so browser reliably applies Set-Cookie.
-            Fetch responses often don't persist cookies before client-side redirect on Vercel. */}
+        {/* Server-side verify: form POST so the API sets AAL2 session cookies on the redirect (browser then has cookies the server reads). */}
         <form
-          action={`/api/auth/mfa/verify?redirect=${encodeURIComponent(redirectTo)}`}
-          method="POST"
-          onSubmit={(e) => {
-            if (code.length !== 6 || !challengeId || !selectedFactorId) e.preventDefault();
-            else setLoading(true);
-          }}
           className="space-y-4"
+          action={verifyAction}
+          method="post"
+          onSubmit={() => {
+            setSubmitting(true);
+            clearDebug();
+          }}
         >
           <input type="hidden" name="factorId" value={selectedFactorId ?? ""} />
           <input type="hidden" name="challengeId" value={challengeId ?? ""} />
@@ -199,6 +245,7 @@ export default function MFAChallenge() {
               inputMode="numeric"
               pattern="[0-9]*"
               maxLength={6}
+              minLength={6}
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
@@ -229,10 +276,10 @@ export default function MFAChallenge() {
 
           <Button
             type="submit"
-            disabled={code.length !== 6 || !challengeId || !selectedFactorId || loading}
+            disabled={code.length !== 6 || !challengeId || !selectedFactorId || submitting}
             className="w-full"
           >
-            {loading ? (
+            {submitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Verifying…
@@ -243,6 +290,52 @@ export default function MFAChallenge() {
           </Button>
         </form>
 
+        {/* Debug block — copy and share when reporting MFA redirect issues */}
+        <div className="rounded-md border border-muted bg-muted/30 p-3 text-xs space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium text-muted-foreground">Debug (for tracing)</span>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={fetchDebug}
+                disabled={debugLoading}
+              >
+                {debugLoading ? "…" : "Refresh"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={clearDebug}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+          {debugData && (
+            <pre className="overflow-auto max-h-48 p-2 rounded bg-background/80 whitespace-pre-wrap break-all">
+              {JSON.stringify(
+                {
+                  at: debugData.at,
+                  serverSession: debugData.serverSession,
+                  urlParams: debugData.urlParams,
+                  referrer: debugData.referrer,
+                  ...(debugData.debugError ? { debugError: debugData.debugError } : {}),
+                },
+                null,
+                2
+              )}
+            </pre>
+          )}
+          <p className="text-muted-foreground">
+            When reporting: copy the JSON. aalFromToken = AAL inside the JWT in the cookie (aal2 = token is correct). aal = what getSession() returns.
+          </p>
+        </div>
+
         {/* Help Text */}
         <div className="text-xs text-muted-foreground space-y-1">
           <p>• Enter the code quickly — codes expire every 30 seconds</p>
@@ -251,6 +344,15 @@ export default function MFAChallenge() {
           <p className="pt-2">
             <Link href="/admin/login/recover" className="underline hover:text-foreground">
               Lost your device? Recover MFA (superadmin)
+            </Link>
+          </p>
+          <p className="pt-1">
+            <Link href="/admin/dashboard" className="underline hover:text-foreground">
+              Back to Dashboard
+            </Link>
+            {" · "}
+            <Link href="/" className="underline hover:text-foreground">
+              Home
             </Link>
           </p>
         </div>

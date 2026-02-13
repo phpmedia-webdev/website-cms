@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getSupabaseEnv, createServerSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseEnv } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
 
 type CookieOptions = { path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" };
 
 /**
  * POST /api/auth/mfa/verify
- * Verifies MFA code server-side. On success, sets AAL2 session cookies and redirects to
- * /admin/mfa/success (intermediate page) so the browser applies cookies before the final
- * redirect to dashboard. Some browsers don't apply Set-Cookie before following redirect.
+ * Verifies MFA code server-side. On success, sets AAL2 session cookies on the response
+ * and redirects to the destination with Set-Cookie (same pattern as auth callback).
  * Accepts JSON body or application/x-www-form-urlencoded (for form POST).
  */
 export async function POST(request: NextRequest) {
@@ -37,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (!factorId || !challengeId || !code || code.length !== 6) {
       if (redirectTo && redirectTo.startsWith("/")) {
-        return NextResponse.redirect(new URL(`/mfa/challenge?error=missing&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
+        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=missing&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
       }
       return NextResponse.json(
         { error: "factorId, challengeId, and a 6-digit code are required" },
@@ -89,7 +88,7 @@ export async function POST(request: NextRequest) {
       const isExpired = msg.includes("expired") || msg.includes("expire") || (error as { code?: string }).code === "otp_expired";
       const errorParam = isExpired ? "expired" : "invalid";
       if (redirectTo && redirectTo.startsWith("/")) {
-        return NextResponse.redirect(new URL(`/mfa/challenge?error=${errorParam}&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
+        return NextResponse.redirect(new URL(`/admin/mfa/challenge?error=${errorParam}&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin), 303);
       }
       return NextResponse.json(
         { error: error.message || (isExpired ? "Challenge expired" : "Invalid verification code") },
@@ -97,34 +96,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Set cookies on the SUCCESS PAGE document response instead of here, so they persist on Vercel.
-    // Store cookies in one-time table; redirect to /mfa/success?t=TOKEN; success page sets cookies and renders.
+    // Redirect directly to destination with Set-Cookie so the next request (GET destination) sends the AAL2 cookies.
     if (redirectTo && redirectTo.startsWith("/")) {
-      const admin = createServerSupabaseClient();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      const { data: row, error: insertError } = await admin
-        .from("mfa_upgrade_tokens")
-        .insert({
-          cookies: cookiesToSet.map((c) => ({
-            name: c.name,
-            value: c.value,
-            options: c.options ?? {},
-          })),
-          expires_at: expiresAt,
-        })
-        .select("token")
-        .single();
-
-      if (insertError || !row?.token) {
-        console.error("MFA verify: failed to store upgrade token", insertError);
-        return NextResponse.redirect(
-          new URL(`/mfa/challenge?error=server&redirect=${encodeURIComponent(redirectTo)}`, requestUrl.origin),
-          303
-        );
-      }
-
-      const successUrl = `/mfa/success?t=${row.token}&redirect=${encodeURIComponent(redirectTo)}`;
-      return NextResponse.redirect(new URL(successUrl, requestUrl.origin), 303);
+      const destination = new URL(redirectTo, requestUrl.origin);
+      const response = NextResponse.redirect(destination, 303);
+      setCookiesOn(response);
+      return response;
     }
 
     const response = NextResponse.json({ success: true });

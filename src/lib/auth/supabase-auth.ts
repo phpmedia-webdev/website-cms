@@ -4,6 +4,22 @@
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/client";
+
+/** Decode JWT payload without verifying. Works in Edge (atob) and Node (Buffer). */
+function decodeJwtPayload(accessToken: string): Record<string, unknown> | null {
+  try {
+    const parts = accessToken.split(".");
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json =
+      typeof Buffer !== "undefined"
+        ? Buffer.from(base64, "base64").toString("utf8")
+        : decodeURIComponent(escape(atob(base64)));
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 import { getClientSchema } from "@/lib/supabase/schema";
 
 /**
@@ -202,8 +218,14 @@ export async function getCurrentUserFromRequest(
     };
 
     const { data: { session } } = await supabase.auth.getSession();
-    const sessionWithAal = session as { aal?: "aal1" | "aal2" } | null;
-    const aal = (sessionWithAal?.aal ?? "aal1") as "aal1" | "aal2";
+    const sessionWithAal = session as { aal?: "aal1" | "aal2"; access_token?: string } | null;
+    let aal = (sessionWithAal?.aal ?? "aal1") as "aal1" | "aal2";
+    if (session?.access_token && (aal === "aal1" || !sessionWithAal?.aal)) {
+      const payload = decodeJwtPayload(session.access_token);
+      if (payload && typeof payload.aal === "string" && (payload.aal === "aal1" || payload.aal === "aal2")) {
+        aal = payload.aal as "aal1" | "aal2";
+      }
+    }
 
     return {
       user: authUser,
