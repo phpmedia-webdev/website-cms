@@ -134,9 +134,12 @@ function AdminLoginContent() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
             </Button>
-            <p className="text-center text-sm text-muted-foreground mt-2">
+            <p className="text-center text-sm text-muted-foreground mt-2 space-x-4">
               <Link href="/admin/login/forgot" className="underline hover:text-foreground">
                 Forgot password?
+              </Link>
+              <Link href="/admin/login/recover" className="underline hover:text-foreground">
+                Recover MFA (superadmin)
               </Link>
             </p>
           </form>

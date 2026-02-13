@@ -76,23 +76,42 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
     setRemovingId(factorId);
     setError("");
 
-    try {
-      const { error: unenrollError } = await supabase.auth.mfa.unenroll({
-        factorId,
-      });
-
-      if (unenrollError) {
-        setError(unenrollError.message || "Failed to remove authenticator");
-        setRemovingId(null);
-        return;
-      }
-
+    const onSuccess = () => {
       setConfirmRemoveId(null);
       if (redirectToEnrollAfter) {
         router.push("/admin/mfa/enroll");
         return;
       }
-      await loadFactors();
+      loadFactors().then(() => setRemovingId(null));
+    };
+
+    try {
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+        factorId,
+      });
+
+      if (!unenrollError) {
+        onSuccess();
+        return;
+      }
+
+      const msg = unenrollError.message || "";
+      if (msg.toLowerCase().includes("aal2") || msg.includes("AAL2 required")) {
+        const res = await fetch("/api/auth/mfa/unenroll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ factorId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          onSuccess();
+          return;
+        }
+        setError((data.error as string) || "Failed to remove authenticator");
+      } else {
+        setError(msg || "Failed to remove authenticator");
+      }
       setRemovingId(null);
     } catch (err: any) {
       setError(err.message || "Failed to remove authenticator");

@@ -276,6 +276,11 @@ export default function MFAChallenge() {
           <p>• Make sure your device time is synchronized</p>
           <p>• Codes expire after 30 seconds</p>
           <p>• If you&apos;re having trouble, try refreshing the page</p>
+          <p className="pt-2">
+            <a href="/admin/login/recover" className="underline hover:text-foreground">
+              Lost your device? Recover MFA (superadmin)
+            </a>
+          </p>
         </div>
       </CardContent>
     </Card>
