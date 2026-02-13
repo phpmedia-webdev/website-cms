@@ -21,6 +21,8 @@ export default function MFASuccessClient() {
 
       if (result.ok) {
         setStatus("ok");
+        // Brief delay so browser can apply Set-Cookie from Server Action response before navigation
+        await new Promise((r) => setTimeout(r, 400));
         window.location.replace(safeRedirect);
       } else {
         setStatus("error");
