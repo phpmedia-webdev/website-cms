@@ -44,6 +44,7 @@ export default function MFAChallenge() {
   const [selectedFactorId, setSelectedFactorId] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [loadingFactors, setLoadingFactors] = useState(true);
+  const [refreshingChallenge, setRefreshingChallenge] = useState(false);
 
   const redirectTo = searchParams.get("redirect") || "/admin/dashboard";
 
@@ -55,7 +56,7 @@ export default function MFAChallenge() {
   // Show error when redirected back from verify API (e.g. invalid code)
   useEffect(() => {
     const err = searchParams.get("error");
-    if (err === "invalid") setError("Invalid or expired code. Wait for a new code in your app and try again.");
+    if (err === "invalid") setError("Invalid or expired. Click \"Get new challenge\" below, then enter your current code.");
     if (err === "missing") setError("Missing code or session. Please try again.");
   }, [searchParams]);
 
@@ -120,6 +121,15 @@ export default function MFAChallenge() {
     setCode("");
     setError(""); // Clear error when user switches factor (fresh attempt)
     await createChallenge(factorId);
+  };
+
+  const handleRefreshChallenge = async () => {
+    if (!selectedFactorId) return;
+    setRefreshingChallenge(true);
+    setCode("");
+    setError("");
+    await createChallenge(selectedFactorId);
+    setRefreshingChallenge(false);
   };
 
   if (loadingFactors) {
@@ -191,7 +201,15 @@ export default function MFAChallenge() {
               disabled={!challengeId}
             />
             <p className="text-xs text-muted-foreground">
-              Enter the 6-digit code from your authenticator app
+              Enter the 6-digit code from your authenticator app. Waited for a new code?{" "}
+              <button
+                type="button"
+                onClick={handleRefreshChallenge}
+                disabled={refreshingChallenge || !selectedFactorId}
+                className="underline hover:text-foreground disabled:opacity-50"
+              >
+                {refreshingChallenge ? "Refreshing…" : "Get new challenge"}
+              </button>
             </p>
           </div>
 
