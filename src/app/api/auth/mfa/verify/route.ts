@@ -98,10 +98,11 @@ export async function POST(request: NextRequest) {
 
     // Return 200 + HTML with meta refresh so browser applies Set-Cookie before redirect.
     // Browsers often don't send cookies set on 303 redirect responses.
+    // 1s delay gives browser time to apply cookies before navigation.
     if (redirectTo && redirectTo.startsWith("/")) {
       const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/admin/dashboard";
       const escapedUrl = safeRedirect.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-      const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${escapedUrl}"></head><body><p>Redirecting...</p></body></html>`;
+      const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="1;url=${escapedUrl}"></head><body><p>Redirecting...</p></body></html>`;
       const res = new NextResponse(html, {
         status: 200,
         headers: { "Content-Type": "text/html; charset=utf-8" },

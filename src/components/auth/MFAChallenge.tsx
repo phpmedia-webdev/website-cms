@@ -55,7 +55,7 @@ export default function MFAChallenge() {
   // Show error when redirected back from verify API (e.g. invalid code)
   useEffect(() => {
     const err = searchParams.get("error");
-    if (err === "invalid") setError("Invalid or expired code. Please try again.");
+    if (err === "invalid") setError("Invalid or expired code. Wait for a new code in your app and try again.");
     if (err === "missing") setError("Missing code or session. Please try again.");
   }, [searchParams]);
 
@@ -213,8 +213,8 @@ export default function MFAChallenge() {
 
         {/* Help Text */}
         <div className="text-xs text-muted-foreground space-y-1">
+          <p>• Enter the code quickly — codes expire every 30 seconds</p>
           <p>• Make sure your device time is synchronized</p>
-          <p>• Codes expire after 30 seconds</p>
           <p>• If you&apos;re having trouble, try refreshing the page</p>
           <p className="pt-2">
             <Link href="/admin/login/recover" className="underline hover:text-foreground">
