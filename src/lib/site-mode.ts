@@ -9,6 +9,9 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+/** Timeout for site_mode DB fetch in Edge (avoids MIDDLEWARE_INVOCATION_TIMEOUT when Supabase is slow). */
+const EDGE_SITE_MODE_TIMEOUT_MS = 2_500;
+
 /** Fetch that disables cache so middleware always gets fresh site_mode from DB. */
 const noStoreFetch: typeof fetch = (input, init) =>
   fetch(input, { ...init, cache: "no-store" });
@@ -17,7 +20,7 @@ const noStoreFetch: typeof fetch = (input, init) =>
  * Get effective site mode for the current deployment (middleware / Edge).
  * 1) If NEXT_PUBLIC_CLIENT_SCHEMA is set, read site_mode from public.tenant_sites (by schema_name).
  *    - Uses no-store fetch so we never use a cached "coming_soon" response.
- *    - If the DB lookup fails or returns no row, default to "live".
+ *    - If the DB lookup fails, times out, or returns no row, default to "live".
  * 2) If schema is not set (e.g. missing in Edge), default to "live".
  */
 export async function getSiteModeForEdge(): Promise<string> {
@@ -33,11 +36,15 @@ export async function getSiteModeForEdge(): Promise<string> {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { fetch: noStoreFetch },
     });
-    const { data, error } = await supabase
+    const query = supabase
       .from("tenant_sites")
       .select("site_mode")
       .eq("schema_name", schema)
       .maybeSingle();
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("site_mode timeout")), EDGE_SITE_MODE_TIMEOUT_MS)
+    );
+    const { data, error } = await Promise.race([query, timeout]);
     if (error || !data?.site_mode) {
       return "live";
     }

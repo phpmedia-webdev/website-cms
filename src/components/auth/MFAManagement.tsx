@@ -24,7 +24,11 @@ interface MFAFactor {
 }
 
 interface MFAManagementProps {
-  /** When false, user cannot remove their last factor (e.g. mandatory MFA for superadmin). Default true. */
+  /**
+   * When true, user can remove their last factor (e.g. to replace it).
+   * When false, last factor shows "Required" and cannot be removed (e.g. mandatory MFA for superadmin).
+   * Default true so replace/remove is possible unless the page explicitly locks it.
+   */
   allowRemoveLastFactor?: boolean;
 }
 
@@ -68,7 +72,7 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
     }
   };
 
-  const handleRemoveFactor = async (factorId: string, isLastFactor: boolean = false) => {
+  const handleRemoveFactor = async (factorId: string, redirectToEnrollAfter = false) => {
     setRemovingId(factorId);
     setError("");
 
@@ -83,7 +87,11 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
         return;
       }
 
-      // Reload factors
+      setConfirmRemoveId(null);
+      if (redirectToEnrollAfter) {
+        router.push("/admin/mfa/enroll");
+        return;
+      }
       await loadFactors();
       setRemovingId(null);
     } catch (err: any) {
@@ -194,14 +202,22 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
                 </div>
               ))}
 
-              {/* Warning if removing last factor (only when removal is allowed) */}
+              {/* When one factor and removal allowed: show clear "Replace" option */}
               {verifiedFactors.length === 1 && canRemoveLast && (
-                <div className="flex items-start gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md">
-                  <AlertTriangle className="h-4 w-4 mt-0.5" />
-                  <p>
-                    This is your only enrolled authenticator. Removing it will disable two-factor authentication.
-                    Make sure to enroll a new authenticator before removing this one.
+                <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
+                  <p className="text-sm font-medium">Replace your authenticator</p>
+                  <p className="text-sm text-muted-foreground">
+                    To use a new device or app, remove this one and then add a new authenticator. You will get a new QR code to scan.
                   </p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-fit"
+                    onClick={() => setConfirmRemoveId(verifiedFactors[0].id)}
+                    disabled={!!removingId}
+                  >
+                    Replace authenticator
+                  </Button>
                 </div>
               )}
               {verifiedFactors.length === 1 && !canRemoveLast && (
@@ -217,7 +233,7 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
                 className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Another Authenticator
+                {verifiedFactors.length > 0 ? "Add Another Authenticator" : "Add Authenticator"}
               </Button>
             </div>
           ) : (
@@ -313,8 +329,8 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
                 <Button
                   variant="destructive"
                   onClick={() => {
-                    handleRemoveFactor(confirmRemoveId, true);
-                    setConfirmRemoveId(null);
+                    const isLast = verifiedFactors.length === 1;
+                    handleRemoveFactor(confirmRemoveId!, isLast && canRemoveLast);
                   }}
                   disabled={removingId === confirmRemoveId}
                 >
@@ -323,6 +339,8 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Removing...
                     </>
+                  ) : canRemoveLast && verifiedFactors.length === 1 ? (
+                    "Remove & set up new one"
                   ) : (
                     "Yes, Remove It"
                   )}

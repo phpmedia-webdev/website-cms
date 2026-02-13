@@ -1,19 +1,15 @@
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
-import { hasEnrolledFactors } from "@/lib/auth/mfa";
 import { redirect } from "next/navigation";
 import MFAEnroll from "@/components/auth/MFAEnroll";
 
+/**
+ * MFA enrollment page: first-time setup or add another authenticator.
+ * Does NOT redirect when user already has factors — allows "Add another" from Security.
+ */
 export default async function MFAEnrollPage() {
-  // Check if user is authenticated
   const user = await getCurrentUser();
   if (!user) {
     redirect("/admin/login");
-  }
-
-  // Already have factors → verify with challenge (or go to Security to manage)
-  const hasFactors = await hasEnrolledFactors();
-  if (hasFactors) {
-    redirect("/admin/mfa/challenge?redirect=/admin/dashboard");
   }
 
   return (

@@ -7,9 +7,32 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getCurrentUserFromRequest, validateTenantAccess } from "./lib/auth/supabase-auth";
+import {
+  getCurrentUserFromRequest,
+  validateTenantAccess,
+  type UserFromRequestResult,
+} from "./lib/auth/supabase-auth";
 import { requiresAAL2, isDevModeBypassEnabled } from "./lib/auth/mfa";
 import { getSiteModeForEdge } from "./lib/site-mode";
+
+/** Auth call timeout to avoid MIDDLEWARE_INVOCATION_TIMEOUT when Supabase is slow (Vercel Edge ~10s limit). */
+const AUTH_TIMEOUT_MS = 5_000;
+
+const emptyAuth: UserFromRequestResult = { user: null, session: null };
+
+/** Get user/session with timeout; on timeout treat as unauthenticated so middleware can still respond. */
+async function getCurrentUserWithTimeout(
+  request: NextRequest,
+  cookieCarrier: NextResponse
+): Promise<UserFromRequestResult> {
+  const timeout = new Promise<UserFromRequestResult>((resolve) =>
+    setTimeout(() => resolve(emptyAuth), AUTH_TIMEOUT_MS)
+  );
+  return Promise.race([
+    getCurrentUserFromRequest(request, cookieCarrier),
+    timeout,
+  ]);
+}
 
 /** Response with getSetCookie (Fetch spec; not on all TS libs). */
 type ResponseWithGetSetCookie = Response & { getSetCookie?(): string[] };
@@ -55,7 +78,7 @@ export async function middleware(request: NextRequest) {
 
   // Redirect /admin to /admin/dashboard if authenticated, or /admin/login if not
   if (pathname === "/admin") {
-    const { user } = await getCurrentUserFromRequest(request, cookieCarrier);
+    const { user } = await getCurrentUserWithTimeout(request, cookieCarrier);
     if (user && validateTenantAccess(user)) {
       const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
       copyCookiesTo(res, cookieCarrier);
@@ -72,7 +95,7 @@ export async function middleware(request: NextRequest) {
   const isSuperadminRoute = pathname.startsWith("/admin/super");
 
   // Get current user and session from Supabase Auth (writes refresh cookies to cookieCarrier; session.aal for 2FA)
-  const { user, session } = await getCurrentUserFromRequest(request, cookieCarrier);
+  const { user, session } = await getCurrentUserWithTimeout(request, cookieCarrier);
 
   // If accessing protected route, validate authentication and tenant access
   if (isProtectedRoute) {

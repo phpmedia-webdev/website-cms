@@ -18,9 +18,10 @@ export default async function SuperadminSecurityPage() {
         <h1 className="text-3xl font-bold">Security</h1>
         <p className="text-muted-foreground mt-2">
           Manage your two-factor authentication (authenticator app). Required for superadmin access.
+          You can remove and replace your authenticator here (e.g. after switching devices).
         </p>
       </div>
-      <MFAManagement allowRemoveLastFactor={false} />
+      <MFAManagement allowRemoveLastFactor={true} />
     </div>
   );
 }

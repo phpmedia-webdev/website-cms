@@ -53,26 +53,17 @@ export default function MFAEnroll() {
       const factors = data?.all || [];
       setExistingFactors(factors);
 
-      // Check for unverified factors that might be blocking enrollment
+      // Unverified factors block enrollment — user must remove them first (or we remove via button)
       const unverifiedFactors = factors.filter((f: any) => f.status === "unverified");
       if (unverifiedFactors.length > 0) {
-        setError(`You have ${unverifiedFactors.length} unverified factor(s) that need to be removed before enrolling a new one. Please go to Settings → Security to remove them, or click the button below to remove them automatically.`);
+        setError(`You have ${unverifiedFactors.length} unverified factor(s) that need to be removed before enrolling a new one. Please go to Security to remove them, or click the button below to remove them automatically.`);
         setExistingFactors(unverifiedFactors);
         setStep("error");
         setLoading(false);
         return;
       }
 
-      // If user already has verified factors, suggest going to management page
-      const verifiedFactors = factors.filter((f: any) => f.status === "verified");
-      if (verifiedFactors.length > 0) {
-        setError(`You already have ${verifiedFactors.length} enrolled authenticator(s). You can add another one or manage existing ones in Settings → Security.`);
-        setStep("error");
-        setLoading(false);
-        return;
-      }
-
-      // If there are unverified factors, we can still enroll a new one
+      // User may already have verified factors (adding another) — proceed to enrollment with unique name
       // Get user email for better naming
       const { data: { user } } = await supabase.auth.getUser();
       const userEmail = user?.email || "";
