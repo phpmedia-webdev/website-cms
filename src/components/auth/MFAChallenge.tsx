@@ -109,7 +109,7 @@ export default function MFAChallenge() {
       }
 
       setChallengeId(id);
-      setError(""); // Clear any previous errors
+      // Don't clear error here — we may have just landed from verify API with error=invalid
     } catch (err: any) {
       setError(err.message || "Failed to create challenge");
     }
@@ -117,7 +117,8 @@ export default function MFAChallenge() {
 
   const handleFactorChange = async (factorId: string) => {
     setSelectedFactorId(factorId);
-    setCode(""); // Clear code when switching factors
+    setCode("");
+    setError(""); // Clear error when user switches factor (fresh attempt)
     await createChallenge(factorId);
   };
 
