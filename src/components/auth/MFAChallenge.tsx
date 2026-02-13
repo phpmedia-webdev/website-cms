@@ -173,51 +173,19 @@ export default function MFAChallenge() {
           </div>
         )}
 
-        {/* Code Input — fetch with credentials so browser applies Set-Cookie before we navigate */}
+        {/* Code Input — form POST (full page navigation) so browser reliably applies Set-Cookie.
+            Fetch responses often don't persist cookies before client-side redirect on Vercel. */}
         <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!selectedFactorId || !challengeId || code.length !== 6) return;
-            setLoading(true);
-            setError("");
-            try {
-              const formData = new FormData();
-              formData.set("factorId", selectedFactorId);
-              formData.set("challengeId", challengeId);
-              formData.set("code", code);
-              const res = await fetch(`/api/auth/mfa/verify?redirect=${encodeURIComponent(redirectTo)}`, {
-                method: "POST",
-                credentials: "include",
-                body: formData,
-                redirect: "manual",
-              });
-              if (res.type === "opaqueredirect" || res.status === 303 || res.status === 302) {
-                const location = res.headers.get("Location") || "";
-                if (location.includes("/mfa/challenge") || location.includes("/admin/mfa/challenge")) {
-                  const url = new URL(location, window.location.origin);
-                  const err = url.searchParams.get("error");
-                  setError(err === "invalid" ? "Invalid or expired. Click \"Get new challenge\" below, then enter your current code." : "Verification failed");
-                }
-                setLoading(false);
-                return;
-              }
-              if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                setError((data.error as string) || "Verification failed");
-                setLoading(false);
-                return;
-              }
-              // Cookies are in the response. Navigate to success page first so browser does a full
-              // page load (which reliably sends cookies), then success page redirects to dashboard.
-              const target = redirectTo.startsWith("/") ? redirectTo : "/admin/dashboard";
-              window.location.href = `/mfa/success?redirect=${encodeURIComponent(target)}`;
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Verification failed");
-              setLoading(false);
-            }
+          action={`/api/auth/mfa/verify?redirect=${encodeURIComponent(redirectTo)}`}
+          method="POST"
+          onSubmit={(e) => {
+            if (code.length !== 6 || !challengeId || !selectedFactorId) e.preventDefault();
+            else setLoading(true);
           }}
           className="space-y-4"
         >
+          <input type="hidden" name="factorId" value={selectedFactorId ?? ""} />
+          <input type="hidden" name="challengeId" value={challengeId ?? ""} />
           <div className="space-y-2">
             <label htmlFor="code" className="text-sm font-medium">
               Verification Code

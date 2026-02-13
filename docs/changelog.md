@@ -11,6 +11,18 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-12 CT (late) - MFA: form POST for reliable cookie persistence
+
+**Context for Next Session:**
+- **MFA fix:** Switched from fetch to form POST so browser does full navigation to verify API; cookies apply reliably on document load. API redirects to /mfa/success first (meta refresh), then success page countdown → admin.
+- **Key files:** `src/components/auth/MFAChallenge.tsx`, `src/app/api/auth/mfa/verify/route.ts`.
+
+**Changes:**
+- **Form POST:** MFAChallenge uses form action/method POST instead of fetch; full page navigation so Set-Cookie applies on document load.
+- **API:** Meta refresh redirects to /mfa/success?redirect=... (not directly to admin).
+
+---
+
 ### 2026-02-12 CT (late) - MFA standalone flow, success page with delay
 
 **Context for Next Session:**
