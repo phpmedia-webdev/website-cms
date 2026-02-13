@@ -113,6 +113,8 @@ export async function POST(request: NextRequest) {
       successUrl.searchParams.set("redirect", redirectTo);
       // 303 See Other so browser follows with GET (307 would preserve POST → 405 on success route)
       const res = NextResponse.redirect(successUrl, 303);
+      // Add Supabase AAL2 session cookies from mfa.verify (they were in cookiesToSet but never sent)
+      setCookiesOn(res);
       res.cookies.set(MFA_UPGRADE_COOKIE, value, {
         path: "/admin/mfa",
         maxAge: MFA_UPGRADE_MAX_AGE,
