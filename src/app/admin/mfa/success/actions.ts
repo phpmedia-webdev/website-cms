@@ -1,10 +1,5 @@
-/**
- * GET /admin/mfa/success
- * Intermediate step after MFA verify: reads short-lived upgrade cookie, sets Supabase
- * session (AAL2) on the response, then redirects. Uses next/headers cookies() for
- * setAll so cookies are written the same way as the auth callback and createServerSupabaseClientSSR.
- */
-import { NextRequest, NextResponse } from "next/server";
+"use server";
+
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabaseEnv } from "@/lib/supabase/client";
@@ -25,28 +20,33 @@ function decodeUpgradeCookie(value: string): { access_token: string; refresh_tok
   }
 }
 
-export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url);
-  const redirectTo = requestUrl.searchParams.get("redirect") || "/admin/dashboard";
-  const safeRedirect = redirectTo.startsWith("/") ? redirectTo : "/admin/dashboard";
+/**
+ * Applies MFA upgrade: reads short-lived cookie, sets Supabase session (AAL2) via cookies().
+ * Server Action ensures setAll runs in same request before returning, so response includes cookies.
+ */
+export async function applyMfaUpgrade(): Promise<{ ok: boolean; error?: string }> {
+  const cookieStore = await cookies();
+  const upgradeCookie = cookieStore.get(MFA_UPGRADE_COOKIE)?.value;
 
-  const upgradeCookie = request.cookies.get(MFA_UPGRADE_COOKIE)?.value;
   if (!upgradeCookie) {
-    return NextResponse.redirect(new URL("/admin/mfa/challenge?error=missing&redirect=" + encodeURIComponent(safeRedirect), requestUrl.origin));
+    return { ok: false, error: "missing" };
   }
 
   const tokens = decodeUpgradeCookie(upgradeCookie);
   if (!tokens) {
-    return NextResponse.redirect(new URL("/admin/mfa/challenge?error=invalid&redirect=" + encodeURIComponent(safeRedirect), requestUrl.origin));
+    return { ok: false, error: "invalid" };
   }
 
   const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
-  const cookieStore = await cookies();
+  let resolveFlush: () => void;
+  const flushDone = new Promise<void>((r) => {
+    resolveFlush = r;
+  });
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        return request.cookies.getAll();
+        return cookieStore.getAll();
       },
       setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
         cookiesToSet.forEach((c) => {
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
             sameSite: (opts?.sameSite as "lax" | "strict") ?? "lax",
           });
         });
+        resolveFlush?.();
       },
     },
     db: { schema: getClientSchema() },
@@ -70,12 +71,15 @@ export async function GET(request: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.redirect(new URL("/admin/mfa/challenge?error=invalid&redirect=" + encodeURIComponent(safeRedirect), requestUrl.origin));
+    return { ok: false, error: "invalid" };
   }
 
-  const res = NextResponse.redirect(new URL(safeRedirect, requestUrl.origin), 303);
-  // Clear the one-time upgrade cookie
-  res.cookies.set(MFA_UPGRADE_COOKIE, "", { path: "/admin/mfa", maxAge: 0 });
+  await Promise.race([
+    flushDone,
+    new Promise<void>((_, rej) => setTimeout(() => rej(new Error("timeout")), 3000)),
+  ]).catch(() => {});
 
-  return res;
+  cookieStore.set(MFA_UPGRADE_COOKIE, "", { path: "/admin/mfa", maxAge: 0 });
+
+  return { ok: true };
 }
