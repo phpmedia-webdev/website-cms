@@ -41,6 +41,9 @@ export interface CrmContact {
   form_id: string | null;
   external_crm_id: string | null;
   external_crm_synced_at: string | null;
+  external_vbout_id: string | null;
+  external_stripe_id: string | null;
+  external_ecommerce_id: string | null;
   message: string | null;
   created_at: string;
   updated_at: string;
@@ -241,6 +244,41 @@ export async function getContactById(id: string): Promise<CrmContact | null> {
   }
   const rows = (data as CrmContact[] | null) ?? [];
   return rows[0] ?? null;
+}
+
+/** Source identifier for external UID lookups. */
+export type ExternalIdSource = "anychat" | "vbout" | "stripe" | "ecommerce";
+
+const EXTERNAL_ID_COLUMN: Record<ExternalIdSource, keyof CrmContact> = {
+  anychat: "external_crm_id",
+  vbout: "external_vbout_id",
+  stripe: "external_stripe_id",
+  ecommerce: "external_ecommerce_id",
+};
+
+/**
+ * Get a contact by external system UID (for webhooks and integrations).
+ */
+export async function getContactByExternalId(
+  source: ExternalIdSource,
+  externalId: string
+): Promise<CrmContact | null> {
+  if (!externalId || typeof externalId !== "string" || !externalId.trim()) return null;
+  const column = EXTERNAL_ID_COLUMN[source];
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("*")
+    .eq(column, externalId.trim())
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("Error fetching contact by external id:", { source, message: error.message });
+    return null;
+  }
+  return (data as CrmContact | null) ?? null;
 }
 
 /**
@@ -999,22 +1037,29 @@ export async function restoreContactsBulk(
   return { success: true, error: null };
 }
 
-/** Core contact fields that are merged (primary wins non-empty; secondary fills blanks). */
-const MERGEABLE_CORE_KEYS: (keyof CrmContact)[] = [
+/** Core contact fields that are merged (primary wins non-empty; secondary fills blanks, or use fieldChoices). */
+export const MERGEABLE_CORE_KEYS: (keyof CrmContact)[] = [
   "email", "phone", "first_name", "last_name", "full_name", "company",
   "address", "city", "state", "postal_code", "country", "status", "dnd_status", "source", "message",
 ];
 
 /**
+ * Optional per-field choice when merging: which contact's value to keep.
+ * Keys: core field names (e.g. "email") or custom_field_id for custom fields.
+ */
+export type MergeFieldChoices = Record<string, "primary" | "secondary">;
+
+/**
  * Merge secondary contact into primary. Not reversible.
- * - Merges core fields: primary keeps non-empty values; secondary fills blanks.
+ * - Core fields: primary keeps non-empty, secondary fills blanks; optional fieldChoices overrides per field.
  * - Copies external_crm_id to primary if primary does not have one.
- * - Reassigns notes, form_submissions, MAGs (with conflict handling), custom fields, consents, marketing lists, taxonomy to primary.
+ * - Reassigns notes, form_submissions, MAGs, custom fields (with fieldChoices for conflicts), consents, marketing lists, taxonomy to primary.
  * - Soft-deletes the secondary contact.
  */
 export async function mergeContacts(
   primaryId: string,
-  secondaryId: string
+  secondaryId: string,
+  fieldChoices?: MergeFieldChoices
 ): Promise<{ success: boolean; error: Error | null }> {
   if (primaryId === secondaryId) {
     return { success: false, error: new Error("Primary and secondary contact must be different") };
@@ -1035,14 +1080,28 @@ export async function mergeContacts(
   for (const key of MERGEABLE_CORE_KEYS) {
     const pVal = primary[key];
     const sVal = secondary[key];
-    const usePrimary = pVal != null && String(pVal).trim() !== "";
-    if (usePrimary) (merged as Record<string, unknown>)[key] = pVal;
-    else if (sVal != null && String(sVal).trim() !== "") (merged as Record<string, unknown>)[key] = sVal;
+    const choice = fieldChoices?.[key];
+    let val: unknown;
+    if (choice === "secondary" && sVal != null && String(sVal).trim() !== "") {
+      val = sVal;
+    } else if (choice === "primary" && pVal != null && String(pVal).trim() !== "") {
+      val = pVal;
+    } else {
+      const usePrimary = pVal != null && String(pVal).trim() !== "";
+      val = usePrimary ? pVal : sVal != null && String(sVal).trim() !== "" ? sVal : undefined;
+    }
+    if (val !== undefined) (merged as Record<string, unknown>)[key] = val;
   }
   if (!primary.external_crm_id?.trim() && secondary.external_crm_id?.trim()) {
     merged.external_crm_id = secondary.external_crm_id;
     if (secondary.external_crm_synced_at) merged.external_crm_synced_at = secondary.external_crm_synced_at;
   }
+  if (!primary.external_vbout_id?.trim() && secondary.external_vbout_id?.trim())
+    merged.external_vbout_id = secondary.external_vbout_id;
+  if (!primary.external_stripe_id?.trim() && secondary.external_stripe_id?.trim())
+    merged.external_stripe_id = secondary.external_stripe_id;
+  if (!primary.external_ecommerce_id?.trim() && secondary.external_ecommerce_id?.trim())
+    merged.external_ecommerce_id = secondary.external_ecommerce_id;
 
   const { error: updateErr } = await supabase
     .schema(CRM_SCHEMA)
@@ -1100,20 +1159,30 @@ export async function mergeContacts(
   }
 
   const [{ data: primaryCfs }, { data: secondaryCfs }] = await Promise.all([
-    supabase.schema(CRM_SCHEMA).from("crm_contact_custom_fields").select("custom_field_id").eq("contact_id", primaryId),
+    supabase.schema(CRM_SCHEMA).from("crm_contact_custom_fields").select("custom_field_id, value").eq("contact_id", primaryId),
     supabase.schema(CRM_SCHEMA).from("crm_contact_custom_fields").select("custom_field_id, value").eq("contact_id", secondaryId),
   ]);
-  const primaryCfSet = new Set(((primaryCfs as { custom_field_id: string }[] | null) ?? []).map((r) => r.custom_field_id));
-  const cfsToAdd = ((secondaryCfs as { custom_field_id: string; value: string | null }[] | null) ?? []).filter(
-    (r) => !primaryCfSet.has(r.custom_field_id)
+  const primaryCfMap = new Map(
+    ((primaryCfs as { custom_field_id: string; value: string | null }[] | null) ?? []).map((r) => [r.custom_field_id, r.value])
   );
-  for (const row of cfsToAdd) {
-    const { error: cfErr } = await supabase
-      .schema(CRM_SCHEMA)
-      .from("crm_contact_custom_fields")
-      .insert({ contact_id: primaryId, custom_field_id: row.custom_field_id, value: row.value });
-    if (cfErr) {
-      console.error("mergeContacts: crm_contact_custom_fields insert", cfErr);
+  const secondaryCfList = (secondaryCfs as { custom_field_id: string; value: string | null }[] | null) ?? [];
+  for (const row of secondaryCfList) {
+    const { custom_field_id, value: sVal } = row;
+    const primaryVal = primaryCfMap.get(custom_field_id);
+    if (!primaryCfMap.has(custom_field_id)) {
+      const { error: cfErr } = await supabase
+        .schema(CRM_SCHEMA)
+        .from("crm_contact_custom_fields")
+        .insert({ contact_id: primaryId, custom_field_id, value: sVal });
+      if (cfErr) console.error("mergeContacts: crm_contact_custom_fields insert", cfErr);
+    } else if (fieldChoices?.[custom_field_id] === "secondary" && sVal != null && String(sVal).trim() !== "") {
+      const { error: cfErr } = await supabase
+        .schema(CRM_SCHEMA)
+        .from("crm_contact_custom_fields")
+        .update({ value: sVal })
+        .eq("contact_id", primaryId)
+        .eq("custom_field_id", custom_field_id);
+      if (cfErr) console.error("mergeContacts: crm_contact_custom_fields update", cfErr);
     }
   }
   const { error: cfDelErr } = await supabase

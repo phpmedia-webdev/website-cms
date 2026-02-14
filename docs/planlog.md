@@ -70,6 +70,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 - [x] Activity Stream dashboard widget (combined activity stream + filters on admin dashboard)
 - [x] Contact merge: detail page Merge button + bulk "Merge 2 contacts" (Bulk actions when exactly 2 selected); irreversible warning and checkbox; MergeBulkDialog to pick primary; mergeContacts in crm.ts, POST /api/crm/contacts/merge.
+- [x] Merge field selector: side-by-side UI (MergeSideBySide), fieldChoices in merge API, suggested primary in bulk; GET /api/crm/contacts/[id]/custom-fields.
+- [x] CRM external UIDs (4 columns): external_crm_id, external_vbout_id, external_stripe_id, external_ecommerce_id; migration 113; getContactByExternalId(source, id).
 - [x] Optional: `crm_consents`; auto-assign tags on form submit; central automations layer; push to external CRM
 
 ### Phase 08: Forms Management
@@ -89,7 +91,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [x] Membership and media: Red "M" badge on gallery list/grid and media library; optional backfill from mag-tags
 - [ ] Content editor: section-level restrictions; Tiptap protected text (shortcode); menu item restrictions
 - [ ] Ecommerce: `api_keys` table, payment webhooks (Stripe/Shopify/WooCommerce), payment-to-MAG flow
-- [ ] Member auth: optional register page; `/api/auth/member/*`; middleware for member routes
+- [x] Member auth: optional register page; `/api/auth/member/*`; middleware for member routes
 - [ ] Dashboard: membership stats; `/admin/members` list; link form submissions to member profiles (email match)
 
 ### Phase 9C: Members Table & Ownership

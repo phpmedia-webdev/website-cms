@@ -1,6 +1,35 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
-import { getContactById, upsertContactCustomFieldValue } from "@/lib/supabase/crm";
+import { getContactById, getContactCustomFields, upsertContactCustomFieldValue } from "@/lib/supabase/crm";
+
+/**
+ * GET /api/crm/contacts/[id]/custom-fields
+ * Return custom field values for a contact (merge preview, etc.).
+ */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { id: contactId } = await params;
+    const contact = await getContactById(contactId);
+    if (!contact) {
+      return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+    }
+    const customFields = await getContactCustomFields(contactId);
+    return NextResponse.json(customFields);
+  } catch (error) {
+    console.error("Error fetching contact custom fields:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch custom fields" },
+      { status: 500 }
+    );
+  }
+}
 
 /**
  * PATCH /api/crm/contacts/[id]/custom-fields

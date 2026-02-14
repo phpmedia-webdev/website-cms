@@ -15,18 +15,27 @@ _(None — use Next up.)_
 ---
 
 ## Next up
-- [ ] **Merge field selector/confirmation** — Add UI (and optional API support) to choose which contact’s value wins per field when merging: either full preview + per-field choice for standard and custom fields, or conflict-only (show “which value to keep?” only where both contacts have different non-empty values). Keeps current “primary wins, secondary fills blanks” as default when no choices provided.
-- [ ] **CRM external UIDs — schema** — Add three standard external UID columns to `crm_contacts`: Anychat (keep or rename `external_crm_id`), `external_vbout_id`, `external_stripe_id`. Migration: add new columns; backfill Anychat from existing `external_crm_id` if renaming. Update RPCs/list/detail to return new columns.
-- [ ] **CRM external UIDs — custom field lock** — Add `is_system` (or `read_only`) to `crm_custom_fields`; UI/API: block edit and delete for system fields.
-- [ ] **CRM external UIDs — temporary ecommerce** — Create one system custom field for “External ecommerce customer ID” (locked). Document or implement payment webhook path: create/update contact, store external store’s customer UID in this custom field, add to MAG. Use until in-app ecommerce exists.
-- [ ] **CRM external UIDs — helpers** — Add `getContactByExternalId(source, id)` (or per-source lookups) in crm.ts for Anychat, VBout, Stripe; use in webhooks and future VBout/Stripe integration.
+
+- [ ] **Outbound SMTP emailer + contact activity stream**
+  - [ ] Add SMTP/env config and Node.js emailer (e.g. nodemailer or built-in); lib to send email (to, subject, body).
+  - [ ] API or server action: send email then create a CRM note for the contact with a dedicated note_type (e.g. `email_sent`); store subject and optional snippet in note body so it appears in the contact activity stream.
+  - [ ] Optional: add `email_sent` to tenant CRM note types (Settings) if note types are used for display/filter.
+  - [ ] Optional: UI from contact detail to compose and send email (calls send + attach-to-contact flow).
+- [ ] **PWA Notifications (admin alerts)** — Admin notifications (new contacts, new form submissions, etc.) will use a PWA push page instead of email. Steps:
+  - [ ] **Web app manifest** — Add manifest (name, icons, display, start_url) so the app can be installed on mobile (e.g. Add to home screen).
+  - [ ] **Service worker for push** — Register a service worker that can receive push events when the app is in the background; handle push event to show notification (title, body, optional link to contact/form).
+  - [ ] **Push subscription storage** — Table (or tenant_settings) to store push subscriptions per admin user: endpoint, p256dh key, auth key; API to POST subscription (after client requests permission and gets subscription) and optionally list/delete.
+  - [ ] **VAPID keys** — Generate and store VAPID keys (env); use when sending push from the server (Web Push protocol).
+  - [ ] **Backend: send push** — Utility (e.g. `notifyAdmins(tenantId, type, payload)`) that loads subscriptions for the tenant (or relevant admins), builds payload, and sends via Web Push to each endpoint. Call from contact-created and form-submission flows (and any other events you want to notify on).
+  - [ ] **Admin PWA/notifications page** — Page (e.g. `/admin/notifications` or `/admin/pwa`) that: requests notification permission; subscribes and sends subscription to API; shows “Add to home screen” instructions and optional QR or link for mobile; only for authenticated admin.
+- [ ] **Media: "Copy Shortcode"** — Add a "Copy Shortcode" action on all media items (images, videos, video URLs) in the media library that generates the proper shortcode (e.g. `[[media:id]]`) and copies it to the clipboard for pasting into the editor. Editor integration (Insert media from Tiptap) can be called out as steps when implementing.
+  - [ ] **Adds protection to hide URL info** 
+- [ ] **Terms and Policys manager** External application but needs a link (always a custom update per tenant)
 
 ---
 
 ## Paused / Later
 
-- [ ] **Emailer: Node.js built-in** — Implement built-in email tool for sending email messages (export is ready to download).
-- [ ] **Terms and Policys manager** External application but needs a link (always a custom update per tenant)
 - [ ] **Anychat** Integration work (Anychat push to CRM, VBout sync) and other items in Paused / Later.
 - [ ] **VBout Integration** Create API routes to VBout with CRM data.
 

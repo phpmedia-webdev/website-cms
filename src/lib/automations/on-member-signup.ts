@@ -80,6 +80,9 @@ export async function ensureMemberInCrm(
       form_id: null,
       external_crm_id: null,
       external_crm_synced_at: null,
+      external_vbout_id: null,
+      external_stripe_id: null,
+      external_ecommerce_id: null,
       message: null,
     });
 

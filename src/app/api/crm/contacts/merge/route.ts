@@ -5,7 +5,7 @@ import { mergeContacts } from "@/lib/supabase/crm";
 /**
  * POST /api/crm/contacts/merge
  * Merge secondary contact into primary. Not reversible.
- * Body: { primaryId: string, secondaryId: string }.
+ * Body: { primaryId: string, secondaryId: string, fieldChoices?: Record<string, 'primary' | 'secondary'> }.
  */
 export async function POST(request: Request) {
   try {
@@ -14,14 +14,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
-    const { primaryId, secondaryId } = body as { primaryId?: string; secondaryId?: string };
+    const { primaryId, secondaryId, fieldChoices } = body as {
+      primaryId?: string;
+      secondaryId?: string;
+      fieldChoices?: Record<string, "primary" | "secondary">;
+    };
     if (!primaryId || typeof primaryId !== "string" || !secondaryId || typeof secondaryId !== "string") {
       return NextResponse.json(
         { error: "primaryId and secondaryId (strings) are required" },
         { status: 400 }
       );
     }
-    const { success, error } = await mergeContacts(primaryId.trim(), secondaryId.trim());
+    const choices =
+      fieldChoices && typeof fieldChoices === "object" && !Array.isArray(fieldChoices)
+        ? (fieldChoices as Record<string, "primary" | "secondary">)
+        : undefined;
+    const { success, error } = await mergeContacts(primaryId.trim(), secondaryId.trim(), choices);
     if (error) {
       return NextResponse.json(
         { error: error.message || "Merge failed" },

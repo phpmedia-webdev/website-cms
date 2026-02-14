@@ -11,6 +11,34 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-12 CT - Session wrap-up: planning and docs; Member auth checked off
+
+**Context for Next Session:**
+- Session was planning and docs only (no code changes). Next up in sessionlog: Outbound SMTP emailer + contact activity stream; PWA Notifications (admin alerts); Media "Copy Shortcode" (and "Adds protection to hide URL info"); Terms and Policys manager.
+- Member auth confirmed mostly complete: public `/login` has signin + signup and signup code field with redeem-code automation; `/members/*` protected by middleware; `/api/auth/member/*` deferred as optional.
+- Decisions: admin notifications via PWA push page (not email); protected video/download and media shortcode design discussed (proxy routes, gallery URL building, optional `[[media:id]]` shortcode); public signup/signin already has signup code and automations.
+
+**Changes:**
+- **Planlog:** Member auth item checked off (optional register on `/login`, middleware for member routes done; `/api/auth/member/*` optional/deferred).
+- **Sessionlog:** Already contained expanded steps for outbound SMTP emailer, PWA notifications, Media "Copy Shortcode"; no removals this session.
+
+---
+
+### 2026-02-13 CT - Merge field selector (side-by-side), CRM external UIDs (4 columns)
+
+**Context for Next Session:**
+- **Merge:** Contact merge (detail + bulk) now has a side-by-side field selector: table with Field | Primary | Secondary | Keep (Primary/Secondary) | Proposed. Notes and related data described as combined (not pick-one). Optional `fieldChoices` in POST /api/crm/contacts/merge; mergeContacts() applies choices for core and custom fields. Bulk merge suggests primary (more complete or more recent); GET /api/crm/contacts/[id]/custom-fields added for merge preview.
+- **CRM external UIDs:** Four first-class columns on contacts: `external_crm_id` (Anychat), `external_vbout_id`, `external_stripe_id`, `external_ecommerce_id`. Migration 113 adds the three new columns and updates list/detail RPCs. getContactByExternalId(source, id) in crm.ts for anychat | vbout | stripe | ecommerce. Merge and on-member-signup set the new fields. No custom-field lock or system ecommerce custom field.
+- **Key files:** `src/lib/supabase/crm.ts` (mergeContacts + fieldChoices, MERGEABLE_CORE_KEYS, getContactByExternalId, ExternalIdSource), `src/components/crm/MergeSideBySide.tsx`, `src/app/admin/crm/contacts/[id]/ContactMergeButton.tsx`, `src/components/crm/MergeBulkDialog.tsx`, `src/app/api/crm/contacts/merge/route.ts`, `src/app/api/crm/contacts/[id]/custom-fields/route.ts` (GET), `supabase/migrations/113_crm_contacts_four_external_uids.sql`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Merge field selector:** MergeSideBySide component (Field | Primary | Secondary | Keep | Proposed); default choice primary-if-non-empty else secondary. ContactMergeButton and MergeBulkDialog fetch both contacts + custom fields and show side-by-side; bulk suggests primary by completeness/recent. POST /api/crm/contacts/merge accepts optional fieldChoices; mergeContacts() uses it for core and custom fields. GET /api/crm/contacts/[id]/custom-fields for merge preview.
+- **CRM external UIDs (4 columns):** Migration 113 adds external_vbout_id, external_stripe_id, external_ecommerce_id to crm_contacts; get_contacts_dynamic and get_contact_by_id_dynamic updated. CrmContact type and merge logic extended; getContactByExternalId(source, externalId) added; on-member-signup sets new fields to null. Custom-field lock and system ecommerce custom field cancelled in favor of 4th column.
+- **Docs:** Sessionlog cleaned; next up empty.
+
+---
+
 ### 2026-02-13 CT - Session wrap-up: CRM contact merge (detail + bulk), merge field selector on backlog
 
 **Context for Next Session:**

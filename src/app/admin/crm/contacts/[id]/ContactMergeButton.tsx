@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Merge, AlertTriangle } from "lucide-react";
+import type { CrmContact } from "@/lib/supabase/crm";
+import type { MergeFieldChoices } from "@/lib/supabase/crm";
+import { MergeSideBySide, type MergeCustomFieldRow } from "@/components/crm/MergeSideBySide";
 
 interface ContactMergeButtonProps {
   contactId: string;
@@ -35,17 +38,22 @@ function contactLabel(c: { id: string; email: string | null; full_name: string |
 }
 
 /**
- * Merge button and dialog. Current contact is the primary (kept); user selects another contact to merge into this one (secondary will be removed).
- * Dire warning: action is not reversible.
+ * Merge button and dialog. Current contact is primary (kept). Side-by-side field selector; notes etc. combined.
  */
 export function ContactMergeButton({ contactId, displayName }: ContactMergeButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [contacts, setContacts] = useState<{ id: string; email: string | null; full_name: string | null; first_name: string | null; last_name: string | null; company: string | null }[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [primaryContact, setPrimaryContact] = useState<CrmContact | null>(null);
+  const [secondaryContact, setSecondaryContact] = useState<CrmContact | null>(null);
+  const [primaryCustomFields, setPrimaryCustomFields] = useState<MergeCustomFieldRow[]>([]);
+  const [secondaryCustomFields, setSecondaryCustomFields] = useState<MergeCustomFieldRow[]>([]);
+  const [fieldChoices, setFieldChoices] = useState<MergeFieldChoices>({});
   const [understood, setUnderstood] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -61,6 +69,40 @@ export function ContactMergeButton({ contactId, displayName }: ContactMergeButto
       .finally(() => setLoadingContacts(false));
   }, [open, contactId]);
 
+  useEffect(() => {
+    if (!selectedId) {
+      setPrimaryContact(null);
+      setSecondaryContact(null);
+      setPrimaryCustomFields([]);
+      setSecondaryCustomFields([]);
+      return;
+    }
+    setLoadingPreview(true);
+    Promise.all([
+      fetch(`/api/crm/contacts/${contactId}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/crm/contacts/${selectedId}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/crm/contacts/${contactId}/custom-fields`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/crm/contacts/${selectedId}/custom-fields`).then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([p, s, pCf, sCf]) => {
+        setPrimaryContact(p);
+        setSecondaryContact(s);
+        setPrimaryCustomFields(Array.isArray(pCf) ? pCf.map((x: { custom_field_id: string; custom_field_label: string; value: string | null }) => ({ custom_field_id: x.custom_field_id, custom_field_label: x.custom_field_label, value: x.value })) : []);
+        setSecondaryCustomFields(Array.isArray(sCf) ? sCf.map((x: { custom_field_id: string; custom_field_label: string; value: string | null }) => ({ custom_field_id: x.custom_field_id, custom_field_label: x.custom_field_label, value: x.value })) : []);
+      })
+      .catch(() => {
+        setPrimaryContact(null);
+        setSecondaryContact(null);
+        setPrimaryCustomFields([]);
+        setSecondaryCustomFields([]);
+      })
+      .finally(() => setLoadingPreview(false));
+  }, [contactId, selectedId]);
+
+  const onFieldChoicesChange = useCallback((choices: MergeFieldChoices) => {
+    setFieldChoices(choices);
+  }, []);
+
   const handleMerge = async () => {
     if (!selectedId || !understood) return;
     setLoading(true);
@@ -68,7 +110,11 @@ export function ContactMergeButton({ contactId, displayName }: ContactMergeButto
       const res = await fetch("/api/crm/contacts/merge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ primaryId: contactId, secondaryId: selectedId }),
+        body: JSON.stringify({
+          primaryId: contactId,
+          secondaryId: selectedId,
+          fieldChoices: Object.keys(fieldChoices).length ? fieldChoices : undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Merge failed");
@@ -82,6 +128,7 @@ export function ContactMergeButton({ contactId, displayName }: ContactMergeButto
   };
 
   const canMerge = selectedId && understood && !loading;
+  const showSideBySide = primaryContact && secondaryContact && !loadingPreview;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -91,7 +138,7 @@ export function ContactMergeButton({ contactId, displayName }: ContactMergeButto
           Merge
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5 shrink-0" />
@@ -103,10 +150,7 @@ export function ContactMergeButton({ contactId, displayName }: ContactMergeButto
                 This action is not reversible.
               </p>
               <p className="text-sm text-muted-foreground">
-                You will merge another contact into <strong>{displayName}</strong>. The selected contact will be removed from the active list (moved to trash). All of their notes, form submissions, memberships, and other data will be combined into this contact. You cannot undo this.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Choose the contact to merge into this one (that contact will no longer appear in the list).
+                You will merge another contact into <strong>{displayName}</strong>. The selected contact will be removed from the active list (moved to trash). Choose which contact’s value to keep for each field below; notes and other related data are combined from both.
               </p>
             </div>
           </DialogDescription>
@@ -130,6 +174,20 @@ export function ContactMergeButton({ contactId, displayName }: ContactMergeButto
               </SelectContent>
             </Select>
           </div>
+          {loadingPreview && selectedId && (
+            <p className="text-sm text-muted-foreground">Loading field comparison…</p>
+          )}
+          {showSideBySide && (
+            <MergeSideBySide
+              primaryContact={primaryContact}
+              secondaryContact={secondaryContact}
+              primaryCustomFields={primaryCustomFields}
+              secondaryCustomFields={secondaryCustomFields}
+              primaryLabel={displayName}
+              secondaryLabel={contactLabel(secondaryContact)}
+              onFieldChoicesChange={onFieldChoicesChange}
+            />
+          )}
           <div className="flex items-center space-x-2">
             <Checkbox
               id="merge-understood"
