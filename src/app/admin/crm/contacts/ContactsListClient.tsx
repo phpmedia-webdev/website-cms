@@ -18,6 +18,7 @@ import { SetCrmFieldsDialog } from "@/components/crm/SetCrmFieldsDialog";
 import { TaxonomyBulkDialog } from "@/components/crm/TaxonomyBulkDialog";
 import { ConfirmTrashDialog } from "@/components/crm/ConfirmTrashDialog";
 import { ConfirmEmptyTrashDialog } from "@/components/crm/ConfirmEmptyTrashDialog";
+import { MergeBulkDialog } from "@/components/crm/MergeBulkDialog";
 import { ContactsListFilters } from "@/components/crm/ContactsListFilters";
 import { ContactsListBulkBar } from "@/components/crm/ContactsListBulkBar";
 
@@ -75,6 +76,7 @@ export function ContactsListClient({
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [emptyTrashDialogOpen, setEmptyTrashDialogOpen] = useState(false);
+  const [mergeBulkDialogOpen, setMergeBulkDialogOpen] = useState(false);
   const bulkMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -210,6 +212,18 @@ export function ContactsListClient({
   };
 
   const filteredContactIds = useMemo(() => filteredContacts.map((c) => c.id), [filteredContacts]);
+
+  const mergeTwoContacts = useMemo(() => {
+    const arr = enrichedContacts.filter((c) => selectedIds.has(c.id));
+    if (arr.length !== 2) return null;
+    const toOpt = (c: ContactWithRelations) => ({
+      id: c.id,
+      displayName:
+        (c.full_name || [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || c.email || "—").trim() || "—",
+    });
+    return { contactA: toOpt(arr[0]), contactB: toOpt(arr[1]) };
+  }, [enrichedContacts, selectedIds]);
+
   const allFilteredSelected =
     totalCount > 0 && filteredContactIds.every((id) => selectedIds.has(id));
   const someFilteredSelected =
@@ -291,6 +305,7 @@ export function ContactsListClient({
         hasTrashedContacts={hasTrashedContacts}
         trashedCount={trashedContacts.length}
         hasSelection={hasSelection}
+        selectedCount={selectedIds.size}
         bulkMenuOpen={bulkMenuOpen}
         onBulkMenuOpenChange={setBulkMenuOpen}
         bulkMenuRef={bulkMenuRef}
@@ -299,6 +314,7 @@ export function ContactsListClient({
         onRemoveFromList={() => setRemoveFromListDialogOpen(true)}
         onSetCrmFields={() => setCrmFieldsDialogOpen(true)}
         onTaxonomy={() => setTaxonomyDialogOpen(true)}
+        onMerge={selectedIds.size === 2 ? () => setMergeBulkDialogOpen(true) : undefined}
         onTrash={() => setTrashConfirmOpen(true)}
         onRestore={handleRestore}
         restoreLoading={restoreLoading}
@@ -517,6 +533,18 @@ export function ContactsListClient({
         trashedCount={trashedContacts.length}
         onSuccess={refreshListAndBadge}
       />
+      {mergeTwoContacts && (
+        <MergeBulkDialog
+          open={mergeBulkDialogOpen}
+          onOpenChange={setMergeBulkDialogOpen}
+          contactA={mergeTwoContacts.contactA}
+          contactB={mergeTwoContacts.contactB}
+          onSuccess={() => {
+            setSelectedIds(new Set());
+            refreshListAndBadge();
+          }}
+        />
+      )}
     </div>
   );
 }

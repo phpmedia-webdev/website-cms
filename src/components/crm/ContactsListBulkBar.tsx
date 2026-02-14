@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Trash2, ChevronDown } from "lucide-react";
+import { Search, Trash2, ChevronDown, Merge } from "lucide-react";
 import type { RefObject } from "react";
 
 interface ContactsListBulkBarProps {
@@ -13,6 +13,8 @@ interface ContactsListBulkBarProps {
   hasTrashedContacts: boolean;
   trashedCount: number;
   hasSelection: boolean;
+  /** Number of selected contacts; used to show Merge when exactly 2. */
+  selectedCount: number;
   bulkMenuOpen: boolean;
   onBulkMenuOpenChange: (open: boolean) => void;
   bulkMenuRef: RefObject<HTMLDivElement | null>;
@@ -21,6 +23,8 @@ interface ContactsListBulkBarProps {
   onRemoveFromList: () => void;
   onSetCrmFields: () => void;
   onTaxonomy: () => void;
+  /** Called when user chooses "Merge 2 contacts" (only shown when selectedCount === 2). */
+  onMerge?: () => void;
   onTrash: () => void;
   onRestore: () => void;
   restoreLoading: boolean;
@@ -38,6 +42,7 @@ export function ContactsListBulkBar({
   hasTrashedContacts,
   trashedCount,
   hasSelection,
+  selectedCount,
   bulkMenuOpen,
   onBulkMenuOpenChange,
   bulkMenuRef,
@@ -46,6 +51,7 @@ export function ContactsListBulkBar({
   onRemoveFromList,
   onSetCrmFields,
   onTaxonomy,
+  onMerge,
   onTrash,
   onRestore,
   restoreLoading,
@@ -129,6 +135,14 @@ export function ContactsListBulkBar({
                   Taxonomy
                 </button>
               </li>
+              {selectedCount === 2 && onMerge && !showTrashed && (
+                <li role="none">
+                  <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => closeAnd(onMerge)}>
+                    <Merge className="h-3.5 w-3.5" />
+                    Merge 2 contacts
+                  </button>
+                </li>
+              )}
               <li role="none">
                 <button type="button" role="menuitem" className="w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => closeAnd(onTrash)}>
                   Delete

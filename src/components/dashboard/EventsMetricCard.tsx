@@ -4,11 +4,18 @@ import { Calendar } from "lucide-react";
 interface EventsMetricCardProps {
   total: number;
   byType: { event_type: string | null; count: number }[];
+  recurringCount?: number;
+  publicCount?: number;
+  privateCount?: number;
 }
 
-export function EventsMetricCard({ total, byType }: EventsMetricCardProps) {
-  const topTypes = byType.slice(0, 5);
-
+export function EventsMetricCard({
+  total,
+  byType,
+  recurringCount = 0,
+  publicCount = 0,
+  privateCount = 0,
+}: EventsMetricCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -17,17 +24,21 @@ export function EventsMetricCard({ total, byType }: EventsMetricCardProps) {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{total.toLocaleString()}</div>
-        <p className="text-xs text-muted-foreground mt-1">Total on calendar</p>
-        {topTypes.length > 0 && (
-          <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-            {topTypes.map(({ event_type, count }) => (
-              <li key={event_type ?? "(none)"} className="flex justify-between gap-2">
-                <span className="truncate">{event_type ?? "(no type)"}</span>
-                <span className="shrink-0">{count}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <p className="text-xs text-muted-foreground mt-1">Total events on calendar</p>
+        <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          <li className="flex justify-between gap-2">
+            <span className="truncate">Recurring Events</span>
+            <span className="shrink-0">{recurringCount}</span>
+          </li>
+          <li className="flex justify-between gap-2">
+            <span className="truncate">Public Events</span>
+            <span className="shrink-0">{publicCount}</span>
+          </li>
+          <li className="flex justify-between gap-2">
+            <span className="truncate">Private Events</span>
+            <span className="shrink-0">{privateCount}</span>
+          </li>
+        </ul>
       </CardContent>
     </Card>
   );

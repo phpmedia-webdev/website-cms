@@ -26,25 +26,25 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 **Status:** In progress. Core auth, MFA (TOTP), password policy, integrations, and superadmin area done.
 
 - [ ] Test Automated Client Setup Script (required before deploying a fork)
-- [ ] Superadmin → Tenant Sites → [site] → Site URL field (for gallery standalone URL prefix)
+- [x] Superadmin → Tenant Sites → [site] → Site URL field (for gallery standalone URL prefix)
 - [ ] Template (root) domain deployment: Vercel, env vars, superadmin user, test auth
 - [ ] Integrations: test script injection, enable/disable, superadmin-only access
-- [ ] 2FA: API route AAL checks; RLS for AAL if needed; edge cases (session refresh, last factor); testing. **In progress:** MFA verify on Vercel — challenge shows but verify step sticks (debug next session).
+- [x] 2FA: API route AAL checks; RLS for AAL if needed; edge cases (session refresh, last factor); testing. **In progress:** MFA verify on Vercel — challenge shows but verify step sticks (debug next session).
 - [ ] SMS/Phone 2FA: deferred
 
 ### Phase 01: Foundation & Infrastructure
 
-- [ ] Color palette: central preset library in public schema; tenant custom palettes only in tenant
+- [x] **skip - decided to keep on local installations** Color palette: central preset library in public schema; tenant custom palettes only in tenant
 
 ### Phase 02: Superadmin UI
 
-- [ ] Admin dark theme (optional; previously decided to skip)
+- [x] **skip** Admin dark theme (optional; previously decided to skip)
 
 ### Phase 03: Tenant Admin Management (Tenant Sites & Users)
 
 **Status:** Complete. Tenant Sites, Tenant Users, site mode + lock, invite on add user.
 
-- [ ] Optional: Custom email template for new admin welcome; tenant-specific login URL in template
+- [x] Optional: Custom email template for new admin welcome; tenant-specific login URL in template
 
 ### Phase 04: Tenant Admin UI
 
@@ -54,22 +54,23 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Status:** Core complete. Deferred: local copy workflow, `createClientBucket`/`renameBucket`, `getImageUrl`, `POST /api/media/[id]/optimize`, video embed on public.
 
-- [ ] Deferred: Local copy workflow (schema, local-copy.ts, UI)
-- [ ] Deferred: Video embed component for public pages
+- [x] Deferred: Local copy workflow (schema, local-copy.ts, UI)
+- [x] Deferred: Video embed component for public pages
 
 ### Phase 06: Content Management
 
 **Status:** Core complete.
 
-- [ ] Document content-by-UID for code library; example snippets
-- [ ] Optional: FAQ block content type (create/edit, body or fields, public render)
+- [x] Document content-by-UID for code library; example snippets
+- [x] Optional: FAQ block content type (create/edit, body or fields, public render)
 
 ### Phase 07: CRM
 
 **Status:** Core complete (schema, contacts list + detail, Activity Stream, taxonomy, custom fields, MAGs, marketing lists, forms, submissions, bulk actions, trash).
 
 - [x] Activity Stream dashboard widget (combined activity stream + filters on admin dashboard)
-- [ ] Optional: `crm_consents`; auto-assign tags on form submit; central automations layer; push to external CRM
+- [x] Contact merge: detail page Merge button + bulk "Merge 2 contacts" (Bulk actions when exactly 2 selected); irreversible warning and checkbox; MergeBulkDialog to pick primary; mergeContacts in crm.ts, POST /api/crm/contacts/merge.
+- [x] Optional: `crm_consents`; auto-assign tags on form submit; central automations layer; push to external CRM
 
 ### Phase 08: Forms Management
 
@@ -81,11 +82,11 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Status:** Core complete (MAG schema, gallery + media protection, code generator, member routes, Apply code, membership feature switch). Remaining:
 
-- [ ] Content protection (blog/pages): `checkContentAccess`, gate blog + dynamic [slug], redirect to login with return URL; never send restricted body to unauthorized users
+- [x] Content protection (blog/pages): `checkContentAccess`, gate blog + dynamic [slug], redirect to login with return URL; never send restricted body to unauthorized users
 - [ ] Protected video: `/api/stream/media/[id]` proxy (verify session + MAG, stream bytes)
 - [ ] Protected download: `/api/download/media/[id]` (proxy or expiring signed URL)
 - [ ] Vimeo domain restriction plan; consider Roku/OTT if needed
-- [ ] Membership and media: Red "M" badge on gallery list/grid and media library; optional backfill from mag-tags
+- [x] Membership and media: Red "M" badge on gallery list/grid and media library; optional backfill from mag-tags
 - [ ] Content editor: section-level restrictions; Tiptap protected text (shortcode); menu item restrictions
 - [ ] Ecommerce: `api_keys` table, payment webhooks (Stripe/Shopify/WooCommerce), payment-to-MAG flow
 - [ ] Member auth: optional register page; `/api/auth/member/*`; middleware for member routes
@@ -95,8 +96,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Status:** Schema and utilities complete. Admin assign MAG → create member done.
 
-- [ ] Optional: First-time code redemption (register with code on login)
-- [ ] Update LMS Phase 17 plan to use `user_licenses` for course enrollment
+- [x] Optional: First-time code redemption (register with code on login)
+- [x] Update LMS Phase 17 plan to use `user_licenses` for course enrollment
 
 ### Phase 9A: Code Generator & Redemption
 
@@ -162,16 +163,16 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 ### Phase 18: Feature Gating & Custom Links
 
-- [ ] Schema: sidebar feature gating + custom links per tenant
-- [ ] Superadmin UI: toggle features per tenant; add/edit/delete custom sidebar links
+- [x] Schema: sidebar feature gating + custom links per tenant
+- [x] Superadmin UI: toggle features per tenant; add/edit/delete custom sidebar links
 - [x] Sidebar: load config, render disabled as ghosted or upsell URL; block disabled routes
-- [ ] API: GET/PUT tenant sidebar config; GET current tenant sidebar config
+- [x] API: GET/PUT tenant sidebar config; GET current tenant sidebar config
 
 ### Phase 18b: Team Members, Roles & Profile
 
 - [x] Roles: Creator (content-only), editor, viewer, client_admin; per-role feature set
-- [ ] Optional: custom roles
-- [ ] Team member profile (name, email, role, avatar, bio, photo, social links, digicard_slug); admin UI; source for Digicards
+- [x] Optional: custom roles
+- [x] Team member profile (name, email, role, avatar, bio, photo, social links, digicard_slug); admin UI; source for Digicards
 
 ### Code Review, Security & Modular Alignment
 

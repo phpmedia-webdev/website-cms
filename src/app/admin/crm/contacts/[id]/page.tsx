@@ -21,6 +21,7 @@ import { ContactCardStatusBadge } from "./ContactCardStatusBadge";
 import { ContactDetailTabs } from "./ContactDetailTabs";
 import { CopyMessageToNotesButton } from "./CopyMessageToNotesButton";
 import { ContactDeleteButton } from "./ContactDeleteButton";
+import { ContactMergeButton } from "./ContactMergeButton";
 
 export default async function ContactDetailPage({
   params,
@@ -94,6 +95,7 @@ export default async function ContactDetailPage({
                   Edit
                 </Button>
               </Link>
+              <ContactMergeButton contactId={id} displayName={displayName} />
               <ContactDeleteButton contactId={id} displayName={displayName} />
             </div>
           </div>

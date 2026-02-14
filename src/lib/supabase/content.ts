@@ -26,6 +26,22 @@ export async function getContentCount(schema?: string): Promise<number> {
   return typeof count === "number" ? count : 0;
 }
 
+/** Server-only: total character count of all content bodies (for dashboard). Uses RPC get_content_total_chars_dynamic (migration 112). Returns 0 if RPC is missing or fails. */
+export async function getContentTotalChars(schema?: string): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? CONTENT_SCHEMA;
+  const { data, error } = await supabase.schema("public").rpc("get_content_total_chars_dynamic", {
+    schema_name: schemaName,
+  });
+  if (error) {
+    const msg = (error as { message?: string }).message ?? (error as { code?: string }).code;
+    if (msg) console.warn("getContentTotalChars:", msg);
+    return 0;
+  }
+  const n = Number(data);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 /** Server-only: list content items of type "snippet" for dropdowns (e.g. Coming Soon message). */
 export async function getSnippetOptions(
   schema?: string

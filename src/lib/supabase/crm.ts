@@ -280,6 +280,36 @@ export async function getContactsCount(): Promise<number> {
   return typeof count === "number" ? count : 0;
 }
 
+/** Count contacts by status (for dashboard). Excludes trashed. */
+export async function getContactsCountByStatus(): Promise<{
+  total: number;
+  byStatus: { status: string; count: number }[];
+}> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .select("status")
+    .is("deleted_at", null);
+  if (error) {
+    console.error("Error counting contacts by status:", formatSupabaseError(error));
+    return { total: 0, byStatus: [] };
+  }
+  const rows = (data as { status: string }[]) ?? [];
+  const total = rows.length;
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const s = (r.status ?? "").trim().toLowerCase() || "(none)";
+    map.set(s, (map.get(s) ?? 0) + 1);
+  }
+  const byStatus = [...map.entries()].map(([status, count]) => ({
+    status: status === "(none)" ? "" : status,
+    count,
+  }));
+  byStatus.sort((a, b) => b.count - a.count);
+  return { total, byStatus };
+}
+
 /** Count contacts with status "New" (work-to-do indicator for sidebar badge). Excludes trashed. */
 export async function getNewContactsCount(): Promise<number> {
   const supabase = createServerSupabaseClient();
@@ -966,6 +996,190 @@ export async function restoreContactsBulk(
     console.error("Error bulk restoring contacts:", { message: error.message, code: error.code });
     return { success: false, error: new Error(error.message) };
   }
+  return { success: true, error: null };
+}
+
+/** Core contact fields that are merged (primary wins non-empty; secondary fills blanks). */
+const MERGEABLE_CORE_KEYS: (keyof CrmContact)[] = [
+  "email", "phone", "first_name", "last_name", "full_name", "company",
+  "address", "city", "state", "postal_code", "country", "status", "dnd_status", "source", "message",
+];
+
+/**
+ * Merge secondary contact into primary. Not reversible.
+ * - Merges core fields: primary keeps non-empty values; secondary fills blanks.
+ * - Copies external_crm_id to primary if primary does not have one.
+ * - Reassigns notes, form_submissions, MAGs (with conflict handling), custom fields, consents, marketing lists, taxonomy to primary.
+ * - Soft-deletes the secondary contact.
+ */
+export async function mergeContacts(
+  primaryId: string,
+  secondaryId: string
+): Promise<{ success: boolean; error: Error | null }> {
+  if (primaryId === secondaryId) {
+    return { success: false, error: new Error("Primary and secondary contact must be different") };
+  }
+
+  const supabase = createServerSupabaseClient();
+
+  const [primary, secondary] = await Promise.all([
+    getContactById(primaryId),
+    getContactById(secondaryId),
+  ]);
+  if (!primary) return { success: false, error: new Error("Primary contact not found") };
+  if (!secondary) return { success: false, error: new Error("Secondary contact not found") };
+  if (primary.deleted_at) return { success: false, error: new Error("Primary contact is trashed; restore it first") };
+  if (secondary.deleted_at) return { success: false, error: new Error("Secondary contact is trashed; restore it first") };
+
+  const merged: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  for (const key of MERGEABLE_CORE_KEYS) {
+    const pVal = primary[key];
+    const sVal = secondary[key];
+    const usePrimary = pVal != null && String(pVal).trim() !== "";
+    if (usePrimary) (merged as Record<string, unknown>)[key] = pVal;
+    else if (sVal != null && String(sVal).trim() !== "") (merged as Record<string, unknown>)[key] = sVal;
+  }
+  if (!primary.external_crm_id?.trim() && secondary.external_crm_id?.trim()) {
+    merged.external_crm_id = secondary.external_crm_id;
+    if (secondary.external_crm_synced_at) merged.external_crm_synced_at = secondary.external_crm_synced_at;
+  }
+
+  const { error: updateErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .update(merged)
+    .eq("id", primaryId);
+  if (updateErr) {
+    console.error("mergeContacts: update primary", updateErr);
+    return { success: false, error: new Error(updateErr.message) };
+  }
+
+  const { error: notesErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_notes")
+    .update({ contact_id: primaryId })
+    .eq("contact_id", secondaryId);
+  if (notesErr) {
+    console.error("mergeContacts: notes", notesErr);
+    return { success: false, error: new Error(notesErr.message) };
+  }
+
+  const { error: subsErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("form_submissions")
+    .update({ contact_id: primaryId })
+    .eq("contact_id", secondaryId);
+  if (subsErr) {
+    console.error("mergeContacts: form_submissions", subsErr);
+    return { success: false, error: new Error(subsErr.message) };
+  }
+
+  const [{ data: primaryMags }, { data: secondaryMags }] = await Promise.all([
+    supabase.schema(CRM_SCHEMA).from("crm_contact_mags").select("mag_id").eq("contact_id", primaryId),
+    supabase.schema(CRM_SCHEMA).from("crm_contact_mags").select("mag_id").eq("contact_id", secondaryId),
+  ]);
+  const primaryMagSet = new Set(((primaryMags as { mag_id: string }[] | null) ?? []).map((r) => r.mag_id));
+  const magsToAdd = ((secondaryMags as { mag_id: string }[] | null) ?? []).filter((r) => !primaryMagSet.has(r.mag_id));
+  for (const { mag_id } of magsToAdd) {
+    const { error: ins } = await supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_mags")
+      .insert({ contact_id: primaryId, mag_id });
+    if (ins) {
+      console.error("mergeContacts: add mag to primary", ins);
+    }
+  }
+  const { error: magDelErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_mags")
+    .delete()
+    .eq("contact_id", secondaryId);
+  if (magDelErr) {
+    console.error("mergeContacts: crm_contact_mags delete", magDelErr);
+    return { success: false, error: new Error(magDelErr.message) };
+  }
+
+  const [{ data: primaryCfs }, { data: secondaryCfs }] = await Promise.all([
+    supabase.schema(CRM_SCHEMA).from("crm_contact_custom_fields").select("custom_field_id").eq("contact_id", primaryId),
+    supabase.schema(CRM_SCHEMA).from("crm_contact_custom_fields").select("custom_field_id, value").eq("contact_id", secondaryId),
+  ]);
+  const primaryCfSet = new Set(((primaryCfs as { custom_field_id: string }[] | null) ?? []).map((r) => r.custom_field_id));
+  const cfsToAdd = ((secondaryCfs as { custom_field_id: string; value: string | null }[] | null) ?? []).filter(
+    (r) => !primaryCfSet.has(r.custom_field_id)
+  );
+  for (const row of cfsToAdd) {
+    const { error: cfErr } = await supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_custom_fields")
+      .insert({ contact_id: primaryId, custom_field_id: row.custom_field_id, value: row.value });
+    if (cfErr) {
+      console.error("mergeContacts: crm_contact_custom_fields insert", cfErr);
+    }
+  }
+  const { error: cfDelErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_custom_fields")
+    .delete()
+    .eq("contact_id", secondaryId);
+  if (cfDelErr) {
+    console.error("mergeContacts: crm_contact_custom_fields delete", cfDelErr);
+    return { success: false, error: new Error(cfDelErr.message) };
+  }
+
+  const { error: consErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_consents")
+    .update({ contact_id: primaryId })
+    .eq("contact_id", secondaryId);
+  if (consErr) {
+    console.error("mergeContacts: crm_consents", consErr);
+    return { success: false, error: new Error(consErr.message) };
+  }
+
+  const { data: secondaryLists } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_marketing_lists")
+    .select("list_id")
+    .eq("contact_id", secondaryId);
+  const listIds = (secondaryLists as { list_id: string }[] | null) ?? [];
+  for (const { list_id } of listIds) {
+    await supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_marketing_lists")
+      .upsert({ contact_id: primaryId, list_id }, { onConflict: "contact_id,list_id", ignoreDuplicates: true });
+  }
+  const { error: listDelErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_marketing_lists")
+    .delete()
+    .eq("contact_id", secondaryId);
+  if (listDelErr) {
+    console.error("mergeContacts: crm_contact_marketing_lists", listDelErr);
+    return { success: false, error: new Error(listDelErr.message) };
+  }
+
+  const { error: taxErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("taxonomy_relationships")
+    .update({ content_id: primaryId })
+    .eq("content_type", "crm_contact")
+    .eq("content_id", secondaryId);
+  if (taxErr) {
+    console.error("mergeContacts: taxonomy_relationships", taxErr);
+    return { success: false, error: new Error(taxErr.message) };
+  }
+
+  const now = new Date().toISOString();
+  const { error: softErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contacts")
+    .update({ deleted_at: now, updated_at: now })
+    .eq("id", secondaryId);
+  if (softErr) {
+    console.error("mergeContacts: soft-delete secondary", softErr);
+    return { success: false, error: new Error(softErr.message) };
+  }
+
   return { success: true, error: null };
 }
 

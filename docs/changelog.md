@@ -11,6 +11,21 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-13 CT - Session wrap-up: CRM contact merge (detail + bulk), merge field selector on backlog
+
+**Context for Next Session:**
+- **CRM contact merge:** Implemented and working. (1) **Detail page:** Merge button in contact header opens dialog with dire "This action is not reversible" warning, dropdown to pick contact to merge into current one, required checkbox, "Merge permanently" (destructive). (2) **Bulk:** Select exactly 2 contacts → Bulk actions → "Merge 2 contacts" (only when not in Show trash). MergeBulkDialog lets user choose which contact to keep (primary); the other is merged into it and soft-deleted. Merge logic: primary keeps non-empty core fields, secondary fills blanks; related data (notes, submissions, MAGs, custom fields, consents, lists, taxonomy) reassigned or combined; secondary soft-deleted.
+- **Next up (sessionlog):** Merge field selector/confirmation — optional UI to choose which contact’s value wins per field (full preview or conflict-only). CRM external UIDs (schema, custom field lock, temporary ecommerce, helpers) remain on planlog.
+- **Key files:** `src/lib/supabase/crm.ts` (mergeContacts, MERGEABLE_CORE_KEYS), `src/app/api/crm/contacts/merge/route.ts`, `src/app/admin/crm/contacts/[id]/ContactMergeButton.tsx`, `src/app/admin/crm/contacts/[id]/page.tsx`, `src/components/crm/MergeBulkDialog.tsx`, `src/components/crm/ContactsListBulkBar.tsx`, `src/app/admin/crm/contacts/ContactsListClient.tsx`.
+- No RLS or DB left in a vulnerable state.
+
+**Changes:**
+- **Contact merge (detail):** ContactMergeButton with irreversible warning, contact dropdown, confirmation checkbox; POST /api/crm/contacts/merge; mergeContacts() in crm.ts (core fields, external_crm_id, notes, form_submissions, MAGs, custom fields, consents, marketing lists, taxonomy, soft-delete secondary).
+- **Contact merge (bulk):** "Merge 2 contacts" in Bulk actions when exactly 2 selected and not in trash; MergeBulkDialog to pick primary vs secondary with same warning/checkbox; on success clear selection and refresh.
+- **Docs:** Sessionlog: completed merge and dashboard items removed; Merge field selector/confirmation added as next up. Planlog: Phase 07 CRM contact merge checked off.
+
+---
+
 ### 2026-02-12 CT - Session wrap-up: Activity Stream, dashboard restructure, OmniChat link, RAG header
 
 **Context for Next Session:**

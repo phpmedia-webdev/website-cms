@@ -310,24 +310,44 @@ export async function getEventsCount(schema?: string): Promise<number> {
   return typeof count === "number" ? count : 0;
 }
 
-/** Count events by event_type for dashboard "top by category". */
+/** Count events by event_type for dashboard. Also returns recurring, public, and private counts. */
 export async function getEventsCountByType(
   schema?: string
-): Promise<{ total: number; byType: { event_type: string | null; count: number }[] }> {
+): Promise<{
+  total: number;
+  byType: { event_type: string | null; count: number }[];
+  recurringCount: number;
+  publicCount: number;
+  privateCount: number;
+}> {
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? getClientSchema();
   const { data, error } = await supabase
     .schema(schemaName)
     .from("events")
-    .select("event_type");
+    .select("event_type, recurrence_rule, access_level, visibility");
   if (error) {
     console.error("getEventsCountByType:", error);
-    return { total: 0, byType: [] };
+    return { total: 0, byType: [], recurringCount: 0, publicCount: 0, privateCount: 0 };
   }
-  const rows = (data as { event_type: string | null }[]) ?? [];
+  const rows = (data as {
+    event_type: string | null;
+    recurrence_rule: string | null;
+    access_level: string | null;
+    visibility: string | null;
+  }[]) ?? [];
   const total = rows.length;
+  let recurringCount = 0;
+  let publicCount = 0;
+  let privateCount = 0;
   const map = new Map<string | null, number>();
   for (const r of rows) {
+    if (r.recurrence_rule?.trim()) recurringCount++;
+    const isPublic =
+      (r.access_level ?? "").toLowerCase() === "public" &&
+      (r.visibility ?? "").toLowerCase() === "public";
+    if (isPublic) publicCount++;
+    else privateCount++;
     const t = r.event_type ?? "(none)";
     map.set(t, (map.get(t) ?? 0) + 1);
   }
@@ -336,7 +356,7 @@ export async function getEventsCountByType(
     count,
   }));
   byType.sort((a, b) => b.count - a.count);
-  return { total, byType };
+  return { total, byType, recurringCount, publicCount, privateCount };
 }
 
 /** Conflict check: events (or occurrences) that overlap [startDate, endDate] and have any of the given participant ids. */
