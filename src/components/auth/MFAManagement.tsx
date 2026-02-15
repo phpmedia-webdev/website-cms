@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -240,9 +241,18 @@ export default function MFAManagement({ allowRemoveLastFactor = true }: MFAManag
                 </div>
               )}
               {verifiedFactors.length === 1 && !canRemoveLast && (
-                <p className="text-sm text-muted-foreground">
-                  Two-factor authentication is required for your role. You can add another authenticator as a backup below.
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Two-factor authentication is required for your role. You can add another authenticator as a backup below.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Lost your device? Use the recovery flow at{" "}
+                    <Link href="/admin/login/recover" className="underline hover:text-foreground">
+                      /admin/login/recover
+                    </Link>{" "}
+                    (superadmin).
+                  </p>
+                </div>
               )}
 
               {/* Add Another Factor Button */}

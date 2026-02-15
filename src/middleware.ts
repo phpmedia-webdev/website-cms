@@ -180,7 +180,9 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAuthRoute) {
-    if (user && validateTenantAccess(user)) {
+    // Allow /admin/login/recover to be reached even when logged in (AAL1) so superadmin can use OTP recovery when they lost their device
+    const isRecoverPage = pathname === "/admin/login/recover" || pathname.startsWith("/admin/login/recover/");
+    if (!isRecoverPage && user && validateTenantAccess(user)) {
       if (user.metadata.type === "superadmin" || user.metadata.type === "admin") {
         const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
         copyCookiesTo(res, cookieCarrier);

@@ -21,7 +21,7 @@ export default async function SuperadminSecurityPage() {
           You can remove and replace your authenticator here (e.g. after switching devices).
         </p>
       </div>
-      <MFAManagement allowRemoveLastFactor={true} />
+      <MFAManagement allowRemoveLastFactor={false} />
     </div>
   );
 }

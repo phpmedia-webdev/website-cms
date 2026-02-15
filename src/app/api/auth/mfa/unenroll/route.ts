@@ -33,7 +33,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const metadata = (user.user_metadata || {}) as { type?: string; role?: string };
+    const isSuperadmin = metadata.type === "superadmin" && metadata.role === "superadmin";
+
     const admin = createServerSupabaseClient();
+    const { data: factorsData, error: listError } = await admin.auth.admin.mfa.listFactors({
+      userId: user.id,
+    });
+    if (!listError && factorsData?.factors?.length === 1 && factorsData.factors.some((f) => f.id === factorId)) {
+      if (isSuperadmin) {
+        return NextResponse.json(
+          {
+            error:
+              "You cannot remove your last MFA factor. If you lost your device, use the recovery flow at /admin/login/recover",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data, error } = await admin.auth.admin.mfa.deleteFactor({
       userId: user.id,
       id: factorId,

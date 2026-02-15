@@ -31,12 +31,16 @@ _(None — use Next up.)_
 - [ ] **Media: "Copy Shortcode"** — Add a "Copy Shortcode" action on all media items (images, videos, video URLs) in the media library that generates the proper shortcode (e.g. `[[media:id]]`) and copies it to the clipboard for pasting into the editor. Editor integration (Insert media from Tiptap) can be called out as steps when implementing.
   - [ ] **Adds protection to hide URL info** 
 - [ ] **Terms and Policys manager** External application but needs a link (always a custom update per tenant)
-
+- [ ] **CRM Sorting** Add ability to sort the CRM contact list by the header items: Last name, First name, Full name, Status, Updated and determin what default sort is. Should be the last activity at top of list - so updated
+- [ ] **Form Submission List pagination** This list may grow, need a pagination feature.
+  - [ ] **Form Submission List - filter by date range** To assist research. This needs to stack with form type to help narrow search.
 ---
 
 ## Paused / Later
 
 - [ ] **Anychat** Integration work (Anychat push to CRM, VBout sync) and other items in Paused / Later.
 - [ ] **VBout Integration** Create API routes to VBout with CRM data.
+- [ ] **Integrate with PHPAUTH standalone app** for user access audit logging. 
+Superadmin & platform user management; audit logs; break-glass. Plan to add superadmin-only “add superadmin” and “delete user” in the CMS (with safeguards: no self-delete, no delete last superadmin; optional superadmin allowlist). Tenant admins keep add/remove from site only. Standalone auth app (with direct Supabase Auth access) will be used as break-glass: create a superadmin in an emergency and revoke compromised accounts; no separate master-challenge lockout in the CMS for now. Audit: use the standalone app’s audit_logs table as the single store; CMS will write auth/user events with application_id (from auth_applications), assign application_id per fork from the standalone app, and use login_source (e.g. website-cms) for filtering. Plan steps (migrations, APIs, UI) to be detailed as the plan is finalized.
 
 ---
