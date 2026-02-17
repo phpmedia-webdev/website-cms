@@ -11,6 +11,17 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-17 CT - Session wrap-up: PHP-Auth repurpose planning (authplanlog.md)
+
+**Context for Next Session:**
+- Planning only (no code changes). **Current top priority:** see and work from [authplanlog.md](./authplanlog.md) — Section 1 (modify PHP-Auth app) and Section 2 (modify website-cms app). Plan covers: data/schema cleanup (keep auth_users; simplify roles to Superadmin, admin-style, GPUM); MFA (TOTP) implementation notes from website-cms (form POST, token-relay fallback on Vercel); API keys generated and stored in PHP-Auth only; no session carry-over between PHP-Auth and website-cms; auth persists across website-cms forks (one MFA for all forks). Sessionlog Current focus points to authplanlog as next focus.
+- Key doc: `docs/authplanlog.md`. Reference: `docs/reference/RepurposeAuthApp/` (AUTH_APP_OVERVIEW_SCHEMA.md, AuthApp-prd.md). Planlog/sessionlog "Integrate with PHPAUTH standalone app" item remains; authplanlog is the detailed step-by-step plan for that work.
+
+**Changes:**
+- **authplanlog.md:** Created and refined: two-section plan (Section 1 PHP-Auth, Section 2 website-cms). Added API key responsibility (PHP-Auth generates/stores; website-cms receives/stores in env). Added MFA implementation notes from website-cms (§1.2.1: form POST, token relay for Vercel, standalone challenge/success). Clarified session rules (§1.2.2): no carry-over to/from PHP-Auth; auth persists across website-cms forks (one login + MFA for all forks). Summary table updated. No changelog/sessionlog/planlog checkoffs this session (planning only).
+
+---
+
 ### 2026-02-12 CT - Session wrap-up: planning and docs; Member auth checked off
 
 **Context for Next Session:**

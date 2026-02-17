@@ -10,7 +10,7 @@
 
 ## Current Focus
 
-_(None — use Next up.)_
+- [ ] **PHP-Auth repurpose & website-cms integration (current top priority)** — See and work from [authplanlog.md](./authplanlog.md): Section 1 (modify PHP-Auth app) and Section 2 (modify website-cms app). Covers data cleanup, MFA (TOTP) implementation notes, API keys (PHP-Auth generates/stores), no session carry-over to/from PHP-Auth, auth persists across website-cms forks.
 
 ---
 
