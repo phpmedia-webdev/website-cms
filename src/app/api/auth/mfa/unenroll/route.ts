@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const { data: factorsData, error: listError } = await admin.auth.admin.mfa.listFactors({
       userId: user.id,
     });
-    if (!listError && factorsData?.factors?.length === 1 && factorsData.factors.some((f) => f.id === factorId)) {
+    if (!listError && factorsData?.factors?.length === 1 && factorsData.factors.some((f: { id: string }) => f.id === factorId)) {
       if (isSuperadmin) {
         return NextResponse.json(
           {
