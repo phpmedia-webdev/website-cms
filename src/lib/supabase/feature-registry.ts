@@ -1,10 +1,12 @@
 /**
  * Feature registry + role feature access helpers (public schema).
  * Caller must enforce superadmin access for mutations.
+ * Role slug: app layer uses PHP-Auth slug (website-cms-admin etc.); DB may still use legacy (admin). We normalize for query.
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import type { AdminRole, FeatureRegistry } from "@/types/feature-registry";
+import { phpAuthSlugToLegacySlug } from "@/lib/php-auth/role-mapping";
 
 /** Slug for the Superadmin feature. Global, not toggleable in Roles or Tenant Features UI. */
 export const SUPERADMIN_FEATURE_SLUG = "superadmin";
@@ -138,10 +140,11 @@ export async function deleteRole(roleSlug: string): Promise<boolean> {
 
 export async function listRoleFeatureIds(roleSlug: string): Promise<string[]> {
   const supabase = createServerSupabaseClient();
+  const querySlug = roleSlug.startsWith("website-cms-") ? phpAuthSlugToLegacySlug(roleSlug) : roleSlug;
   const { data, error } = await supabase
     .from("role_features")
     .select("feature_id")
-    .eq("role_slug", roleSlug)
+    .eq("role_slug", querySlug)
     .eq("is_enabled", true);
   if (error) {
     console.error("listRoleFeatureIds:", error);

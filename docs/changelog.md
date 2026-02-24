@@ -11,6 +11,21 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-17 CT - Session wrap-up: PHP-Auth M0 integration (validate-user, audit-log, dual-read, role slugs)
+
+**Context for Next Session:**
+- **PHP-Auth M0 done:** Env config, validate-user client, audit-log helper, dual-read in resolve-role, and role slug convention (use PHP-Auth slug everywhere; no internal slug). Add AUTH_BASE_URL, AUTH_ORG_ID, AUTH_APPLICATION_ID, AUTH_API_KEY to .env.local and Vercel; test with PHP-Auth locally (port 5000) or staging.
+- **Roles:** PHP-Auth slugs (website-cms-superadmin, website-cms-admin, website-cms-editor, website-cms-creator, website-cms-gpum) are the single reference. GPUM = CRM members only (member auth, not admin UI). Use `isMemberRole(role)` and `PHP_AUTH_ADMIN_ROLE_SLUGS` when gating admin vs member. Feature-registry maps PHP-Auth slug → legacy slug for DB queries until DB is migrated.
+- **Next:** M3 (writes to central), then optional M4 (central-only read). Consider migrating admin_roles/role_features/tenant_user_assignments to PHP-Auth slugs and removing legacy mapping.
+- **Key files:** `src/lib/php-auth/` (config, validate-user, role-mapping, audit-log), `src/lib/auth/resolve-role.ts`, `src/lib/supabase/feature-registry.ts`, `docs/reference/php-auth-integration-clarification.md`, `docs/reference/php-auth-website-cms-tables-cross-reference.md`.
+
+**Changes:**
+- **PHP-Auth integration (M0):** Added `src/lib/php-auth/config.ts` (getPhpAuthConfig, isPhpAuthConfigured), `validate-user.ts` (validateUser, getOrgForThisApp), `role-mapping.ts` (toPhpAuthRoleSlug, PHP_AUTH_ROLE_SLUG, legacySlugToPhpAuthSlug, phpAuthSlugToLegacySlug, isMemberRole, PHP_AUTH_ADMIN_ROLE_SLUGS), `audit-log.ts` (pushAuditLog). Dual-read in resolve-role: try PHP-Auth validate-user first; fallback to user_metadata/tenant_user_assignments; return PHP-Auth slug; full-access check for website-cms-superadmin. Audit log wired to login API and auth callback (login_success, login_failed).
+- **Role slugs:** Use PHP-Auth slug as single reference (no internal slug). Official slugs: website-cms-superadmin, website-cms-admin, website-cms-editor, website-cms-creator, website-cms-gpum (GPUM = CRM members, not admin users). Feature-registry accepts PHP-Auth slug and maps to legacy for DB during transition.
+- **Docs:** php-auth-integration-clarification.md (scope, env, dual-read, role table, GPUM note, SSOT); php-auth-website-cms-tables-cross-reference.md (table mapping, PHP-Auth schema); prd-technical.md (AUTH_* env vars); sessionlog M0 marked completed.
+
+---
+
 ### 2026-02-17 CT - Session wrap-up: PHP-Auth repurpose planning (authplanlog.md)
 
 **Context for Next Session:**

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClientSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentUser, validateTenantAccess } from "@/lib/auth/supabase-auth";
+import { pushAuditLog } from "@/lib/php-auth/audit-log";
 
 /**
  * Login endpoint using Supabase Auth.
@@ -27,6 +28,11 @@ export async function POST(request: Request) {
     });
 
     if (authError || !authData.session || !authData.user) {
+      pushAuditLog({
+        action: "login_failed",
+        loginSource: "website-cms",
+        metadata: { reason: authError?.message ?? "invalid_credentials" },
+      }).catch(() => {});
       return NextResponse.json(
         { error: authError?.message || "Invalid credentials" },
         { status: 401 }
@@ -50,11 +56,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Supabase handles session cookies automatically
-    // We need to set the session in the response headers/cookies
-    // For Next.js API routes, we'll return the session tokens
-    // The client-side will handle setting cookies via Supabase client
-    
+    pushAuditLog({
+      action: "login_success",
+      loginSource: "website-cms",
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       user: {

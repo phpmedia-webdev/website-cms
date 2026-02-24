@@ -40,8 +40,21 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.error("Auth callback verifyOtp:", error.message);
+    const { pushAuditLog } = await import("@/lib/php-auth/audit-log");
+    pushAuditLog({
+      action: "login_failed",
+      loginSource: "website-cms",
+      metadata: { reason: "invalid_token", type },
+    }).catch(() => {});
     return NextResponse.redirect(new URL(`/login?error=invalid_token`, requestUrl.origin));
   }
+
+  const { pushAuditLog } = await import("@/lib/php-auth/audit-log");
+  pushAuditLog({
+    action: "login_success",
+    loginSource: "website-cms",
+    metadata: { source: "callback", type },
+  }).catch(() => {});
 
   // New member signup: ensure they exist in CRM with status "New" for memberships
   if (type === "signup" && data?.session?.user) {

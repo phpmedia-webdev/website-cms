@@ -34,3 +34,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# PHP-AUTH Info
+PHP_AUTH_ORGANIZATION_UUID: 899a55ce-ad52-4e19-a0b4-d552e2070188
+PHP-AUTH_APPLICATION_UUID: 834d309b-50a5-45f3-ae2f-efb8f48eae82
+PHP-AUTH_APP_API_KEY: auth_FZTb5Jt6dMHOR2JOuVgkIFh_OwdRYFY0RTZKuzFw
+
+

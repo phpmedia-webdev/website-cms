@@ -332,6 +332,7 @@ Replace `website_cms_template_dev` with your client schema name in all migration
 - `NEXT_PUBLIC_CLIENT_SCHEMA=client_acme_corp`
 - `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_SITE_NAME`
+- **PHP-Auth (optional, for central roles/audit):** `AUTH_BASE_URL`, `AUTH_ORG_ID`, `AUTH_APPLICATION_ID`, `AUTH_API_KEY` — see [php-auth-integration-clarification.md](./reference/php-auth-integration-clarification.md).
 
 **Step 6: Create Superadmin User**
 - Dashboard → Authentication → Users
