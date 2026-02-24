@@ -11,7 +11,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
-### 2026-02-17 CT - Session wrap-up: PHP-Auth M0 integration (validate-user, audit-log, dual-read, role slugs)
+### 2026-02-23 CT - Session wrap-up: PHP-Auth M0 integration (validate-user, audit-log, dual-read, role slugs)
 
 **Context for Next Session:**
 - **PHP-Auth M0 done:** Env config, validate-user client, audit-log helper, dual-read in resolve-role, and role slug convention (use PHP-Auth slug everywhere; no internal slug). Add AUTH_BASE_URL, AUTH_ORG_ID, AUTH_APPLICATION_ID, AUTH_API_KEY to .env.local and Vercel; test with PHP-Auth locally (port 5000) or staging.
