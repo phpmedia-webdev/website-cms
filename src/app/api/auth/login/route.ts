@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClientSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentUser, validateTenantAccess } from "@/lib/auth/supabase-auth";
-import { pushAuditLog } from "@/lib/php-auth/audit-log";
+import { pushAuditLog, getClientAuditContext } from "@/lib/php-auth/audit-log";
 
 /**
  * Login endpoint using Supabase Auth.
@@ -9,6 +9,7 @@ import { pushAuditLog } from "@/lib/php-auth/audit-log";
  */
 export async function POST(request: Request) {
   try {
+    const ctx = getClientAuditContext(request);
     const { email, password } = await request.json();
 
     if (!email || !password) {
@@ -32,6 +33,10 @@ export async function POST(request: Request) {
         action: "login_failed",
         loginSource: "website-cms",
         metadata: { reason: authError?.message ?? "invalid_credentials" },
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        deviceType: ctx.deviceType,
+        browser: ctx.browser,
       }).catch(() => {});
       return NextResponse.json(
         { error: authError?.message || "Invalid credentials" },
@@ -59,6 +64,12 @@ export async function POST(request: Request) {
     pushAuditLog({
       action: "login_success",
       loginSource: "website-cms",
+      userId: user.id,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      deviceType: ctx.deviceType,
+      browser: ctx.browser,
+      metadata: { email: user.email },
     }).catch(() => {});
 
     return NextResponse.json({

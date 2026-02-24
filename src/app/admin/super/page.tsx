@@ -1,14 +1,16 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { listTenantSites } from "@/lib/supabase/tenant-sites";
-import { listRoles } from "@/lib/supabase/feature-registry";
+import { listTenantSites, getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
+import { getClientSchema } from "@/lib/supabase/schema";
+import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 import { getViewAsFromCookies } from "@/lib/admin/view-as";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ViewAsCard } from "@/components/superadmin/ViewAsCard";
 
 /**
- * Superadmin system area - platform-wide utilities.
+ * Superadmin Dashboard (D6). Current site from schema only; no site picker.
  * Only accessible to users with superadmin role.
  */
 export default async function SuperadminPage() {
@@ -18,35 +20,54 @@ export default async function SuperadminPage() {
     redirect("/admin/dashboard");
   }
 
-  const [sites, roles] = await Promise.all([listTenantSites(), listRoles()]);
+  const schema = getClientSchema();
+  const [sites, roles, currentSite] = await Promise.all([
+    listTenantSites(),
+    getRolesForAssignmentFromPhpAuth(),
+    getTenantSiteBySchema(schema),
+  ]);
   const cookieStore = await cookies();
   const viewAs = getViewAsFromCookies(cookieStore);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Superadmin Settings</h1>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-2">
-          Platform-wide utilities and cross-tenant management tools
+          Current deployment and platform utilities. One site per deployment.
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <ViewAsCard sites={sites} roles={roles} initialViewAs={viewAs} />
         <Card>
           <CardHeader>
-            <CardTitle>Tenant Management</CardTitle>
+            <CardTitle>Current site</CardTitle>
             <CardDescription>
-              View and manage client schemas and deployments
+              This deployment’s tenant site (from schema)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Tenant/schema lookup and management tools will be available here.
-              This will integrate with the archive/restore system in a future phase.
-            </p>
+            {currentSite ? (
+              <div className="space-y-2 text-sm">
+                <p><span className="font-medium text-muted-foreground">Name:</span> {currentSite.name}</p>
+                <p><span className="font-medium text-muted-foreground">Schema:</span> {currentSite.schema_name}</p>
+                <p><span className="font-medium text-muted-foreground">URL:</span> {currentSite.deployment_url || "—"}</p>
+                <p><span className="font-medium text-muted-foreground">Status:</span> {currentSite.status}</p>
+                <Link
+                  href={`/admin/super/tenant-sites/${currentSite.id}`}
+                  className="inline-block mt-2 text-sm font-medium text-primary hover:underline"
+                >
+                  Site settings & gating →
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No site registered for schema <code className="rounded bg-muted px-1">{schema}</code>. Register this deployment in the database to manage features and settings.
+              </p>
+            )}
           </CardContent>
         </Card>
+        <ViewAsCard sites={sites} roles={roles} initialViewAs={viewAs} />
 
         <Card>
           <CardHeader>

@@ -21,7 +21,7 @@ export function RelatedTenantUsersClient({ siteId, siteName }: RelatedTenantUser
   const [showAdd, setShowAdd] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addDisplayName, setAddDisplayName] = useState("");
-  const [addRole, setAddRole] = useState("viewer");
+  const [addRole, setAddRole] = useState<string>("");
   const [addIsOwner, setAddIsOwner] = useState(false);
   const [addInvite, setAddInvite] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -49,7 +49,7 @@ export function RelatedTenantUsersClient({ siteId, siteName }: RelatedTenantUser
   }, [siteId]);
 
   useEffect(() => {
-    fetch("/api/admin/roles")
+    fetch("/api/admin/roles?for=assignment")
       .then((res) => res.ok ? res.json() : null)
       .then((data) => {
         if (data?.roles && Array.isArray(data.roles)) {
@@ -58,6 +58,14 @@ export function RelatedTenantUsersClient({ siteId, siteName }: RelatedTenantUser
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (roles.length === 0) return;
+    const slugs = roles.map((r) => r.slug);
+    if (!addRole || !slugs.includes(addRole)) {
+      setAddRole(roles[0]?.slug ?? "");
+    }
+  }, [roles, addRole]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,15 +147,12 @@ export function RelatedTenantUsersClient({ siteId, siteName }: RelatedTenantUser
                 onChange={(e) => setAddRole(e.target.value)}
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                {roles.length ? roles.map((r) => (
-                  <option key={r.slug} value={r.slug}>{r.label}</option>
-                )) : (
-                  <>
-                    <option value="admin">Admin</option>
-                    <option value="editor">Editor</option>
-                    <option value="creator">Creator</option>
-                    <option value="viewer">Viewer</option>
-                  </>
+                {roles.length === 0 ? (
+                  <option value="">No roles from PHP-Auth</option>
+                ) : (
+                  roles.map((r) => (
+                    <option key={r.slug} value={r.slug}>{r.label}</option>
+                  ))
                 )}
               </select>
             </div>
@@ -170,7 +175,7 @@ export function RelatedTenantUsersClient({ siteId, siteName }: RelatedTenantUser
           </div>
           {addError && <p className="text-sm text-destructive">{addError}</p>}
           <div className="flex gap-2">
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || roles.length === 0}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
             </Button>
             <Button type="button" variant="outline" onClick={() => { setShowAdd(false); setAddError(null); }} disabled={submitting}>
@@ -235,7 +240,7 @@ export function RelatedTenantUsersClient({ siteId, siteName }: RelatedTenantUser
         tenantUserId={editing?.id ?? ""}
         siteName={siteName}
         userDisplayLabel={editing ? (editing.display_name ? `${editing.email} (${editing.display_name})` : editing.email) : ""}
-        initialRole={editing?.role_slug ?? "viewer"}
+        initialRole={editing?.role_slug && roles.some((r) => r.slug === editing.role_slug) ? editing.role_slug : (roles[0]?.slug ?? "")}
         initialIsOwner={editing?.is_owner ?? false}
         roles={roles}
         onSaved={fetchUsers}

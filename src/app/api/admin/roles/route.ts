@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 import {
   listFeatures,
   listRoles,
   listRoleFeatureIds,
   featuresForRoleOrTenantUI,
-  createRole,
 } from "@/lib/supabase/feature-registry";
 
 /**
  * GET /api/admin/roles
  * Returns roles, features, and per-role feature IDs (superadmin only).
+ * ?for=assignment → returns only roles for dropdown (from PHP-Auth), no features.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await getCurrentUser();
     if (!user || !isSuperadmin(user)) {
@@ -20,6 +21,13 @@ export async function GET() {
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }
       );
+    }
+
+    const forAssignment =
+      new URL(request.url).searchParams.get("for") === "assignment";
+    if (forAssignment) {
+      const roles = await getRolesForAssignmentFromPhpAuth();
+      return NextResponse.json({ roles });
     }
 
     const [roles, allFeatures] = await Promise.all([
@@ -49,44 +57,14 @@ export async function GET() {
 
 /**
  * POST /api/admin/roles
- * Create a new role (superadmin only). Body: { slug, label, description? }.
+ * M5: Role creation is in PHP-Auth. This endpoint is disabled.
  */
-export async function POST(request: Request) {
-  try {
-    const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
-      return NextResponse.json(
-        { error: "Unauthorized: Superadmin access required" },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json().catch(() => ({}));
-    const slug = typeof body.slug === "string" ? body.slug : "";
-    const label = typeof body.label === "string" ? body.label : "";
-    const description = typeof body.description === "string" ? body.description : undefined;
-
-    if (!slug.trim() && !label.trim()) {
-      return NextResponse.json(
-        { error: "slug and label are required" },
-        { status: 400 }
-      );
-    }
-
-    const role = await createRole({ slug: slug || label, label: label || slug, description });
-    if (!role) {
-      return NextResponse.json(
-        { error: "Failed to create role (invalid slug or duplicate)" },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(role);
-  } catch (error) {
-    console.error("POST /api/admin/roles:", error);
-    return NextResponse.json(
-      { error: "Failed to create role" },
-      { status: 500 }
-    );
-  }
+export async function POST() {
+  return NextResponse.json(
+    {
+      error:
+        "Role creation is in PHP-Auth. Create and manage roles in the PHP-Auth app; they will be available here for assignment.",
+    },
+    { status: 410 }
+  );
 }

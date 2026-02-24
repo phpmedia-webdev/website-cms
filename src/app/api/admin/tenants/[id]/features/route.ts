@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
 import {
-  listTenantFeatureIds,
-  setTenantFeatureIds,
-  getSuperadminFeatureId,
+  listFeatures,
+  getTenantEnabledFeatureSlugs,
+  setTenantFeatureSlugs,
+  SUPERADMIN_FEATURE_SLUG,
+  featuresForRoleOrTenantUI,
+  orderedFeatures,
 } from "@/lib/supabase/feature-registry";
+import { getFeatureRegistryFromPhpAuth } from "@/lib/php-auth/fetch-features";
+
+export type TenantFeatureItem = { slug: string; label: string; order: number };
 
 /**
  * GET /api/admin/tenants/[id]/features
- * Returns feature IDs enabled for this tenant (superadmin only).
+ * Returns feature list (from PHP-Auth when configured, else local) and enabled slugs for this tenant.
  */
 export async function GET(
   _request: Request,
@@ -26,8 +32,24 @@ export async function GET(
     if (!tenantId) {
       return NextResponse.json({ error: "Missing tenant id" }, { status: 400 });
     }
-    const featureIds = await listTenantFeatureIds(tenantId);
-    return NextResponse.json({ featureIds });
+    const [phpAuthFeatures, enabledSlugs] = await Promise.all([
+      getFeatureRegistryFromPhpAuth(),
+      getTenantEnabledFeatureSlugs(tenantId),
+    ]);
+    const features: TenantFeatureItem[] =
+      phpAuthFeatures.length > 0
+        ? phpAuthFeatures
+            .filter((f) => f.slug !== SUPERADMIN_FEATURE_SLUG)
+            .map((f) => ({
+              slug: f.slug,
+              label: f.label,
+              order: f.order ?? 0,
+            }))
+            .sort((a, b) => a.order - b.order)
+        : orderedFeatures(featuresForRoleOrTenantUI(await listFeatures(true))).map(
+            (f) => ({ slug: f.slug, label: f.label, order: f.display_order })
+          );
+    return NextResponse.json({ features, enabledSlugs });
   } catch (error) {
     console.error("GET /api/admin/tenants/[id]/features:", error);
     return NextResponse.json(
@@ -39,7 +61,7 @@ export async function GET(
 
 /**
  * PATCH /api/admin/tenants/[id]/features
- * Body: { featureIds: string[] }. Superadmin only.
+ * Body: { featureSlugs: string[] }. Superadmin only. Saves to tenant_feature_slugs.
  */
 export async function PATCH(
   request: Request,
@@ -58,14 +80,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Missing tenant id" }, { status: 400 });
     }
     const body = await request.json();
-    let featureIds = Array.isArray(body?.featureIds)
-      ? (body.featureIds as string[]).filter((id) => typeof id === "string" && id.length > 0)
+    let featureSlugs = Array.isArray(body?.featureSlugs)
+      ? (body.featureSlugs as string[]).filter(
+          (s) => typeof s === "string" && s.trim().length > 0
+        )
       : [];
-    const superadminId = await getSuperadminFeatureId();
-    if (superadminId) {
-      featureIds = featureIds.filter((id) => id !== superadminId);
-    }
-    const ok = await setTenantFeatureIds(tenantId, featureIds);
+    featureSlugs = featureSlugs.filter((s) => s !== SUPERADMIN_FEATURE_SLUG);
+    const ok = await setTenantFeatureSlugs(tenantId, featureSlugs);
     if (!ok) {
       return NextResponse.json(
         { error: "Failed to update tenant features" },

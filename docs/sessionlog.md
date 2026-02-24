@@ -8,9 +8,17 @@
 
 ---
 
+## Where we are
+
+**PHP-Auth migration:** M0 ✅ M1 ✅ M2 ✅ | **M3 in progress** (sync wired; recovery doc TBD) | M4 ⏳ | M5 ⏳  
+**Roles transition (this repo):** Step 1 ✅ | Step 2 (optional) ⏳ | **Step 3** — M3 recovery doc done; sync already wired. Then Step 4 (M4), 5 (deprecation doc).
+
+---
+
 ## Current Focus
 
-- [ ] **PHP-Auth repurpose & website-cms integration (current top priority)** — See and work from [authplanlog.md](./authplanlog.md): Section 1 (modify PHP-Auth app) and Section 2 (modify website-cms app). Covers data cleanup, MFA (TOTP) implementation notes, API keys (PHP-Auth generates/stores), no session carry-over to/from PHP-Auth, auth persists across website-cms forks.
+- [ ] **Roles transition — Step 3 done (recovery doc); next Step 4 (M4):** Recovery: [reference/m3-recovery-procedure.md](./reference/m3-recovery-procedure.md). Next: M4 central-only read (remove fallback) or Step 5 (deprecation doc). Details in **Roles transition** section below.
+- [ ] **PHP-Auth integration (broader):** [authplanlog.md](./authplanlog.md) Section 1 (PHP-Auth app) + Section 2 (website-cms). M0 details: [reference/php-auth-integration-clarification.md](./reference/php-auth-integration-clarification.md).
 
 ---
 
@@ -29,184 +37,75 @@
 | **M2** | **Dual-read** | Where you resolve “current user’s role for this tenant” (e.g. `getRoleForCurrentUser`, `getEffectiveFeatureSlugsForCurrentUser`): (1) Call PHP-Auth `POST /api/external/validate-user` with `Authorization: Bearer <session token>` and `X-API-Key: <AUTH_APP_API_KEY>`. (2) If 200 and `data.organizations` includes org with `id === AUTH_ORG_ID`, use that org’s role (and features) for this request. (3) If 401, 403, or 5xx, **fallback** to current logic (user_metadata for superadmin, tenant_user_assignments for tenant admins). Keep writing only to website-cms store (tenant_user_assignments, user_metadata) for now. | ✅ Completed |
 | **M3** | **Writes to central** | When assigning a role to a user on a tenant: perform the write in PHP-Auth (e.g. call PHP-Auth API to add user to org with role, or document that Superadmin does it in PHP-Auth UI). Optionally keep syncing to `tenant_user_assignments` during transition. Document **recovery procedure**: if locked out, re-add/fix your user in PHP-Auth (UI or SQL) or temporarily set `user_metadata.role` in auth.users so fallback in M2 still grants access. | 🔄 In progress |
 | **M4** | **Central-only read (optional)** | Remove fallback: resolve roles only from PHP-Auth (validate-user). Do only after verifying in staging/production that every relevant user has correct data in PHP-Auth. Keep recovery procedure from M3. Optionally stop writing to tenant_user_assignments and deprecate that table later. | ⏳ Pending |
+| **M5** | **Superadmin section UI redesign** | Redesign superadmin UI to align with tenant_sites scope (site mode, membership, coming_soon, current-site only; no multi-site management). Execute after M4. | ⏳ Pending |
+
+## M5 / PHP-Auth SSOT & superadmin redesign — confirmations
+
+- **Tenant site:** Each deployment has one logical tenant site. DB keeps `tenant_sites` (one row per deployment). No site picker in the UI; current site inferred from schema.
+- **Feature registry sort:** PHP-Auth `feature_registry` has an **order** field; use it for sort order of the gating list.
+- **Roles in website-cms:** Option B — read-only list of roles and their assigned permissions and features (no role creation in website-cms; roles created only in PHP-Auth).
+- **Users (superadmin vs tenant admin):** Superadmin → Users and Settings → Users are the same list/capability. Tenant admins must be able to add team members: “add new user” and “assign role” are essential. New roles are created only in the PHP-Auth app and are scoped and made available for all tenant apps.
+- **Superadmin Dashboard:** Tabbed design — one tab for **metrics/info** (current site), one tab for **gating** (feature gating table).
+
+---
+
+## M5 / PHP-Auth SSOT & superadmin redesign — step plan
+
+**Phase A — PHP-Auth contract and docs**
+
+- [x] **A1** Document PHP-Auth model in `docs/reference/` (e.g. php-auth-integration-clarification or dedicated doc): `feature_registry` (scope per app type, **order** for sort), `permission_registry` (global), role = features + permissions + name/slug/label; roles created only in PHP-Auth; website-cms uses label for display, slug for identity. → [reference/php-auth-roles-features-permissions.md](./reference/php-auth-roles-features-permissions.md)
+- [x] **A2** Confirm PHP-Auth APIs (or add them): list roles for app type (e.g. scope `website-cms`); list `feature_registry` for scope (include **order**); list role–feature and role–permission assignments for read-only Roles view. Document endpoints and response shapes. → Same doc §2.
+
+**Phase B — Website-cms: role list from PHP-Auth, no role creation**
+
+- [x] **B3** Role picker from PHP-Auth: fetch roles for this app (website-cms scope); return `{ slug, label }` (and optional id). Use for superadmin Users and Settings → Users (replace fixed `listRolesForAssignment()` where used for assignment). → `getRolesForAssignmentFromPhpAuth()` in `src/lib/php-auth/fetch-roles.ts`; fallback to `listRolesForAssignment()`; wired in team API, admin roles API, super page.
+- [x] **B4** Remove role creation in website-cms: remove/hide “Create role” and any POST/PATCH that create or update roles. Replace “Roles & Features” with **read-only Roles** page: list roles from PHP-Auth and show each role’s assigned permissions and features (no edit in website-cms). → Done: POST 410; RolesReadOnly; [roleSlug] redirects. Per-role perms/features when API §2.3 exists.
+
+**Phase C — Feature registry from PHP-Auth**
+
+- [x] **C5** Tenant feature gating — registry from PHP-Auth: fetch `feature_registry` for scope `website-cms` (use **order** for sort). Use this list for the gating table (labels, ids/slugs). Keep “which features are enabled for this tenant” in website-cms (e.g. `tenant_features`), keyed by feature id/slug from PHP-Auth.
+
+**Phase D — Superadmin UI restructure (M5)**
+
+- [x] **D6** Remove tenant site list and picker: remove “Tenant Sites” from superadmin nav and any “choose a site” flow. Current site from schema only (e.g. `getTenantSiteBySchema`).
+- [ ] **D7** New Superadmin Dashboard (tabbed): **Tab 1 — Metrics/info:** current site metrics, site mode, coming soon. **Tab 2 — Gating:** feature gating table (features from PHP-Auth, sorted by **order**; toggles stored in website-cms). Reuse or move content from current tenant-site detail as needed.
+- [ ] **D8** Superadmin Users page: same as Settings → Users for current site (non-GPUM; add user, assign role). Role picker from PHP-Auth (B3). Ensure tenant admins retain “add new user” and “assign role” in Settings → Users.
+- [ ] **D9** Superadmin nav: Dashboard (tabbed), Users, Roles (read-only from PHP-Auth), Code Library, Security. No Tenant Sites.
+
+**Phase E — Cleanup and docs**
+
+- [ ] **E10** Deprecate local SSOT for roles/features: document that `admin_roles` / `role_features` (and `feature_registry` where replaced) are not source of truth; PHP-Auth is. No role creation or feature-registry writes from website-cms.
+- [ ] **E11** Update sessionlog/planlog and changelog with M5 progress and “Context for Next Session” when appropriate.
+
+
 
 **Lockout prevention:** M1 is done before M2 so your account exists in PHP-Auth when we first call central. M2–M3 keep fallback so if PHP-Auth is down or wrong, we still use user_metadata + tenant_user_assignments. Recovery: fix user/assignment in PHP-Auth or temporarily restore user_metadata/fallback in website-cms.
 
-**Execution:** Update the Status column above as each phase is completed. M3 (writes to central) is the current focus.
+**Execution:** Update the Status column above as each phase is completed. M3 (writes to central) is the current focus. M5 follows M4.
 
-
-### M0 Step (detailed) — Copied from php-auth app - we are connecting to this app
-
-**Pre-coding clarification:** See [docs/reference/php-auth-integration-clarification.md](./reference/php-auth-integration-clarification.md) for a single reference (env, dual-read flow, role mapping, audit, implementation order) before implementing M0.
-
-**Purpose:** Configure the external app to use PHP-Auth for **role resolution** and **audit logging** via the Organization UUID, Application UUID, and Application API key. Login stays on Supabase Auth (auth.users); no change to how users sign in.
-
-**Scope:** Steps below are performed in the **external app**. Prerequisites: in PHP-Auth, create Organization and Application and copy the one-off API key and UUIDs.
+**M0 detail (env, validate-user, audit-log, checklist):** See [reference/php-auth-integration-clarification.md](./reference/php-auth-integration-clarification.md). **When to do M0–M5:** M0 first (env + validate-user + audit-log); M1 after PHP-Auth has org + app + users; M2 dual-read in website-cms; M3 once PHP-Auth has user–org–role API; M4 central-only read; M5 superadmin UI redesign.
 
 ---
 
-#### Prerequisites (in PHP-Auth)
+## Roles transition: PHP-Auth as SSOT (tenant_sites unchanged)
 
-1. Create an **Organization** (if needed) and an **Application** under it for this tenant/app (e.g. "Website CMS – Production").
-2. On Application create, copy and store securely: **Organization UUID**, **Application UUID**, **Application API key** (shown once).
-3. Ensure users who need access exist in PHP-Auth's `users` table and have correct org/role (M1).
+**Principle:** `tenant_sites` = site mode, lock, membership_enabled, coming_soon, current-site only. Role definitions + assignments = PHP-Auth. Refs: [php-auth-integration-clarification](./reference/php-auth-integration-clarification.md), [php-auth-website-cms-tables-cross-reference](./reference/php-auth-website-cms-tables-cross-reference.md).
 
----
+| Step | Task | Status |
+|------|------|--------|
+| **1** | Role definitions from PHP-Auth for UI (dropdowns); stop using `admin_roles`/`role_features` as source. | ✅ Done |
+| 2 | Role–features from PHP-Auth (optional); or keep local mapping from validate-user. | ⏳ Optional |
+| 3 | Role assignment: sync already wired in team + tenant-sites users APIs; document M3 recovery procedure. | ✅ Done ([m3-recovery-procedure.md](./reference/m3-recovery-procedure.md)) |
+| 4 | M4 central-only read: remove fallback to `tenant_user_assignments`/user_metadata; resolve only from validate-user. | ← **next** |
+| 5 | Document deprecation of `admin_roles`, `role_features`, read path of `tenant_user_assignments`; tenant_sites unchanged. | ⏳ |
 
-#### 1. Environment variables (external app)
+**Dev server:** If you see `ENOENT: no such file or directory, open '.next/routes-manifest.json'`, delete the `.next` folder and run `pnpm run dev` again.
 
-In the external app's environment (e.g. `.env` or deployment config), set:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `AUTH_BASE_URL` | Base URL of the PHP-Auth API (no trailing slash). | `https://auth.yourdomain.com` or `http://localhost:5000` |
-| `AUTH_ORG_ID` | Organization UUID from PHP-Auth (from the Application's org). | `550e8400-e29b-41d4-a716-446655440000` |
-| `AUTH_APPLICATION_ID` | Application UUID from PHP-Auth (the app you created). | `6ba7b810-9dad-11d1-80b4-00c04fd430c8` |
-| `AUTH_API_KEY` | Application API key from PHP-Auth (stored securely; e.g. secrets manager in production). | `phpa_xxxxxxxxxxxxxxxxxxxxxxxx` |
-
-Never commit the API key to source control.
-
----
-
-#### 2. Retrieving roles: Validate User (PHP-Auth as source of roles)
-
-Call when you need the **current user's roles/organizations** for the tenant (e.g. after login, on app load, or in a route guard).
-
-**Endpoint:** `POST {AUTH_BASE_URL}/api/external/validate-user`
-
-**Headers:**
-
-| Header | Required | Value |
-|--------|----------|--------|
-| `Authorization` | Yes | `Bearer <user's Supabase access token>` (same JWT from Supabase Auth). |
-| `X-API-Key` | Yes | `AUTH_API_KEY` (application API key). |
-| `Content-Type` | Yes | `application/json`. |
-
-**Request body:** None required (POST with `{}` or no body).
-
-**Success response (200):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "user-uuid-in-php-auth",
-      "supabaseId": "supabase-auth-user-id",
-      "email": "user@example.com",
-      "fullName": "Jane Doe",
-      "isActive": true
-    },
-    "application": {
-      "id": "application-uuid",
-      "organizationId": "organization-uuid",
-      "name": "Website CMS",
-      "isActive": true
-    },
-    "organizations": [
-      {
-        "id": "organization-uuid",
-        "name": "Acme Corp",
-        "slug": "acme-corp",
-        "roleId": "role-uuid",
-        "roleName": "Admin",
-        "permissions": [],
-        "coreAppAccess": {}
-      }
-    ],
-    "sessionId": "session-uuid-or-null",
-    "message": "Multi-tier authentication successful"
-  }
-}
-```
-
-**How to use for roles:**
-
-- **Check tenant access:** See if `data.organizations` contains an organization whose `id` equals `AUTH_ORG_ID`. If yes, the user has access to this tenant.
-- **Role for this tenant:** Use the matching organization's `roleName` (and optionally `roleId`, `permissions`, `coreAppAccess`) as the user's role for the current tenant.
-- **Fallback (M2 dual-read):** If the request fails (4xx/5xx) or the user is not in PHP-Auth yet, fall back to your existing role source (e.g. user_metadata or local tenant tables).
-
-**Error handling:** 401 = missing/invalid API key or Bearer token. 403 = user not in PHP-Auth or not a member of the application's organization. 500 = server error; use fallback if you have dual-read.
-
----
-
-#### 3. Writing audit information: Audit Log (push events to PHP-Auth)
-
-Use to send **audit events** from the external app to the central PHP-Auth audit log.
-
-**Endpoint:** `POST {AUTH_BASE_URL}/api/external/audit-log`
-
-**Headers:**
-
-| Header | Required | Value |
-|--------|----------|--------|
-| `X-API-Key` | Yes | `AUTH_API_KEY` (application API key). |
-| `Content-Type` | Yes | `application/json`. |
-
-No Bearer token is required for audit-log; the API key identifies the application.
-
-**Request body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `action` | string | **Yes** | Audit action (e.g. `page_edit`, `content_publish`, `login_success`, `form_submit`). |
-| `organizationId` | string | **Yes** | Must be exactly `AUTH_ORG_ID`. |
-| `applicationId` | string | **Yes** | Must be exactly `AUTH_APPLICATION_ID`. |
-| `userId` | string | No | PHP-Auth user ID (from validate-user `data.user.id`) if the action is tied to a user. |
-| `resourceType` | string | No | Resource type (e.g. `page`, `article`, `form`). |
-| `resourceId` | string | No | Resource ID. |
-| `loginSource` | string | No | Source identifier (e.g. `website-cms`). |
-| `metadata` | object | No | Extra JSON (key/value). |
-| `ipAddress` | string | No | Client IP (defaults to request IP if omitted). |
-| `userAgent` | string | No | Client user agent (defaults to request `User-Agent` if omitted). |
-
-**Example (minimal):**
-
-```json
-{
-  "action": "content_publish",
-  "organizationId": "<AUTH_ORG_ID>",
-  "applicationId": "<AUTH_APPLICATION_ID>",
-  "userId": "user-uuid-from-validate-user",
-  "resourceType": "article",
-  "resourceId": "article-123",
-  "loginSource": "website-cms",
-  "metadata": { "revision": 2 }
-}
-```
-
-**Success response (201):** `{ "success": true, "data": { "id": "log-entry-uuid", "createdAt": "2025-02-18T12:00:00.000Z" } }`
-
-**Validation:** 400 = missing/invalid `action`, `organizationId`, or `applicationId`. 403 = `organizationId` or `applicationId` does not match the API key's application. 429 = rate limit (300 requests per minute per API key).
-
-**Where to call:** After important actions (login, content publish, page save, role change, form submit). Prefer server-side so the API key is not exposed; if calling from the client, use a backend proxy that adds `X-API-Key`.
-
----
-
-#### 4. Summary: how the three values are used
-
-| Value | Where it comes from | How it's used |
-|-------|---------------------|----------------|
-| **Organization UUID** (`AUTH_ORG_ID`) | PHP-Auth → Application's organization | Sent in audit-log `organizationId`; used to match `data.organizations[].id` from validate-user for "user has access to this tenant." |
-| **Application UUID** (`AUTH_APPLICATION_ID`) | PHP-Auth → Application record | Sent in audit-log `applicationId`; optional for logging/debugging. |
-| **Application API key** (`AUTH_API_KEY`) | PHP-Auth → shown once on Application create | Sent in `X-API-Key` for both validate-user and audit-log; authenticates the external app to PHP-Auth. |
-
----
-
-#### 5. Checklist (external app)
-
-- [ ] Add `AUTH_BASE_URL`, `AUTH_ORG_ID`, `AUTH_APPLICATION_ID`, `AUTH_API_KEY` to env (and secrets where applicable).
-- [ ] Implement "resolve current user's role" by calling **POST /api/external/validate-user** with Bearer (user's Supabase token) + X-API-Key; use `data.organizations` and match `AUTH_ORG_ID` to get role; optionally keep existing fallback for M2.
-- [ ] Replace or supplement existing audit logging with **POST /api/external/audit-log** for key actions, sending `action`, `organizationId` = `AUTH_ORG_ID`, `applicationId` = `AUTH_APPLICATION_ID`, and optional fields; respect 429 (rate limit).
-- [ ] Confirm in PHP-Auth that the Application card shows "Last used" after the first successful validate-user or audit-log call.
-
----
-
-**When to do migration steps (interleave with PHP-Auth phases):** Do **M0** in the external app (env + validate-user + audit-log) using the org UUID, application UUID, and API key from PHP-Auth. Do **M1** once PHP-Auth has org + application (API key) and user–org–role assignments — i.e. after **Phase 4** and **Phase 5**. Then do **M2** in website-cms (dual-read). Do **M3** once PHP-Auth has a way for tenant apps (or Superadmin) to add/update user–org–role — Phase 5 APIs or Phase 7. Do **M4** last, after M2 and M3 are stable. Interleaving validates the integration early and surfaces contract/schema issues before Phase 9.
 ---
 
 ## Next up
 
+- [ ] **PHP-Auth roles 403:** Set Application type in PHP-Auth to `website-cms` (or confirm scope=website-cms works); retest Superadmin → Roles; remove DEBUG in fetch-roles and debug hint when done.
 - [ ] **Outbound SMTP emailer + contact activity stream**
   - [ ] Add SMTP/env config and Node.js emailer (e.g. nodemailer or built-in); lib to send email (to, subject, body).
   - [ ] API or server action: send email then create a CRM note for the contact with a dedicated note_type (e.g. `email_sent`); store subject and optional snippet in note body so it appears in the contact activity stream.

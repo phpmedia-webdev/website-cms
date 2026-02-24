@@ -28,7 +28,7 @@ export function TenantUsersTableClient() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/admin/roles")
+    fetch("/api/admin/roles?for=assignment")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.roles && Array.isArray(data.roles)) {
@@ -50,10 +50,10 @@ export function TenantUsersTableClient() {
     return (
       <div className="rounded-md border px-4 py-8 text-center text-muted-foreground">
         No tenant user assignments yet. Add users from{" "}
-        <Link href="/admin/super/tenant-sites" className="text-primary hover:underline">
-          Tenant Sites
+        <Link href="/admin/super" className="text-primary hover:underline">
+          Dashboard
         </Link>{" "}
-        → open a site → Related Tenant Users → Add user.
+        → open current site → Related Tenant Users → Add user.
       </div>
     );
   }
@@ -110,7 +110,7 @@ export function TenantUsersTableClient() {
         tenantUserId={editing?.id ?? ""}
         siteName={editing?.tenant_name ?? editing?.tenant_id ?? ""}
         userDisplayLabel={editing ? (editing.display_name ? `${editing.email} (${editing.display_name})` : editing.email) : ""}
-        initialRole={editing?.role_slug ?? "viewer"}
+        initialRole={editing?.role_slug && roles.some((r) => r.slug === editing.role_slug) ? editing.role_slug : (roles[0]?.slug ?? "")}
         initialIsOwner={editing?.is_owner ?? false}
         roles={roles}
         onSaved={fetchList}

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { TenantUserWithAssignment } from "@/types/tenant-users";
+import { legacySlugToPhpAuthSlug } from "@/lib/php-auth/role-mapping";
 import { Loader2, UserPlus, UserMinus } from "lucide-react";
 
 interface RoleOption {
@@ -32,7 +33,7 @@ export function SettingsUsersContent({ isOwner, isSuperadmin }: SettingsUsersCon
   const [showAdd, setShowAdd] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addDisplayName, setAddDisplayName] = useState("");
-  const [addRole, setAddRole] = useState("viewer");
+  const [addRole, setAddRole] = useState<string>("");
   const [addInvite, setAddInvite] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -58,6 +59,15 @@ export function SettingsUsersContent({ isOwner, isSuperadmin }: SettingsUsersCon
   useEffect(() => {
     fetchTeam();
   }, []);
+
+  // Default add role to first SSOT role when roles load or when addRole is no longer in list
+  useEffect(() => {
+    if (roles.length === 0) return;
+    const slugs = roles.map((r) => r.slug);
+    if (!addRole || !slugs.includes(addRole)) {
+      setAddRole(roles[0]?.slug ?? "");
+    }
+  }, [roles, addRole]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,22 +194,15 @@ export function SettingsUsersContent({ isOwner, isSuperadmin }: SettingsUsersCon
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.length
-                    ? roles.map((r) => (
-                        <SelectItem key={r.slug} value={r.slug}>
-                          {r.label}
-                        </SelectItem>
-                      ))
-                    : [
-                        { slug: "admin", label: "Admin" },
-                        { slug: "editor", label: "Editor" },
-                        { slug: "creator", label: "Creator" },
-                        { slug: "viewer", label: "Viewer" },
-                      ].map((r) => (
-                        <SelectItem key={r.slug} value={r.slug}>
-                          {r.label}
-                        </SelectItem>
-                      ))}
+                  {roles.length === 0 ? (
+                    <SelectItem value="_none" disabled>No roles from PHP-Auth</SelectItem>
+                  ) : (
+                    roles.map((r) => (
+                      <SelectItem key={r.slug} value={r.slug}>
+                        {r.label}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -216,7 +219,7 @@ export function SettingsUsersContent({ isOwner, isSuperadmin }: SettingsUsersCon
             <p className="text-sm text-destructive">{addError}</p>
           )}
           <div className="flex gap-2">
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || roles.length === 0}>
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -271,7 +274,7 @@ export function SettingsUsersContent({ isOwner, isSuperadmin }: SettingsUsersCon
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Select
-                        value={u.role_slug}
+                        value={legacySlugToPhpAuthSlug(u.role_slug)}
                         onValueChange={(value) => handleRoleChange(u.id, value)}
                         disabled={updatingId === u.id}
                       >

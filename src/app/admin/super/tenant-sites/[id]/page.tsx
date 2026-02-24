@@ -4,16 +4,19 @@ import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
 import { getTenantSiteById } from "@/lib/supabase/tenant-sites";
 import {
   listFeatures,
-  listTenantFeatureIds,
-  orderedFeatures,
+  getTenantEnabledFeatureSlugs,
   featuresForRoleOrTenantUI,
+  orderedFeatures,
+  SUPERADMIN_FEATURE_SLUG,
 } from "@/lib/supabase/feature-registry";
+import { getFeatureRegistryFromPhpAuth } from "@/lib/php-auth/fetch-features";
 import { TenantFeaturesManager } from "@/components/superadmin/TenantFeaturesManager";
 import { TenantSiteModeCard } from "@/components/superadmin/TenantSiteModeCard";
 import { RelatedTenantUsersClient } from "@/components/superadmin/RelatedTenantUsersClient";
 
 /**
  * Superadmin Tenant Site detail: site info + Features + Related Tenant Users.
+ * M5 C5: Features from PHP-Auth when configured; gating by slug (tenant_feature_slugs).
  */
 export default async function SuperadminTenantSiteDetailPage({
   params,
@@ -24,28 +27,34 @@ export default async function SuperadminTenantSiteDetailPage({
   if (!user || !isSuperadmin(user)) redirect("/admin/dashboard");
 
   const { id } = await params;
-  const [site, allFeatures, tenantFeatureIdsFromDb] = await Promise.all([
+  const [site, phpAuthFeatures, localFeatures, enabledSlugs] = await Promise.all([
     getTenantSiteById(id),
+    getFeatureRegistryFromPhpAuth(),
     listFeatures(true),
-    listTenantFeatureIds(id),
+    getTenantEnabledFeatureSlugs(id),
   ]);
   if (!site) notFound();
 
-  const featuresForUI = featuresForRoleOrTenantUI(allFeatures);
-  const features = orderedFeatures(featuresForUI);
-  // Default all features On when tenant has no saved list (stage for delivery by turning Off)
-  const allFeatureIds = features.map((f) => f.id);
-  const tenantFeatureIds =
-    tenantFeatureIdsFromDb.length === 0 ? allFeatureIds : tenantFeatureIdsFromDb;
+  const featuresForUI =
+    phpAuthFeatures.length > 0
+      ? phpAuthFeatures
+          .filter((f) => f.slug !== SUPERADMIN_FEATURE_SLUG)
+          .map((f) => ({ slug: f.slug, label: f.label, order: f.order ?? 0 }))
+          .sort((a, b) => a.order - b.order)
+      : orderedFeatures(featuresForRoleOrTenantUI(localFeatures)).map((f) => ({
+          slug: f.slug,
+          label: f.label,
+          order: f.display_order,
+        }));
 
   return (
     <div className="space-y-6">
       <div>
         <Link
-          href="/admin/super/tenant-sites"
+          href="/admin/super"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Back to Tenant Sites
+          ← Back to Dashboard
         </Link>
         <h1 className="text-3xl font-bold mt-2">{site.name}</h1>
         <p className="text-muted-foreground mt-1">
@@ -78,8 +87,8 @@ export default async function SuperadminTenantSiteDetailPage({
 
       <TenantFeaturesManager
         tenantId={id}
-        features={features}
-        initialFeatureIds={tenantFeatureIds}
+        features={featuresForUI}
+        initialEnabledSlugs={enabledSlugs}
       />
 
       <RelatedTenantUsersClient siteId={id} siteName={site.name} />

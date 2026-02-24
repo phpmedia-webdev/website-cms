@@ -37,6 +37,28 @@ export const PHP_AUTH_ADMIN_ROLE_SLUGS = [
   PHP_AUTH_ROLE_SLUG.VIEWER,
 ] as const;
 
+/** Display labels for admin roles (for dropdowns and UI). SSOT: PHP-Auth role set. */
+const PHP_AUTH_ADMIN_ROLE_LABELS: Record<(typeof PHP_AUTH_ADMIN_ROLE_SLUGS)[number], string> = {
+  [PHP_AUTH_ROLE_SLUG.SUPERADMIN]: "SuperAdmin",
+  [PHP_AUTH_ROLE_SLUG.ADMIN]: "Admin",
+  [PHP_AUTH_ROLE_SLUG.EDITOR]: "Editor",
+  [PHP_AUTH_ROLE_SLUG.CREATOR]: "Creator",
+  [PHP_AUTH_ROLE_SLUG.VIEWER]: "Viewer",
+};
+
+export type RoleOption = { slug: string; label: string };
+
+/**
+ * Roles available for assignment (team/site user dropdowns). Sourced from PHP-Auth role set, not admin_roles.
+ * Use this for Settings → Users and superadmin tenant-sites user assignment dropdowns.
+ */
+export function listRolesForAssignment(): RoleOption[] {
+  return PHP_AUTH_ADMIN_ROLE_SLUGS.map((slug) => ({
+    slug,
+    label: PHP_AUTH_ADMIN_ROLE_LABELS[slug] ?? slug,
+  }));
+}
+
 /** True if the role is the member role (CRM members who authenticate as members, not admin dashboard users). */
 export function isMemberRole(roleSlug: string): boolean {
   return (roleSlug ?? "").trim() === PHP_AUTH_ROLE_SLUG.GPUM;
@@ -69,7 +91,7 @@ export function toPhpAuthRoleSlug(roleNameOrSlug: string): string {
   const trimmed = (roleNameOrSlug ?? "").trim();
   const mapped = ROLE_NAME_TO_PHP_AUTH_SLUG[trimmed];
   if (mapped) return mapped;
-  if (PHP_AUTH_ROLE_SLUGS.includes(trimmed)) return trimmed;
+  if ((PHP_AUTH_ROLE_SLUGS as readonly string[]).includes(trimmed)) return trimmed;
   return trimmed.toLowerCase().replace(/\s+/g, "-").replace(/_/g, "-") || trimmed;
 }
 

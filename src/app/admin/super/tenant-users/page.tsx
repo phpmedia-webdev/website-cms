@@ -18,7 +18,7 @@ export default async function SuperadminTenantUsersPage() {
       <div>
         <h1 className="text-3xl font-bold">Tenant Users</h1>
         <p className="text-muted-foreground mt-2">
-          Master list of all admin and team members across tenant sites. Add users from Tenant Sites → [Site] → Add user, or assign existing users to more sites.
+          Master list of all admin and team members across tenant sites. Add users from Dashboard → current site → Related Tenant Users → Add user, or assign existing users to more sites.
         </p>
       </div>
 

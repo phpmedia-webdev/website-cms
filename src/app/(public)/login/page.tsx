@@ -69,6 +69,12 @@ function MemberLoginContent() {
       if (authError) {
         setError(authError.message || "Invalid credentials");
         setLoading(false);
+        fetch("/api/auth/member-login-audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "login_failed", email: email.trim() }),
+          credentials: "include",
+        }).catch(() => {});
         return;
       }
 
@@ -87,6 +93,12 @@ function MemberLoginContent() {
       }
 
       if (userType === "member") {
+        await fetch("/api/auth/member-login-audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "login_success" }),
+          credentials: "include",
+        }).catch(() => {});
         await redeemCodeIfProvided();
         window.location.replace(redirect);
         return;
@@ -95,12 +107,30 @@ function MemberLoginContent() {
       if (!userType) {
         setError("Account is not set up for member access. Please contact support.");
         await supabase.auth.signOut();
+        fetch("/api/auth/member-login-audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "login_failed", email: authData.user?.email ?? email }),
+          credentials: "include",
+        }).catch(() => {});
       } else {
         setError("This login is for members only. Admins should use the admin login.");
         await supabase.auth.signOut();
+        fetch("/api/auth/member-login-audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "login_failed", email: authData.user?.email ?? email }),
+          credentials: "include",
+        }).catch(() => {});
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
+      fetch("/api/auth/member-login-audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "login_failed", email: email.trim() }),
+        credentials: "include",
+      }).catch(() => {});
     } finally {
       setLoading(false);
     }

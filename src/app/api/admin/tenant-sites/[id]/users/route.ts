@@ -4,12 +4,17 @@ import { getTenantSiteById } from "@/lib/supabase/tenant-sites";
 import {
   listUsersByTenantSite,
   getTenantUserByEmail,
+  getTenantUserById,
   createTenantUser,
   assignUserToSite,
   getAssignmentByAdminAndTenant,
   removeUserFromSite,
 } from "@/lib/supabase/tenant-users";
 import { inviteUserByEmail } from "@/lib/supabase/users";
+import { pushAuditLog, getClientAuditContext } from "@/lib/php-auth/audit-log";
+import { syncUserOrgRoleToPhpAuth } from "@/lib/php-auth/sync-user-org-role";
+import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
+import { legacySlugToPhpAuthSlug } from "@/lib/php-auth/role-mapping";
 
 /**
  * GET /api/admin/tenant-sites/[id]/users
@@ -69,13 +74,23 @@ export async function POST(
     const body = await request.json();
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const displayName = typeof body?.display_name === "string" ? body.display_name.trim() : null;
-    const roleSlug = typeof body?.role_slug === "string" ? body.role_slug.trim() : "viewer";
+    let roleSlug = typeof body?.role_slug === "string" ? body.role_slug.trim() : "";
+    if (!roleSlug) {
+      const roles = await getRolesForAssignmentFromPhpAuth();
+      roleSlug = roles[0]?.slug ?? "";
+    }
     const isOwner = body?.is_owner === true;
     const doInvite = body?.invite === true;
 
     if (!email) {
       return NextResponse.json(
         { error: "email is required" },
+        { status: 400 }
+      );
+    }
+    if (!roleSlug) {
+      return NextResponse.json(
+        { error: "No roles available from PHP-Auth; role_slug required" },
         { status: 400 }
       );
     }
@@ -123,6 +138,27 @@ export async function POST(
         { status: 500 }
       );
     }
+
+    const ctx = getClientAuditContext(request);
+    const phpAuthSlug = legacySlugToPhpAuthSlug(roleSlug);
+    pushAuditLog({
+      action: "role_assigned",
+      loginSource: "website-cms",
+      userId: tenantUser.user_id,
+      resourceType: "tenant_user",
+      resourceId: tenantUser.id,
+      metadata: { email: tenantUser.email, roleSlug: phpAuthSlug, is_owner: isOwner },
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      deviceType: ctx.deviceType,
+      browser: ctx.browser,
+    }).catch(() => {});
+    syncUserOrgRoleToPhpAuth({
+      supabaseUserId: tenantUser.user_id,
+      email: tenantUser.email,
+      roleSlug: phpAuthSlug,
+      operation: "assign",
+    }).catch(() => {});
 
     return NextResponse.json({
       tenant_user_id: tenantUser.id,
@@ -183,12 +219,34 @@ export async function PATCH(
     }
 
     if (roleSlug === undefined && isOwner === undefined) {
+      const tenantUser = await getTenantUserById(userId);
       const removed = await removeUserFromSite(userId, tenantSiteId);
       if (!removed) {
         return NextResponse.json(
           { error: "Failed to remove user from site" },
           { status: 500 }
         );
+      }
+      if (tenantUser) {
+        const ctx = getClientAuditContext(request);
+        pushAuditLog({
+          action: "role_removed",
+          loginSource: "website-cms",
+          userId: tenantUser.user_id,
+          resourceType: "tenant_user",
+          resourceId: tenantUser.id,
+          metadata: { email: tenantUser.email },
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          deviceType: ctx.deviceType,
+          browser: ctx.browser,
+        }).catch(() => {});
+        syncUserOrgRoleToPhpAuth({
+          supabaseUserId: tenantUser.user_id,
+          email: tenantUser.email,
+          roleSlug: null,
+          operation: "remove",
+        }).catch(() => {});
       }
       return NextResponse.json({ removed: true });
     }
@@ -201,6 +259,29 @@ export async function PATCH(
         { error: "Failed to update assignment" },
         { status: 500 }
       );
+    }
+    const tenantUser = await getTenantUserById(userId);
+    if (tenantUser) {
+      const ctx = getClientAuditContext(request);
+      const phpAuthSlug = legacySlugToPhpAuthSlug(newRole);
+      pushAuditLog({
+        action: "role_updated",
+        loginSource: "website-cms",
+        userId: tenantUser.user_id,
+        resourceType: "tenant_user",
+        resourceId: tenantUser.id,
+        metadata: { email: tenantUser.email, roleSlug: phpAuthSlug, is_owner: newIsOwner },
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        deviceType: ctx.deviceType,
+        browser: ctx.browser,
+      }).catch(() => {});
+      syncUserOrgRoleToPhpAuth({
+        supabaseUserId: tenantUser.user_id,
+        email: tenantUser.email,
+        roleSlug: phpAuthSlug,
+        operation: "update",
+      }).catch(() => {});
     }
     return NextResponse.json({ role_slug: newRole, is_owner: newIsOwner });
   } catch (error) {

@@ -208,6 +208,58 @@ export async function setTenantFeatureIds(tenantId: string, featureIds: string[]
   return true;
 }
 
+/** M5 C5: Tenant feature gating by slug (PHP-Auth feature_registry). */
+export async function listTenantFeatureSlugs(tenantId: string): Promise<string[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("tenant_feature_slugs")
+    .select("feature_slug")
+    .eq("tenant_id", tenantId);
+  if (error) {
+    console.error("listTenantFeatureSlugs:", error);
+    return [];
+  }
+  return (data ?? []).map((row: { feature_slug: string }) => row.feature_slug);
+}
+
+/** M5 C5: Set tenant enabled features by slug. Replaces existing rows for this tenant. */
+export async function setTenantFeatureSlugs(tenantId: string, slugs: string[]): Promise<boolean> {
+  const supabase = createServerSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from("tenant_feature_slugs")
+    .delete()
+    .eq("tenant_id", tenantId);
+  if (deleteError) {
+    console.error("setTenantFeatureSlugs:delete", deleteError);
+    return false;
+  }
+  const trimmed = [...new Set(slugs.map((s) => s.trim()).filter(Boolean))];
+  if (trimmed.length === 0) return true;
+  const payload = trimmed.map((feature_slug) => ({ tenant_id: tenantId, feature_slug }));
+  const { error: insertError } = await supabase.from("tenant_feature_slugs").insert(payload);
+  if (insertError) {
+    console.error("setTenantFeatureSlugs:insert", insertError);
+    return false;
+  }
+  return true;
+}
+
+/** Role feature slugs (from role_features + feature_registry). Used for effective-feature intersection. */
+export async function listRoleFeatureSlugs(roleSlug: string): Promise<string[]> {
+  const ids = await listRoleFeatureIds(roleSlug);
+  if (ids.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("feature_registry")
+    .select("slug")
+    .in("id", ids);
+  if (error) {
+    console.error("listRoleFeatureSlugs:", error);
+    return [];
+  }
+  return (data ?? []).map((r: { slug: string }) => r.slug);
+}
+
 /**
  * Effective features for a user = tenant features ∩ role features.
  * Use for sidebar and route guards. Returns feature IDs the user is allowed to access.
@@ -226,12 +278,25 @@ export async function getEffectiveFeatures(
 
 /**
  * Effective feature slugs for a user (tenant ∩ role). Use for sidebar and route guards.
+ * M5 C5: Prefers tenant_feature_slugs when non-empty; else falls back to tenant_features (ids → slugs).
  */
 export async function getEffectiveFeatureSlugs(
   tenantId: string,
   roleSlug: string
 ): Promise<string[]> {
-  const ids = await getEffectiveFeatures(tenantId, roleSlug);
+  const [tenantSlugs, roleSlugs] = await Promise.all([
+    getTenantFeatureSlugsForEffective(tenantId),
+    listRoleFeatureSlugs(roleSlug),
+  ]);
+  const roleSet = new Set(roleSlugs);
+  return tenantSlugs.filter((slug) => roleSet.has(slug));
+}
+
+/** Tenant-enabled feature slugs: from tenant_feature_slugs if any; else resolve tenant_features IDs to slugs. */
+export async function getTenantEnabledFeatureSlugs(tenantId: string): Promise<string[]> {
+  const slugList = await listTenantFeatureSlugs(tenantId);
+  if (slugList.length > 0) return slugList;
+  const ids = await listTenantFeatureIds(tenantId);
   if (ids.length === 0) return [];
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
@@ -239,8 +304,12 @@ export async function getEffectiveFeatureSlugs(
     .select("slug")
     .in("id", ids);
   if (error) {
-    console.error("getEffectiveFeatureSlugs:", error);
+    console.error("getTenantEnabledFeatureSlugs:", error);
     return [];
   }
   return (data ?? []).map((r: { slug: string }) => r.slug);
+}
+
+async function getTenantFeatureSlugsForEffective(tenantId: string): Promise<string[]> {
+  return getTenantEnabledFeatureSlugs(tenantId);
 }

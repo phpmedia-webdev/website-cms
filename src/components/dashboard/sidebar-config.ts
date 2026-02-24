@@ -18,7 +18,6 @@ import {
   BookOpen,
   Briefcase,
   Shield,
-  Building2,
   ShieldCheck,
   Code,
 } from "lucide-react";
@@ -80,7 +79,6 @@ export const supportSubNav: SubNavItem[] = [
 
 export const superadminSubNav: SubNavItem[] = [
   { name: "Dashboard", href: "/admin/super", icon: Shield },
-  { name: "Tenant Sites", href: "/admin/super/tenant-sites", icon: Building2 },
   { name: "Tenant Users", href: "/admin/super/tenant-users", icon: Users },
   { name: "Roles", href: "/admin/super/roles", icon: ShieldCheck },
   { name: "Code Library", href: "/admin/super/code-library", icon: Code },

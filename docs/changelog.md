@@ -11,6 +11,20 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-17 CT - Session wrap-up: PHP-Auth roles API scope optional; 403 still pending
+
+**Context for Next Session:**
+- **PHP-Auth roles:** Roles are fetched from PHP-Auth only (SSOT). We call `GET {AUTH_BASE_URL}/api/external/roles` with X-API-Key; scope is **optional**: if **AUTH_ROLES_SCOPE** is set we send `?scope=<value>`, otherwise we omit scope so PHP-Auth derives from the API key. New PHP-Auth deployed; when scope omitted it returns **403**: "Application type \"web-app\" does not match any role scope. Valid scopes: php-authhub, website-cms. Set Application type to one of these." With **AUTH_ROLES_SCOPE=website-cms** (added to .env.local) we still saw errors at session end — not yet verified after deploy.
+- **Next steps:** (1) In PHP-Auth admin, set the **Application type** for the website-cms application to **website-cms** (instead of web-app) so either omitted scope or `?scope=website-cms` returns 200 and roles. (2) Retest Superadmin → Roles and role pickers (Settings → Users); remove DEBUG blocks and debug hint on Roles page once working. (3) Ensure roles exist in PHP-Auth for scope website-cms so the list is non-empty.
+- **Key files:** `src/lib/php-auth/fetch-roles.ts` (optional AUTH_ROLES_SCOPE), `src/app/api/admin/roles/route.ts`, `src/app/api/admin/php-auth-status/route.ts`, `docs/reference/php-auth-external-roles-api.md`, `.env.local` (AUTH_ROLES_SCOPE=website-cms; do not commit if in .gitignore).
+
+**Changes:**
+- **Roles API scope optional:** fetch-roles.ts sends `?scope=...` only when AUTH_ROLES_SCOPE is set; otherwise no query (PHP-Auth uses application type from API key). php-auth-status probe URL updated to match. Docs updated: scope optional; recommend omitting or using app type.
+- **Config:** AUTH_ROLES_SCOPE=website-cms added to .env.local to request website-cms roles (valid scopes in PHP-Auth: php-authhub, website-cms). Application type in PHP-Auth for this app is currently web-app, causing 403 when omitted; explicit scope may work after Application type is set to website-cms.
+- **Session end:** Roles page still shows "No roles found" until PHP-Auth returns 200 with roles; DEBUG blocks and debug hint left in place for next session.
+
+---
+
 ### 2026-02-23 CT - Session wrap-up: PHP-Auth M0 integration (validate-user, audit-log, dual-read, role slugs)
 
 **Context for Next Session:**

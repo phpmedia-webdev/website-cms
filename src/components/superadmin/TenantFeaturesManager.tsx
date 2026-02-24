@@ -5,39 +5,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { FeatureRegistry } from "@/types/feature-registry";
+
+export type TenantFeatureItem = { slug: string; label: string; order: number };
 
 interface TenantFeaturesManagerProps {
   tenantId: string;
-  features: FeatureRegistry[];
-  initialFeatureIds: string[];
+  features: TenantFeatureItem[];
+  initialEnabledSlugs: string[];
 }
 
 export function TenantFeaturesManager({
   tenantId,
   features,
-  initialFeatureIds,
+  initialEnabledSlugs,
 }: TenantFeaturesManagerProps) {
-  const [featureIds, setFeatureIds] = useState<string[]>(initialFeatureIds);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [enabledSlugs, setEnabledSlugs] = useState<string[]>(initialEnabledSlugs);
+  const [savingSlug, setSavingSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setFeatureIds(initialFeatureIds);
-  }, [tenantId, initialFeatureIds]);
+    setEnabledSlugs(initialEnabledSlugs);
+  }, [tenantId, initialEnabledSlugs]);
 
-  const toggleFeature = async (featureId: string, checked: boolean) => {
+  const toggleFeature = async (slug: string, checked: boolean) => {
     const next = checked
-      ? [...featureIds, featureId]
-      : featureIds.filter((id) => id !== featureId);
-    setFeatureIds(next);
-    setSavingId(featureId);
+      ? [...enabledSlugs, slug]
+      : enabledSlugs.filter((s) => s !== slug);
+    setEnabledSlugs(next);
+    setSavingSlug(slug);
     setError(null);
     try {
       const res = await fetch(`/api/admin/tenants/${tenantId}/features`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ featureIds: next }),
+        body: JSON.stringify({ featureSlugs: next }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -45,20 +46,20 @@ export function TenantFeaturesManager({
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
-      setFeatureIds(featureIds);
+      setEnabledSlugs(enabledSlugs);
     } finally {
-      setSavingId(null);
+      setSavingSlug(null);
     }
   };
 
-  const isChecked = (featureId: string) => featureIds.includes(featureId);
+  const isChecked = (slug: string) => enabledSlugs.includes(slug);
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Features</CardTitle>
         <CardDescription>
-          Maximum features for this site. Only checked items are available here; each role (in Roles) gets a subset of these. A user sees: this site’s features ∩ their role’s features.
+          Maximum features for this site. Only checked items are available here; each role (in Roles) gets a subset of these. A user sees: this site's features ∩ their role's features.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -72,25 +73,24 @@ export function TenantFeaturesManager({
           <div className="border rounded-md divide-y">
             {features.map((feature) => (
               <div
-                key={feature.id}
+                key={feature.slug}
                 className={cn(
-                  "flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/50 transition-colors",
-                  feature.parent_id && "pl-8"
+                  "flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/50 transition-colors"
                 )}
               >
                 <div className="flex-1 min-w-0">
                   <span className="font-medium">{feature.label}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {savingId === feature.id && (
+                  {savingSlug === feature.slug && (
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   )}
                   <Switch
-                    checked={isChecked(feature.id)}
+                    checked={isChecked(feature.slug)}
                     onCheckedChange={(checked) =>
-                      toggleFeature(feature.id, checked)
+                      toggleFeature(feature.slug, checked)
                     }
-                    disabled={savingId === feature.id}
+                    disabled={savingSlug === feature.slug}
                   />
                 </div>
               </div>

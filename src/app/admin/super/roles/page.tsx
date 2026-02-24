@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { RolesList } from "@/components/superadmin/RolesList";
+import { RolesReadOnly } from "@/components/superadmin/RolesReadOnly";
 
 /**
- * Superadmin Roles: list roles; click a role to edit its features.
- * Only accessible to superadmin.
+ * Superadmin Roles: read-only list from PHP-Auth (M5).
+ * Roles are created and managed in the PHP-Auth app; shown here for reference and used in user assignment.
  */
 export default async function SuperadminRolesPage() {
   const user = await getCurrentUser();
@@ -16,13 +16,13 @@ export default async function SuperadminRolesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Roles &amp; Features</h1>
+        <h1 className="text-3xl font-bold">Roles</h1>
         <p className="text-muted-foreground mt-2">
-          Select a role to assign features. Effective access for a user is the intersection of their role’s features and the tenant’s enabled features.
+          Roles are managed in the PHP-Auth app and shown here for reference. Use them when assigning users in Users or Settings → Users. Permissions and features per role are configured in PHP-Auth.
         </p>
       </div>
 
-      <RolesList />
+      <RolesReadOnly />
     </div>
   );
 }

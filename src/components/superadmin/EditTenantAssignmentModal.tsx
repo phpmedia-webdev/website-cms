@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, UserMinus } from "lucide-react";
+import { legacySlugToPhpAuthSlug } from "@/lib/php-auth/role-mapping";
 
 export interface RoleOption {
   slug: string;
@@ -57,7 +58,12 @@ export function EditTenantAssignmentModal({
   onSaved,
   onRemoved,
 }: EditTenantAssignmentModalProps) {
-  const [role, setRole] = useState(initialRole);
+  const resolveInitialRole = () => {
+    const legacyMapped = legacySlugToPhpAuthSlug(initialRole);
+    const valid = roles.find((r) => r.slug === initialRole || r.slug === legacyMapped);
+    return valid?.slug ?? roles[0]?.slug ?? "";
+  };
+  const [role, setRole] = useState(resolveInitialRole);
   const [isOwner, setIsOwner] = useState(initialIsOwner);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -65,14 +71,14 @@ export function EditTenantAssignmentModal({
 
   useEffect(() => {
     if (open) {
-      setRole(initialRole);
+      setRole(resolveInitialRole());
       setIsOwner(initialIsOwner);
       setError(null);
     }
-  }, [open, initialRole, initialIsOwner]);
+  }, [open, initialRole, initialIsOwner, roles]);
 
   const resetForm = () => {
-    setRole(initialRole);
+    setRole(resolveInitialRole());
     setIsOwner(initialIsOwner);
     setError(null);
   };
@@ -129,14 +135,7 @@ export function EditTenantAssignmentModal({
     }
   };
 
-  const roleOptions = roles.length
-    ? roles
-    : [
-        { slug: "admin", label: "Admin" },
-        { slug: "editor", label: "Editor" },
-        { slug: "creator", label: "Creator" },
-        { slug: "viewer", label: "Viewer" },
-      ];
+  const roleOptions = roles;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -163,11 +162,15 @@ export function EditTenantAssignmentModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {roleOptions.map((r) => (
-                  <SelectItem key={r.slug} value={r.slug}>
-                    {r.label}
-                  </SelectItem>
-                ))}
+                {roleOptions.length === 0 ? (
+                  <SelectItem value="_none" disabled>No roles from PHP-Auth</SelectItem>
+                ) : (
+                  roleOptions.map((r) => (
+                    <SelectItem key={r.slug} value={r.slug}>
+                      {r.label}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -203,7 +206,7 @@ export function EditTenantAssignmentModal({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={saving || removing}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || removing}>
+            <Button onClick={handleSave} disabled={saving || removing || roleOptions.length === 0}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
             </Button>
           </div>

@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/select";
 import { VIEW_AS_COOKIE_NAME, viewAsCookieValue } from "@/lib/admin/view-as";
 import type { TenantSite } from "@/types/tenant-sites";
-import type { AdminRole } from "@/types/feature-registry";
+import type { RoleOption } from "@/lib/php-auth/role-mapping";
 
 const VIEW_AS_COOKIE_MAX_AGE = 86400; // 1 day in seconds
 
 interface ViewAsCardProps {
   sites: TenantSite[];
-  roles: AdminRole[];
+  roles: RoleOption[];
   /** When set, view-as is active (from cookie). Card shows current state and Exit. */
   initialViewAs: { siteId: string; roleSlug: string } | null;
 }
