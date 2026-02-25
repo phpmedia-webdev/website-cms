@@ -20,6 +20,7 @@ import {
   Shield,
   ShieldCheck,
   Code,
+  CheckCircle2,
 } from "lucide-react";
 
 /** Session storage keys for sidebar accordion open state. */
@@ -81,6 +82,7 @@ export const superadminSubNav: SubNavItem[] = [
   { name: "Dashboard", href: "/admin/super", icon: Shield },
   { name: "Tenant Users", href: "/admin/super/tenant-users", icon: Users },
   { name: "Roles", href: "/admin/super/roles", icon: ShieldCheck },
+  { name: "Verify session", href: "/admin/super/verify-session", icon: CheckCircle2 },
   { name: "Code Library", href: "/admin/super/code-library", icon: Code },
   { name: "Security", href: "/admin/super/security", icon: Shield },
 ];

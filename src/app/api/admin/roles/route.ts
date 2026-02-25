@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
+import { getRolesForAssignmentFromPhpAuth, getRolesWithDetailsFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 import {
   listFeatures,
   listRoles,
   listRoleFeatureIds,
   featuresForRoleOrTenantUI,
 } from "@/lib/supabase/feature-registry";
+
+/** Roles come from PHP-Auth; always fetch fresh, never cache. */
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/admin/roles
@@ -25,9 +28,16 @@ export async function GET(request: Request) {
 
     const forAssignment =
       new URL(request.url).searchParams.get("for") === "assignment";
+    const forDisplay =
+      new URL(request.url).searchParams.get("for") === "display";
+    const noStoreHeaders = { "Cache-Control": "no-store, max-age=0" };
     if (forAssignment) {
       const roles = await getRolesForAssignmentFromPhpAuth();
-      return NextResponse.json({ roles });
+      return NextResponse.json({ roles }, { headers: noStoreHeaders });
+    }
+    if (forDisplay) {
+      const roles = await getRolesWithDetailsFromPhpAuth();
+      return NextResponse.json({ roles }, { headers: noStoreHeaders });
     }
 
     const [roles, allFeatures] = await Promise.all([

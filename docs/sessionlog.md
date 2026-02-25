@@ -10,14 +10,16 @@
 
 ## Where we are
 
-**PHP-Auth migration:** M0 ✅ M1 ✅ M2 ✅ | **M3 in progress** (sync wired; recovery doc TBD) | M4 ⏳ | M5 ⏳  
-**Roles transition (this repo):** Step 1 ✅ | Step 2 (optional) ⏳ | **Step 3** — M3 recovery doc done; sync already wired. Then Step 4 (M4), 5 (deprecation doc).
+**PHP-Auth migration:** M0 ✅ M1 ✅ M2 ✅ | **M3** in progress (sync wired; recovery doc done) | M4 ⏳ | **M5** 🔄 partial (read-only Roles with features/permissions + hierarchy done; Dashboard tabbed + gating TBD).  
+**Roles transition (this repo):** Step 1 ✅ | Step 2 ✅ (display from PHP-Auth) | Step 3 ✅ | Step 4 (M4 central-only read) ← next | Step 4a (gating from PHP-Auth) ⏳ | Step 5 (deprecation doc) ⏳.
+
+**Recently completed (roles/sidebar):** Read-only Roles list + detail with features/permissions from PHP-Auth; parentSlug parsing and tree display (Permissions/Features tabs); D9 superadmin nav (Dashboard, Tenant Users, Roles, Code Library, Security); roles API caching fixes and debug trim. **This session:** Verify session page now shows when 2FA dev bypass is on (NEXT_PUBLIC_DEV_BYPASS_2FA) and explains why superadmin is accessible without MFA.
 
 ---
 
 ## Current Focus
 
-- [ ] **Roles transition — Step 3 done (recovery doc); next Step 4 (M4):** Recovery: [reference/m3-recovery-procedure.md](./reference/m3-recovery-procedure.md). Next: M4 central-only read (remove fallback) or Step 5 (deprecation doc). Details in **Roles transition** section below.
+- [ ] **Roles transition — next Step 4 (M4) or D7/D8:** M3 recovery doc done ([reference/m3-recovery-procedure.md](./reference/m3-recovery-procedure.md)). Next: M4 central-only read (remove fallback), or continue M5 (D7 tabbed Dashboard + Gating, D8 Superadmin Users). Details in **Roles transition** and **M5 step plan** below.
 - [ ] **PHP-Auth integration (broader):** [authplanlog.md](./authplanlog.md) Section 1 (PHP-Auth app) + Section 2 (website-cms). M0 details: [reference/php-auth-integration-clarification.md](./reference/php-auth-integration-clarification.md).
 
 ---
@@ -59,7 +61,7 @@
 **Phase B — Website-cms: role list from PHP-Auth, no role creation**
 
 - [x] **B3** Role picker from PHP-Auth: fetch roles for this app (website-cms scope); return `{ slug, label }` (and optional id). Use for superadmin Users and Settings → Users (replace fixed `listRolesForAssignment()` where used for assignment). → `getRolesForAssignmentFromPhpAuth()` in `src/lib/php-auth/fetch-roles.ts`; fallback to `listRolesForAssignment()`; wired in team API, admin roles API, super page.
-- [x] **B4** Remove role creation in website-cms: remove/hide “Create role” and any POST/PATCH that create or update roles. Replace “Roles & Features” with **read-only Roles** page: list roles from PHP-Auth and show each role’s assigned permissions and features (no edit in website-cms). → Done: POST 410; RolesReadOnly; [roleSlug] redirects. Per-role perms/features when API §2.3 exists.
+- [x] **B4** Remove role creation in website-cms: remove/hide “Create role” and any POST/PATCH that create or update roles. Replace “Roles & Features” with **read-only Roles** page: list roles from PHP-Auth and show each role’s assigned permissions and features (no edit in website-cms). → Done: POST 410; RolesReadOnly; [roleSlug] redirects. API returns features/permissions with parentSlug; we parse and display hierarchy in role detail (Permissions/Features tabs).
 
 **Phase C — Feature registry from PHP-Auth**
 
@@ -70,11 +72,12 @@
 - [x] **D6** Remove tenant site list and picker: remove “Tenant Sites” from superadmin nav and any “choose a site” flow. Current site from schema only (e.g. `getTenantSiteBySchema`).
 - [ ] **D7** New Superadmin Dashboard (tabbed): **Tab 1 — Metrics/info:** current site metrics, site mode, coming soon. **Tab 2 — Gating:** feature gating table (features from PHP-Auth, sorted by **order**; toggles stored in website-cms). Reuse or move content from current tenant-site detail as needed.
 - [ ] **D8** Superadmin Users page: same as Settings → Users for current site (non-GPUM; add user, assign role). Role picker from PHP-Auth (B3). Ensure tenant admins retain “add new user” and “assign role” in Settings → Users.
-- [ ] **D9** Superadmin nav: Dashboard (tabbed), Users, Roles (read-only from PHP-Auth), Code Library, Security. No Tenant Sites.
+- [x] **D9** Superadmin nav: Dashboard (tabbed), Users, Roles (read-only from PHP-Auth), Code Library, Security. No Tenant Sites. → Done: sidebar has Dashboard, Tenant Users, Roles, Code Library, Security; Roles is read-only from PHP-Auth with list + detail (Permissions/Features hierarchy).
 
 **Phase E — Cleanup and docs**
 
 - [ ] **E10** Deprecate local SSOT for roles/features: document that `admin_roles` / `role_features` (and `feature_registry` where replaced) are not source of truth; PHP-Auth is. No role creation or feature-registry writes from website-cms.
+- [ ] **E10a** **PHP-Auth SSOT for role permissions/features (gating):** Display done (roles API returns features/permissions per role; we show in Roles list/detail with hierarchy). **Pending:** Wire `getEffectiveFeatureSlugs` to use PHP-Auth role→features instead of local `role_features` per [reference/php-auth-ssot-roles-features-plan.md](./reference/php-auth-ssot-roles-features-plan.md).
 - [ ] **E11** Update sessionlog/planlog and changelog with M5 progress and “Context for Next Session” when appropriate.
 
 
@@ -94,9 +97,10 @@
 | Step | Task | Status |
 |------|------|--------|
 | **1** | Role definitions from PHP-Auth for UI (dropdowns); stop using `admin_roles`/`role_features` as source. | ✅ Done |
-| 2 | Role–features from PHP-Auth (optional); or keep local mapping from validate-user. | ⏳ Optional |
+| 2 | Role–features from PHP-Auth for display (read-only Roles list/detail with permissions and features). Gating (getEffectiveFeatureSlugs from PHP-Auth) still optional/pending. | ✅ Done (display) |
 | 3 | Role assignment: sync already wired in team + tenant-sites users APIs; document M3 recovery procedure. | ✅ Done ([m3-recovery-procedure.md](./reference/m3-recovery-procedure.md)) |
 | 4 | M4 central-only read: remove fallback to `tenant_user_assignments`/user_metadata; resolve only from validate-user. | ← **next** |
+| 4a | **PHP-Auth SSOT for role→features (gating):** API and display done. Pending: use role→features in `getEffectiveFeatureSlugs` instead of local `role_features` per [reference/php-auth-ssot-roles-features-plan.md](./reference/php-auth-ssot-roles-features-plan.md). | ⏳ Pending (gating) |
 | 5 | Document deprecation of `admin_roles`, `role_features`, read path of `tenant_user_assignments`; tenant_sites unchanged. | ⏳ |
 
 **Dev server:** If you see `ENOENT: no such file or directory, open '.next/routes-manifest.json'`, delete the `.next` folder and run `pnpm run dev` again.
@@ -105,7 +109,8 @@
 
 ## Next up
 
-- [ ] **PHP-Auth roles 403:** Set Application type in PHP-Auth to `website-cms` (or confirm scope=website-cms works); retest Superadmin → Roles; remove DEBUG in fetch-roles and debug hint when done.
+- [x] **Roles API: hierarchical features/permissions** — Done. API provides **parentSlug**; we parse in fetch-roles.ts, build tree (`buildFeatureOrPermissionTree`), display in role detail (Permissions/Features tabs with sort order and hierarchy). See [reference/php-auth-ssot-roles-features-plan.md](./reference/php-auth-ssot-roles-features-plan.md) §7.
+- [x] **PHP-Auth roles 403 / display** — Addressed (scope=website-cms default; AUTH_ROLES_SCOPE override). Roles display no-store/cache-buster; debug logging trimmed. If 403 persists, set Application type in PHP-Auth to `website-cms`.
 - [ ] **Outbound SMTP emailer + contact activity stream**
   - [ ] Add SMTP/env config and Node.js emailer (e.g. nodemailer or built-in); lib to send email (to, subject, body).
   - [ ] API or server action: send email then create a CRM note for the contact with a dedicated note_type (e.g. `email_sent`); store subject and optional snippet in note body so it appears in the contact activity stream.

@@ -41,7 +41,7 @@ No Bearer token or user session is required — this is **application-only** aut
 
 ## 4. Response (200 OK)
 
-**Shape (website-cms compatible):**
+**Shape (website-cms compatible, with features and permissions for role assignment and feature management):**
 
 ```json
 {
@@ -52,13 +52,16 @@ No Bearer token or user session is required — this is **application-only** aut
         "id": "uuid-of-role",
         "name": "Admin",
         "slug": "admin",
-        "label": "Admin"
-      },
-      {
-        "id": "uuid-of-role-2",
-        "name": "Editor",
-        "slug": "editor",
-        "label": "Editor"
+        "label": "Admin",
+        "features": [
+          { "slug": "website-cms-dashboard", "label": "Dashboard", "parentSlug": null, "isEnabled": true },
+          { "slug": "website-cms-content", "label": "Content", "parentSlug": null, "isEnabled": true },
+          { "slug": "website-cms-content-pages", "label": "Pages", "parentSlug": "website-cms-content", "isEnabled": true }
+        ],
+        "permissions": [
+          { "slug": "content-publish", "label": "Publish content", "parentSlug": null, "isEnabled": true },
+          { "slug": "content-delete", "label": "Delete content", "parentSlug": "content-publish", "isEnabled": true }
+        ]
       }
     ]
   }
@@ -71,8 +74,39 @@ No Bearer token or user session is required — this is **application-only** aut
 | `name` | string | Internal/administrative name (e.g. "Admin", "Editor"). |
 | `slug` | string | Stable identifier for APIs and tenant app logic (e.g. `admin`, `editor`). |
 | `label` | string | User-facing display name (e.g. "Admin", "Editor"); falls back to `name` if not set. |
+| `features` | array | Features assigned to this role. Each item: `slug`, `label`, `parentSlug` (parent feature slug or `null` for top-level; use to build hierarchy), `isEnabled`. Use for role assignment and feature management (e.g. sidebar, route guards). |
+| `permissions` | array | Permissions assigned to this role. Each item: `slug`, `label`, `parentSlug` (parent permission slug or `null` for top-level; use to build hierarchy), `isEnabled`. |
 
-You can rely on `slug` for mapping to your existing role slugs (e.g. admin, editor, creator, viewer, superadmin) and use `label` for UI.
+**Features and permissions hierarchy:** Both `features` and `permissions` are flat arrays. Each item includes **`parentSlug`**: the slug of the parent feature or permission, or `null` for top-level. This matches the **Feature Registry** and **Permission Registry** in PHP-Auth, where items can have a `parent_id` for hierarchy. Callers can build a tree (e.g. for UI) by grouping children under the parent slug.
+
+**Exact payload for parser alignment:** Top-level keys are `success` and `data`; `data` has one key, `roles` (array). First role object keys, in order: `id`, `name`, `slug`, `label`, `features`, `permissions`. Each **feature** has `slug`, `label`, `parentSlug` (string or null), `isEnabled`. Each **permission** has `slug`, `label`, `parentSlug` (string or null), `isEnabled`. Example of one full role from the response (copy as-is for parser tests):
+
+```json
+{
+  "success": true,
+  "data": {
+    "roles": [
+      {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Admin",
+        "slug": "admin",
+        "label": "Admin",
+        "features": [
+          { "slug": "website-cms-dashboard", "label": "Dashboard", "parentSlug": null, "isEnabled": true },
+          { "slug": "website-cms-content", "label": "Content", "parentSlug": null, "isEnabled": true },
+          { "slug": "website-cms-content-pages", "label": "Pages", "parentSlug": "website-cms-content", "isEnabled": true }
+        ],
+        "permissions": [
+          { "slug": "content-publish", "label": "Publish content", "parentSlug": null, "isEnabled": true },
+          { "slug": "content-delete", "label": "Delete content", "parentSlug": "content-publish", "isEnabled": true }
+        ]
+      }
+    ]
+  }
+}
+```
+
+You can rely on `slug` for mapping to your existing role slugs and use `features`/`permissions` when assigning a role to a user and when managing which features and permissions that user has. Use `parentSlug` on each feature and permission to build a hierarchy (e.g. tree UI) if needed.
 
 ---
 
@@ -116,27 +150,52 @@ curl -X GET "{AUTH_BASE_URL}/api/external/roles" \
 
 ## 7. Integration notes for website-cms
 
-- **Path:** Use **`/api/external/roles`** as the default. No need to set `AUTH_ROLES_PATH` unless you later point to a different PHP-Auth path. Full URL: `{AUTH_BASE_URL}/api/external/roles`.
+- **Path:** Use **`/api/external/roles`** as the default. Full URL: `{AUTH_BASE_URL}/api/external/roles`.
+- **Scope when sending:** If you send a `scope` query parameter, it must be a **valid role scope** (one of the scope values that exist in the PHP-Auth Roles table), e.g. **`website-cms`** (not `web_app`). Same for `AUTH_ROLES_SCOPE` if you use it to build the URL. Valid scopes are data-driven from the Roles table.
 - **When to call:** For example when building role dropdowns, role-to-feature mapping, or any UI that needs the list of roles for the current app. Can be cached (e.g. by scope) and refreshed periodically or on deploy.
 - **Same credentials:** Use the same `AUTH_BASE_URL`, `AUTH_ORG_ID`, `AUTH_APPLICATION_ID`, and `AUTH_API_KEY` you use for validate-user and audit-log. No user session or Bearer token is required.
-- **Response shape:** Matches the first option you support: `{ "success": true, "data": { "roles": [ { "id", "name", "slug", "label" }, ... ] } }`. You can parse `data.roles` and map `slug` (and optionally `label`) into your existing role handling.
+- **Response shape:** `{ "success": true, "data": { "roles": [ { "id", "name", "slug", "label", "features", "permissions" }, ... ] } }`. Each role includes `features` and `permissions` (arrays of `{ slug, label, parentSlug, isEnabled }`) for assignment, feature management, and hierarchical display in role detail.
 
-### 7.1 How website-cms calls (checklist)
+**Verifying the API and debugging display mismatches**
 
-1. **In PHP-Auth (one-time):** Set the Application’s **Application type** to **`website-cms`**. Ensure roles (Admin, Editor, Creator, etc.) exist with **scope** `website-cms` on the Roles page.
-2. **From website-cms:** Call **GET** `{AUTH_BASE_URL}/api/external/roles` with header **X-API-Key:** `{AUTH_API_KEY}`. No query parameter (scope is derived from the application type).
-3. **Optional:** To pass scope explicitly, set **AUTH_ROLES_SCOPE=website-cms** in `.env.local`; we then send `?scope=website-cms`. The scope name must be exactly **`website-cms`** (not `web_app` or any other value); it must match the Application type in PHP-Auth.
+- **Compare curl vs app:** Call the endpoint with the same URL and key the app uses and check that each role has distinct feature/permission counts, e.g. `curl -s -H "X-API-Key: YOUR_WEBSITE_CMS_API_KEY" "https://auth.phpmedia.com/api/external/roles?scope=website-cms"`. In the JSON, each object in `data.roles` should have only that role’s assignments (Admin vs Creator vs Super Admin should differ).
+- **If display is stale:** Set **`AUTH_ROLES_NOCACHE=1`** so the app appends `&_t=<timestamp>` to the roles request and no HTTP cache can return stale data.
 
 ---
 
-## 8. Summary table
+## 8. How to call from the website (website-cms)
+
+1. **In PHP-Auth (one-time):** Add roles (Admin, Editor, Creator, etc.) and set each role’s **scope** to the application-type identifier you will use for external callers (e.g. **`website-cms`**). That scope value is what this endpoint uses — valid scopes are read from the Roles table, not hardcoded. Optionally set the Application’s type to `website-cms` so it matches; if you leave it as `web_app`, the endpoint still accepts it when roles with scope `website-cms` exist (legacy fallback).
+2. **From website-cms:** Call **GET** `{AUTH_BASE_URL}/api/external/roles` with header **X-API-Key:** `{AUTH_API_KEY}`. No query parameter needed.
+3. **Optional:** To pass scope explicitly, use **GET** `{AUTH_BASE_URL}/api/external/roles?scope=website-cms` with the same header. The value must be one of the scopes that exist in the Roles table (e.g. `website-cms`).
+
+**Example (no scope):**
+
+```http
+GET https://auth.phpmedia.com/api/external/roles
+X-API-Key: your-application-api-key
+```
+
+**Example (with scope):**
+
+```http
+GET https://auth.phpmedia.com/api/external/roles?scope=website-cms
+X-API-Key: your-application-api-key
+```
+
+## 9. How the endpoint works (PHP-Auth side)
+
+The endpoint is **data-driven**: it loads the distinct **scope** values from the **auth_roles** table and uses those as the set of valid application-type identifiers. When you add a role and set its scope, that scope becomes available for this API. There is no hardcoded list of scopes; the “proper” calling behavior is derived from the Roles table. Application type (from the API key) must match one of those role scopes, or the legacy `web_app` → `website-cms` fallback applies when roles with scope `website-cms` exist.
+
+## 10. Summary table
 
 | Item | Value |
 |------|--------|
 | **Path** | `GET /api/external/roles` |
 | **Auth** | `X-API-Key` (required) |
-| **Query** | `scope` (optional; omit to use API key’s application type) |
-| **Response** | `{ "success": true, "data": { "roles": [ { "id", "name", "slug", "label" }, ... ] } }` |
+| **Query** | `scope` (optional; must be a valid role scope from the Roles table) |
+| **Valid scopes** | From **auth_roles.scope** (distinct values) |
+| **Response** | `{ "success": true, "data": { "roles": [ { "id", "name", "slug", "label", "features", "permissions" }, ... ] } }` |
 | **Framework** | Express (PHP-Auth server) |
 
 If you need another path or an additional response shape, we can add an alias or document it here.

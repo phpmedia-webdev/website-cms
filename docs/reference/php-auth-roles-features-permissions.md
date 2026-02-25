@@ -46,15 +46,15 @@ Website-cms needs the following endpoints from PHP-Auth. Implement in PHP-Auth a
 
 **Purpose:** Role picker in Superadmin → Users and Settings → Users; read-only Roles page.
 
-**Detailed API reference:** See [php-auth-external-roles-api.md](./php-auth-external-roles-api.md) for the full endpoint spec (path, headers, query, response shape, errors). The endpoint is implemented in PHP-Auth (Express). Website-cms calls `GET {AUTH_BASE_URL}/api/external/roles?scope=website-cms` with `X-API-Key`; response is `{ "success": true, "data": { "roles": [ { "id", "name", "slug", "label" }, ... ] } }`. If PHP-Auth used a different path, set **AUTH_ROLES_PATH** in website-cms.
+**Detailed API reference:** See [php-auth-external-roles-api.md](./php-auth-external-roles-api.md) for the full endpoint spec (path, headers, query, response shape, errors). The endpoint is implemented in PHP-Auth (Express). Website-cms calls `GET {AUTH_BASE_URL}/api/external/roles?scope=website-cms` with `X-API-Key`; response includes **features** and **permissions** per role (flat arrays with `slug`, `label`, `parentSlug`, `isEnabled`) for read-only Roles list/detail. If PHP-Auth used a different path, set **AUTH_ROLES_PATH** in website-cms.
 
 | Item | Value |
 |------|--------|
 | **Method / path** | `GET /api/external/roles` (default). Override with env **AUTH_ROLES_PATH** (e.g. `api/v1/roles`) if PHP-Auth uses a different path. |
 | **Query** | `scope=website-cms` (or infer from API key’s application type) |
 | **Headers** | `X-API-Key: <AUTH_API_KEY>`, `Content-Type: application/json` |
-| **Response (200)** | `{ "success": true, "data": { "roles": [ { "id": "uuid", "name": "Website-CMS-Admin", "slug": "website-cms-admin", "label": "Admin" }, ... ] } }` |
-| **Notes** | Only roles for the calling app’s type (website-cms). Exclude GPUM from admin assignment picker if desired, or filter in website-cms. |
+| **Response (200)** | `{ "success": true, "data": { "roles": [ { "id", "name", "slug", "label", "features", "permissions" }, ... ] }`. See external-roles-api.md for features/permissions item shape (includes parentSlug). |
+| **Notes** | Only roles for the calling app’s type (website-cms). Exclude GPUM from admin assignment picker if desired, or filter in website-cms. Superadmin Roles list and role detail use this payload for read-only display. |
 
 ### 2.2 List feature_registry by scope
 
@@ -68,16 +68,11 @@ Website-cms needs the following endpoints from PHP-Auth. Implement in PHP-Auth a
 | **Response (200)** | `{ "success": true, "data": { "features": [ { "id": "uuid", "slug": "crm", "label": "CRM", "scope": "website-cms", "order": 10, "is_enabled": true }, ... ] } }` |
 | **Notes** | Sort by `order` ascending for display. Used for gating table in Superadmin Dashboard (Gating tab). |
 
-### 2.3 List role–feature and role–permission assignments (read-only Roles page)
+### 2.3 Role → features and permissions (read-only Roles page)
 
 **Purpose:** Superadmin read-only "Roles" page: show each role’s assigned features and permissions.
 
-| Item | Value |
-|------|--------|
-| **Method / path** | `GET /api/external/roles/:roleId/assignments` or `GET /api/external/roles?scope=website-cms&include=features,permissions` (or equivalent) |
-| **Headers** | `X-API-Key: <AUTH_API_KEY>`, `Content-Type: application/json` |
-| **Response (200)** | Roles list with per-role `features[]` and `permissions[]` (ids and/or slugs/labels). Shape to be defined in PHP-Auth; website-cms consumes for read-only display. |
-| **Notes** | Optional for first iteration; read-only Roles page can show just role list first, then add features/permissions when this API exists. |
+**Implemented:** Features and permissions are included in the **same** roles endpoint response (no separate assignments endpoint). Each role in `data.roles` has **features** and **permissions** arrays (each item: `slug`, `label`, **parentSlug**, `isEnabled`). Website-cms parses these, builds a tree from parentSlug, and displays Permissions and Features tabs in role detail with sort order and hierarchy. See [php-auth-external-roles-api.md](./php-auth-external-roles-api.md).
 
 ---
 
@@ -87,5 +82,5 @@ Website-cms needs the following endpoints from PHP-Auth. Implement in PHP-Auth a
 |--------|----------|-------------|
 | **Roles** | Created and stored in PHP-Auth (auth_roles). Scoped by application type (e.g. `website-cms`). | Read-only list from API; use **slug** for identity, **label** for display. No role creation. |
 | **Features** | feature_registry with **scope** and **order**. | Fetch by scope `website-cms`; use **order** for gating table sort. |
-| **Permissions** | permission_registry (global) + auth_role_permissions. | Shown on read-only Roles page when API provides them. |
+| **Permissions** | permission_registry (global) + auth_role_permissions. | Shown on read-only Roles page (from roles API payload; same response as features). |
 | **Role picker** | GET roles (scope=website-cms). | Superadmin Users, Settings → Users: dropdown from API; fallback to fixed list if API unavailable. |

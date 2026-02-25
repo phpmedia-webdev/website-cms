@@ -11,6 +11,17 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-17 CT - Session wrap-up: Verify session page shows 2FA bypass state
+
+**Context for Next Session:**
+- **Verify session:** When `NEXT_PUBLIC_DEV_BYPASS_2FA` is set, middleware skips the AAL2 requirement so you can access superadmin without completing MFA. The verify-session page now detects this and shows: (1) MFA row detail "Not verified (2FA bypass is on — middleware is not requiring MFA)" and (2) an amber note that 2FA bypass is on and to turn it off to enforce MFA. No logic change — clarifies why "MFA not verified" can appear while you can still reach superadmin.
+- **Next:** M4 central-only read (see [reference/m4-central-only-read-plan.md](./reference/m4-central-only-read-plan.md)); optional role-based post-login redirect; then D7/D8 (tabbed Dashboard, Superadmin Users). Sessionlog/planlog unchanged for focus.
+
+**Changes:**
+- **Verify session page** (`src/app/admin/super/verify-session/page.tsx`): Import `isDevModeBypassEnabled` from mfa.ts. When bypass is on and AAL is not aal2, MFA check detail explains that 2FA bypass is on and middleware is not requiring MFA. Added amber banner: "2FA bypass is on (NEXT_PUBLIC_DEV_BYPASS_2FA). Middleware is not requiring MFA… Turn it off to enforce MFA."
+
+---
+
 ### 2026-02-17 CT - Session wrap-up: PHP-Auth roles API scope optional; 403 still pending
 
 **Context for Next Session:**
