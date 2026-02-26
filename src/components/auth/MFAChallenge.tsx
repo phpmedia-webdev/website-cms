@@ -146,8 +146,10 @@ export default function MFAChallenge() {
         setSubmitting(false);
         return;
       }
-      // Success: Supabase client has updated session to AAL2. Short delay so session is settled then redirect.
-      await new Promise((r) => setTimeout(r, 400));
+      // Success: Supabase client has updated session to AAL2. Refresh so server sees new cookies, then redirect.
+      setSubmitting(false);
+      router.refresh();
+      await new Promise((r) => setTimeout(r, 300));
       router.push(redirectTo);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Verification failed. Please try again.");
