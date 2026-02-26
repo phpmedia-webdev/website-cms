@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getTenantSiteById } from "@/lib/supabase/tenant-sites";
 import { TenantSiteSettingsClient } from "./TenantSiteSettingsClient";
 import type { TenantSite } from "@/types/tenant-sites";
@@ -14,7 +15,9 @@ export default async function TenantSiteSettingsPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user || !isSuperadmin(user)) redirect("/admin/dashboard");
+  if (!user) redirect("/admin/dashboard");
+  const role = await getRoleForCurrentUser();
+  if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const { id } = await params;
   const site = await getTenantSiteById(id);

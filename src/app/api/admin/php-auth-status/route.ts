@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getPhpAuthConfig, isPhpAuthConfigured } from "@/lib/php-auth/config";
 import { validateUser, getRoleSlugFromValidateUserData, getOrgForThisApp } from "@/lib/php-auth/validate-user";
@@ -16,18 +16,9 @@ import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
 export async function GET() {
   try {
     const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-    if (isPhpAuthConfigured()) {
-      const role = await getRoleForCurrentUser();
-      if (!isSuperadminFromRole(role)) {
-        return NextResponse.json(
-          { error: "Unauthorized: Superadmin access required" },
-          { status: 403 }
-        );
-      }
-    } else if (!isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const role = await getRoleForCurrentUser();
+    if (!isSuperadminFromRole(role)) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }

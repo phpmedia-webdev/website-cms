@@ -2,10 +2,12 @@
  * Content access control for blog and pages (membership protection).
  * Mirrors gallery-access: public → allow; members → auth + type member; mag → auth + MAG check.
  * When tenant_sites.membership_enabled is false, all content is treated as public (no gating).
+ * Bypass for admin/superadmin uses central role (getRoleForCurrentUser) when PHP-Auth configured.
  */
 
 import { getMemberMagIds } from "./gallery-access";
 import type { UserMetadata } from "./supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "./resolve-role";
 import { isMembershipEnabledForCurrentTenant } from "@/lib/supabase/tenant-sites";
 
 export interface ContentAccessInfo {
@@ -45,12 +47,11 @@ export async function checkContentAccess(
   const supabase = await createServerSupabaseClientSSR();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const metadata = user?.user_metadata as UserMetadata | undefined;
-  const isAdmin = metadata?.type === "admin" || metadata?.type === "superadmin";
+  const role = await getRoleForCurrentUser();
+  const canBypass = user && role !== null && (isSuperadminFromRole(role) || isAdminRole(role));
+  if (canBypass) return { hasAccess: true };
 
-  if (isAdmin && user) {
-    return { hasAccess: true };
-  }
+  const metadata = user?.user_metadata as UserMetadata | undefined;
 
   if (!user) {
     return {
@@ -115,10 +116,10 @@ export async function filterContentByAccess<T extends { access_level?: string | 
   const supabase = await createServerSupabaseClientSSR();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const metadata = user?.user_metadata as UserMetadata | undefined;
-  const isAdmin = metadata?.type === "admin" || metadata?.type === "superadmin";
+  const role = await getRoleForCurrentUser();
+  if (user && role !== null && (isSuperadminFromRole(role) || isAdminRole(role))) return items;
 
-  if (isAdmin && user) return items;
+  const metadata = user?.user_metadata as UserMetadata | undefined;
 
   let memberMagIds: string[] = [];
   if (user && metadata?.type === "member") {

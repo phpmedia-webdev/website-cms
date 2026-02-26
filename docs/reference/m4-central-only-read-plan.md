@@ -68,14 +68,16 @@
 
 **Done:** Middleware calls validateUser(session.access_token) in Edge; uses role for /admin and /admin/super gating. /admin and /admin/login redirects also resolve role when PHP-Auth configured.
 
+**Request-scoped reuse (one validate-user per request):** In `resolve-role.ts`, a cached helper `getValidateUserDataCached` (React `cache()`) ensures validate-user is called at most once per server request. `getRoleForCurrentUser()` and `getRoleForCurrentUserOnSite()` use it when PHP-Auth is configured. Middleware runs in Edge and still calls validate-user once per request there.
+
 ---
 
 ## Step 7 — supabase-auth: document or add async superadmin when configured
 
 **File:** `src/lib/auth/supabase-auth.ts`
 
-- [ ] **7.1** Keep `isSuperadmin(user)` for backward compatibility when PHP-Auth is not configured. Add a short JSDoc: when PHP-Auth is configured, prefer getRoleForCurrentUser() + isSuperadminFromRole(role) for server-side checks.
-- [ ] **7.2** (Optional) Add `async function isSuperadminAsync(): Promise<boolean>` that calls getRoleForCurrentUser() and returns isSuperadminFromRole(role), for use in API routes so they don't have to repeat the pattern. Export from resolve-role or supabase-auth.
+- [x] **7.1** Keep `isSuperadmin(user)` for backward compatibility when PHP-Auth is not configured. Add a short JSDoc: when PHP-Auth is configured, prefer getRoleForCurrentUser() + isSuperadminFromRole(role) for server-side checks.
+- [x] **7.2** (Optional) Add `async function isSuperadminAsync(): Promise<boolean>` that calls getRoleForCurrentUser() and returns isSuperadminFromRole(role), for use in API routes so they don't have to repeat the pattern. Export from resolve-role or supabase-auth.
 
 ---
 
@@ -83,19 +85,19 @@
 
 **Files:** (grep for `user.metadata.type` / `user.metadata.role` in API routes and server code)
 
-- [ ] **8.1** `src/app/api/admin/tenant-sites/[id]/snippets/route.ts` — Replace metadata superadmin check with getRoleForCurrentUser() + isSuperadminFromRole(role). Return 403 if not superadmin when configured.
-- [ ] **8.2** `src/app/api/settings/snippets/route.ts` — Replace metadata admin/superadmin check with getRoleForCurrentUser() + (isSuperadminFromRole(role) || isAdminRole(role)).
-- [ ] **8.3** `src/app/api/admin/color-palettes/route.ts` and `[id]/route.ts` — Same: role from getRoleForCurrentUser(), then isAdminRole(role) or isSuperadminFromRole(role).
-- [ ] **8.4** `src/app/api/settings/site-metadata/route.ts` — Same.
-- [ ] **8.5** `src/app/api/settings/site-mode/route.ts` — Same (and the superadmin-only branch).
-- [ ] **8.6** `src/app/api/settings/team/route.ts` — Uses getTeamManagementContext(); ensure that when PHP-Auth configured, context is from Step 4. No change if context already uses getRoleForCurrentUser().
-- [ ] **8.7** `src/app/api/admin/me/context/route.ts` — Replace metadata admin/superadmin with getRoleForCurrentUser() + role check.
-- [ ] **8.8** `src/app/api/admin/settings/design-system/route.ts` — Same.
-- [ ] **8.9** `src/app/api/admin/integrations/route.ts` — Superadmin + AAL2; replace metadata superadmin with getRoleForCurrentUser() + isSuperadminFromRole(role).
-- [ ] **8.10** `src/app/api/automations/on-member-signup/route.ts` — Uses metadata.type !== "member"; leave or align with role (member vs admin) from PHP-Auth if applicable.
-- [ ] **8.11** `src/app/api/auth/mfa/recover/route.ts` — Currently allows only metadata superadmin. When PHP-Auth configured: require getRoleForCurrentUser() === SUPERADMIN (so only central superadmin can recover MFA). When not configured, keep metadata check.
-- [ ] **8.12** `src/app/api/auth/mfa/unenroll/route.ts` — Same as recover if it checks superadmin.
-- [ ] **8.13** Any other route that uses `isSuperadmin(user)` or `user.metadata.type`/`role`: switch to getRoleForCurrentUser() + isSuperadminFromRole / isAdminRole when PHP-Auth configured.
+- [x] **8.1** `src/app/api/admin/tenant-sites/[id]/snippets/route.ts` — Replace metadata superadmin check with getRoleForCurrentUser() + isSuperadminFromRole(role). Return 403 if not superadmin when configured.
+- [x] **8.2** `src/app/api/settings/snippets/route.ts` — Replace metadata admin/superadmin check with getRoleForCurrentUser() + (isSuperadminFromRole(role) || isAdminRole(role)).
+- [x] **8.3** `src/app/api/admin/color-palettes/route.ts` and `[id]/route.ts` — Same: role from getRoleForCurrentUser(), then isAdminRole(role) or isSuperadminFromRole(role).
+- [x] **8.4** `src/app/api/settings/site-metadata/route.ts` — Same.
+- [x] **8.5** `src/app/api/settings/site-mode/route.ts` — Same (and the superadmin-only branch).
+- [x] **8.6** `src/app/api/settings/team/route.ts` — Uses getTeamManagementContext(); ensure that when PHP-Auth configured, context is from Step 4. No change if context already uses getRoleForCurrentUser().
+- [x] **8.7** `src/app/api/admin/me/context/route.ts` — Replace metadata admin/superadmin with getRoleForCurrentUser() + role check.
+- [x] **8.8** `src/app/api/admin/settings/design-system/route.ts` — Same.
+- [x] **8.9** `src/app/api/admin/integrations/route.ts` — Superadmin + AAL2; replace metadata superadmin with getRoleForCurrentUser() + isSuperadminFromRole(role).
+- [x] **8.10** `src/app/api/automations/on-member-signup/route.ts` — Uses metadata.type !== "member"; **left as-is** (member check stays on metadata until PHP-Auth models members; no central "member" to align to).
+- [x] **8.11** `src/app/api/auth/mfa/recover/route.ts` — Currently allows only metadata superadmin. When PHP-Auth configured: require getRoleForCurrentUser() === SUPERADMIN (so only central superadmin can recover MFA). When not configured, keep metadata check.
+- [x] **8.12** `src/app/api/auth/mfa/unenroll/route.ts` — Same as recover if it checks superadmin.
+- [x] **8.13** Any other route that uses `isSuperadmin(user)` or `user.metadata.type`/`role`: switch to getRoleForCurrentUser() + isSuperadminFromRole / isAdminRole when PHP-Auth configured.
 
 ---
 
@@ -103,8 +105,8 @@
 
 **Files:** Pages or server components that read metadata for display (e.g. super dashboard showing "User Type / Role").
 
-- [ ] **9.1** `src/app/admin/super/page.tsx` — If it displays `user.metadata.type` / `user.metadata.role`, consider showing resolved role from getRoleForCurrentUser() when configured (so UI reflects central role).
-- [ ] **9.2** Any other server component that gates on isSuperadmin(user): use getRoleForCurrentUser() + isSuperadminFromRole(role) when configured.
+- [x] **9.1** `src/app/admin/super/page.tsx` — If it displays `user.metadata.type` / `user.metadata.role`, consider showing resolved role from getRoleForCurrentUser() when configured (so UI reflects central role).
+- [x] **9.2** Any other server component that gates on isSuperadmin(user): use getRoleForCurrentUser() + isSuperadminFromRole(role) when configured.
 
 ---
 
@@ -112,14 +114,14 @@
 
 **File:** `docs/reference/m3-recovery-procedure.md`
 
-- [ ] **10.1** Add a section "After M4 (central-only read)" stating that fallback is removed. Recovery is **only Option A** (fix user/org/role in PHP-Auth). Options B and C (temporary metadata or tenant_user_assignments) no longer work.
-- [ ] **10.2** Keep Option A steps; add a note at the top that after M4, only Option A applies.
+- [x] **10.1** Add a section "After M4 (central-only read)" stating that fallback is removed. Recovery is **only Option A** (fix user/org/role in PHP-Auth). Options B and C (temporary metadata or tenant_user_assignments) no longer work.
+- [x] **10.2** Keep Option A steps; add a note at the top that after M4, only Option A applies.
 
 ---
 
 ## Step 11 — Session / login (optional, later)
 
-- [ ] **11.1** If you later want to avoid calling validate-user on every request in middleware, add: after successful login (and after MFA if required), call validate-user once and store role (and optionally type) in an encrypted cookie or server-side session; middleware reads from that. Defer until Step 6 is done and you measure performance.
+- [x] **11.1** If you later want to avoid calling validate-user on every request in middleware, add: after successful login (and after MFA if required), call validate-user once and store role (and optionally type) in an encrypted cookie or server-side session; middleware reads from that. Defer until Step 6 is done and you measure performance.
 
 ---
 

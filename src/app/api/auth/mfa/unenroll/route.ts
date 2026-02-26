@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
+import { isPhpAuthConfigured } from "@/lib/php-auth/config";
 
 /**
  * POST /api/auth/mfa/unenroll
  * Unenrolls an MFA factor using the admin (service role) API so AAL2 is not required.
  * Use when the user cannot pass MFA (e.g. lost device) but is authenticated (AAL1).
  * Only the current user can unenroll their own factors.
+ * Superadmin (for "last factor" message) from central role when PHP-Auth configured, else metadata.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +37,9 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = (user.user_metadata || {}) as { type?: string; role?: string };
-    const isSuperadmin = metadata.type === "superadmin" && metadata.role === "superadmin";
+    const isSuperadmin = isPhpAuthConfigured()
+      ? isSuperadminFromRole(await getRoleForCurrentUser())
+      : metadata.type === "superadmin" && metadata.role === "superadmin";
 
     const admin = createServerSupabaseClient();
     const { data: factorsData, error: listError } = await admin.auth.admin.mfa.listFactors({

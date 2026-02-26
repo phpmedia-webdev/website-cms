@@ -1,12 +1,13 @@
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { getEffectiveFeatureSlugsForCurrentUser } from "@/lib/auth/resolve-role";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, getEffectiveFeatureSlugsForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { canAccessFeature } from "@/lib/admin/route-features";
 import { hasEnrolledFactors } from "@/lib/auth/mfa";
 import { ProfileSettingsContent } from "@/components/settings/ProfileSettingsContent";
 
 export default async function ProfileSettingsPage() {
   const user = await getCurrentUser();
-  const userIsSuperadmin = user ? isSuperadmin(user) : false;
+  const role = await getRoleForCurrentUser();
+  const userIsSuperadmin = isSuperadminFromRole(role);
   const effectiveSlugs = await getEffectiveFeatureSlugsForCurrentUser();
   const hasCrmAccess =
     effectiveSlugs === "all" || canAccessFeature(effectiveSlugs, "crm");

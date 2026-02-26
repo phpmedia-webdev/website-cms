@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { IntegrationsManager } from "@/components/superadmin/IntegrationsManager";
 
 /**
@@ -9,10 +10,9 @@ import { IntegrationsManager } from "@/components/superadmin/IntegrationsManager
  */
 export default async function IntegrationsPage() {
   const user = await getCurrentUser();
-
-  if (!user || !isSuperadmin(user)) {
-    redirect("/admin/dashboard");
-  }
+  if (!user) redirect("/admin/dashboard");
+  const role = await getRoleForCurrentUser();
+  if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   return (
     <div className="space-y-6">

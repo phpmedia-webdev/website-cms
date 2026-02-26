@@ -1,5 +1,6 @@
 import { redirect, notFound } from "next/navigation";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getCodeSnippetById } from "@/lib/supabase/code-snippets";
 import { CodeLibraryDetailClient } from "./CodeLibraryDetailClient";
 
@@ -12,10 +13,9 @@ export default async function CodeLibraryDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await getCurrentUser();
-
-  if (!user || !isSuperadmin(user)) {
-    redirect("/admin/dashboard");
-  }
+  if (!user) redirect("/admin/dashboard");
+  const role = await getRoleForCurrentUser();
+  if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const { id } = await params;
   const snippet = await getCodeSnippetById(id);

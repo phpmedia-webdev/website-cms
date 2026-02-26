@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getRolesWithDetailsFromPhpAuth, buildFeatureOrPermissionTree } from "@/lib/php-auth/fetch-roles";
 import { RoleDetailView } from "@/components/superadmin/RoleDetailView";
 import { ChevronLeft } from "lucide-react";
@@ -16,10 +17,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function SuperadminRoleDetailPage({ params }: PageProps) {
   const user = await getCurrentUser();
-
-  if (!user || !isSuperadmin(user)) {
-    redirect("/admin/dashboard");
-  }
+  if (!user) redirect("/admin/dashboard");
+  const role = await getRoleForCurrentUser();
+  if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const { roleSlug } = await params;
   const roles = await getRolesWithDetailsFromPhpAuth();

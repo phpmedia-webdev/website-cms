@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { isSuperadminAsync } from "@/lib/auth/resolve-role";
 import { getTenantSiteById } from "@/lib/supabase/tenant-sites";
 import {
   listUsersByTenantSite,
@@ -14,7 +15,7 @@ import { inviteUserByEmail } from "@/lib/supabase/users";
 import { pushAuditLog, getClientAuditContext } from "@/lib/php-auth/audit-log";
 import { syncUserOrgRoleToPhpAuth } from "@/lib/php-auth/sync-user-org-role";
 import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
-import { legacySlugToPhpAuthSlug } from "@/lib/php-auth/role-mapping";
+import { legacySlugToPhpAuthSlug, phpAuthSlugToLegacySlug } from "@/lib/php-auth/role-mapping";
 
 /**
  * GET /api/admin/tenant-sites/[id]/users
@@ -26,7 +27,8 @@ export async function GET(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }
@@ -60,7 +62,8 @@ export async function POST(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }
@@ -131,7 +134,9 @@ export async function POST(
       );
     }
 
-    const assigned = await assignUserToSite(tenantUser.id, tenantSiteId, roleSlug, isOwner);
+    // DB has FK to admin_roles(slug) — use legacy slug for tenant_user_assignments; send PHP-Auth slug to central.
+    const legacyRoleForDb = phpAuthSlugToLegacySlug(roleSlug);
+    const assigned = await assignUserToSite(tenantUser.id, tenantSiteId, legacyRoleForDb, isOwner);
     if (!assigned) {
       return NextResponse.json(
         { error: "Failed to assign user to site" },
@@ -157,7 +162,10 @@ export async function POST(
       supabaseUserId: tenantUser.user_id,
       email: tenantUser.email,
       roleSlug: phpAuthSlug,
+      fullName: tenantUser.display_name ?? undefined,
       operation: "assign",
+      newUser: true,
+      addToOrgIfMissing: true,
     }).catch(() => {});
 
     return NextResponse.json({
@@ -187,7 +195,8 @@ export async function PATCH(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }
@@ -253,7 +262,9 @@ export async function PATCH(
 
     const newRole = roleSlug ?? assignment.role_slug;
     const newIsOwner = typeof isOwner === "boolean" ? isOwner : assignment.is_owner;
-    const updated = await assignUserToSite(userId, tenantSiteId, newRole, newIsOwner);
+    // DB has FK to admin_roles(slug) — use legacy slug for tenant_user_assignments; send PHP-Auth slug to central.
+    const legacyRoleForDb = phpAuthSlugToLegacySlug(newRole);
+    const updated = await assignUserToSite(userId, tenantSiteId, legacyRoleForDb, newIsOwner);
     if (!updated) {
       return NextResponse.json(
         { error: "Failed to update assignment" },
@@ -280,7 +291,9 @@ export async function PATCH(
         supabaseUserId: tenantUser.user_id,
         email: tenantUser.email,
         roleSlug: phpAuthSlug,
+        fullName: tenantUser.display_name ?? undefined,
         operation: "update",
+        addToOrgIfMissing: true,
       }).catch(() => {});
     }
     return NextResponse.json({ role_slug: newRole, is_owner: newIsOwner });

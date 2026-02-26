@@ -2,8 +2,11 @@
  * Resolve the current user's role for the current tenant.
  * M4: When PHP-Auth is configured, role comes only from validate-user; no fallback to metadata or tenant_user_assignments.
  * When not configured, fallback to metadata (superadmin) and tenant_user_assignments (tenant admin).
+ *
+ * Request-scoped reuse: validate-user is called at most once per request via getValidateUserDataCached (React cache()).
  */
 
+import { cache } from "react";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import {
@@ -15,6 +18,7 @@ import { getClientSchema } from "@/lib/supabase/schema";
 import { getEffectiveFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { isPhpAuthConfigured } from "@/lib/php-auth/config";
 import { validateUser, getRoleSlugFromValidateUserData } from "@/lib/php-auth/validate-user";
+import type { PhpAuthValidateUserData } from "@/lib/php-auth/validate-user";
 import {
   toPhpAuthRoleSlug,
   legacySlugToPhpAuthSlug,
@@ -27,6 +31,35 @@ import {
 export { isSuperadminFromRole, isAdminRole, isTenantAdminRole };
 
 /**
+ * Fetch validate-user result once per request (React cache). Used by getRoleForCurrentUser and getRoleForCurrentUserOnSite.
+ */
+async function getValidateUserDataForRequest(): Promise<PhpAuthValidateUserData | null> {
+  if (!isPhpAuthConfigured()) return null;
+  try {
+    const { createServerSupabaseClientSSR } = await import("@/lib/supabase/client");
+    const supabase = await createServerSupabaseClientSSR();
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) return null;
+    return await validateUser(accessToken);
+  } catch {
+    return null;
+  }
+}
+
+const getValidateUserDataCached = cache(getValidateUserDataForRequest);
+
+/**
+ * Async superadmin check for API routes and server code.
+ * Uses getRoleForCurrentUser() (PHP-Auth when configured, else fallback) then isSuperadminFromRole(role).
+ * Prefer this over isSuperadmin(user) when PHP-Auth may be configured.
+ */
+export async function isSuperadminAsync(): Promise<boolean> {
+  const role = await getRoleForCurrentUser();
+  return isSuperadminFromRole(role);
+}
+
+/**
  * Get the current user's role for the current tenant (NEXT_PUBLIC_CLIENT_SCHEMA).
  * Dual-read: if PHP-Auth is configured, call validate-user first; if user is in AUTH_ORG_ID, use that role.
  * Else fallback: superadmin from metadata, tenant user from tenant_user_assignments.
@@ -36,19 +69,9 @@ export async function getRoleForCurrentUser(): Promise<string | null> {
   if (!user) return null;
 
   if (isPhpAuthConfigured()) {
-    try {
-      const { createServerSupabaseClientSSR } = await import("@/lib/supabase/client");
-      const supabase = await createServerSupabaseClientSSR();
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (accessToken) {
-        const data = await validateUser(accessToken);
-        const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
-        if (roleSlug) return toPhpAuthRoleSlug(roleSlug);
-      }
-    } catch {
-      // validate-user failed
-    }
+    const data = await getValidateUserDataCached();
+    const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
+    if (roleSlug) return toPhpAuthRoleSlug(roleSlug);
     return null;
   }
 
@@ -82,19 +105,9 @@ export async function getRoleForCurrentUserOnSite(tenantSiteId: string): Promise
   if (!user) return null;
 
   if (isPhpAuthConfigured()) {
-    try {
-      const { createServerSupabaseClientSSR } = await import("@/lib/supabase/client");
-      const supabase = await createServerSupabaseClientSSR();
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (accessToken) {
-        const data = await validateUser(accessToken);
-        const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
-        if (roleSlug) return toPhpAuthRoleSlug(roleSlug);
-      }
-    } catch {
-      // validate-user failed
-    }
+    const data = await getValidateUserDataCached();
+    const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
+    if (roleSlug) return toPhpAuthRoleSlug(roleSlug);
     return null;
   }
 

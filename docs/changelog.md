@@ -11,6 +11,24 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-17 CT - Session wrap-up: PHP-Auth conversion milestone; Phase F (gating UX) step plan added
+
+**Context for Next Session:**
+- **PHP-Auth migration:** M0–M5 complete. Central store (validate-user, sync-user-role), central-only read (M4), superadmin UI redesign (M5 Phase D: Dashboard, gating table, Users, nav). Roles transition steps 1–4 done; Step 4a (getEffectiveFeatureSlugs from PHP-Auth) and Step 5 (deprecation doc) pending. Phase E (E10, E10a, E11) and Phase F (gating/role navigation UX) are next.
+- **Phase F (new):** Step plan added in sessionlog: role-based hide (sidebar, sub-level), plan-based ghost + single upgrade page, FeatureGuard → upgrade page. Steps F1–F5; start next session with F1 (role feature slugs in layout) or 4a (role→features for gating).
+- **Key files:** `docs/sessionlog.md` (Phase F, Current Focus), `src/lib/auth/resolve-role.ts`, `src/lib/supabase/feature-registry.ts`, `src/components/admin/FeatureGuard.tsx`, `src/components/dashboard/Sidebar.tsx`, `docs/reference/php-auth-ssot-roles-features-plan.md`.
+
+**Changes:**
+- **Changelog:** This entry summarizes the PHP-Auth conversion milestone and adds Context for Next Session. Completed work below moved from sessionlog as summaries.
+- **Sessionlog:** Cleaned; Current Focus set to Phase F. Phase F — Gating and Role Limit Navigation step plan added (F1–F5). Completed M3/M5/Phase D/Roles items remain as reference in sessionlog; “Recently completed” trimmed; two completed Next up items (Roles API hierarchical, PHP-Auth roles 403) removed from Next up.
+
+**Completed (summaries from sessionlog):**
+- **M0–M5:** Connect PHP-Auth, populate central, dual-read, writes to central (sync-user-role), central-only read (M4 steps 1–11), superadmin UI redesign (M5). M3 sync: new endpoint, fullName/newUser, assign/update/remove wired; recovery doc. M5 Phase A (PHP-Auth contract/docs), B (role picker, read-only Roles), C (feature registry from PHP-Auth), D (D6 no site picker, D7 Dashboard + metrics/gating on site detail, D8 Users + Related Tenant Users, D9 nav). Phase E (E10, E10a, E11) and Roles Step 5 pending.
+- **Roles transition:** Steps 1–4 done: role definitions from PHP-Auth, role–features display, sync + M3 recovery doc, M4 central-only read. Step 4a (getEffectiveFeatureSlugs from PHP-Auth) and Step 5 (deprecation doc) pending.
+- **Next up (removed from list as done):** Roles API hierarchical features/permissions (parentSlug, tree, role detail Permissions/Features tabs). PHP-Auth roles 403/display (AUTH_ROLES_SCOPE, scope=website-cms).
+
+---
+
 ### 2026-02-17 CT - Session wrap-up: M4 (central-only read) steps 1–6, validate-user assignment, login UX
 
 **Context for Next Session:**

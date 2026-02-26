@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import { listTenantSites, getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
@@ -11,14 +12,13 @@ import { ViewAsCard } from "@/components/superadmin/ViewAsCard";
 
 /**
  * Superadmin Dashboard (D6). Current site from schema only; no site picker.
- * Only accessible to users with superadmin role.
+ * Only accessible to users with superadmin role (central role when PHP-Auth configured).
  */
 export default async function SuperadminPage() {
   const user = await getCurrentUser();
-
-  if (!user || !isSuperadmin(user)) {
-    redirect("/admin/dashboard");
-  }
+  if (!user) redirect("/admin/dashboard");
+  const role = await getRoleForCurrentUser();
+  if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const schema = getClientSchema();
   const [sites, roles, currentSite] = await Promise.all([
@@ -73,7 +73,7 @@ export default async function SuperadminPage() {
           <CardHeader>
             <CardTitle>Diagnostics</CardTitle>
             <CardDescription>
-              View authentication metadata and current tenant context
+              Effective role used for access (central when PHP-Auth configured); metadata for context.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -82,10 +82,17 @@ export default async function SuperadminPage() {
                 <span className="font-medium">Current User:</span> {user.email}
               </div>
               <div>
-                <span className="font-medium">User Type:</span> {user.metadata.type}
+                <span className="font-medium">Role (effective):</span> {role ?? "N/A"}
               </div>
               <div>
-                <span className="font-medium">Role:</span> {user.metadata.role || "N/A"}
+                <span className="font-medium">User Type:</span>{" "}
+                {role !== null
+                  ? isSuperadminFromRole(role)
+                    ? "superadmin"
+                    : isAdminRole(role)
+                      ? "admin"
+                      : role
+                  : user.metadata.type ?? "N/A"}
               </div>
               <div>
                 <span className="font-medium">Tenant ID:</span> {user.metadata.tenant_id || "N/A (Superadmin)"}

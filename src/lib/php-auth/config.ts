@@ -3,7 +3,7 @@
  * Used for validate-user (roles) and audit-log. Never commit AUTH_API_KEY.
  *
  * Optional: AUTH_ROLES_PATH — path for listing roles (default /api/external/roles).
- * Use if PHP-Auth exposes the endpoint at a different path (e.g. /api/v1/roles).
+ * Optional: AUTH_CHECK_USER_PATH — path for check-user lookup (default api/external/check-user).
  */
 
 const AUTH_BASE_URL = process.env.AUTH_BASE_URL;

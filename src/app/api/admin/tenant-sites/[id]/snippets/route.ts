@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { isSuperadminAsync } from "@/lib/auth/resolve-role";
 import { getTenantSiteById } from "@/lib/supabase/tenant-sites";
 import { getSnippetOptions } from "@/lib/supabase/content";
 
@@ -14,7 +15,10 @@ export async function GET(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.metadata.type !== "superadmin" || user.metadata.role !== "superadmin") {
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const { id } = await params;

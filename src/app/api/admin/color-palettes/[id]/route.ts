@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import { deleteColorPalette, updateColorPalette } from "@/lib/supabase/color-palettes";
 import type { ColorPalettePayload } from "@/types/color-palette";
 
@@ -12,14 +13,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Check authentication
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Check if user is admin or superadmin
-    if (user.metadata.type !== "admin" && user.metadata.type !== "superadmin") {
+    const role = await getRoleForCurrentUser();
+    if (!role || (!isSuperadminFromRole(role) && !isAdminRole(role))) {
       return NextResponse.json(
         { error: "Forbidden: Admin access required" },
         { status: 403 }
@@ -58,14 +57,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Check authentication
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Check if user is admin or superadmin
-    if (user.metadata.type !== "admin" && user.metadata.type !== "superadmin") {
+    const role = await getRoleForCurrentUser();
+    if (!role || (!isSuperadminFromRole(role) && !isAdminRole(role))) {
       return NextResponse.json(
         { error: "Forbidden: Admin access required" },
         { status: 403 }

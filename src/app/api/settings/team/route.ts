@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { getTeamManagementContext } from "@/lib/auth/resolve-role";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getTeamManagementContext, getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 import {
   listUsersByTenantSite,
@@ -14,7 +14,7 @@ import {
 import { inviteUserByEmail } from "@/lib/supabase/users";
 import { pushAuditLog, getClientAuditContext } from "@/lib/php-auth/audit-log";
 import { syncUserOrgRoleToPhpAuth } from "@/lib/php-auth/sync-user-org-role";
-import { legacySlugToPhpAuthSlug } from "@/lib/php-auth/role-mapping";
+import { legacySlugToPhpAuthSlug, phpAuthSlugToLegacySlug } from "@/lib/php-auth/role-mapping";
 
 /**
  * GET /api/settings/team
@@ -120,7 +120,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const assigned = await assignUserToSite(tenantUser.id, context.tenantSiteId, roleSlug);
+    // DB has FK to admin_roles(slug) — use legacy slug for tenant_user_assignments; send PHP-Auth slug to central.
+    const legacyRoleForDb = phpAuthSlugToLegacySlug(roleSlug);
+    const assigned = await assignUserToSite(tenantUser.id, context.tenantSiteId, legacyRoleForDb);
     if (!assigned) {
       return NextResponse.json(
         { error: "Failed to assign user to site" },
@@ -146,7 +148,10 @@ export async function POST(request: Request) {
       supabaseUserId: tenantUser.user_id,
       email: tenantUser.email,
       roleSlug: phpAuthSlug,
+      fullName: tenantUser.display_name ?? undefined,
       operation: "assign",
+      newUser: true,
+      addToOrgIfMissing: true,
     }).catch(() => {});
 
     return NextResponse.json({
@@ -204,7 +209,7 @@ export async function PATCH(request: Request) {
         { status: 403 }
       );
     }
-    if (assignment.is_owner && !isSuperadmin(user!)) {
+    if (assignment.is_owner && !isSuperadminFromRole(await getRoleForCurrentUser())) {
       return NextResponse.json(
         { error: "Only a superadmin can change or remove an Owner" },
         { status: 403 }
@@ -244,10 +249,12 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ removed: true });
     }
 
+    // DB has FK to admin_roles(slug) — use legacy slug for tenant_user_assignments; send PHP-Auth slug to central.
+    const legacyRoleForDb = phpAuthSlugToLegacySlug(roleSlug);
     const updated = await assignUserToSite(
       userId,
       context.tenantSiteId,
-      roleSlug,
+      legacyRoleForDb,
       assignment.is_owner
     );
     if (!updated) {
@@ -276,7 +283,9 @@ export async function PATCH(request: Request) {
         supabaseUserId: tenantUser.user_id,
         email: tenantUser.email,
         roleSlug: phpAuthSlug,
+        fullName: tenantUser.display_name ?? undefined,
         operation: "update",
+        addToOrgIfMissing: true,
       }).catch(() => {});
     }
     return NextResponse.json({ role_slug: roleSlug });

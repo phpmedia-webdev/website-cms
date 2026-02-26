@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
+import { isPhpAuthConfigured } from "@/lib/php-auth/config";
 
 /**
  * POST /api/auth/mfa/recover
  * Removes all MFA factors for the current user. Allowed only for superadmins.
- * Used after email OTP verification on the recover page so a superadmin who lost
- * their device can clear MFA and re-enroll.
+ * When PHP-Auth is configured, superadmin is determined by central role; otherwise by user_metadata.
  */
 export async function POST() {
   try {
@@ -23,12 +24,22 @@ export async function POST() {
       );
     }
 
-    const metadata = (user.user_metadata || {}) as { type?: string; role?: string };
-    if (metadata.type !== "superadmin" || metadata.role !== "superadmin") {
-      return NextResponse.json(
-        { error: "MFA recovery is only available for superadmins" },
-        { status: 403 }
-      );
+    if (isPhpAuthConfigured()) {
+      const role = await getRoleForCurrentUser();
+      if (!isSuperadminFromRole(role)) {
+        return NextResponse.json(
+          { error: "MFA recovery is only available for superadmins" },
+          { status: 403 }
+        );
+      }
+    } else {
+      const metadata = (user.user_metadata || {}) as { type?: string; role?: string };
+      if (metadata.type !== "superadmin" || metadata.role !== "superadmin") {
+        return NextResponse.json(
+          { error: "MFA recovery is only available for superadmins" },
+          { status: 403 }
+        );
+      }
     }
 
     const admin = createServerSupabaseClient();

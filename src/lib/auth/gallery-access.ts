@@ -1,10 +1,12 @@
 /**
  * Gallery access control for membership protection.
  * Used by standalone gallery page and embedded galleries.
+ * Bypass for admin/superadmin uses central role (getRoleForCurrentUser) when PHP-Auth configured.
  */
 
 import { getClientSchema } from "@/lib/supabase/schema";
 import type { UserMetadata } from "./supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "./resolve-role";
 
 export interface GalleryAccessInfo {
   access_level: "public" | "members" | "mag" | null;
@@ -40,13 +42,12 @@ export async function checkGalleryAccess(
   const supabase = await createServerSupabaseClientSSR();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const metadata = user?.user_metadata as UserMetadata | undefined;
-  const isAdmin = metadata?.type === "admin" || metadata?.type === "superadmin";
-
-  // Admins and superadmins bypass
-  if (isAdmin && user) {
+  const role = await getRoleForCurrentUser();
+  if (user && role !== null && (isSuperadminFromRole(role) || isAdminRole(role))) {
     return { hasAccess: true };
   }
+
+  const metadata = user?.user_metadata as UserMetadata | undefined;
 
   if (!user) {
     return {

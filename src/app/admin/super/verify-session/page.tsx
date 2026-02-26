@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
-import { getRoleForCurrentUser } from "@/lib/auth/resolve-role";
+import { getCurrentUser, getAALFromSession } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { isPhpAuthConfigured } from "@/lib/php-auth/config";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
 import { isDevModeBypassEnabled } from "@/lib/auth/mfa";
@@ -16,22 +16,21 @@ export const dynamic = "force-dynamic";
  */
 export default async function VerifySessionPage() {
   const user = await getCurrentUser();
-  if (!user || !isSuperadmin(user)) {
-    redirect("/admin/dashboard");
-  }
+  if (!user) redirect("/admin/dashboard");
+  const role = await getRoleForCurrentUser();
+  if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const checks: { label: string; ok: boolean; detail?: string }[] = [];
 
   // 1. Session
   checks.push({ label: "Session", ok: !!user, detail: user ? user.email : undefined });
 
-  // 2. MFA (AAL2)
+  // 2. MFA (AAL2) — read from JWT so it reflects actual level after MFA verify
   let aal: "aal1" | "aal2" | null = null;
   try {
     const supabase = await createServerSupabaseClientSSR();
     const { data: { session } } = await supabase.auth.getSession();
-    const sessionWithAal = session as { aal?: "aal1" | "aal2" } | null;
-    aal = (sessionWithAal?.aal ?? "aal1") as "aal1" | "aal2";
+    aal = getAALFromSession(session as { access_token?: string; aal?: string } | null);
   } catch {
     aal = null;
   }

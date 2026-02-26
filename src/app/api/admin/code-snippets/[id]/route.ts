@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { isSuperadminAsync } from "@/lib/auth/resolve-role";
 import {
   getCodeSnippetById,
   updateCodeSnippet,
@@ -15,7 +16,8 @@ export async function GET(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }
@@ -45,7 +47,8 @@ export async function PATCH(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }
@@ -88,7 +91,8 @@ export async function DELETE(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }

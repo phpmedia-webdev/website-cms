@@ -17,24 +17,11 @@ import { Shield, Loader2, XCircle } from "lucide-react";
 
 const supabase = getSupabaseClient();
 
-const VERIFY_API = "/api/auth/mfa/verify";
-
-/** Create MFA challenge via API so challenge and verify use same server IP (Supabase requirement). */
-async function createChallengeViaApi(
-  factorId: string
-): Promise<{ challengeId: string | null; error?: string }> {
-  const res = await fetch("/api/auth/mfa/challenge", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ factorId }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { challengeId: null, error: (data.error as string) || res.statusText };
-  }
-  return { challengeId: (data.challengeId as string) ?? null, error: undefined };
-}
+/**
+ * MFA challenge + verify run in the browser (client-side) so Supabase sees the same
+ * caller for both — avoids "Challenge and verify IP addresses mismatch" on serverless.
+ * See docs/reference/MFA-fix-005.md.
+ */
 
 export default function MFAChallenge() {
   const router = useRouter();
@@ -49,7 +36,6 @@ export default function MFAChallenge() {
   const [submitting, setSubmitting] = useState(false);
 
   const redirectTo = searchParams.get("redirect") || "/admin/dashboard";
-  const verifyAction = `${VERIFY_API}?redirect=${encodeURIComponent(redirectTo)}`;
 
   // Load enrolled factors on mount
   useEffect(() => {
@@ -103,22 +89,23 @@ export default function MFAChallenge() {
 
   const createChallenge = async (factorId: string) => {
     try {
-      const { challengeId: id, error: challengeError } = await createChallengeViaApi(factorId);
+      const { data, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId,
+      });
 
       if (challengeError) {
-        setError(challengeError);
+        setError(challengeError.message || "Failed to create challenge");
         return;
       }
 
-      if (!id) {
+      if (!data?.id) {
         setError("No challenge ID returned");
         return;
       }
 
-      setChallengeId(id);
-      // Don't clear error here — we may have just landed from verify API with error=invalid
-    } catch (err: any) {
-      setError(err.message || "Failed to create challenge");
+      setChallengeId(data.id);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create challenge");
     }
   };
 
@@ -136,6 +123,36 @@ export default function MFAChallenge() {
     setError("");
     await createChallenge(selectedFactorId);
     setRefreshingChallenge(false);
+  };
+
+  const handleVerifySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedFactorId || !challengeId || code.length !== 6) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: selectedFactorId,
+        challengeId,
+        code,
+      });
+      if (verifyError) {
+        const msg = (verifyError.message ?? "").toLowerCase();
+        if (msg.includes("expired") || msg.includes("expire")) {
+          setError("Challenge expired. Click \"Get new challenge\" below, then enter your current code.");
+        } else {
+          setError("Invalid code. Check the 6 digits and try again, or click \"Get new challenge\" first.");
+        }
+        setSubmitting(false);
+        return;
+      }
+      // Success: Supabase client has updated session to AAL2. Short delay so session is settled then redirect.
+      await new Promise((r) => setTimeout(r, 400));
+      router.push(redirectTo);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Verification failed. Please try again.");
+      setSubmitting(false);
+    }
   };
 
   if (loadingFactors) {
@@ -179,15 +196,11 @@ export default function MFAChallenge() {
           </div>
         )}
 
-        {/* Server-side verify: form POST so the API sets AAL2 session cookies on the redirect (browser then has cookies the server reads). */}
+        {/* Client-side verify: same-origin challenge + verify avoids serverless IP mismatch (see MFA-fix-005). */}
         <form
           className="space-y-4"
-          action={verifyAction}
-          method="post"
-          onSubmit={() => setSubmitting(true)}
+          onSubmit={handleVerifySubmit}
         >
-          <input type="hidden" name="factorId" value={selectedFactorId ?? ""} />
-          <input type="hidden" name="challengeId" value={challengeId ?? ""} />
           <div className="space-y-2">
             <label htmlFor="code" className="text-sm font-medium">
               Verification Code

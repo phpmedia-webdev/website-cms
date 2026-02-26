@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import { getSiteMetadata, updateSiteMetadata } from "@/lib/supabase/settings";
 
 /**
@@ -12,7 +13,8 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.metadata.type !== "admin" && user.metadata.type !== "superadmin") {
+    const role = await getRoleForCurrentUser();
+    if (!role || (!isSuperadminFromRole(role) && !isAdminRole(role))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -37,7 +39,8 @@ export async function PUT(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.metadata.type !== "admin" && user.metadata.type !== "superadmin") {
+    const role = await getRoleForCurrentUser();
+    if (!role || (!isSuperadminFromRole(role) && !isAdminRole(role))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import { updateDesignSystemConfig } from "@/lib/supabase/settings";
 import type { DesignSystemConfig } from "@/types/design-system";
 
 /**
  * API route for updating design system settings
  * POST /api/admin/settings/design-system
- * 
- * Requires: Admin authentication
+ *
+ * Requires: Admin or superadmin (central role when PHP-Auth configured).
  * Body: DesignSystemConfig (partial)
  */
 export async function POST(request: Request) {
   try {
-    // Check authentication
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json(
@@ -20,9 +20,8 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
-
-    // Check if user is admin or superadmin
-    if (user.metadata.type !== "admin" && user.metadata.type !== "superadmin") {
+    const role = await getRoleForCurrentUser();
+    if (!role || (!isSuperadminFromRole(role) && !isAdminRole(role))) {
       return NextResponse.json(
         { error: "Forbidden: Admin access required" },
         { status: 403 }

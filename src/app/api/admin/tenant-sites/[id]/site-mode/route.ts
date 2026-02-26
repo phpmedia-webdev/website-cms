@@ -4,7 +4,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { isSuperadminAsync } from "@/lib/auth/resolve-role";
 import {
   getTenantSiteById,
   updateTenantSite,
@@ -15,9 +16,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getCurrentUser();
-  if (!user || !isSuperadmin(user)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isSuperadminAsync())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   const site = await getTenantSiteById(id);
   if (!site) {
@@ -37,9 +37,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getCurrentUser();
-  if (!user || !isSuperadmin(user)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isSuperadminAsync())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   const site = await getTenantSiteById(id);
   if (!site) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { isSuperadminAsync } from "@/lib/auth/resolve-role";
 import { createTenantSite } from "@/lib/supabase/tenant-sites";
 
 /**
@@ -10,7 +11,8 @@ import { createTenantSite } from "@/lib/supabase/tenant-sites";
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!(await isSuperadminAsync())) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }

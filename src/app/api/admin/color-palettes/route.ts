@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import { getAllColorPalettes, createColorPalette } from "@/lib/supabase/color-palettes";
 import type { ColorPalettePayload } from "@/types/color-palette";
 
@@ -9,14 +10,12 @@ import type { ColorPalettePayload } from "@/types/color-palette";
  */
 export async function GET() {
   try {
-    // Check authentication
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Check if user is admin or superadmin
-    if (user.metadata.type !== "admin" && user.metadata.type !== "superadmin") {
+    const role = await getRoleForCurrentUser();
+    if (!role || (!isSuperadminFromRole(role) && !isAdminRole(role))) {
       return NextResponse.json(
         { error: "Forbidden: Admin access required" },
         { status: 403 }
@@ -51,14 +50,12 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    // Check authentication
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Check if user is admin or superadmin
-    if (user.metadata.type !== "admin" && user.metadata.type !== "superadmin") {
+    const role = await getRoleForCurrentUser();
+    if (!role || (!isSuperadminFromRole(role) && !isAdminRole(role))) {
       return NextResponse.json(
         { error: "Forbidden: Admin access required" },
         { status: 403 }

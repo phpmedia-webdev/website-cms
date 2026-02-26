@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
-import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { AdminLayoutWrapper } from "@/components/admin/AdminLayoutWrapper";
-import { getRoleForCurrentUser, getEffectiveFeatureSlugsForCurrentUser } from "@/lib/auth/resolve-role";
+import { getRoleForCurrentUser, getEffectiveFeatureSlugsForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getTenantSiteBySchema, getTenantSiteById } from "@/lib/supabase/tenant-sites";
 import { getEffectiveFeatureSlugs } from "@/lib/supabase/feature-registry";
@@ -28,7 +28,16 @@ export default async function AdminLayout({
     user = null;
   }
 
-  const userIsSuperadmin = user ? isSuperadmin(user) : false;
+  // Superadmin visibility (sidebar): use central role (getRoleForCurrentUser) so PHP-Auth is SSOT when configured.
+  let userIsSuperadmin = false;
+  if (user) {
+    try {
+      const role = await getRoleForCurrentUser();
+      userIsSuperadmin = isSuperadminFromRole(role);
+    } catch {
+      userIsSuperadmin = false;
+    }
+  }
 
   let siteName: string | null = null;
   let role: string | null = null;

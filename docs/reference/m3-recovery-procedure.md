@@ -1,8 +1,10 @@
 # M3 recovery procedure (lockout prevention)
 
-**Purpose:** If you lose access to the website-cms admin (e.g. PHP-Auth is down, or your user/role is missing or wrong in PHP-Auth), use one of these paths to recover. Keep this until M4 is stable and central-only read is verified.
+**Purpose:** If you lose access to the website-cms admin (e.g. PHP-Auth is down, or your user/role is missing or wrong in PHP-Auth), use one of these paths to recover.
 
-**When this applies:** During and after M3 (writes to central). Role resolution uses **dual-read**: we try PHP-Auth validate-user first, then **fallback** to `user_metadata` (superadmin) or `tenant_user_assignments` (tenant admins). Lockout can happen if (1) PHP-Auth returns 4xx/5xx and (2) fallback data is missing or wrong.
+**After M4 (central-only read):** When PHP-Auth is configured, role is read only from PHP-Auth (validate-user). **Only Option A** below applies—fix the user/org/role in PHP-Auth. Options B and C (temporary metadata or tenant_user_assignments) do **not** work when PHP-Auth is configured; fallback has been removed.
+
+**When this applies (pre-M4 or PHP-Auth not configured):** Role resolution may use **dual-read**: we try PHP-Auth validate-user first, then **fallback** to `user_metadata` (superadmin) or `tenant_user_assignments` (tenant admins). Lockout can happen if (1) PHP-Auth returns 4xx/5xx and (2) fallback data is missing or wrong.
 
 ---
 
@@ -46,4 +48,12 @@ If you are a **tenant admin** (not superadmin) and you’re locked out because y
 | Wrong org/role in PHP-Auth      | Fix auth_user_organizations in PHP-Auth (Option A).                    |
 | Need immediate unblock          | Use Option B or C, then fix central (Option A) when possible.          |
 
-**After M4 (central-only read):** Fallback will be removed. Recovery will be **only Option A** (fix user/role in PHP-Auth). Keep this doc and the PHP-Auth recovery path (e.g. secret recovery mode in PHP-Auth) documented.
+---
+
+## After M4 (central-only read)
+
+When PHP-Auth is configured, website-cms resolves role **only** from validate-user. There is no fallback to `user_metadata` or `tenant_user_assignments`.
+
+- **Recovery is only Option A:** Fix your user, org, and role in PHP-Auth (UI or DB). Ensure the user exists in PHP-Auth `users`, has the correct `supabase_user_id`, and has an `auth_user_organizations` row for `AUTH_ORG_ID` with the right role.
+- **Options B and C do not work** when PHP-Auth is configured: temporary metadata (B) or tenant_user_assignments (C) will not grant access, because the app no longer reads role from them.
+- Keep the PHP-Auth recovery path (e.g. break-glass or secret recovery in the PHP-Auth app) documented and available.

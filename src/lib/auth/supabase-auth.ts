@@ -20,6 +20,23 @@ function decodeJwtPayload(accessToken: string): Record<string, unknown> | null {
     return null;
   }
 }
+
+/**
+ * Get AAL from a session (e.g. from getSession()). Reads from JWT payload when present,
+ * so AAL is correct after MFA verify (Supabase stores AAL in the token, not always on session object).
+ */
+export function getAALFromSession(
+  session: { access_token?: string; aal?: string } | null
+): "aal1" | "aal2" | null {
+  if (!session) return null;
+  if (session.access_token) {
+    const payload = decodeJwtPayload(session.access_token);
+    if (payload && typeof payload.aal === "string" && (payload.aal === "aal1" || payload.aal === "aal2")) {
+      return payload.aal as "aal1" | "aal2";
+    }
+  }
+  return (session.aal === "aal2" ? "aal2" : "aal1") as "aal1" | "aal2";
+}
 import { getClientSchema } from "@/lib/supabase/schema";
 
 /**
@@ -322,8 +339,11 @@ export function hasRole(
 }
 
 /**
- * Check if user is a superadmin.
- * 
+ * Check if user is a superadmin (reads from user_metadata only).
+ * Kept for backward compatibility when PHP-Auth is not configured.
+ * When PHP-Auth is configured, prefer getRoleForCurrentUser() + isSuperadminFromRole(role)
+ * from `@/lib/auth/resolve-role` for server-side checks so role comes from central auth.
+ *
  * @param user - Authenticated user
  * @returns true if user is superadmin
  */
