@@ -59,7 +59,7 @@ export function TenantFeaturesManager({
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Features</CardTitle>
         <CardDescription>
-          Maximum features for this site. Only checked items are available here; each role (in Roles) gets a subset of these. A user sees: this site's features ∩ their role's features.
+          Maximum features for this site. Only checked items are available here; each role (in Roles) gets a subset of these. A user sees: this site&apos;s features ∩ their role&apos;s features.
         </CardDescription>
       </CardHeader>
       <CardContent>
