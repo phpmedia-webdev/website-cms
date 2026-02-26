@@ -146,11 +146,10 @@ export default function MFAChallenge() {
         setSubmitting(false);
         return;
       }
-      // Success: Supabase client has updated session to AAL2. Refresh so server sees new cookies, then redirect.
-      setSubmitting(false);
-      router.refresh();
-      await new Promise((r) => setTimeout(r, 300));
-      router.push(redirectTo);
+      // Success: session is AAL2. Keep spinner so user cannot double-submit. Full page redirect
+      // so the next request sends the updated cookies and server sees AAL2 (client nav can miss it on serverless).
+      await new Promise((r) => setTimeout(r, 400));
+      window.location.href = redirectTo;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Verification failed. Please try again.");
       setSubmitting(false);
@@ -275,7 +274,7 @@ export default function MFAChallenge() {
             </Link>
             {" · "}
             <Link href="/" className="underline hover:text-foreground">
-              Home
+              Home (public site)
             </Link>
           </p>
         </div>

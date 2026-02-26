@@ -40,22 +40,24 @@ export function AdminLayoutWrapper({
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === "/admin/login" || pathname?.startsWith("/admin/login");
+  const isMfaPage = pathname?.startsWith("/admin/mfa");
+  const isAuthFlowPage = isLoginPage || isMfaPage;
 
   useEffect(() => {
-    if (!isLoginPage) {
+    if (!isAuthFlowPage) {
       document.body.classList.add("admin-theme");
       return () => {
         document.body.classList.remove("admin-theme");
       };
     }
-  }, [isLoginPage]);
+  }, [isAuthFlowPage]);
 
   function exitViewAs() {
     document.cookie = `${VIEW_AS_COOKIE_NAME}=; path=/; max-age=0`;
     router.refresh();
   }
 
-  if (isLoginPage) {
+  if (isAuthFlowPage) {
     const authSiteName = siteName?.trim() || "Admin";
     return (
       <div className="min-h-screen flex flex-col bg-background">
