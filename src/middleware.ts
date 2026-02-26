@@ -14,6 +14,13 @@ import {
 } from "./lib/auth/supabase-auth";
 import { requiresAAL2, isDevModeBypassEnabled } from "./lib/auth/mfa";
 import { getSiteModeForEdge } from "./lib/site-mode";
+import { isPhpAuthConfigured } from "./lib/php-auth/config";
+import { validateUser, getRoleSlugFromValidateUserData } from "./lib/php-auth/validate-user";
+import {
+  toPhpAuthRoleSlug,
+  PHP_AUTH_ROLE_SLUG,
+  PHP_AUTH_ADMIN_ROLE_SLUGS,
+} from "./lib/php-auth/role-mapping";
 
 /** Auth call timeout to avoid MIDDLEWARE_INVOCATION_TIMEOUT when Supabase is slow (Vercel Edge ~10s limit). */
 const AUTH_TIMEOUT_MS = 5_000;
@@ -78,8 +85,28 @@ export async function middleware(request: NextRequest) {
 
   // Redirect /admin to /admin/dashboard if authenticated, or /admin/login if not
   if (pathname === "/admin") {
-    const { user } = await getCurrentUserWithTimeout(request, cookieCarrier);
-    if (user && validateTenantAccess(user)) {
+    const { user, session } = await getCurrentUserWithTimeout(request, cookieCarrier);
+    let allowDashboard = false;
+    if (user) {
+      if (isPhpAuthConfigured() && session?.access_token) {
+        try {
+          const data = await validateUser(session.access_token);
+          const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
+          if (roleSlug) {
+            const role = toPhpAuthRoleSlug(roleSlug);
+            const adminSlugs = PHP_AUTH_ADMIN_ROLE_SLUGS as readonly string[];
+            allowDashboard =
+              adminSlugs.includes(role) &&
+              (role === PHP_AUTH_ROLE_SLUG.SUPERADMIN || validateTenantAccess(user));
+          }
+        } catch {
+          // ignore
+        }
+      } else if (validateTenantAccess(user)) {
+        allowDashboard = true;
+      }
+    }
+    if (allowDashboard) {
       const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
       copyCookiesTo(res, cookieCarrier);
       return res;
@@ -107,26 +134,74 @@ export async function middleware(request: NextRequest) {
       return res;
     }
 
-    if (isSuperadminRoute) {
-      if (user.metadata.type !== "superadmin" || user.metadata.role !== "superadmin") {
-        const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    if (isPhpAuthConfigured()) {
+      const accessToken = session?.access_token;
+      let role: string | null = null;
+      if (accessToken) {
+        try {
+        const data = await validateUser(accessToken);
+        const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
+        if (roleSlug) {
+          role = toPhpAuthRoleSlug(roleSlug);
+        }
+        } catch {
+          // validate-user failed
+        }
+      }
+      if (role === null) {
+        const loginUrl = new URL("/admin/login", request.url);
+        loginUrl.searchParams.set("redirect", pathname);
+        loginUrl.searchParams.set("reason", "no_central_role");
+        const res = NextResponse.redirect(loginUrl);
         copyCookiesTo(res, cookieCarrier);
         return res;
+      }
+      if (isSuperadminRoute) {
+        if (role !== PHP_AUTH_ROLE_SLUG.SUPERADMIN) {
+          const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
+          copyCookiesTo(res, cookieCarrier);
+          return res;
+        }
+      } else {
+        const adminSlugs = PHP_AUTH_ADMIN_ROLE_SLUGS as readonly string[];
+        if (!adminSlugs.includes(role)) {
+          const loginUrl = new URL("/admin/login", request.url);
+          loginUrl.searchParams.set("redirect", pathname);
+          loginUrl.searchParams.set("reason", "no_central_role");
+          const res = NextResponse.redirect(loginUrl);
+          copyCookiesTo(res, cookieCarrier);
+          return res;
+        }
+        if (role !== PHP_AUTH_ROLE_SLUG.SUPERADMIN && !validateTenantAccess(user)) {
+          const loginUrl = new URL("/admin/login", request.url);
+          loginUrl.searchParams.set("redirect", pathname);
+          const res = NextResponse.redirect(loginUrl);
+          copyCookiesTo(res, cookieCarrier);
+          return res;
+        }
       }
     } else {
-      if (user.metadata.type !== "superadmin" && user.metadata.type !== "admin") {
-        const loginUrl = new URL("/admin/login", request.url);
-        loginUrl.searchParams.set("redirect", pathname);
-        const res = NextResponse.redirect(loginUrl);
-        copyCookiesTo(res, cookieCarrier);
-        return res;
-      }
-      if (user.metadata.type !== "superadmin" && !validateTenantAccess(user)) {
-        const loginUrl = new URL("/admin/login", request.url);
-        loginUrl.searchParams.set("redirect", pathname);
-        const res = NextResponse.redirect(loginUrl);
-        copyCookiesTo(res, cookieCarrier);
-        return res;
+      if (isSuperadminRoute) {
+        if (user.metadata.type !== "superadmin" || user.metadata.role !== "superadmin") {
+          const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
+          copyCookiesTo(res, cookieCarrier);
+          return res;
+        }
+      } else {
+        if (user.metadata.type !== "superadmin" && user.metadata.type !== "admin") {
+          const loginUrl = new URL("/admin/login", request.url);
+          loginUrl.searchParams.set("redirect", pathname);
+          const res = NextResponse.redirect(loginUrl);
+          copyCookiesTo(res, cookieCarrier);
+          return res;
+        }
+        if (user.metadata.type !== "superadmin" && !validateTenantAccess(user)) {
+          const loginUrl = new URL("/admin/login", request.url);
+          loginUrl.searchParams.set("redirect", pathname);
+          const res = NextResponse.redirect(loginUrl);
+          copyCookiesTo(res, cookieCarrier);
+          return res;
+        }
       }
     }
 
@@ -182,8 +257,10 @@ export async function middleware(request: NextRequest) {
   if (isAuthRoute) {
     // Allow /admin/login/recover to be reached even when logged in (AAL1) so superadmin can use OTP recovery when they lost their device
     const isRecoverPage = pathname === "/admin/login/recover" || pathname.startsWith("/admin/login/recover/");
-    if (!isRecoverPage && user && validateTenantAccess(user)) {
-      if (user.metadata.type === "superadmin" || user.metadata.type === "admin") {
+    // When PHP-Auth is configured, do NOT redirect "already logged in" from /admin/login to dashboard here.
+    // That avoids a redirect loop (login → dashboard → validateUser fails → login → ...). User can navigate to /admin/dashboard and middleware will allow or redirect there.
+    if (!isRecoverPage && user && !isPhpAuthConfigured()) {
+      if (validateTenantAccess(user) && (user.metadata.type === "superadmin" || user.metadata.type === "admin")) {
         const res = NextResponse.redirect(new URL("/admin/dashboard", request.url));
         copyCookiesTo(res, cookieCarrier);
         return res;

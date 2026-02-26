@@ -37,6 +37,21 @@ export const PHP_AUTH_ADMIN_ROLE_SLUGS = [
   PHP_AUTH_ROLE_SLUG.VIEWER,
 ] as const;
 
+/** True if role is the PHP-Auth superadmin slug. Use with getRoleForCurrentUser() for server-side checks. */
+export function isSuperadminFromRole(role: string | null): boolean {
+  return role === PHP_AUTH_ROLE_SLUG.SUPERADMIN;
+}
+
+/** True if role is an admin-style role (can manage team, etc.). Use with getRoleForCurrentUser() for server-side checks. */
+export function isAdminRole(role: string | null): boolean {
+  return role !== null && (PHP_AUTH_ADMIN_ROLE_SLUGS as readonly string[]).includes(role);
+}
+
+/** True if role is the tenant admin role (website-cms-admin). For "can manage team" and Owner badge. */
+export function isTenantAdminRole(role: string | null): boolean {
+  return role === PHP_AUTH_ROLE_SLUG.ADMIN;
+}
+
 /** Display labels for admin roles (for dropdowns and UI). SSOT: PHP-Auth role set. */
 const PHP_AUTH_ADMIN_ROLE_LABELS: Record<(typeof PHP_AUTH_ADMIN_ROLE_SLUGS)[number], string> = {
   [PHP_AUTH_ROLE_SLUG.SUPERADMIN]: "SuperAdmin",

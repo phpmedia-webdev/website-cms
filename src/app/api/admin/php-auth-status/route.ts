@@ -7,15 +7,27 @@
 
 import { NextResponse } from "next/server";
 import { getCurrentUser, isSuperadmin } from "@/lib/auth/supabase-auth";
+import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getPhpAuthConfig, isPhpAuthConfigured } from "@/lib/php-auth/config";
-import { validateUser, getOrgForThisApp } from "@/lib/php-auth/validate-user";
+import { validateUser, getRoleSlugFromValidateUserData, getOrgForThisApp } from "@/lib/php-auth/validate-user";
 import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
 
 export async function GET() {
   try {
     const user = await getCurrentUser();
-    if (!user || !isSuperadmin(user)) {
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    if (isPhpAuthConfigured()) {
+      const role = await getRoleForCurrentUser();
+      if (!isSuperadminFromRole(role)) {
+        return NextResponse.json(
+          { error: "Unauthorized: Superadmin access required" },
+          { status: 403 }
+        );
+      }
+    } else if (!isSuperadmin(user)) {
       return NextResponse.json(
         { error: "Unauthorized: Superadmin access required" },
         { status: 403 }
@@ -95,16 +107,25 @@ export async function GET() {
       });
     }
 
+    const roleSlug = getRoleSlugFromValidateUserData(data);
     const org = getOrgForThisApp(data);
     const roles = await getRolesForAssignmentFromPhpAuth();
     return NextResponse.json({
       config: configStatus,
       validateUser: {
         success: true,
+        roleSlug: roleSlug ?? null,
+        fromAssignment: Boolean(data.assignment?.role?.slug),
         orgMatch: Boolean(org),
-        roleName: org?.roleName ?? null,
-        roleSlug: org?.roleSlug ?? null,
+        roleName: org?.roleName ?? data.assignment?.role?.name ?? null,
         organizationCount: data.organizations?.length ?? 0,
+        assignment: data.assignment
+          ? {
+              role: data.assignment.role,
+              permissionsCount: data.assignment.permissions?.length ?? 0,
+              featuresCount: data.assignment.features?.length ?? 0,
+            }
+          : undefined,
       },
       rolesProbe,
       roles: { count: roles.length, slugs: roles.map((r) => r.slug) },

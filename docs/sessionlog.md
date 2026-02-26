@@ -11,15 +11,15 @@
 ## Where we are
 
 **PHP-Auth migration:** M0 ✅ M1 ✅ M2 ✅ | **M3** in progress (sync wired; recovery doc done) | M4 ⏳ | **M5** 🔄 partial (read-only Roles with features/permissions + hierarchy done; Dashboard tabbed + gating TBD).  
-**Roles transition (this repo):** Step 1 ✅ | Step 2 ✅ (display from PHP-Auth) | Step 3 ✅ | Step 4 (M4 central-only read) ← next | Step 4a (gating from PHP-Auth) ⏳ | Step 5 (deprecation doc) ⏳.
+**Roles transition (this repo):** Step 1 ✅ | Step 2 ✅ | Step 3 ✅ | Step 4 (M4) 🔄 steps 1–6 done, 7–10 pending | Step 4a (gating) ⏳ | Step 5 ⏳.
 
-**Recently completed (roles/sidebar):** Read-only Roles list + detail with features/permissions from PHP-Auth; parentSlug parsing and tree display (Permissions/Features tabs); D9 superadmin nav (Dashboard, Tenant Users, Roles, Code Library, Security); roles API caching fixes and debug trim. **This session:** Verify session page now shows when 2FA dev bypass is on (NEXT_PUBLIC_DEV_BYPASS_2FA) and explains why superadmin is accessible without MFA.
+**Recently completed:** M4 steps 1–6 (resolve-role central-only, middleware validate-user, role helpers); validate-user assignment.role handling and getRoleSlugFromValidateUserData; Auth test page + php-auth-health/validate-key APIs; login Sign out, “Check why” diagnose, 500ms delay before redirect. Verify session 2FA bypass message (earlier session).
 
 ---
 
 ## Current Focus
 
-- [ ] **Roles transition — next Step 4 (M4) or D7/D8:** M3 recovery doc done ([reference/m3-recovery-procedure.md](./reference/m3-recovery-procedure.md)). Next: M4 central-only read (remove fallback), or continue M5 (D7 tabbed Dashboard + Gating, D8 Superadmin Users). Details in **Roles transition** and **M5 step plan** below.
+- [ ] **Roles transition — M4 steps 7–10 or post-login fix:** M4 steps 1–6 done (resolve-role, middleware, auth test, login UX). Next: fix post-login first-request role (Edge/cookie timing or proxy validate-user from Node); then M4 steps 7–10 (supabase-auth doc, API role checks, recovery doc), or M5 (D7/D8). See [m4-central-only-read-plan.md](./reference/m4-central-only-read-plan.md).
 - [ ] **PHP-Auth integration (broader):** [authplanlog.md](./authplanlog.md) Section 1 (PHP-Auth app) + Section 2 (website-cms). M0 details: [reference/php-auth-integration-clarification.md](./reference/php-auth-integration-clarification.md).
 
 ---
@@ -38,7 +38,7 @@
 | **M1** | **Populate central (PHP-Auth)** | No code change in website-cms. In PHP-Auth: ensure your superadmin user (and all current admins) exist in `users` (same `supabase_user_id` as in auth.users) and have correct `auth_user_organizations` for the org that maps to this tenant. Store `AUTH_ORG_ID`, `AUTH_APPLICATION_ID`, `AUTH_APP_API_KEY` in this app’s env. Map tenant id/slug → PHP-Auth Organization UUID. | ✅ Completed |
 | **M2** | **Dual-read** | Where you resolve “current user’s role for this tenant” (e.g. `getRoleForCurrentUser`, `getEffectiveFeatureSlugsForCurrentUser`): (1) Call PHP-Auth `POST /api/external/validate-user` with `Authorization: Bearer <session token>` and `X-API-Key: <AUTH_APP_API_KEY>`. (2) If 200 and `data.organizations` includes org with `id === AUTH_ORG_ID`, use that org’s role (and features) for this request. (3) If 401, 403, or 5xx, **fallback** to current logic (user_metadata for superadmin, tenant_user_assignments for tenant admins). Keep writing only to website-cms store (tenant_user_assignments, user_metadata) for now. | ✅ Completed |
 | **M3** | **Writes to central** | When assigning a role to a user on a tenant: perform the write in PHP-Auth (e.g. call PHP-Auth API to add user to org with role, or document that Superadmin does it in PHP-Auth UI). Optionally keep syncing to `tenant_user_assignments` during transition. Document **recovery procedure**: if locked out, re-add/fix your user in PHP-Auth (UI or SQL) or temporarily set `user_metadata.role` in auth.users so fallback in M2 still grants access. | 🔄 In progress |
-| **M4** | **Central-only read (optional)** | Remove fallback: resolve roles only from PHP-Auth (validate-user). Do only after verifying in staging/production that every relevant user has correct data in PHP-Auth. Keep recovery procedure from M3. Optionally stop writing to tenant_user_assignments and deprecate that table later. | ⏳ Pending |
+| **M4** | **Central-only read (optional)** | Remove fallback: resolve roles only from PHP-Auth (validate-user). Do only after verifying in staging/production that every relevant user has correct data in PHP-Auth. Keep recovery procedure from M3. Optionally stop writing to tenant_user_assignments and deprecate that table later. | 🔄 In progress (steps 1–6 done; 7–10 pending) |
 | **M5** | **Superadmin section UI redesign** | Redesign superadmin UI to align with tenant_sites scope (site mode, membership, coming_soon, current-site only; no multi-site management). Execute after M4. | ⏳ Pending |
 
 ## M5 / PHP-Auth SSOT & superadmin redesign — confirmations

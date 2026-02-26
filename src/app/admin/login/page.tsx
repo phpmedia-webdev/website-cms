@@ -17,7 +17,38 @@ function AdminLoginContent() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [diagnose, setDiagnose] = useState<{ success: boolean; status: number; reason: string; roleSlug?: string } | null>(null);
+  const [diagnoseLoading, setDiagnoseLoading] = useState(false);
   const resetSuccess = searchParams.get("reset") === "success";
+  const reasonNoCentralRole = searchParams.get("reason") === "no_central_role";
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await supabase.auth.signOut();
+      router.replace("/admin/login");
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  const handleCheckWhy = async () => {
+    setDiagnoseLoading(true);
+    setDiagnose(null);
+    try {
+      const res = await fetch("/api/auth/validate-user-diagnose", { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      setDiagnose({
+        success: json.success === true,
+        status: json.status ?? 0,
+        reason: json.reason ?? "Unknown",
+        roleSlug: json.roleSlug,
+      });
+    } finally {
+      setDiagnoseLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,8 +112,10 @@ function AdminLoginContent() {
         return;
       }
 
-      // Middleware will redirect to MFA challenge if aal2 is required and not yet satisfied
-      window.location.replace(redirect);
+      // Wait for the Supabase client to persist the session to cookies before navigating.
+      // Otherwise the next request (middleware) can receive the old or no session and redirect back to login.
+      await new Promise((r) => setTimeout(r, 500));
+      router.push(redirect);
     } catch (err) {
       setError("An error occurred. Please try again.");
       setLoading(false);
@@ -128,19 +161,50 @@ function AdminLoginContent() {
                 Password updated. You can sign in with your new password.
               </div>
             )}
+            {reasonNoCentralRole && (
+              <div className="text-sm text-amber-600 dark:text-amber-400 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+                <p>You’re signed in, but your access couldn’t be verified with the central auth service. Check that your account is in this app’s organization in PHP-Auth (same org as AUTH_ORG_ID), that AUTH_BASE_URL is reachable from this server, and try again. You can sign out and retry after your admin adds you to the org.</p>
+                <p className="text-muted-foreground">Operators: see <code className="text-xs bg-muted px-1 rounded">docs/reference/validate-user-troubleshooting.md</code> for the full checklist, curl test, and PHP-Auth audit log steps.</p>
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleCheckWhy}
+                    disabled={diagnoseLoading}
+                    className="text-xs underline hover:no-underline disabled:opacity-50"
+                  >
+                    {diagnoseLoading ? "Checking…" : "Check why (diagnose)"}
+                  </button>
+                  {diagnose && (
+                    <div className="mt-2 text-xs rounded p-2 bg-background/80 border border-amber-200 dark:border-amber-800">
+                      <p className="font-medium">HTTP {diagnose.status}</p>
+                      <p className="text-muted-foreground mt-1">{diagnose.reason}</p>
+                      {diagnose.roleSlug && <p className="mt-1 text-green-600 dark:text-green-400">Role: {diagnose.roleSlug}</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {error && (
               <div className="text-sm text-destructive">{error}</div>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
             </Button>
-            <p className="text-center text-sm text-muted-foreground mt-2 space-x-4">
+            <p className="text-center text-sm text-muted-foreground mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
               <Link href="/admin/login/forgot" className="underline hover:text-foreground">
                 Forgot password?
               </Link>
               <Link href="/admin/login/recover" className="underline hover:text-foreground">
                 Recover MFA (superadmin)
               </Link>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="underline hover:text-foreground disabled:opacity-50"
+              >
+                {signingOut ? "Signing out…" : "Sign out"}
+              </button>
             </p>
           </form>
         </CardContent>

@@ -1,6 +1,7 @@
 /**
  * Resolve the current user's role for the current tenant.
- * Dual-read (M2): try PHP-Auth validate-user first; fallback to DB (tenant_user_assignments) and metadata.
+ * M4: When PHP-Auth is configured, role comes only from validate-user; no fallback to metadata or tenant_user_assignments.
+ * When not configured, fallback to metadata (superadmin) and tenant_user_assignments (tenant admin).
  */
 
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
@@ -13,8 +14,17 @@ import {
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getEffectiveFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { isPhpAuthConfigured } from "@/lib/php-auth/config";
-import { validateUser, getOrgForThisApp } from "@/lib/php-auth/validate-user";
-import { toPhpAuthRoleSlug, legacySlugToPhpAuthSlug, PHP_AUTH_ROLE_SLUG } from "@/lib/php-auth/role-mapping";
+import { validateUser, getRoleSlugFromValidateUserData } from "@/lib/php-auth/validate-user";
+import {
+  toPhpAuthRoleSlug,
+  legacySlugToPhpAuthSlug,
+  PHP_AUTH_ROLE_SLUG,
+  isSuperadminFromRole,
+  isAdminRole,
+  isTenantAdminRole,
+} from "@/lib/php-auth/role-mapping";
+
+export { isSuperadminFromRole, isAdminRole, isTenantAdminRole };
 
 /**
  * Get the current user's role for the current tenant (NEXT_PUBLIC_CLIENT_SCHEMA).
@@ -33,12 +43,13 @@ export async function getRoleForCurrentUser(): Promise<string | null> {
       const accessToken = session?.access_token;
       if (accessToken) {
         const data = await validateUser(accessToken);
-        const org = data ? getOrgForThisApp(data) : null;
-        if (org?.roleName || org?.roleSlug) return toPhpAuthRoleSlug(org.roleSlug ?? org.roleName!);
+        const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
+        if (roleSlug) return toPhpAuthRoleSlug(roleSlug);
       }
     } catch {
-      // Fall through to fallback
+      // validate-user failed
     }
+    return null;
   }
 
   if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
@@ -78,12 +89,13 @@ export async function getRoleForCurrentUserOnSite(tenantSiteId: string): Promise
       const accessToken = session?.access_token;
       if (accessToken) {
         const data = await validateUser(accessToken);
-        const org = data ? getOrgForThisApp(data) : null;
-        if (org?.roleName || org?.roleSlug) return toPhpAuthRoleSlug(org.roleSlug ?? org.roleName!);
+        const roleSlug = data ? getRoleSlugFromValidateUserData(data) : null;
+        if (roleSlug) return toPhpAuthRoleSlug(roleSlug);
       }
     } catch {
-      // Fall through to fallback
+      // validate-user failed
     }
+    return null;
   }
 
   if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
@@ -99,17 +111,14 @@ export async function getRoleForCurrentUserOnSite(tenantSiteId: string): Promise
 
 /**
  * Effective feature slugs for the current user (for sidebar and route guards).
- * - Superadmin (from metadata or PHP-Auth role "Super-Admin"): returns "all".
+ * - Superadmin (from getRoleForCurrentUser): returns "all".
  * - Tenant user: returns slug[] from getEffectiveFeatureSlugs(tenantSiteId, role).
- * - No user or no tenant/role: returns [].
+ * - No user or no role (e.g. PHP-Auth configured and validate-user failed): returns [].
  */
 export async function getEffectiveFeatureSlugsForCurrentUser(): Promise<string[] | "all"> {
-  const user = await getCurrentUser();
-  if (!user) return [];
-
-  if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {
-    return "all";
-  }
+  const role = await getRoleForCurrentUser();
+  if (!role) return [];
+  if (role === PHP_AUTH_ROLE_SLUG.SUPERADMIN) return "all";
 
   let tenantSiteId: string;
   try {
@@ -120,10 +129,6 @@ export async function getEffectiveFeatureSlugsForCurrentUser(): Promise<string[]
   } catch {
     return [];
   }
-
-  const role = await getRoleForCurrentUser();
-  if (!role) return [];
-  if (role === PHP_AUTH_ROLE_SLUG.SUPERADMIN) return "all";
 
   return getEffectiveFeatureSlugs(tenantSiteId, role);
 }
@@ -140,8 +145,9 @@ export interface TeamManagementContext {
 /**
  * Can the current user manage team (Settings → Users) for the current tenant?
  * - Superadmin: canManage true, isOwner false, tenantSiteId from schema.
- * - Tenant admin (role_slug === 'admin'): canManage true, isOwner from assignment.
+ * - Tenant admin (website-cms-admin): canManage true, isOwner from assignment.
  * - Others: canManage false.
+ * When PHP-Auth is configured, role comes only from getRoleForCurrentUser(); metadata and tenant_user_assignments are not used for role.
  */
 export async function getTeamManagementContext(): Promise<TeamManagementContext> {
   const user = await getCurrentUser();
@@ -159,6 +165,35 @@ export async function getTeamManagementContext(): Promise<TeamManagementContext>
     tenantSiteId = site.id;
   } catch {
     return { canManage: false, isOwner: false, isSuperadmin: false, tenantSiteId: null, tenantUserId: null };
+  }
+
+  if (isPhpAuthConfigured()) {
+    const role = await getRoleForCurrentUser();
+    if (isSuperadminFromRole(role)) {
+      return { canManage: true, isOwner: false, isSuperadmin: true, tenantSiteId, tenantUserId: null };
+    }
+    if (isTenantAdminRole(role)) {
+      const tenantUser = await getTenantUserByAuthUserId(user.id);
+      if (!tenantUser) {
+        return { canManage: false, isOwner: false, isSuperadmin: false, tenantSiteId: null, tenantUserId: null };
+      }
+      const assignment = await getAssignmentByAdminAndTenant(tenantUser.id, tenantSiteId);
+      return {
+        canManage: true,
+        isOwner: assignment?.is_owner ?? false,
+        isSuperadmin: false,
+        tenantSiteId,
+        tenantUserId: tenantUser.id,
+      };
+    }
+    const tenantUser = await getTenantUserByAuthUserId(user.id);
+    return {
+      canManage: false,
+      isOwner: false,
+      isSuperadmin: false,
+      tenantSiteId: null,
+      tenantUserId: tenantUser?.id ?? null,
+    };
   }
 
   if (user.metadata.type === "superadmin" && user.metadata.role === "superadmin") {

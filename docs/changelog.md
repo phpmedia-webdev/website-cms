@@ -11,6 +11,24 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-02-17 CT - Session wrap-up: M4 (central-only read) steps 1–6, validate-user assignment, login UX
+
+**Context for Next Session:**
+- **M4:** Steps 1–6 done: resolve-role no fallback when PHP-Auth configured; middleware uses validate-user for role (Edge); role helpers (isSuperadminFromRole, isAdminRole, isTenantAdminRole). Login still redirects back with “couldn’t be verified” on first request despite diagnose showing HTTP 200 and role — likely first request sends old/no session cookie; 500ms delay and router.push added; if still failing, consider middleware calling an internal API (Node) for validate-user instead of Edge fetch.
+- **Validate-user:** New API returns `assignment.role` (and permissions/features). We use `getRoleSlugFromValidateUserData(data)` (prefer assignment.role.slug, fallback org). Types and `validateUserWithStatus` added for diagnostics.
+- **Login:** Sign out link; reason=no_central_role message + “Check why (diagnose)” calling GET /api/auth/validate-user-diagnose; link to validate-user-troubleshooting.md; 500ms delay before router.push after sign-in.
+- **Superadmin:** Auth test page (/admin/super/auth-test) runs health, validate-api-key, php-auth-status. New API routes: GET php-auth-health, POST php-auth-validate-key (superadmin or role-based when PHP-Auth configured).
+- **Next:** Resolve post-login first-request role check (Edge vs cookie timing or proxy validate-user from Node); then M4 steps 7–10 (supabase-auth doc, API routes role checks, recovery doc). Key files: `src/middleware.ts`, `src/app/admin/login/page.tsx`, `src/lib/php-auth/validate-user.ts`, `docs/reference/m4-central-only-read-plan.md`.
+
+**Changes:**
+- **M4 (resolve-role + middleware):** getRoleForCurrentUser/getRoleForCurrentUserOnSite return null when PHP-Auth configured and validate-user fails or no org; getEffectiveFeatureSlugsForCurrentUser uses role only from getRoleForCurrentUser; getTeamManagementContext uses getRoleForCurrentUser when configured; isSuperadminFromRole, isAdminRole, isTenantAdminRole in role-mapping + re-export from resolve-role. Middleware: when PHP-Auth configured, role from validateUser + getRoleSlugFromValidateUserData; super routes require SUPERADMIN, admin routes require admin slug; no “already logged in” redirect from /admin/login when configured (avoids loop).
+- **Validate-user:** PhpAuthValidateUserAssignment type; validateUserWithStatus(accessToken) returns { data, status }; getRoleSlugFromValidateUserData(data) prefers data.assignment.role.slug. Call sites (resolve-role, middleware, php-auth-status) use getRoleSlugFromValidateUserData.
+- **Login:** Sign out button (handleSignOut); reason=no_central_role message with “Check why (diagnose)” and validate-user-diagnose API (GET /api/auth/validate-user-diagnose, minimal response); 500ms delay before router.push(redirect) after sign-in.
+- **Auth test:** Superadmin → Auth test page; GET /api/admin/php-auth-health, POST /api/admin/php-auth-validate-key; php-auth-status and new routes use role-based superadmin when PHP-Auth configured. Sidebar nav link (Activity icon).
+- **Docs:** M4 plan test checklist and link to validate-user-troubleshooting; login page and M4 plan reference troubleshooting doc.
+
+---
+
 ### 2026-02-17 CT - Session wrap-up: Verify session page shows 2FA bypass state
 
 **Context for Next Session:**
