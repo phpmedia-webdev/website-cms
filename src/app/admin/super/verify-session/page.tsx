@@ -47,18 +47,18 @@ export default async function VerifySessionPage() {
   checks.push({ label: "MFA (AAL2)", ok: mfaOk, detail: mfaDetail });
 
   // 3. PHP-Auth role (when configured)
-  let role: string | null = null;
+  let phpAuthRole: string | null = null;
   const phpAuthConfigured = isPhpAuthConfigured();
   if (phpAuthConfigured) {
     try {
-      role = await getRoleForCurrentUser();
+      phpAuthRole = await getRoleForCurrentUser();
     } catch {
-      role = null;
+      phpAuthRole = null;
     }
     checks.push({
       label: "PHP-Auth role",
-      ok: !!role,
-      detail: role ?? "No role (validate-user failed or user not in org)",
+      ok: !!phpAuthRole,
+      detail: phpAuthRole ?? "No role (validate-user failed or user not in org)",
     });
   }
 

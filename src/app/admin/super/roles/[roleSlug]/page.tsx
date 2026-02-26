@@ -18,8 +18,8 @@ export const dynamic = "force-dynamic";
 export default async function SuperadminRoleDetailPage({ params }: PageProps) {
   const user = await getCurrentUser();
   if (!user) redirect("/admin/dashboard");
-  const role = await getRoleForCurrentUser();
-  if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
+  const currentUserRole = await getRoleForCurrentUser();
+  if (!isSuperadminFromRole(currentUserRole)) redirect("/admin/dashboard");
 
   const { roleSlug } = await params;
   const roles = await getRolesWithDetailsFromPhpAuth();

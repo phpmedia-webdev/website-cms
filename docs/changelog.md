@@ -11,7 +11,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
-### 2026-02-17 CT - Session wrap-up: PHP-Auth conversion milestone; Phase F (gating UX) step plan added
+### 2026-02-26 CT - Session wrap-up: PHP-Auth conversion milestone; Phase F (gating UX) step plan added
 
 **Context for Next Session:**
 - **PHP-Auth migration:** M0–M5 complete. Central store (validate-user, sync-user-role), central-only read (M4), superadmin UI redesign (M5 Phase D: Dashboard, gating table, Users, nav). Roles transition steps 1–4 done; Step 4a (getEffectiveFeatureSlugs from PHP-Auth) and Step 5 (deprecation doc) pending. Phase E (E10, E10a, E11) and Phase F (gating/role navigation UX) are next.
