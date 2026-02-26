@@ -114,11 +114,11 @@ type MiddlewareResponse = {
   cookies: { set: (name: string, value: string, options?: Record<string, unknown>) => void };
 };
 
-/** Result of getCurrentUserFromRequest: user plus session for AAL check in middleware. */
+/** Result of getCurrentUserFromRequest: user plus session for AAL and PHP-Auth in middleware. */
 export interface UserFromRequestResult {
   user: AuthUser | null;
-  /** Session from the same request; use session.aal for 2FA check in middleware. */
-  session: { aal?: "aal1" | "aal2" } | null;
+  /** Session from the same request; aal for 2FA check; access_token for PHP-Auth validate-user in middleware. */
+  session: { aal?: "aal1" | "aal2"; access_token?: string } | null;
 }
 
 /**
@@ -229,7 +229,7 @@ export async function getCurrentUserFromRequest(
 
     return {
       user: authUser,
-      session: session ? { aal } : null,
+      session: session ? { aal, access_token: session.access_token } : null,
     };
   } catch (err) {
     const msg = (err as Error)?.message ?? "";
