@@ -14,13 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Copy, Check } from "lucide-react";
 
 export function GeneralSettingsContent() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [siteMode, setSiteMode] = useState<"live" | "coming_soon">("live");
   const [siteModeLocked, setSiteModeLocked] = useState(false);
   const [siteModeLockedReason, setSiteModeLockedReason] = useState("");
@@ -28,6 +28,18 @@ export function GeneralSettingsContent() {
   const [snippetOptions, setSnippetOptions] = useState<{ id: string; title: string; slug: string }[]>([]);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [savingMode, setSavingMode] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = async (value: string, field: string) => {
+    if (!value.trim()) return;
+    try {
+      await navigator.clipboard.writeText(value.trim());
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -54,26 +66,6 @@ export function GeneralSettingsContent() {
       setLoading(false);
     });
   }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/settings/site-metadata", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, url }),
-      });
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error ?? "Failed to save");
-      }
-    } catch (err) {
-      console.error("Save error:", err);
-      alert(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleSiteModeChange = async (mode: "live" | "coming_soon") => {
     if (siteModeLocked && !isSuperadmin) return;
@@ -264,42 +256,91 @@ export function GeneralSettingsContent() {
         <CardHeader>
           <CardTitle>General Settings</CardTitle>
           <CardDescription>
-            Configure general application settings including site identity and domain.
+            Site identity and domain. Set by superadmin in Site Settings; shown here for reference. Use the copy icon to copy a value.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <label className="text-sm font-medium mb-2 block">Site Name</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Website"
-            />
+            <div className="flex gap-2 items-center">
+              <Input
+                value={name}
+                readOnly
+                placeholder="—"
+                className="bg-muted flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => copyToClipboard(name, "name")}
+                disabled={!name?.trim()}
+                title="Copy"
+              >
+                {copiedField === "name" ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium mb-2 block">Site Description</label>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of your site"
-            />
+            <div className="flex gap-2 items-center">
+              <Input
+                value={description}
+                readOnly
+                placeholder="—"
+                className="bg-muted flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => copyToClipboard(description, "description")}
+                disabled={!description?.trim()}
+                title="Copy"
+              >
+                {copiedField === "description" ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium mb-2 block">Site URL</label>
-            <Input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
-              type="url"
-            />
+            <div className="flex gap-2 items-center">
+              <Input
+                value={url}
+                readOnly
+                placeholder="—"
+                className="bg-muted flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => copyToClipboard(url, "url")}
+                disabled={!url?.trim()}
+                title="Copy"
+              >
+                {copiedField === "url" ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              The true site domain. Used for standalone gallery links, sharing, and canonical URLs.
-              Leave blank to use the deployment URL.
+              Site domain (set in Superadmin → Site Settings). Used for API base URL, gallery links, and canonical URLs.
             </p>
           </div>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
         </CardContent>
       </Card>
     </div>

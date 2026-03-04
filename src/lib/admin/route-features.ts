@@ -10,8 +10,9 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (!pathname || !pathname.startsWith("/admin")) return null;
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) return null;
   if (pathname === "/admin" || pathname === "/admin/") return null;
-  // Dashboard is always allowed as the safe landing page when redirecting from a blocked route.
+  // Dashboard and upgrade page are always allowed (safe landing when redirecting from a blocked route).
   if (pathname === "/admin/dashboard" || pathname.startsWith("/admin/dashboard/")) return null;
+  if (pathname === "/admin/upgrade" || pathname.startsWith("/admin/upgrade/")) return null;
 
   if (pathname === "/admin/content" || pathname.startsWith("/admin/content/")) return "content";
   if (pathname === "/admin/media" || pathname.startsWith("/admin/media/")) return "library";
@@ -76,28 +77,8 @@ export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
   superadmin: "superadmin",
 };
 
-/** Top-level slug that grants access to all sub-features. Sub-slug → parent slug. */
-const FEATURE_PARENT_SLUG: Record<string, string> = {
-  contacts: "crm",
-  forms: "crm",
-  form_submissions: "crm",
-  memberships: "crm",
-  code_generator: "crm",
-  omnichat: "crm",
-  lists: "marketing",
-  galleries: "media",
-  library: "media",
-  events: "calendar",
-  resources: "calendar",
-  quick_support: "support",
-  knowledge_base: "support",
-  workhub: "support",
-  general: "settings",
-  style: "settings",
-  taxonomy: "settings",
-  customizer: "settings",
-  users: "settings",
-};
+/** Top-level slug that grants access to sub-features. Sub-slug → parent slug. All section children omitted for one-to-one gate. */
+const FEATURE_PARENT_SLUG: Record<string, string> = {};
 
 /**
  * Whether the user can access a section.

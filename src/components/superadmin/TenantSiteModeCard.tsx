@@ -21,6 +21,8 @@ interface TenantSiteModeCardProps {
   initialLockReason?: string | null;
   initialComingSoonMessage?: string | null;
   initialComingSoonSnippetId?: string | null;
+  /** When true, use tighter padding and spacing (e.g. on Site Settings tab). */
+  compact?: boolean;
 }
 
 export function TenantSiteModeCard({
@@ -30,6 +32,7 @@ export function TenantSiteModeCard({
   initialLockReason = "",
   initialComingSoonMessage = "",
   initialComingSoonSnippetId = null,
+  compact = false,
 }: TenantSiteModeCardProps) {
   const [mode, setMode] = useState<"live" | "coming_soon">(
     initialMode === "coming_soon" ? "coming_soon" : "live"
@@ -151,13 +154,19 @@ export function TenantSiteModeCard({
     }
   };
 
+  const headerClass = compact ? "p-4 pb-2" : undefined;
+  const contentClass = compact ? "p-4 pt-0 space-y-3" : "space-y-4";
+  const titleClass = compact ? "text-lg" : undefined;
+  const descClass = compact ? "mt-0.5" : undefined;
+  const labelMt = compact ? "mt-0.5" : "mt-1";
+
   if (loading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Site mode</CardTitle>
+        <CardHeader className={headerClass}>
+          <CardTitle className={titleClass}>Site mode</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className={contentClass}>
           <p className="text-sm text-muted-foreground">Loading…</p>
         </CardContent>
       </Card>
@@ -166,13 +175,13 @@ export function TenantSiteModeCard({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Site Mode</CardTitle>
-        <CardDescription>
+      <CardHeader className={headerClass}>
+        <CardTitle className={titleClass}>Site Mode</CardTitle>
+        <CardDescription className={descClass}>
           When Coming soon, the public site shows only the Coming soon page. Admin and API stay accessible. Lock prevents tenant admins from changing mode in Settings → General.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={contentClass}>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Coming soon</span>
@@ -195,7 +204,7 @@ export function TenantSiteModeCard({
             onValueChange={handleComingSoonSnippetChange}
             disabled={saving}
           >
-            <SelectTrigger id={`coming-soon-snippet-${siteId}`} className="mt-1 max-w-md">
+            <SelectTrigger id={`coming-soon-snippet-${siteId}`} className={`${labelMt} max-w-md`}>
               <SelectValue placeholder="Choose a snippet (or None)" />
             </SelectTrigger>
             <SelectContent>
@@ -207,7 +216,7 @@ export function TenantSiteModeCard({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className={`text-xs text-muted-foreground ${labelMt}`}>
             Snippets from this tenant&apos;s Content library (type: Snippet). Shown on the Coming soon page with formatting, links, images, galleries.
           </p>
         </div>
@@ -240,7 +249,7 @@ export function TenantSiteModeCard({
                 onChange={(e) => setLockReason(e.target.value)}
                 onBlur={() => locked && handleLockChange(true)}
                 placeholder="e.g. Pre-launch lockdown"
-                className="mt-1 max-w-md"
+                className={`${labelMt} max-w-md`}
               />
             </div>
           )}

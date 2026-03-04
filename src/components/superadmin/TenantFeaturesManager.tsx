@@ -6,7 +6,17 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type TenantFeatureItem = { slug: string; label: string; order: number };
+export type TenantFeatureItem = {
+  slug: string;
+  label: string;
+  order: number;
+  /** When true, feature is always On and toggle is disabled (e.g. superadmin). */
+  locked?: boolean;
+  /** Indent level: 0 = root, 1 = child (one level indent), etc. */
+  depth?: number;
+  /** Parent feature slug; when set, this is a child. Used for parent-on/off and child-on auto-parent. */
+  parentSlug?: string;
+};
 
 interface TenantFeaturesManagerProps {
   tenantId: string;
@@ -27,10 +37,50 @@ export function TenantFeaturesManager({
     setEnabledSlugs(initialEnabledSlugs);
   }, [tenantId, initialEnabledSlugs]);
 
+  const getChildrenSlugs = (parentSlug: string) =>
+    features.filter((f) => f.parentSlug === parentSlug).map((f) => f.slug);
+
+  /** All descendant slugs (children, grandchildren, etc.) for a parent. Works for any depth. */
+  const getAllDescendantSlugs = (parentSlug: string): string[] => {
+    const direct = getChildrenSlugs(parentSlug);
+    const nested = direct.flatMap((child) => getAllDescendantSlugs(child));
+    return [...direct, ...nested];
+  };
+
+  /** All ancestor slugs (parent, grandparent, ... up to root) for a feature. Ensures full path is enabled. */
+  const getAllAncestorSlugs = (childSlug: string): string[] => {
+    const feature = features.find((f) => f.slug === childSlug);
+    if (!feature?.parentSlug) return [];
+    return [feature.parentSlug, ...getAllAncestorSlugs(feature.parentSlug)];
+  };
+
   const toggleFeature = async (slug: string, checked: boolean) => {
-    const next = checked
-      ? [...enabledSlugs, slug]
-      : enabledSlugs.filter((s) => s !== slug);
+    const feature = features.find((f) => f.slug === slug);
+    const isParent = feature && !feature.parentSlug;
+    const isChild = feature?.parentSlug;
+
+    let next: string[];
+    if (checked) {
+      if (isChild && feature.parentSlug) {
+        const ancestorSlugs = getAllAncestorSlugs(slug);
+        next = [...new Set([...enabledSlugs, ...ancestorSlugs, slug])];
+      } else if (isParent) {
+        const descendantSlugs = getAllDescendantSlugs(slug);
+        next = [...new Set([...enabledSlugs, slug, ...descendantSlugs])];
+      } else {
+        next = [...new Set([...enabledSlugs, slug])];
+      }
+    } else {
+      if (isParent) {
+        const descendantSlugs = getAllDescendantSlugs(slug);
+        next = enabledSlugs.filter(
+          (s) => s !== slug && !descendantSlugs.includes(s)
+        );
+      } else {
+        next = enabledSlugs.filter((s) => s !== slug);
+      }
+    }
+
     setEnabledSlugs(next);
     setSavingSlug(slug);
     setError(null);
@@ -52,7 +102,8 @@ export function TenantFeaturesManager({
     }
   };
 
-  const isChecked = (slug: string) => enabledSlugs.includes(slug);
+  const isChecked = (slug: string, locked?: boolean) =>
+    locked || enabledSlugs.includes(slug);
 
   return (
     <Card>
@@ -65,36 +116,50 @@ export function TenantFeaturesManager({
       <CardContent>
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Toggle each feature on (right, blue) or off (left, grey). Changes save automatically.
+            Toggle each feature on or off. Turning a parent on turns on all its children (you can then turn individual children off). Turning a parent off turns off all children. Turning a child on automatically turns its parent on so the parent shows correctly in the sidebar. Changes save automatically.
           </p>
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}
           <div className="border rounded-md divide-y">
-            {features.map((feature) => (
-              <div
-                key={feature.slug}
-                className={cn(
-                  "flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/50 transition-colors"
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium">{feature.label}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {savingSlug === feature.slug && (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            {features.map((feature) => {
+              const locked = feature.locked === true;
+              const depth = feature.depth ?? 0;
+              const indentPx = depth * 20; // ~5 character indent per level
+              return (
+                <div
+                  key={feature.slug}
+                  className={cn(
+                    "flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/50 transition-colors",
+                    locked && "opacity-90"
                   )}
-                  <Switch
-                    checked={isChecked(feature.slug)}
-                    onCheckedChange={(checked) =>
-                      toggleFeature(feature.slug, checked)
-                    }
-                    disabled={savingSlug === feature.slug}
-                  />
+                  style={indentPx > 0 ? { paddingLeft: `${12 + indentPx}px` } : undefined}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{feature.label}</span>
+                    {locked && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (always on)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {savingSlug === feature.slug && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                    <Switch
+                      checked={isChecked(feature.slug, locked)}
+                      onCheckedChange={
+                        locked
+                          ? undefined
+                          : (checked) => toggleFeature(feature.slug, checked)
+                      }
+                      disabled={savingSlug === feature.slug || locked}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </CardContent>

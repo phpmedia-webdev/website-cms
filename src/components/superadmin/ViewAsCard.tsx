@@ -18,7 +18,8 @@ import type { RoleOption } from "@/lib/php-auth/role-mapping";
 const VIEW_AS_COOKIE_MAX_AGE = 86400; // 1 day in seconds
 
 interface ViewAsCardProps {
-  sites: TenantSite[];
+  /** Current logged-in site (from schema). View-as uses this site; no site picker. */
+  currentSite: TenantSite | null;
   roles: RoleOption[];
   /** When set, view-as is active (from cookie). Card shows current state and Exit. */
   initialViewAs: { siteId: string; roleSlug: string } | null;
@@ -28,14 +29,13 @@ function ensureString(x: unknown): string {
   return typeof x === "string" ? x : "";
 }
 
-export function ViewAsCard({ sites, roles, initialViewAs }: ViewAsCardProps) {
+export function ViewAsCard({ currentSite, roles, initialViewAs }: ViewAsCardProps) {
   const router = useRouter();
-  const [siteId, setSiteId] = useState(() => ensureString(initialViewAs?.siteId));
   const [roleSlug, setRoleSlug] = useState(() => ensureString(initialViewAs?.roleSlug));
 
   const active = !!initialViewAs;
-  const currentSite = active ? sites.find((s) => s.id === initialViewAs.siteId) : null;
   const currentRole = active ? roles.find((r) => r.slug === initialViewAs.roleSlug) : null;
+  const siteId = currentSite?.id ?? "";
 
   function startViewAs() {
     if (!siteId || !roleSlug) return;
@@ -52,9 +52,9 @@ export function ViewAsCard({ sites, roles, initialViewAs }: ViewAsCardProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>View as Role + Site</CardTitle>
+        <CardTitle>View Site As:</CardTitle>
         <CardDescription>
-          Test sidebar and route restrictions for a tenant and role. Superadmin section stays available so you can exit here.
+          Test sidebar and route restrictions for the current site as a different role. Superadmin section stays available so you can exit here.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -71,47 +71,27 @@ export function ViewAsCard({ sites, roles, initialViewAs }: ViewAsCardProps) {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Site</label>
-                <Select
-                  value={ensureString(siteId)}
-                  onValueChange={(val) => setSiteId(ensureString(val))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select site" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sites.map((s) => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {s.name}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Role</label>
+              <Select
+                value={ensureString(roleSlug)}
+                onValueChange={(val) => setRoleSlug(ensureString(val))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles
+                    .filter((r) => r.slug != null && r.slug !== "")
+                    .map((r) => (
+                      <SelectItem key={r.slug} value={r.slug}>
+                        {r.label || r.slug}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Role</label>
-                <Select
-                  value={ensureString(roleSlug)}
-                  onValueChange={(val) => setRoleSlug(ensureString(val))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles
-                      .filter((r) => r.slug != null && r.slug !== "")
-                      .map((r) => (
-                        <SelectItem key={r.slug} value={r.slug}>
-                          {r.label || r.slug}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
-            <Button onClick={startViewAs} disabled={!siteId || !roleSlug}>
+            <Button onClick={startViewAs} disabled={!currentSite || !roleSlug}>
               View as
             </Button>
           </>

@@ -42,18 +42,35 @@ import {
   superadminSubNav,
 } from "./sidebar-config";
 
+const UPGRADE_PATH = "/admin/upgrade";
+
 interface SidebarProps {
   isSuperadmin?: boolean;
   /** Effective feature slugs for current user; "all" = show everything. */
   effectiveFeatureSlugs?: string[] | "all";
+  /** Role-only feature slugs (Phase F). When set, hide items not in role; ghost items in role but not in effective. */
+  roleFeatureSlugs?: string[] | "all";
+  /** When set and user is superadmin, sidebar uses this for link vs ghost display only (gate state); guards unchanged. */
+  sidebarDisplayFeatureSlugs?: string[] | null;
   /** If true, show Settings → Users link. Only admins (tenant admin or superadmin) can manage team. */
   canManageTeam?: boolean;
 }
 
-export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", canManageTeam = false }: SidebarProps) {
+export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", roleFeatureSlugs = "all", sidebarDisplayFeatureSlugs = null, canManageTeam = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = getSupabaseClient();
+
+  /** For sidebar display only: superadmin sees gate state (ghost when gate off); others use effective. */
+  const displayEffectiveSlugs: string[] | "all" =
+    isSuperadmin && Array.isArray(sidebarDisplayFeatureSlugs) ? sidebarDisplayFeatureSlugs : effectiveFeatureSlugs;
+
+  /** Phase F: in role = allowed by role (ignore tenant). When roleFeatureSlugs === "all", always true. */
+  const hasRoleAccess = (slug: string) =>
+    roleFeatureSlugs === "all" || canAccessFeature(roleFeatureSlugs, slug);
+  /** In effective = allowed by tenant ∩ role. Uses display list for superadmin when provided (gate-only visual). */
+  const hasEffectiveAccess = (slug: string) =>
+    displayEffectiveSlugs === "all" || canAccessFeature(displayEffectiveSlugs, slug);
   const isSettings = pathname === "/admin/settings" || pathname?.startsWith("/admin/settings/");
   const isSupport = pathname === "/admin/support" || pathname?.startsWith("/admin/support/");
   const isCrm =
@@ -72,29 +89,62 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
 
   const showDashboard =
-    effectiveFeatureSlugs === "all" ||
-    (Array.isArray(effectiveFeatureSlugs) &&
-      (effectiveFeatureSlugs.length === 0 || effectiveFeatureSlugs.includes("dashboard")));
-  const showCrm =
-    canAccessFeature(effectiveFeatureSlugs, "crm") ||
-    canAccessFeature(effectiveFeatureSlugs, "contacts") ||
-    canAccessFeature(effectiveFeatureSlugs, "forms") ||
-    canAccessFeature(effectiveFeatureSlugs, "marketing") ||
-    canAccessFeature(effectiveFeatureSlugs, "memberships") ||
-    canAccessFeature(effectiveFeatureSlugs, "code_generator");
-  const showMedia =
-    canAccessFeature(effectiveFeatureSlugs, "media") ||
-    canAccessFeature(effectiveFeatureSlugs, "library") ||
-    canAccessFeature(effectiveFeatureSlugs, "galleries");
-  const showContent = canAccessFeature(effectiveFeatureSlugs, "content");
-  const showMarketing = canAccessFeature(effectiveFeatureSlugs, "marketing");
-  const showCalendar =
-    canAccessFeature(effectiveFeatureSlugs, "content") ||
-    canAccessFeature(effectiveFeatureSlugs, "calendar") ||
-    canAccessFeature(effectiveFeatureSlugs, "events") ||
-    canAccessFeature(effectiveFeatureSlugs, "resources");
-  const showSettings = canAccessFeature(effectiveFeatureSlugs, "settings");
-  const showOmniChat = canAccessFeature(effectiveFeatureSlugs, "crm");
+    (displayEffectiveSlugs === "all" ||
+      (Array.isArray(displayEffectiveSlugs) &&
+        (displayEffectiveSlugs.length === 0 || displayEffectiveSlugs.includes("dashboard")))) &&
+    (roleFeatureSlugs === "all" || hasRoleAccess("dashboard"));
+  const showCrmByRole =
+    hasRoleAccess("crm") ||
+    hasRoleAccess("contacts") ||
+    hasRoleAccess("forms") ||
+    hasRoleAccess("marketing") ||
+    hasRoleAccess("memberships") ||
+    hasRoleAccess("code_generator");
+  const showCrmEffective =
+    canAccessFeature(displayEffectiveSlugs, "crm") ||
+    canAccessFeature(displayEffectiveSlugs, "contacts") ||
+    canAccessFeature(displayEffectiveSlugs, "forms") ||
+    canAccessFeature(displayEffectiveSlugs, "marketing") ||
+    canAccessFeature(displayEffectiveSlugs, "memberships") ||
+    canAccessFeature(displayEffectiveSlugs, "code_generator");
+  const showCrm = showCrmEffective && (roleFeatureSlugs === "all" || showCrmByRole);
+  const showMediaByRole = hasRoleAccess("media") || hasRoleAccess("library") || hasRoleAccess("galleries");
+  const showMediaEffective =
+    canAccessFeature(displayEffectiveSlugs, "media") ||
+    canAccessFeature(displayEffectiveSlugs, "library") ||
+    canAccessFeature(displayEffectiveSlugs, "galleries");
+  const showMedia = showMediaEffective && (roleFeatureSlugs === "all" || showMediaByRole);
+  const showContent =
+    canAccessFeature(displayEffectiveSlugs, "content") && (roleFeatureSlugs === "all" || hasRoleAccess("content"));
+  const showMarketingByRole = hasRoleAccess("marketing") || hasRoleAccess("lists");
+  const showMarketingEffective = canAccessFeature(displayEffectiveSlugs, "marketing");
+  const showMarketing = showMarketingEffective && (roleFeatureSlugs === "all" || showMarketingByRole);
+  const showCalendarByRole =
+    hasRoleAccess("content") ||
+    hasRoleAccess("calendar") ||
+    hasRoleAccess("events") ||
+    hasRoleAccess("resources");
+  const showCalendarEffective =
+    canAccessFeature(displayEffectiveSlugs, "content") ||
+    canAccessFeature(displayEffectiveSlugs, "calendar") ||
+    canAccessFeature(displayEffectiveSlugs, "events") ||
+    canAccessFeature(displayEffectiveSlugs, "resources");
+  const showCalendar = showCalendarEffective && (roleFeatureSlugs === "all" || showCalendarByRole);
+  const showSettings =
+    canAccessFeature(effectiveFeatureSlugs, "settings") && (roleFeatureSlugs === "all" || hasRoleAccess("settings"));
+  const showSupportByRole =
+    hasRoleAccess("support") ||
+    hasRoleAccess("quick_support") ||
+    hasRoleAccess("knowledge_base") ||
+    hasRoleAccess("workhub");
+  const showSupportEffective =
+    canAccessFeature(displayEffectiveSlugs, "support") ||
+    canAccessFeature(displayEffectiveSlugs, "quick_support") ||
+    canAccessFeature(displayEffectiveSlugs, "knowledge_base") ||
+    canAccessFeature(displayEffectiveSlugs, "workhub");
+  const showSupport = showSupportEffective && (roleFeatureSlugs === "all" || showSupportByRole);
+  const showOmniChat =
+    canAccessFeature(displayEffectiveSlugs, "omnichat") && (roleFeatureSlugs === "all" || hasRoleAccess("crm") || hasRoleAccess("omnichat"));
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -548,52 +598,56 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
       </div>
       <nav className="flex-1 flex flex-col min-h-0 p-4">
         <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
-        {/* Dashboard: always visible; ghosted (greyed, non-clickable) when no access */}
-        {showDashboard ? (
-        <Link
-          href="/admin/dashboard"
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-            pathname === "/admin/dashboard"
-              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          )}
-        >
-          <LayoutDashboard className="h-5 w-5" />
-          Dashboard
-        </Link>
-        ) : (
-        <span
-          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
-          title="Upgrade your plan to access"
-        >
-          <LayoutDashboard className="h-5 w-5" />
-          Dashboard
-        </span>
-        )}
-        {/* OmniChat: always visible; ghosted when no access */}
-        {showOmniChat ? (
-        <Link
-          href="https://chat.phpmedia.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        >
-          <MessageCircle className="h-5 w-5" />
-          OmniChat
-        </Link>
-        ) : (
-        <span
-          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
-          title="Upgrade your plan to access"
-        >
-          <MessageCircle className="h-5 w-5" />
-          OmniChat
-        </span>
-        )}
-        {/* CRM twirldown: always visible; ghosted when no access */}
+        {/* Dashboard: Phase F — hide when not in role; ghost (→ upgrade) when in role but not effective */}
+        {hasRoleAccess("dashboard") &&
+          (hasEffectiveAccess("dashboard") ? (
+            <Link
+              href="/admin/dashboard"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                pathname === "/admin/dashboard"
+                  ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              Dashboard
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push(UPGRADE_PATH)}
+              className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+              title="Not included in your plan. Request support."
+            >
+              <LayoutDashboard className="h-5 w-5" />
+              Dashboard
+            </button>
+          ))}
+        {/* OmniChat: gated by omnichat slug — link when effective, ghost when in role but not effective; page access guarded by route */}
+        {(hasRoleAccess("crm") || hasRoleAccess("omnichat")) &&
+          (hasEffectiveAccess("omnichat") ? (
+            <Link
+              href="/admin/crm/omnichat"
+              className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <MessageCircle className="h-5 w-5" />
+              OmniChat
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push(UPGRADE_PATH)}
+              className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+              title="Not included in your plan. Request support."
+            >
+              <MessageCircle className="h-5 w-5" />
+              OmniChat
+            </button>
+          ))}
+        {/* CRM twirldown: Phase F — hide section when no role access; ghost header/subs when in role but not effective */}
         <div className="pt-1">
-          {showCrm ? (
+          {showCrm && (
           <>
             <div
               className={cn(
@@ -601,16 +655,28 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
                 isCrm && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
               )}
             >
-              <Link
-                href="/admin/crm/contacts"
-                className={cn(
-                  "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
-                  isCrm ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-              >
-                <Building2 className="h-5 w-5 flex-shrink-0" />
-                CRM
-              </Link>
+              {hasEffectiveAccess("crm") || crmSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
+                <Link
+                  href="/admin/crm/contacts"
+                  className={cn(
+                    "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                    isCrm ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <Building2 className="h-5 w-5 flex-shrink-0" />
+                  CRM
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push(UPGRADE_PATH)}
+                  className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70"
+                  title="Not included in your plan. Request support."
+                >
+                  <Building2 className="h-5 w-5 flex-shrink-0" />
+                  CRM
+                </button>
+              )}
               {newContactsCount > 0 && (
                 <span
                   className="flex-shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white"
@@ -633,47 +699,59 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
             </div>
             {crmOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-                {crmSubNav.map((sub) => {
-                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "crm") || (sub.featureSlug ? canAccessFeature(effectiveFeatureSlugs, sub.featureSlug) : false);
-                  const isSubActive =
-                    sub.href === "/admin/crm/forms"
-                      ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
-                        !pathname?.startsWith("/admin/crm/forms/submissions")
-                      : pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
-                  const SubIcon = sub.icon;
-                  return hasSubAccess ? (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                        isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      )}
-                    >
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </Link>
-                  ) : (
-                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </span>
-                  );
-                })}
+                {crmSubNav
+                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "crm"))
+                  .map((sub) => {
+                    const subSlug = sub.featureSlug ?? "crm";
+                    const hasSubEffective = hasEffectiveAccess("crm") || hasEffectiveAccess(subSlug);
+                    const isSubActive =
+                      sub.href === "/admin/crm/forms"
+                        ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
+                          !pathname?.startsWith("/admin/crm/forms/submissions")
+                        : pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                    const SubIcon = sub.icon;
+                    return hasSubEffective ? (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                          isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
+                    ) : (
+                      <button
+                        key={sub.href}
+                        type="button"
+                        onClick={() => router.push(UPGRADE_PATH)}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+                        title="Not included in your plan. Request support."
+                      >
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </button>
+                    );
+                  })}
               </div>
             )}
           </>
-          ) : (
-          <span
-            className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
-            title="Upgrade your plan to access"
+          )}
+          {!showCrm && showCrmByRole && (
+          <button
+            type="button"
+            onClick={() => router.push(UPGRADE_PATH)}
+            className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+            title="Not included in your plan. Request support."
           >
             <Building2 className="h-5 w-5 flex-shrink-0" />
             CRM
-          </span>
+          </button>
           )}
         </div>
-        {/* Marketing twirldown: always visible; ghosted when no access */}
+        {/* Marketing twirldown: Phase F — hide when no role; ghost when in role but not effective */}
         <div className="pt-1">
           {showMarketing ? (
           <>
@@ -683,171 +761,202 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
                 isMarketing && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
               )}
             >
-              <Link
-                href="/admin/crm/marketing"
-                className={cn(
-                  "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
-                  isMarketing ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-              >
-                <Mail className="h-5 w-5 flex-shrink-0" />
-                Marketing
-              </Link>
-              <button
-                type="button"
-                onClick={toggleMarketing}
-                className={cn(
-                  "p-1 rounded transition-colors",
-                  isMarketing ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-                aria-expanded={marketingOpen}
-              >
+              {hasEffectiveAccess("marketing") || hasEffectiveAccess("lists") ? (
+                <Link
+                  href="/admin/crm/marketing"
+                  className={cn(
+                    "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                    isMarketing ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <Mail className="h-5 w-5 flex-shrink-0" />
+                  Marketing
+                </Link>
+              ) : (
+                <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Not included in your plan. Request support.">
+                  <Mail className="h-5 w-5 flex-shrink-0" />
+                  Marketing
+                </button>
+              )}
+              <button type="button" onClick={toggleMarketing} className={cn("p-1 rounded transition-colors", isMarketing ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={marketingOpen}>
                 {marketingOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
             {marketingOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-                {marketingSubNav.map((sub) => {
-                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "marketing") || canAccessFeature(effectiveFeatureSlugs, "lists");
-                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
-                  const SubIcon = sub.icon;
-                  return hasSubAccess ? (
-                    <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </Link>
-                  ) : (
-                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </span>
-                  );
-                })}
+                {marketingSubNav
+                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "marketing"))
+                  .map((sub) => {
+                    const subSlug = sub.featureSlug ?? "marketing";
+                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                    const SubIcon = sub.icon;
+                    return hasSubEffective ? (
+                      <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
+                    ) : (
+                      <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </button>
+                    );
+                  })}
               </div>
             )}
           </>
-          ) : (
-          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+          ) : showMarketingByRole ? (
+          <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Mail className="h-5 w-5 flex-shrink-0" />
             Marketing
-          </span>
-          )}
+          </button>
+          ) : null}
         </div>
-        {/* Calendar twirldown: always visible; ghosted when no access */}
+        {/* Calendar twirldown: Phase F — hide when no role; ghost when in role but not effective */}
         <div className="pt-1">
           {showCalendar ? (
           <>
             <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isEvents && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
-              <Link href="/admin/events" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isEvents ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
-                <Calendar className="h-5 w-5 flex-shrink-0" />
-                Calendar
-              </Link>
+              {hasEffectiveAccess("calendar") || calendarSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
+                <Link href="/admin/events" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isEvents ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                  <Calendar className="h-5 w-5 flex-shrink-0" />
+                  Calendar
+                </Link>
+              ) : (
+                <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Not included in your plan. Request support.">
+                  <Calendar className="h-5 w-5 flex-shrink-0" />
+                  Calendar
+                </button>
+              )}
               <button type="button" onClick={toggleCalendar} className={cn("p-1 rounded transition-colors", isEvents ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={calendarOpen}>
                 {calendarOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
             {calendarOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-                {calendarSubNav.map((sub) => {
-                  const slug = sub.href === "/admin/events" ? "events" : "resources";
-                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "calendar") || canAccessFeature(effectiveFeatureSlugs, slug);
-                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
-                  const SubIcon = sub.icon;
-                  return hasSubAccess ? (
-                    <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </Link>
-                  ) : (
-                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </span>
-                  );
-                })}
+                {calendarSubNav
+                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "calendar"))
+                  .map((sub) => {
+                    const subSlug = sub.featureSlug ?? "calendar";
+                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                    const SubIcon = sub.icon;
+                    return hasSubEffective ? (
+                      <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
+                    ) : (
+                      <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </button>
+                    );
+                  })}
               </div>
             )}
           </>
-          ) : (
-          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+          ) : showCalendarByRole ? (
+          <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Calendar className="h-5 w-5 flex-shrink-0" />
             Calendar
-          </span>
-          )}
+          </button>
+          ) : null}
         </div>
-        {/* Media twirldown: always visible; ghosted when no access */}
+        {/* Media twirldown: Phase F — hide when no role; ghost when in role but not effective */}
         <div className="pt-1">
           {showMedia ? (
           <>
             <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isMedia && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
-              <Link href="/admin/media" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isMedia ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
-                <Image className="h-5 w-5 flex-shrink-0" />
-                Media
-              </Link>
+              {hasEffectiveAccess("media") || mediaSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
+                <Link href="/admin/media" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isMedia ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                  <Image className="h-5 w-5 flex-shrink-0" />
+                  Media
+                </Link>
+              ) : (
+                <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Not included in your plan. Request support.">
+                  <Image className="h-5 w-5 flex-shrink-0" />
+                  Media
+                </button>
+              )}
               <button type="button" onClick={toggleMedia} className={cn("p-1 rounded transition-colors", isMedia ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={mediaOpen}>
                 {mediaOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
             {mediaOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-                {mediaSubNav.map((sub) => {
-                  const hasSubAccess = canAccessFeature(effectiveFeatureSlugs, "media") || canAccessFeature(effectiveFeatureSlugs, "library") || (sub.featureSlug ? canAccessFeature(effectiveFeatureSlugs, sub.featureSlug) : false);
-                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
-                  const SubIcon = sub.icon;
-                  return hasSubAccess ? (
-                    <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </Link>
-                  ) : (
-                    <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </span>
-                  );
-                })}
+                {mediaSubNav
+                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "media"))
+                  .map((sub) => {
+                    const subSlug = sub.featureSlug ?? "media";
+                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                    const SubIcon = sub.icon;
+                    return hasSubEffective ? (
+                      <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
+                    ) : (
+                      <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </button>
+                    );
+                  })}
               </div>
             )}
           </>
-          ) : (
-          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+          ) : showMediaByRole ? (
+          <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Image className="h-5 w-5 flex-shrink-0" />
             Media
-          </span>
-          )}
+          </button>
+          ) : null}
         </div>
-        {/* Content: always visible; ghosted when no access */}
-        {showContent ? (
-        <Link
-          href="/admin/content"
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-            isContent
-              ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          )}
-        >
-          <FileText className="h-5 w-5" />
-          Content
-        </Link>
-        ) : (
-        <span
-          className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
-          title="Upgrade your plan to access"
-        >
-          <FileText className="h-5 w-5" />
-          Content
-        </span>
-        )}
-        {/* Settings twirldown: always visible; ghosted when no access */}
+        {/* Content: Phase F — hide when not in role; ghost when in role but not effective */}
+        {hasRoleAccess("content") &&
+          (hasEffectiveAccess("content") ? (
+            <Link
+              href="/admin/content"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                isContent
+                  ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <FileText className="h-5 w-5" />
+              Content
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push(UPGRADE_PATH)}
+              className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+              title="Not included in your plan. Request support."
+            >
+              <FileText className="h-5 w-5" />
+              Content
+            </button>
+          ))}
+        {/* Settings twirldown: Phase F — hide when no role; ghost when in role but not effective */}
         <div className="pt-1">
           {showSettings ? (
           <>
             <div className={cn("flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium", isSettings && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
-              <Link href="/admin/settings" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2", isSettings ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
-                <Settings className="h-5 w-5" />
-                Settings
-              </Link>
+              {hasEffectiveAccess("settings") || settingsSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
+                <Link href="/admin/settings" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2", isSettings ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                  <Settings className="h-5 w-5" />
+                  Settings
+                </Link>
+              ) : (
+                <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Not included in your plan. Request support.">
+                  <Settings className="h-5 w-5" />
+                  Settings
+                </button>
+              )}
               <button type="button" onClick={toggleSettings} className={cn("p-1 rounded transition-colors", isSettings ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={settingsOpen}>
                 {settingsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
@@ -856,11 +965,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {settingsSubNav
                   .filter((sub) => !("adminOnly" in sub && sub.adminOnly) || canManageTeam)
+                  .filter((sub) => !("featureSlug" in sub && sub.featureSlug) || hasRoleAccess("settings") || (sub.featureSlug && hasRoleAccess(sub.featureSlug)))
                   .map((sub) => {
                     const isSubActive = pathname === sub.href;
                     const SubIcon = sub.icon;
                     const alwaysVisible = !("featureSlug" in sub && sub.featureSlug);
-                    const hasAccess = alwaysVisible || canAccessFeature(effectiveFeatureSlugs, "settings") || (sub.featureSlug && canAccessFeature(effectiveFeatureSlugs, sub.featureSlug));
+                    const subSlug = sub.featureSlug ?? "settings";
+                    const hasSubEffective = alwaysVisible || hasEffectiveAccess(subSlug);
                     if (alwaysVisible) {
                       return (
                         <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
@@ -869,96 +980,136 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", c
                         </Link>
                       );
                     }
-                    return hasAccess ? (
+                    return hasSubEffective ? (
                       <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
                     ) : (
-                      <span key={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+                      <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
-                      </span>
+                      </button>
                     );
                   })}
               </div>
             )}
           </>
-          ) : (
-          <span className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed" title="Upgrade your plan to access">
+          ) : (roleFeatureSlugs === "all" || hasRoleAccess("settings")) ? (
+          <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Settings className="h-5 w-5" />
             Settings
-          </span>
-          )}
+          </button>
+          ) : null}
         </div>
 
-        {/* Support twirldown (Quick Support, Knowledge Base) */}
+        {/* Support twirldown: Phase F — hide when no role; ghost when in role but not effective; one-to-one gate per child */}
         <div className="pt-1">
-          <div
-            className={cn(
-              "flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium",
-              isSupport && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
-            )}
-          >
-            <Link
-              href="/admin/support/quick-support"
+          {showSupport ? (
+          <>
+            <div
               className={cn(
-                "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
-                isSupport ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+                isSupport && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
               )}
+            >
+              {hasEffectiveAccess("support") || supportSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
+                <Link
+                  href="/admin/support"
+                  className={cn(
+                    "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2",
+                    isSupport ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <LifeBuoy className="h-5 w-5" />
+                  Support
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push(UPGRADE_PATH)}
+                  className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 text-left text-muted-foreground opacity-50 hover:opacity-70"
+                  title="Not included in your plan. Request support."
+                >
+                  <LifeBuoy className="h-5 w-5" />
+                  Support
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={toggleSupport}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  isSupport ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+                aria-expanded={supportOpen}
+              >
+                {supportOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {supportOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {supportSubNav
+                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "support"))
+                  .map((sub) => {
+                    const subSlug = sub.featureSlug ?? "support";
+                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const isSubActive = !sub.href.startsWith("http") && pathname === sub.href;
+                    const SubIcon = sub.icon;
+                    const isExternal = sub.href.startsWith("http");
+                    const linkClass = cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    );
+                    if (!hasSubEffective) {
+                      return (
+                        <button
+                          key={sub.href}
+                          type="button"
+                          onClick={() => router.push(UPGRADE_PATH)}
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+                          title="Not included in your plan. Request support."
+                        >
+                          <SubIcon className="h-4 w-4" />
+                          {sub.name}
+                        </button>
+                      );
+                    }
+                    if (isExternal) {
+                      return (
+                        <a
+                          key={sub.href}
+                          href={sub.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={linkClass}
+                        >
+                          <SubIcon className="h-4 w-4" />
+                          {sub.name}
+                        </a>
+                      );
+                    }
+                    return (
+                      <Link key={sub.href} href={sub.href} className={linkClass}>
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
+                    );
+                  })}
+              </div>
+            )}
+          </>
+          ) : showSupportByRole ? (
+            <button
+              type="button"
+              onClick={() => router.push(UPGRADE_PATH)}
+              className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+              title="Not included in your plan. Request support."
             >
               <LifeBuoy className="h-5 w-5" />
               Support
-            </Link>
-            <button
-              type="button"
-              onClick={toggleSupport}
-              className={cn(
-                "p-1 rounded transition-colors",
-                isSupport ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-              aria-expanded={supportOpen}
-            >
-              {supportOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </button>
-          </div>
-          {supportOpen && (
-            <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-              {supportSubNav.map((sub) => {
-                const isSubActive = !sub.href.startsWith("http") && pathname === sub.href;
-                const SubIcon = sub.icon;
-                const isExternal = sub.href.startsWith("http");
-                const linkClass = cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                  isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                );
-                if (isExternal) {
-                  return (
-                    <a
-                      key={sub.href}
-                      href={sub.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={linkClass}
-                    >
-                      <SubIcon className="h-4 w-4" />
-                      {sub.name}
-                    </a>
-                  );
-                }
-                return (
-                  <Link
-                    key={sub.href}
-                    href={sub.href}
-                    className={linkClass}
-                  >
-                    <SubIcon className="h-4 w-4" />
-                    {sub.name}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          ) : null}
         </div>
         </div>
         {/* Superadmin twirldown: Dashboard, Code snippets, Roles, Clients */}

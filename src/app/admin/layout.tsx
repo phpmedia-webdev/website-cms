@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { AdminLayoutWrapper } from "@/components/admin/AdminLayoutWrapper";
-import { getRoleForCurrentUser, getEffectiveFeatureSlugsForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
+import { getRoleForCurrentUser, getEffectiveFeatureSlugsForCurrentUser, getRoleFeatureSlugsForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getTenantSiteBySchema, getTenantSiteById } from "@/lib/supabase/tenant-sites";
-import { getEffectiveFeatureSlugs } from "@/lib/supabase/feature-registry";
+import { getEffectiveFeatureSlugs, getTenantEnabledFeatureSlugs, listRoleFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { getViewAsFromCookies } from "@/lib/admin/view-as";
 
 // Ensure layout always reads cookies and never serves cached "all" when view-as is active
@@ -42,6 +42,9 @@ export default async function AdminLayout({
   let siteName: string | null = null;
   let role: string | null = null;
   let effectiveFeatureSlugs: string[] | "all" = [];
+  let roleFeatureSlugs: string[] | "all" = [];
+  /** When set, sidebar uses this for display only (ghost state) so superadmin sees gate state; guards still use effectiveFeatureSlugs. */
+  let sidebarDisplayFeatureSlugs: string[] | null = null;
   let viewAsActive = false;
   let viewAsSiteName: string | null = null;
   let viewAsRole: string | null = null;
@@ -59,10 +62,15 @@ export default async function AdminLayout({
         siteName = viewAsSite.name;
         role = viewAs.roleSlug;
         try {
-          const slugs = await getEffectiveFeatureSlugs(viewAs.siteId, viewAs.roleSlug);
-          effectiveFeatureSlugs = Array.isArray(slugs) ? slugs : [];
+          const [effSlugs, roleSlugs] = await Promise.all([
+            getEffectiveFeatureSlugs(viewAs.siteId, viewAs.roleSlug),
+            listRoleFeatureSlugs(viewAs.roleSlug),
+          ]);
+          effectiveFeatureSlugs = Array.isArray(effSlugs) ? effSlugs : [];
+          roleFeatureSlugs = Array.isArray(roleSlugs) ? roleSlugs : [];
         } catch {
           effectiveFeatureSlugs = [];
+          roleFeatureSlugs = [];
         }
       }
     }
@@ -73,11 +81,18 @@ export default async function AdminLayout({
         const schema = getClientSchema();
         const site = await getTenantSiteBySchema(schema);
         siteName = site?.name ?? null;
-        effectiveFeatureSlugs = await getEffectiveFeatureSlugsForCurrentUser();
+        [effectiveFeatureSlugs, roleFeatureSlugs] = await Promise.all([
+          getEffectiveFeatureSlugsForCurrentUser(),
+          getRoleFeatureSlugsForCurrentUser(),
+        ]);
+        if (userIsSuperadmin && site) {
+          sidebarDisplayFeatureSlugs = await getTenantEnabledFeatureSlugs(site.id);
+        }
       } catch {
         if (userIsSuperadmin) {
           role = "superadmin";
           effectiveFeatureSlugs = "all";
+          roleFeatureSlugs = "all";
         }
       }
     }
@@ -100,6 +115,8 @@ export default async function AdminLayout({
       siteName={siteName}
       role={role}
       effectiveFeatureSlugs={effectiveFeatureSlugs}
+      roleFeatureSlugs={roleFeatureSlugs}
+      sidebarDisplayFeatureSlugs={sidebarDisplayFeatureSlugs}
       viewAsActive={viewAsActive}
       viewAsSiteName={viewAsSiteName}
       viewAsRole={viewAsRole}

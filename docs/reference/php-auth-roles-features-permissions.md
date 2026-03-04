@@ -60,10 +60,12 @@ Website-cms needs the following endpoints from PHP-Auth. Implement in PHP-Auth a
 
 **Purpose:** Tenant feature gating table (list of toggleable features); sort by **order**.
 
+**Full API spec:** [php-auth-external-feature-registry-api.md](./php-auth-external-feature-registry-api.md) — path, response shape. **Scope is derived from the API key** (no scope query param).
+
 | Item | Value |
 |------|--------|
-| **Method / path** | `GET /api/external/feature-registry` (or equivalent) |
-| **Query** | `scope=website-cms` |
+| **Method / path** | `GET /api/external/feature-registry` |
+| **Query** | None. Scope derived from API key. |
 | **Headers** | `X-API-Key: <AUTH_API_KEY>`, `Content-Type: application/json` |
 | **Response (200)** | `{ "success": true, "data": { "features": [ { "id": "uuid", "slug": "crm", "label": "CRM", "scope": "website-cms", "order": 10, "is_enabled": true }, ... ] } }` |
 | **Notes** | Sort by `order` ascending for display. Used for gating table in Superadmin Dashboard (Gating tab). |

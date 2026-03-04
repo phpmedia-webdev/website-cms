@@ -311,7 +311,7 @@ export function EventsPageClient({
     <div className="flex flex-col gap-6 h-[calc(100vh-11rem)]">
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 shrink-0">
         <div className="flex-1 min-w-0">
-          <h1 className="text-3xl font-bold">Calendar</h1>
+          <h1 className="text-3xl font-bold">Calendar Events</h1>
           <p className="text-muted-foreground mt-2">
             Manage events and recurring schedules
           </p>

@@ -14,6 +14,10 @@ interface AdminLayoutWrapperProps {
   role?: string | null;
   /** Effective feature slugs for sidebar and route guards; "all" = superadmin / allow everything. */
   effectiveFeatureSlugs?: string[] | "all";
+  /** Role-only feature slugs (Phase F: hide by role, ghost by plan). When set, sidebar hides items not in role, ghosts items in role but not in effective. */
+  roleFeatureSlugs?: string[] | "all";
+  /** When set and user is superadmin, sidebar uses this for link vs ghost display only (shows gate state); guards unchanged. */
+  sidebarDisplayFeatureSlugs?: string[] | null;
   /** View as Role + Site is active (superadmin testing). */
   viewAsActive?: boolean;
   viewAsSiteName?: string | null;
@@ -32,6 +36,8 @@ export function AdminLayoutWrapper({
   siteName = null,
   role = null,
   effectiveFeatureSlugs = [],
+  roleFeatureSlugs = [],
+  sidebarDisplayFeatureSlugs = null,
   viewAsActive = false,
   viewAsSiteName = null,
   viewAsRole = null,
@@ -81,12 +87,18 @@ export function AdminLayoutWrapper({
     viewAsActive && effectiveFeatureSlugs === "all"
       ? []
       : effectiveFeatureSlugs;
+  const roleSlugsForSidebar =
+    viewAsActive && roleFeatureSlugs === "all"
+      ? []
+      : roleFeatureSlugs;
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
         isSuperadmin={isSuperadmin}
         effectiveFeatureSlugs={effectiveSlugsForGuard}
+        roleFeatureSlugs={roleSlugsForSidebar}
+        sidebarDisplayFeatureSlugs={sidebarDisplayFeatureSlugs}
         canManageTeam={canManageTeam}
       />
       <div className="flex-1 flex flex-col overflow-hidden">

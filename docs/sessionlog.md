@@ -13,13 +13,13 @@
 **PHP-Auth migration:** M0 ✅ M1 ✅ M2 ✅ | **M3** ✅ (sync wired; addToOrgIfMissing; recovery doc) | **M4** ✅ (central-only read complete; step plan archived) | **M5** 🔄 partial (Phase D done: Dashboard, gating, Users; Phase E cleanup/docs TBD).  
 **Roles transition (this repo):** Step 1 ✅ | Step 2 ✅ | Step 3 ✅ | Step 4 (M4) ✅ | Step 4a (gating) ⏳ | Step 5 ⏳.
 
-**Recently completed:** See changelog (latest entry) for PHP-Auth conversion milestone summary. M0–M5, M3 sync, M5 Phases A–D, Roles steps 1–4 done; Phase F step plan added.
+**Recently completed:** See changelog (latest entry). Phase F F1–F5, one-to-one gate mapping, Superadmin gate display.
 
 ---
 
 ## Current Focus
 
-- [ ] **Phase F — Gating and Role Limit Navigation:** F1 (role feature slugs in layout), F2 (single upgrade page), F3 (sidebar hide by role / ghost by plan), F4 (FeatureGuard → upgrade page), F5 (copy and QA). See Phase F section below.
+- [ ] **Next (Phase F):** F6 — View As Role fix (resolve role features from PHP-Auth when view-as active so effective = tenant ∩ role is correct).
 - [ ] **Optional next:** Phase E (E10 deprecation doc, E10a getEffectiveFeatureSlugs from PHP-Auth, E11 docs) or Step 4a (gating). [authplanlog.md](./authplanlog.md) Section 1 + 2 for broader PHP-Auth integration.
 
 ---
@@ -124,21 +124,20 @@ When admin or superadmin adds/edits/removes a user or changes role in website-cm
 - **Role restrictions:** Links the user’s role does not allow are **hidden** (not shown) to avoid confusion. This includes **sub-level hiding**: e.g. under CRM, show only Contacts/Forms/Memberships the role allows; if the role has none, hide the whole section. Applies to all roles (including admins who may have a subset of features).
 - **Gating (plan / tenant toggles):** When the role allows a feature but the tenant has it turned off (subscription gate), show the link as **ghosted** (grayed, disabled). A **single upgrade page** shows the message “Not included in your plan. Request support” (or similar); no separate page per feature. Ghosted links and blocked access redirect to this page.
 
-**Current state:** Feature guard blocks access and redirects to dashboard with “This feature is not enabled for your account. Contact your plan administrator.” Sidebar hides items not in effective slugs. Role-only slugs and ghosted/upgrade UX are not implemented.
+**Phase F:** “This feature is not enabled for your account. Contact your plan administrator.” F1–F5 completed (see changelog 2026-03-04). Remaining: F6 below.
 
 | Step | Task | Status |
 |------|------|--------|
-| **F1** | **Role feature slugs in layout:** Provide “role-only” feature slugs to the client (e.g. `getRoleFeatureSlugsForCurrentUser()` or from PHP-Auth/local). Pass both **role slugs** and **effective slugs** from admin layout to sidebar (and guard). Depends on Step 4a or existing role→features. | ⏳ |
-| **F2** | **Single upgrade page:** Add route (e.g. `/admin/upgrade` or `/admin/feature-unavailable`) with copy “Not included in your plan. Request support” and CTA (support/contact link). | ⏳ |
-| **F3** | **Sidebar: hide by role, ghost by plan:** Hide items whose slug is not in **role** slugs (with sub-level rules: parent visible only if at least one child in role; hide children not in role). Ghost items in **role** but not in **effective** (disabled style; link or onClick → upgrade page). Normal link when in **effective**. | ⏳ |
-| **F4** | **FeatureGuard → upgrade page:** When access is blocked, redirect to the single upgrade page (or modal that links there) instead of dashboard. Same page for both “no role” and “no plan” unless different copy is desired. | ⏳ |
-| **F5** | **Copy and QA:** Finalize “Not included in your plan. Request support” and CTA; test role-hide (including sub-level), ghosted links, and direct URL hits. | ⏳ |
+| **F1** | **Role feature slugs in layout:** Provide “role-only” feature slugs to the client (e.g. `getRoleFeatureSlugsForCurrentUser()` or from PHP-Auth/local). Pass both **role slugs** and **effective slugs** from admin layout to sidebar (and guard). Depends on Step 4a or existing role→features. | ✅ |
+| **F2** | **Single upgrade page:** Add route (e.g. `/admin/upgrade` or `/admin/feature-unavailable`) with copy “Not included in your plan. Request support” and CTA (support/contact link). | ✅ |
+| **F3** | **Sidebar: hide by role, ghost by plan:** Hide items whose slug is not in **role** slugs (with sub-level rules: parent visible only if at least one child in role; hide children not in role). Ghost items in **role** but not in **effective** (disabled style; link or onClick → upgrade page). Normal link when in **effective**. | ✅ |
+| **F4** | **FeatureGuard → upgrade page:** When access is blocked, redirect to the single upgrade page (or modal that links there) instead of dashboard. Same page for both “no role” and “no plan” unless different copy is desired. | ✅ |
+| **F5** | **Copy and QA:** Finalize “Not included in your plan. Request support” and CTA; test role-hide (including sub-level), ghosted links, and direct URL hits. | ✅ |
+| **F6** | **View As Role (fix):** When "View Site As" is active, effective and role feature slugs are read from local Supabase only (`getEffectiveFeatureSlugs`, `listRoleFeatureSlugs` → `role_features`). If PHP-Auth is SSOT for role→features, the local table may be empty or out of sync, so effective = tenant ∩ role is wrong and sections (e.g. OmniChat, CRM, Calendar) show blocked even when the gate has only CRM off. **Fix:** When view-as is active, resolve role feature slugs from the same source as normal mode (PHP-Auth roles API or equivalent) instead of `listRoleFeatureSlugs(viewAs.roleSlug)`; ensure slug format matches gate slugs so effective = tenant_slugs ∩ role_slugs is correct. Optionally unify so both real-user and view-as use the same PHP-Auth–backed role-feature source. | ⏳ |
 
 ---
 
 ## Next up
-- [ ] **Change the first sub-item under Calendar** from "Calendar" to "Events"
-- [ ] **On the events page** change "Calendar" to "Calendar Events"
 - [ ] **Outbound SMTP emailer + contact activity stream**
   - [ ] Add SMTP/env config and Node.js emailer (e.g. nodemailer or built-in); lib to send email (to, subject, body).
   - [ ] API or server action: send email then create a CRM note for the contact with a dedicated note_type (e.g. `email_sent`); store subject and optional snippet in note body so it appears in the contact activity stream.

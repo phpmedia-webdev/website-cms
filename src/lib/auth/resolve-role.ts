@@ -15,7 +15,7 @@ import {
   getAssignmentByAdminAndTenant,
 } from "@/lib/supabase/tenant-users";
 import { getClientSchema } from "@/lib/supabase/schema";
-import { getEffectiveFeatureSlugs } from "@/lib/supabase/feature-registry";
+import { getEffectiveFeatureSlugs, listRoleFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { isPhpAuthConfigured } from "@/lib/php-auth/config";
 import { validateUser, getRoleSlugFromValidateUserData } from "@/lib/php-auth/validate-user";
 import type { PhpAuthValidateUserData } from "@/lib/php-auth/validate-user";
@@ -144,6 +144,20 @@ export async function getEffectiveFeatureSlugsForCurrentUser(): Promise<string[]
   }
 
   return getEffectiveFeatureSlugs(tenantSiteId, role);
+}
+
+/**
+ * Role-only feature slugs for the current user (Phase F: hide by role, ghost by plan).
+ * - Superadmin: returns "all".
+ * - Tenant user: returns slug[] from listRoleFeatureSlugs(role) (no tenant intersection).
+ * - No user or no role: returns [].
+ * Use with effectiveFeatureSlugs: hide items not in role slugs; ghost items in role but not in effective.
+ */
+export async function getRoleFeatureSlugsForCurrentUser(): Promise<string[] | "all"> {
+  const role = await getRoleForCurrentUser();
+  if (!role) return [];
+  if (role === PHP_AUTH_ROLE_SLUG.SUPERADMIN) return "all";
+  return listRoleFeatureSlugs(role);
 }
 
 /** Result for team management authZ: can the current user manage team for the current tenant, and are they an Owner? */

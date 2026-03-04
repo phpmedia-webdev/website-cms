@@ -11,6 +11,27 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-03-04 17:00 CT - Session wrap-up: Phase F F1–F5 complete; one-to-one gate mapping; Superadmin gate display
+
+**Context for Next Session:**
+- **Phase F:** F1–F5 done (role slugs in layout, upgrade page, sidebar hide/ghost, FeatureGuard → upgrade, copy finalized). One-to-one gate mapping complete for CRM, Marketing, Calendar, Media, Settings, Support; Superadmin sidebar shows gate state (display-only) via `sidebarDisplayFeatureSlugs`. **Remaining:** F6 — View As Role fix (resolve role features from PHP-Auth when view-as active so effective = tenant ∩ role is correct).
+- **Key files:** `src/app/admin/layout.tsx` (role + effective slugs, `sidebarDisplayFeatureSlugs` for superadmin), `src/components/admin/AdminLayoutWrapper.tsx`, `src/components/dashboard/Sidebar.tsx` (displayEffectiveSlugs, one-to-one sections), `src/lib/admin/route-features.ts` (FEATURE_PARENT_SLUG empty), `src/app/admin/upgrade/page.tsx`, `src/components/admin/FeatureGuard.tsx`, `docs/sessionlog.md` (Phase F remaining: F6).
+
+**Changes:**
+- **Changelog:** This entry; sessionlog Phase F completed items moved here.
+- **Sessionlog:** Phase F table reduced to remaining step F6; Current Focus updated to next (F6) and optional (Phase E, Step 4a). Completed F1–F5 and one-to-one/Superadmin display summarized in changelog.
+
+**Completed (Phase F, from sessionlog):**
+- **F1** Role feature slugs in layout: `getRoleFeatureSlugsForCurrentUser()`, both role and effective slugs passed from layout to sidebar/guard.
+- **F2** Single upgrade page: `/admin/upgrade` with copy “Not included in your plan. Request support” and CTAs (Back to Dashboard, Quick Support).
+- **F3** Sidebar hide by role, ghost by plan: sections hidden when not in role; items in role but not in effective shown ghosted with onClick → upgrade page.
+- **F4** FeatureGuard redirects to upgrade page (modal then OK → `/admin/upgrade`).
+- **F5** Copy finalized; upgrade page and FeatureGuard use same message.
+- **One-to-one gate mapping:** CRM, Marketing, Calendar, Media, Settings, Support (and children) each gated by own slug; `FEATURE_PARENT_SLUG` cleared; sidebar link/ghost per slug.
+- **Superadmin gate display (Option A):** When superadmin, sidebar uses `sidebarDisplayFeatureSlugs` (tenant-enabled slugs) for display only so nav shows ghosted state for gated-off features; guards unchanged (superadmin still has access).
+
+---
+
 ### 2026-02-26 CT - Session wrap-up: PHP-Auth conversion milestone; Phase F (gating UX) step plan added
 
 **Context for Next Session:**

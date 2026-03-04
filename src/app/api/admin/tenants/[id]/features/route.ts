@@ -2,14 +2,11 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { isSuperadminAsync } from "@/lib/auth/resolve-role";
 import {
-  listFeatures,
   getTenantEnabledFeatureSlugs,
   setTenantFeatureSlugs,
   SUPERADMIN_FEATURE_SLUG,
-  featuresForRoleOrTenantUI,
-  orderedFeatures,
 } from "@/lib/supabase/feature-registry";
-import { getFeatureRegistryFromPhpAuth } from "@/lib/php-auth/fetch-features";
+import { getFeaturesForGatingTable } from "@/lib/admin/gating-features";
 
 export type TenantFeatureItem = { slug: string; label: string; order: number };
 
@@ -34,23 +31,10 @@ export async function GET(
     if (!tenantId) {
       return NextResponse.json({ error: "Missing tenant id" }, { status: 400 });
     }
-    const [phpAuthFeatures, enabledSlugs] = await Promise.all([
-      getFeatureRegistryFromPhpAuth(),
+    const [features, enabledSlugs] = await Promise.all([
+      getFeaturesForGatingTable(),
       getTenantEnabledFeatureSlugs(tenantId),
     ]);
-    const features: TenantFeatureItem[] =
-      phpAuthFeatures.length > 0
-        ? phpAuthFeatures
-            .filter((f) => f.slug !== SUPERADMIN_FEATURE_SLUG)
-            .map((f) => ({
-              slug: f.slug,
-              label: f.label,
-              order: f.order ?? 0,
-            }))
-            .sort((a, b) => a.order - b.order)
-        : orderedFeatures(featuresForRoleOrTenantUI(await listFeatures(true))).map(
-            (f) => ({ slug: f.slug, label: f.label, order: f.display_order })
-          );
     return NextResponse.json({ features, enabledSlugs });
   } catch (error) {
     console.error("GET /api/admin/tenants/[id]/features:", error);

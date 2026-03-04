@@ -3,14 +3,8 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getTenantSiteById } from "@/lib/supabase/tenant-sites";
-import {
-  listFeatures,
-  getTenantEnabledFeatureSlugs,
-  featuresForRoleOrTenantUI,
-  orderedFeatures,
-  SUPERADMIN_FEATURE_SLUG,
-} from "@/lib/supabase/feature-registry";
-import { getFeatureRegistryFromPhpAuth } from "@/lib/php-auth/fetch-features";
+import { getTenantEnabledFeatureSlugs } from "@/lib/supabase/feature-registry";
+import { getFeaturesForGatingTable } from "@/lib/admin/gating-features";
 import { TenantFeaturesManager } from "@/components/superadmin/TenantFeaturesManager";
 import { TenantSiteModeCard } from "@/components/superadmin/TenantSiteModeCard";
 import { RelatedTenantUsersClient } from "@/components/superadmin/RelatedTenantUsersClient";
@@ -30,25 +24,12 @@ export default async function SuperadminTenantSiteDetailPage({
   if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const { id } = await params;
-  const [site, phpAuthFeatures, localFeatures, enabledSlugs] = await Promise.all([
+  const [site, featuresForUI, enabledSlugs] = await Promise.all([
     getTenantSiteById(id),
-    getFeatureRegistryFromPhpAuth(),
-    listFeatures(true),
+    getFeaturesForGatingTable(),
     getTenantEnabledFeatureSlugs(id),
   ]);
   if (!site) notFound();
-
-  const featuresForUI =
-    phpAuthFeatures.length > 0
-      ? phpAuthFeatures
-          .filter((f) => f.slug !== SUPERADMIN_FEATURE_SLUG)
-          .map((f) => ({ slug: f.slug, label: f.label, order: f.order ?? 0 }))
-          .sort((a, b) => a.order - b.order)
-      : orderedFeatures(featuresForRoleOrTenantUI(localFeatures)).map((f) => ({
-          slug: f.slug,
-          label: f.label,
-          order: f.display_order,
-        }));
 
   return (
     <div className="space-y-6">

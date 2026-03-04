@@ -3,11 +3,13 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
-import { listTenantSites, getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
+import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getRolesForAssignmentFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 import { getViewAsFromCookies } from "@/lib/admin/view-as";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 import { ViewAsCard } from "@/components/superadmin/ViewAsCard";
 
 /**
@@ -21,8 +23,7 @@ export default async function SuperadminPage() {
   if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const schema = getClientSchema();
-  const [sites, roles, currentSite] = await Promise.all([
-    listTenantSites(),
+  const [roles, currentSite] = await Promise.all([
     getRolesForAssignmentFromPhpAuth(),
     getTenantSiteBySchema(schema),
   ]);
@@ -41,7 +42,7 @@ export default async function SuperadminPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Current site</CardTitle>
+            <CardTitle>Site Status</CardTitle>
             <CardDescription>
               This deployment’s tenant site (from schema)
             </CardDescription>
@@ -49,16 +50,16 @@ export default async function SuperadminPage() {
           <CardContent>
             {currentSite ? (
               <div className="space-y-2 text-sm">
-                <p><span className="font-medium text-muted-foreground">Name:</span> {currentSite.name}</p>
-                <p><span className="font-medium text-muted-foreground">Schema:</span> {currentSite.schema_name}</p>
+                <p><span className="font-medium text-muted-foreground">Site Name:</span> {currentSite.name}</p>
+                <p><span className="font-medium text-muted-foreground">Database Schema:</span> {currentSite.schema_name}</p>
                 <p><span className="font-medium text-muted-foreground">URL:</span> {currentSite.deployment_url || "—"}</p>
                 <p><span className="font-medium text-muted-foreground">Status:</span> {currentSite.status}</p>
-                <Link
-                  href={`/admin/super/tenant-sites/${currentSite.id}`}
-                  className="inline-block mt-2 text-sm font-medium text-primary hover:underline"
-                >
-                  Site settings & gating →
-                </Link>
+                <Button variant="outline" size="sm" className="mt-2" asChild>
+                  <Link href="/admin/super/site-settings">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Site Settings
+                  </Link>
+                </Button>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -67,7 +68,7 @@ export default async function SuperadminPage() {
             )}
           </CardContent>
         </Card>
-        <ViewAsCard sites={sites} roles={roles} initialViewAs={viewAs} />
+        <ViewAsCard currentSite={currentSite} roles={roles} initialViewAs={viewAs} />
 
         <Card>
           <CardHeader>

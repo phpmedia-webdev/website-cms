@@ -20,7 +20,6 @@ import {
   Shield,
   ShieldCheck,
   Code,
-  CheckCircle2,
   Activity,
 } from "lucide-react";
 
@@ -56,12 +55,12 @@ export const crmSubNav: SubNavItem[] = [
 ];
 
 export const marketingSubNav: SubNavItem[] = [
-  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks },
+  { name: "Lists", href: "/admin/crm/lists", icon: ListChecks, featureSlug: "lists" },
 ];
 
 export const calendarSubNav: SubNavItem[] = [
-  { name: "Calendar", href: "/admin/events", icon: Calendar },
-  { name: "Resources", href: "/admin/events/resources", icon: Box },
+  { name: "Events", href: "/admin/events", icon: Calendar, featureSlug: "events" },
+  { name: "Resources", href: "/admin/events/resources", icon: Box, featureSlug: "resources" },
 ];
 
 export const settingsSubNav: SubNavItem[] = [
@@ -74,16 +73,15 @@ export const settingsSubNav: SubNavItem[] = [
 ];
 
 export const supportSubNav: SubNavItem[] = [
-  { name: "Quick Support", href: "/admin/support/quick-support", icon: MessageCircle },
-  { name: "Knowledge Base", href: "/admin/support/knowledge-base", icon: BookOpen },
-  { name: "WorkHub", href: "https://desktop.phpmedia.com/", icon: Briefcase },
+  { name: "Quick Support", href: "/admin/support/quick-support", icon: MessageCircle, featureSlug: "quick_support" },
+  { name: "Knowledge Base", href: "/admin/support/knowledge-base", icon: BookOpen, featureSlug: "knowledge_base" },
+  { name: "WorkHub", href: "https://desktop.phpmedia.com/", icon: Briefcase, featureSlug: "workhub" },
 ];
 
 export const superadminSubNav: SubNavItem[] = [
   { name: "Dashboard", href: "/admin/super", icon: Shield },
   { name: "Tenant Users", href: "/admin/super/tenant-users", icon: Users },
   { name: "Roles", href: "/admin/super/roles", icon: ShieldCheck },
-  { name: "Verify session", href: "/admin/super/verify-session", icon: CheckCircle2 },
   { name: "Auth test", href: "/admin/super/auth-test", icon: Activity },
   { name: "Code Library", href: "/admin/super/code-library", icon: Code },
   { name: "Security", href: "/admin/super/security", icon: Shield },
