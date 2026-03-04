@@ -18,8 +18,8 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 - **Key files:** `src/app/admin/layout.tsx` (role + effective slugs, `sidebarDisplayFeatureSlugs` for superadmin), `src/components/admin/AdminLayoutWrapper.tsx`, `src/components/dashboard/Sidebar.tsx` (displayEffectiveSlugs, one-to-one sections), `src/lib/admin/route-features.ts` (FEATURE_PARENT_SLUG empty), `src/app/admin/upgrade/page.tsx`, `src/components/admin/FeatureGuard.tsx`, `docs/sessionlog.md` (Phase F remaining: F6).
 
 **Changes:**
-- **Changelog:** This entry; sessionlog Phase F completed items moved here.
-- **Sessionlog:** Phase F table reduced to remaining step F6; Current Focus updated to next (F6) and optional (Phase E, Step 4a). Completed F1–F5 and one-to-one/Superadmin display summarized in changelog.
+- **Changelog:** This entry; sessionlog completed items summarized here.
+- **Sessionlog:** Trimmed to lean: all completed items removed (PHP-Auth M0–M5 table, M3 steps, M5 Phases A–D, Roles 1–4 table, Phase F F1–F5 rows). Only remaining work kept: F6, Phase E (E10, E10a, E11), Roles 4a/5, Next up, Paused/Later. Full completion history in this changelog and planlog.
 
 **Completed (Phase F, from sessionlog):**
 - **F1** Role feature slugs in layout: `getRoleFeatureSlugsForCurrentUser()`, both role and effective slugs passed from layout to sidebar/guard.

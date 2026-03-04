@@ -386,7 +386,7 @@ export function AuthTestClient({ verifySession }: AuthTestClientProps) {
             <CardHeader className="pb-2">
               <h2 className="text-lg font-semibold">Look up user in PHP-Auth</h2>
               <p className="text-sm text-muted-foreground">
-                Enter an email to check if that user is in the PHP-Auth user list for this application's organization. Calls <code>GET /api/external/check-user?email=...</code> (email is normalized to lowercase). Response: <code>exists: true</code> with minimal user info if in your org, or <code>exists: false</code> if not. If you get 404, the endpoint may not be deployed on your auth server; set <code>AUTH_CHECK_USER_PATH</code> to override the path (e.g. <code>api/v1/check-user</code>). See sync-user-role API doc Section 9.
+                Enter an email to check if that user is in the PHP-Auth user list for this application&apos;s organization. Calls <code>GET /api/external/check-user?email=...</code> (email is normalized to lowercase). Response: <code>exists: true</code> with minimal user info if in your org, or <code>exists: false</code> if not. If you get 404, the endpoint may not be deployed on your auth server; set <code>AUTH_CHECK_USER_PATH</code> to override the path (e.g. <code>api/v1/check-user</code>). See sync-user-role API doc Section 9.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
