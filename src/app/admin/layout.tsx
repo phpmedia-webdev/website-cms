@@ -4,8 +4,10 @@ import { AdminLayoutWrapper } from "@/components/admin/AdminLayoutWrapper";
 import { getRoleForCurrentUser, getEffectiveFeatureSlugsForCurrentUser, getRoleFeatureSlugsForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getTenantSiteBySchema, getTenantSiteById } from "@/lib/supabase/tenant-sites";
-import { getEffectiveFeatureSlugs, getTenantEnabledFeatureSlugs, listRoleFeatureSlugs } from "@/lib/supabase/feature-registry";
+import { getEffectiveFeatureSlugs, getTenantEnabledFeatureSlugs, getRoleFeatureSlugsForGating } from "@/lib/supabase/feature-registry";
 import { getViewAsFromCookies } from "@/lib/admin/view-as";
+import { isPhpAuthConfigured } from "@/lib/php-auth/config";
+import { getRoleFeatureSlugsFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 
 // Ensure layout always reads cookies and never serves cached "all" when view-as is active
 export const dynamic = "force-dynamic";
@@ -62,12 +64,27 @@ export default async function AdminLayout({
         siteName = viewAsSite.name;
         role = viewAs.roleSlug;
         try {
-          const [effSlugs, roleSlugs] = await Promise.all([
-            getEffectiveFeatureSlugs(viewAs.siteId, viewAs.roleSlug),
-            listRoleFeatureSlugs(viewAs.roleSlug),
-          ]);
-          effectiveFeatureSlugs = Array.isArray(effSlugs) ? effSlugs : [];
-          roleFeatureSlugs = Array.isArray(roleSlugs) ? roleSlugs : [];
+          if (isPhpAuthConfigured()) {
+            if (isSuperadminFromRole(viewAs.roleSlug)) {
+              roleFeatureSlugs = "all";
+              effectiveFeatureSlugs = "all";
+            } else {
+              const [tenantSlugs, phpRoleSlugs] = await Promise.all([
+                getTenantEnabledFeatureSlugs(viewAs.siteId),
+                getRoleFeatureSlugsFromPhpAuth(viewAs.roleSlug),
+              ]);
+              roleFeatureSlugs = Array.isArray(phpRoleSlugs) ? phpRoleSlugs : [];
+              const roleSet = new Set(roleFeatureSlugs);
+              effectiveFeatureSlugs = tenantSlugs.filter((slug) => roleSet.has(slug));
+            }
+          } else {
+            const [effSlugs, roleSlugs] = await Promise.all([
+              getEffectiveFeatureSlugs(viewAs.siteId, viewAs.roleSlug),
+              getRoleFeatureSlugsForGating(viewAs.roleSlug),
+            ]);
+            effectiveFeatureSlugs = Array.isArray(effSlugs) ? effSlugs : [];
+            roleFeatureSlugs = Array.isArray(roleSlugs) ? roleSlugs : [];
+          }
         } catch {
           effectiveFeatureSlugs = [];
           roleFeatureSlugs = [];

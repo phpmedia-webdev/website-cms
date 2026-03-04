@@ -26,6 +26,8 @@ So for website-cms:
 
 All in **public** schema, Supabase.
 
+**Deprecation note:** For **gating** (which features a role has), PHP-Auth is the source of truth when configured. **admin_roles** and **role_features** are not SSOT for role→feature assignments; they are fallback only when PHP-Auth is unavailable. See [php-auth-ssot-roles-features-plan.md](./php-auth-ssot-roles-features-plan.md).
+
 | Table | Purpose | Key columns |
 |------|---------|-------------|
 | **admin_roles** | Global role definitions. | `slug` (PK): admin, editor, creator, viewer + custom; `label`, `description`, `is_system`. |

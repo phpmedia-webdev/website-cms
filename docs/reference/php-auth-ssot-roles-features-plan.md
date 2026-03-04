@@ -86,6 +86,8 @@ Website-cms uses **both**: `role.features` for gating (e.g. extract `slug` for e
 - Remove fallback to `listRoleFeatureSlugs` so role→features are only from PHP-Auth when configured.
 - Document that `role_features` is not SSOT for gating; PHP-Auth is.
 
+**Deprecation (SSOT):** For gating (sidebar, route guards, effective features), **PHP-Auth is the source of truth** for which features a role has. The website-cms tables **admin_roles**, **role_features**, and the role-to-feature read path of **feature_registry** are **not** the source of truth for role→feature assignments. When PHP-Auth is configured, role feature slugs are read from the PHP-Auth roles API (`GET /api/external/roles` → `role.features[].slug`). The local **role_features** table is only used as a fallback when PHP-Auth is not configured or the request fails. **tenant_sites** and tenant-enabled features (**tenant_feature_slugs** / **tenant_features**) remain in website-cms and are unchanged.
+
 ### Phase 4: Permissions (included in API payload; implement in website-cms)
 
 - **Permissions are included in the roles API response** (`role.permissions`: `[{ slug, label, isEnabled }, ...]`). We implement permission resolution alongside features.
@@ -122,10 +124,10 @@ Website-cms uses **both**: `role.features` for gating (e.g. extract `slug` for e
 ## 8. Checklist (for planlog / implementation)
 
 - [x] **PHP-Auth:** Roles API returns **features and permissions** per role in the payload (Option A implemented). Document: [php-auth-external-roles-api.md](./php-auth-external-roles-api.md).
-- [ ] **Website-cms:** Add `getRoleFeatureSlugsFromPhpAuth(roleSlug)` (and caching if needed).
-- [ ] **Website-cms:** In `getEffectiveFeatureSlugs`, use PHP-Auth for role feature slugs when configured; keep fallback to `listRoleFeatureSlugs` during transition.
+- [x] **Website-cms:** Add `getRoleFeatureSlugsFromPhpAuth(roleSlug)` (and caching if needed).
+- [x] **Website-cms:** In `getEffectiveFeatureSlugs`, use PHP-Auth for role feature slugs when configured; keep fallback to `listRoleFeatureSlugs` during transition (via `getRoleFeatureSlugsForGating`).
 - [ ] **Website-cms:** (Optional) Remove fallback once PHP-Auth is verified in production (central-only).
 - [x] **Docs:** [php-auth-external-roles-api.md](./php-auth-external-roles-api.md) updated with features and permissions in the response shape.
 - [ ] **Website-cms:** Implement permission resolution from `role.permissions` (same payload as features) for permission-based checks when needed.
-- [ ] **Deprecation:** Document that `role_features` is not SSOT for gating; PHP-Auth is.
+- [x] **Deprecation:** Document that `role_features` is not SSOT for gating; PHP-Auth is (see Phase 3 and cross-reference doc).
 - [x] **Hierarchical features/permissions:** API provides **parentSlug**; website-cms parses it, builds tree (`buildFeatureOrPermissionTree`), renders roles Permissions/Features in role detail with hierarchy (read-only). See §7.

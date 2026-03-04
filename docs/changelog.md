@@ -11,6 +11,20 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-03-04 18:30 CT - Session wrap-up: F6 View As fix, Phase E (E10, E10a, E11)
+
+**Context for Next Session:**
+- **F6 and Phase E complete.** View As now uses PHP-Auth for role features when configured; effective = tenant ∩ role. Gating (normal user and view-as) uses PHP-Auth when configured via `getRoleFeatureSlugsForGating(roleSlug)` in feature-registry; fallback to local `listRoleFeatureSlugs` when PHP-Auth unavailable or on error. Deprecation documented: admin_roles/role_features are not SSOT for gating (see reference docs).
+- **Remaining (optional):** Roles step 5 — document deprecation of read path for admin_roles, role_features, tenant_user_assignments (E10 already covers gating SSOT). **Next up:** See sessionlog (SMTP + contact activity, PWA notifications, Media Copy Shortcode, Terms/Policys link, CRM sorting, Form submission pagination/filter).
+
+**Changes:**
+- **F6 — View As Role fix:** `getRoleFeatureSlugsFromPhpAuth(roleSlug)` in `src/lib/php-auth/fetch-roles.ts`. Admin layout when view-as active and PHP-Auth configured: role features from PHP-Auth; effective = tenant ∩ role; superadmin view-as → "all". Fallback to local when not configured.
+- **E10 — Deprecation doc:** [php-auth-ssot-roles-features-plan.md](./reference/php-auth-ssot-roles-features-plan.md) (Phase 3) and [php-auth-website-cms-tables-cross-reference.md](./reference/php-auth-website-cms-tables-cross-reference.md) (§2): PHP-Auth is SSOT for role→feature assignments for gating; admin_roles, role_features fallback only.
+- **E10a — Gating from PHP-Auth:** `getRoleFeatureSlugsForGating(roleSlug)` in `src/lib/supabase/feature-registry.ts`; used in `getEffectiveFeatureSlugs`, `getRoleFeatureSlugsForCurrentUser` (resolve-role), and admin layout view-as fallback. Roles 4a done.
+- **E11:** Sessionlog trimmed (completed F6, Phase E, 4a removed); changelog and reference plan checklist updated.
+
+---
+
 ### 2026-03-04 17:00 CT - Session wrap-up: Phase F F1–F5 complete; one-to-one gate mapping; Superadmin gate display
 
 **Context for Next Session:**

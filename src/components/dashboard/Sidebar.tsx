@@ -64,6 +64,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   /** For sidebar display only: superadmin sees gate state (ghost when gate off); others use effective. */
   const displayEffectiveSlugs: string[] | "all" =
     isSuperadmin && Array.isArray(sidebarDisplayFeatureSlugs) ? sidebarDisplayFeatureSlugs : effectiveFeatureSlugs;
+  /** When true, ghosted items are display-only: show as ghost but Superadmin can still open (Link); no upgrade redirect. */
+  const isDisplayOnlyGhost = isSuperadmin && Array.isArray(sidebarDisplayFeatureSlugs);
 
   /** Phase F: in role = allowed by role (ignore tenant). When roleFeatureSlugs === "all", always true. */
   const hasRoleAccess = (slug: string) =>
@@ -107,18 +109,18 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     canAccessFeature(displayEffectiveSlugs, "marketing") ||
     canAccessFeature(displayEffectiveSlugs, "memberships") ||
     canAccessFeature(displayEffectiveSlugs, "code_generator");
-  const showCrm = showCrmEffective && (roleFeatureSlugs === "all" || showCrmByRole);
+  const showCrm = (showCrmEffective || (isDisplayOnlyGhost && showCrmByRole)) && (roleFeatureSlugs === "all" || showCrmByRole);
   const showMediaByRole = hasRoleAccess("media") || hasRoleAccess("library") || hasRoleAccess("galleries");
   const showMediaEffective =
     canAccessFeature(displayEffectiveSlugs, "media") ||
     canAccessFeature(displayEffectiveSlugs, "library") ||
     canAccessFeature(displayEffectiveSlugs, "galleries");
-  const showMedia = showMediaEffective && (roleFeatureSlugs === "all" || showMediaByRole);
+  const showMedia = (showMediaEffective || (isDisplayOnlyGhost && showMediaByRole)) && (roleFeatureSlugs === "all" || showMediaByRole);
   const showContent =
     canAccessFeature(displayEffectiveSlugs, "content") && (roleFeatureSlugs === "all" || hasRoleAccess("content"));
   const showMarketingByRole = hasRoleAccess("marketing") || hasRoleAccess("lists");
   const showMarketingEffective = canAccessFeature(displayEffectiveSlugs, "marketing");
-  const showMarketing = showMarketingEffective && (roleFeatureSlugs === "all" || showMarketingByRole);
+  const showMarketing = (showMarketingEffective || (isDisplayOnlyGhost && showMarketingByRole)) && (roleFeatureSlugs === "all" || showMarketingByRole);
   const showCalendarByRole =
     hasRoleAccess("content") ||
     hasRoleAccess("calendar") ||
@@ -129,7 +131,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     canAccessFeature(displayEffectiveSlugs, "calendar") ||
     canAccessFeature(displayEffectiveSlugs, "events") ||
     canAccessFeature(displayEffectiveSlugs, "resources");
-  const showCalendar = showCalendarEffective && (roleFeatureSlugs === "all" || showCalendarByRole);
+  const showCalendar = (showCalendarEffective || (isDisplayOnlyGhost && showCalendarByRole)) && (roleFeatureSlugs === "all" || showCalendarByRole);
   const showSettings =
     canAccessFeature(effectiveFeatureSlugs, "settings") && (roleFeatureSlugs === "all" || hasRoleAccess("settings"));
   const showSupportByRole =
@@ -142,7 +144,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     canAccessFeature(displayEffectiveSlugs, "quick_support") ||
     canAccessFeature(displayEffectiveSlugs, "knowledge_base") ||
     canAccessFeature(displayEffectiveSlugs, "workhub");
-  const showSupport = showSupportEffective && (roleFeatureSlugs === "all" || showSupportByRole);
+  const showSupport = (showSupportEffective || (isDisplayOnlyGhost && showSupportByRole)) && (roleFeatureSlugs === "all" || showSupportByRole);
   const showOmniChat =
     canAccessFeature(displayEffectiveSlugs, "omnichat") && (roleFeatureSlugs === "all" || hasRoleAccess("crm") || hasRoleAccess("omnichat"));
 
@@ -613,6 +615,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
               <LayoutDashboard className="h-5 w-5" />
               Dashboard
             </Link>
+          ) : isDisplayOnlyGhost ? (
+            <Link href="/admin/dashboard" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+              <LayoutDashboard className="h-5 w-5" />
+              Dashboard
+            </Link>
           ) : (
             <button
               type="button"
@@ -631,6 +638,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
               href="/admin/crm/omnichat"
               className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
+              <MessageCircle className="h-5 w-5" />
+              OmniChat
+            </Link>
+          ) : isDisplayOnlyGhost ? (
+            <Link href="/admin/crm/omnichat" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
               <MessageCircle className="h-5 w-5" />
               OmniChat
             </Link>
@@ -663,6 +675,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                     isCrm ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
+                  <Building2 className="h-5 w-5 flex-shrink-0" />
+                  CRM
+                </Link>
+              ) : isDisplayOnlyGhost ? (
+                <Link href="/admin/crm/contacts" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
                   <Building2 className="h-5 w-5 flex-shrink-0" />
                   CRM
                 </Link>
@@ -722,6 +739,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
+                    ) : isDisplayOnlyGhost ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
                     ) : (
                       <button
                         key={sub.href}
@@ -740,6 +762,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
           </>
           )}
           {!showCrm && showCrmByRole && (
+          isDisplayOnlyGhost ? (
+            <Link href="/admin/crm/contacts" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+              <Building2 className="h-5 w-5 flex-shrink-0" />
+              CRM
+            </Link>
+          ) : (
           <button
             type="button"
             onClick={() => router.push(UPGRADE_PATH)}
@@ -749,6 +777,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             <Building2 className="h-5 w-5 flex-shrink-0" />
             CRM
           </button>
+          )
           )}
         </div>
         {/* Marketing twirldown: Phase F — hide when no role; ghost when in role but not effective */}
@@ -769,6 +798,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                     isMarketing ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
+                  <Mail className="h-5 w-5 flex-shrink-0" />
+                  Marketing
+                </Link>
+              ) : isDisplayOnlyGhost ? (
+                <Link href="/admin/crm/marketing" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
                   <Mail className="h-5 w-5 flex-shrink-0" />
                   Marketing
                 </Link>
@@ -796,6 +830,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
+                    ) : isDisplayOnlyGhost ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
                     ) : (
                       <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
                         <SubIcon className="h-4 w-4" />
@@ -807,10 +846,17 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             )}
           </>
           ) : showMarketingByRole ? (
+          isDisplayOnlyGhost ? (
+            <Link href="/admin/crm/marketing" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+              <Mail className="h-5 w-5 flex-shrink-0" />
+              Marketing
+            </Link>
+          ) : (
           <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Mail className="h-5 w-5 flex-shrink-0" />
             Marketing
           </button>
+          )
           ) : null}
         </div>
         {/* Calendar twirldown: Phase F — hide when no role; ghost when in role but not effective */}
@@ -820,6 +866,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isEvents && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
               {hasEffectiveAccess("calendar") || calendarSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
                 <Link href="/admin/events" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isEvents ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                  <Calendar className="h-5 w-5 flex-shrink-0" />
+                  Calendar
+                </Link>
+              ) : isDisplayOnlyGhost ? (
+                <Link href="/admin/events" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
                   <Calendar className="h-5 w-5 flex-shrink-0" />
                   Calendar
                 </Link>
@@ -847,6 +898,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
+                    ) : isDisplayOnlyGhost ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
                     ) : (
                       <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
                         <SubIcon className="h-4 w-4" />
@@ -858,10 +914,17 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             )}
           </>
           ) : showCalendarByRole ? (
+          isDisplayOnlyGhost ? (
+            <Link href="/admin/events" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+              <Calendar className="h-5 w-5 flex-shrink-0" />
+              Calendar
+            </Link>
+          ) : (
           <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Calendar className="h-5 w-5 flex-shrink-0" />
             Calendar
           </button>
+          )
           ) : null}
         </div>
         {/* Media twirldown: Phase F — hide when no role; ghost when in role but not effective */}
@@ -871,6 +934,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isMedia && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
               {hasEffectiveAccess("media") || mediaSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
                 <Link href="/admin/media" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isMedia ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                  <Image className="h-5 w-5 flex-shrink-0" />
+                  Media
+                </Link>
+              ) : isDisplayOnlyGhost ? (
+                <Link href="/admin/media" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
                   <Image className="h-5 w-5 flex-shrink-0" />
                   Media
                 </Link>
@@ -898,6 +966,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
+                    ) : isDisplayOnlyGhost ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
                     ) : (
                       <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
                         <SubIcon className="h-4 w-4" />
@@ -909,10 +982,17 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             )}
           </>
           ) : showMediaByRole ? (
+          isDisplayOnlyGhost ? (
+            <Link href="/admin/media" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+              <Image className="h-5 w-5 flex-shrink-0" />
+              Media
+            </Link>
+          ) : (
           <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Image className="h-5 w-5 flex-shrink-0" />
             Media
           </button>
+          )
           ) : null}
         </div>
         {/* Content: Phase F — hide when not in role; ghost when in role but not effective */}
@@ -927,6 +1007,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
+              <FileText className="h-5 w-5" />
+              Content
+            </Link>
+          ) : isDisplayOnlyGhost ? (
+            <Link href="/admin/content" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
               <FileText className="h-5 w-5" />
               Content
             </Link>
@@ -948,6 +1033,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             <div className={cn("flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium", isSettings && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
               {hasEffectiveAccess("settings") || settingsSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
                 <Link href="/admin/settings" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2", isSettings ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                  <Settings className="h-5 w-5" />
+                  Settings
+                </Link>
+              ) : isDisplayOnlyGhost ? (
+                <Link href="/admin/settings" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
                   <Settings className="h-5 w-5" />
                   Settings
                 </Link>
@@ -985,6 +1075,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
+                    ) : isDisplayOnlyGhost ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
                     ) : (
                       <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
                         <SubIcon className="h-4 w-4" />
@@ -996,10 +1091,17 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             )}
           </>
           ) : (roleFeatureSlugs === "all" || hasRoleAccess("settings")) ? (
+          isDisplayOnlyGhost ? (
+            <Link href="/admin/settings" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+              <Settings className="h-5 w-5" />
+              Settings
+            </Link>
+          ) : (
           <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
             <Settings className="h-5 w-5" />
             Settings
           </button>
+          )
           ) : null}
         </div>
 
@@ -1021,6 +1123,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                     isSupport ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
+                  <LifeBuoy className="h-5 w-5" />
+                  Support
+                </Link>
+              ) : isDisplayOnlyGhost ? (
+                <Link href="/admin/support" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
                   <LifeBuoy className="h-5 w-5" />
                   Support
                 </Link>
@@ -1062,6 +1169,22 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                       isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     );
                     if (!hasSubEffective) {
+                      if (isDisplayOnlyGhost) {
+                        if (isExternal) {
+                          return (
+                            <a key={sub.href} href={sub.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                              <SubIcon className="h-4 w-4" />
+                              {sub.name}
+                            </a>
+                          );
+                        }
+                        return (
+                          <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                            <SubIcon className="h-4 w-4" />
+                            {sub.name}
+                          </Link>
+                        );
+                      }
                       return (
                         <button
                           key={sub.href}
@@ -1100,6 +1223,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             )}
           </>
           ) : showSupportByRole ? (
+            isDisplayOnlyGhost ? (
+              <Link href="/admin/support" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                <LifeBuoy className="h-5 w-5" />
+                Support
+              </Link>
+            ) : (
             <button
               type="button"
               onClick={() => router.push(UPGRADE_PATH)}
@@ -1109,6 +1238,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
               <LifeBuoy className="h-5 w-5" />
               Support
             </button>
+            )
           ) : null}
         </div>
         </div>

@@ -242,3 +242,18 @@ export async function getRolesWithDetailsFromPhpAuth(): Promise<PhpAuthRoleWithD
     return [];
   }
 }
+
+/**
+ * Get feature slugs for a role from PHP-Auth (SSOT). Used for View Site As and for gating when PHP-Auth is configured.
+ * Returns [] when PHP-Auth is not configured, request fails, or role is not found.
+ * Use role.features[].slug; include only features where isEnabled !== false when present.
+ */
+export async function getRoleFeatureSlugsFromPhpAuth(roleSlug: string): Promise<string[]> {
+  const roles = await getRolesWithDetailsFromPhpAuth();
+  if (!roles.length) return [];
+  const slug = roleSlug.trim();
+  if (!slug) return [];
+  const role = roles.find((r) => r.slug === slug);
+  if (!role?.features?.length) return [];
+  return role.features.filter((f) => f.isEnabled !== false).map((f) => f.slug);
+}

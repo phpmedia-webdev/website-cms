@@ -7,6 +7,8 @@
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import type { AdminRole, FeatureRegistry } from "@/types/feature-registry";
 import { phpAuthSlugToLegacySlug } from "@/lib/php-auth/role-mapping";
+import { isPhpAuthConfigured } from "@/lib/php-auth/config";
+import { getRoleFeatureSlugsFromPhpAuth } from "@/lib/php-auth/fetch-roles";
 
 /** Slug for the Superadmin feature. Global, not toggleable in Roles or Tenant Features UI. */
 export const SUPERADMIN_FEATURE_SLUG = "superadmin";
@@ -244,7 +246,7 @@ export async function setTenantFeatureSlugs(tenantId: string, slugs: string[]): 
   return true;
 }
 
-/** Role feature slugs (from role_features + feature_registry). Used for effective-feature intersection. */
+/** Role feature slugs (from role_features + feature_registry). Used when PHP-Auth is not configured. */
 export async function listRoleFeatureSlugs(roleSlug: string): Promise<string[]> {
   const ids = await listRoleFeatureIds(roleSlug);
   if (ids.length === 0) return [];
@@ -258,6 +260,19 @@ export async function listRoleFeatureSlugs(roleSlug: string): Promise<string[]> 
     return [];
   }
   return (data ?? []).map((r: { slug: string }) => r.slug);
+}
+
+/**
+ * Role feature slugs for gating: from PHP-Auth when configured, else from local role_features.
+ * Use for effective-feature intersection and sidebar/route guards. Fallback to local on PHP-Auth failure.
+ */
+export async function getRoleFeatureSlugsForGating(roleSlug: string): Promise<string[]> {
+  if (!isPhpAuthConfigured()) return listRoleFeatureSlugs(roleSlug);
+  try {
+    return await getRoleFeatureSlugsFromPhpAuth(roleSlug);
+  } catch {
+    return listRoleFeatureSlugs(roleSlug);
+  }
 }
 
 /**
@@ -279,6 +294,7 @@ export async function getEffectiveFeatures(
 /**
  * Effective feature slugs for a user (tenant ∩ role). Use for sidebar and route guards.
  * M5 C5: Prefers tenant_feature_slugs when non-empty; else falls back to tenant_features (ids → slugs).
+ * Role features: from PHP-Auth when configured (E10a), else from local role_features.
  */
 export async function getEffectiveFeatureSlugs(
   tenantId: string,
@@ -286,7 +302,7 @@ export async function getEffectiveFeatureSlugs(
 ): Promise<string[]> {
   const [tenantSlugs, roleSlugs] = await Promise.all([
     getTenantFeatureSlugsForEffective(tenantId),
-    listRoleFeatureSlugs(roleSlug),
+    getRoleFeatureSlugsForGating(roleSlug),
   ]);
   const roleSet = new Set(roleSlugs);
   return tenantSlugs.filter((slug) => roleSet.has(slug));
