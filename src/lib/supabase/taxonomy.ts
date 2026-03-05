@@ -570,7 +570,8 @@ export async function getTaxonomyTermsForContentDisplay(
     if (relErr || !rels?.length) {
       return { categories: [], tags: [] };
     }
-    const termIds = [...new Set(rels.map((r) => r.term_id))];
+    const relRows = rels as { term_id: string }[];
+    const termIds = [...new Set(relRows.map((r) => r.term_id))];
     const { data: terms, error: termErr } = await supabase
       .schema(schema)
       .from("taxonomy_terms")
