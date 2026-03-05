@@ -26,7 +26,12 @@ So for website-cms:
 
 All in **public** schema, Supabase.
 
-**Deprecation note:** For **gating** (which features a role has), PHP-Auth is the source of truth when configured. **admin_roles** and **role_features** are not SSOT for role→feature assignments; they are fallback only when PHP-Auth is unavailable. See [php-auth-ssot-roles-features-plan.md](./php-auth-ssot-roles-features-plan.md).
+**Deprecation note (when PHP-Auth is configured):** PHP-Auth is the source of truth for role definitions, role→features, and role resolution. The following are **not** SSOT and are fallback-only when PHP-Auth is unavailable. See [php-auth-ssot-roles-features-plan.md](./php-auth-ssot-roles-features-plan.md).
+
+- **admin_roles** — Not SSOT for role definitions; PHP-Auth `auth_roles` and the roles API are. Fallback only when PHP-Auth is not configured.
+- **role_features** — Not SSOT for which features a role has; PHP-Auth roles API (`role.features[]`) is. Fallback only when PHP-Auth is not configured.
+- **tenant_user_assignments** (read path) — Not SSOT for resolving "what role does this user have on this site"; when PHP-Auth is configured, role comes from validate-user. This table is fallback only for role resolution and is still used for team management (e.g. `is_owner`).
+- **tenant_sites** — Unchanged; remains website-cms SSOT for the tenant/site list (registry of deployments). Not deprecated.
 
 | Table | Purpose | Key columns |
 |------|---------|-------------|
@@ -36,11 +41,11 @@ All in **public** schema, Supabase.
 | **tenant_features** | Which features are enabled per tenant (site). | `tenant_id` → tenant_sites, `feature_id` → feature_registry. Effective = tenant_features ∩ role_features. |
 | **tenant_user_assignments** | User ↔ tenant site with role. | `admin_id` → tenant_users, `tenant_id` → tenant_sites, `role_slug` → admin_roles, `is_owner`. |
 | **tenant_users** | Tenant user identity. | `id`, `user_id` (→ auth.users), `email`, `display_name`, `status`. |
-| **tenant_sites** | Registry of tenant/site deployments. | `id`, `name`, `slug`, `schema_name`, `deployment_url`, etc. |
+| **tenant_sites** | Registry of tenant/site deployments (website-cms SSOT; unchanged). | `id`, `name`, `slug`, `schema_name`, `deployment_url`, etc. |
 
-**Effective features (current):** `getEffectiveFeatureSlugs(tenantId, roleSlug)` = **tenant_features** ∩ **role_features** (by feature_id), then resolve to slugs. Used for sidebar and route guards.
+**Effective features (current):** `getEffectiveFeatureSlugs(tenantId, roleSlug)` = **tenant_features** ∩ **role_features** (by feature_id), then resolve to slugs. Used for sidebar and route guards. When PHP-Auth is configured, role features come from PHP-Auth roles API.
 
-**Role resolution (current):** Superadmin from `auth.users.user_metadata`; tenant admins from `tenant_user_assignments` + `tenant_users` (by auth user id) → `role_slug`.
+**Role resolution (current):** When PHP-Auth is configured: role from validate-user only. When not configured: superadmin from `auth.users.user_metadata`; tenant admins from `tenant_user_assignments` + `tenant_users` (by auth user id) → `role_slug`.
 
 ---
 

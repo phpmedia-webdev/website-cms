@@ -19,7 +19,7 @@ A WordPress-style CMS application built with Next.js 15, designed as a lightweig
 - **Development Environment:** Cursor IDE
 - **Version Control:** GitHub
 - **Backend/Database:** Supabase (PostgreSQL with multi-schema architecture)
-- **Authentication:** Supabase Auth (native multi-client support)
+- **Authentication:** Supabase Auth (identity and session); when configured, PHP-Auth is the single source of truth (SSOT) for admin roles, features, permissions, and audit logging (see [Authentication → PHP-Auth integration](#php-auth-integration-ssot-for-roles-features-permissions-and-audit)).
 - **Styling:** Tailwind CSS
 - **UI Components:** shadcn/ui
 - **Rich Text Editor:** Tiptap
@@ -654,6 +654,31 @@ Since all clients share a single Supabase project but use separate schemas, auth
 **Superadmin Bypass Rules:**
 - If `user_metadata.type = "superadmin"` and `role = "superadmin"`, middleware can permit access regardless of `NEXT_PUBLIC_CLIENT_SCHEMA`
 - Superadmins may optionally carry `allowed_schemas: ["*"]` or a concrete schema allowlist
+
+**When PHP-Auth is configured** (see next subsection), the current user’s role and role→features are resolved from PHP-Auth (validate-user and roles API), not from metadata or local tables; the logic above applies when PHP-Auth is not configured (fallback).
+
+### PHP-Auth integration (SSOT for roles, features, permissions, and audit)
+
+Website-cms integrates with a central **PHP-Auth** application that has been repurposed to act as the **single source of truth (SSOT)** for admin authentication context, roles, features, permissions, and audit logging. This conversion is complete in the product: when PHP-Auth is configured (env: `AUTH_BASE_URL`, `AUTH_ORG_ID`, `AUTH_APPLICATION_ID`, `AUTH_API_KEY`), the following apply.
+
+**Identity vs. authorization:**
+- **Identity and session** remain in **Supabase Auth**: users sign in at website-cms; Supabase issues the session and cookies. No session or token is shared between PHP-Auth and website-cms; they are separate applications.
+- **Authorization (who the user is in the org, what they can do)** comes from **PHP-Auth** when configured: the app sends the Supabase access token to PHP-Auth **validate-user**, which returns the user’s organization and **role** for the linked application. Role definitions and role→feature/role→permission assignments are stored and managed in PHP-Auth.
+
+**What PHP-Auth is SSOT for (when configured):**
+- **Roles:** Which roles exist and the current user’s role for the org/app (from validate-user). Website-cms uses PHP-Auth role slugs (e.g. `website-cms-admin`, `website-cms-editor`) consistently.
+- **Features (gating):** Which features each role has (from PHP-Auth roles API: `GET /api/external/roles` → `role.features[]`). Used for sidebar visibility, route guards, and “effective features” (tenant-enabled ∩ role-allowed). The local `role_features` table is fallback only when PHP-Auth is unavailable or not configured.
+- **Permissions:** Role→permission assignments are in the same roles API payload (`role.permissions[]`); available for permission-based checks (e.g. “can invite”, “can delete”) as needed.
+- **Audit logging:** User-access and auth-related events (login, logout, MFA, role changes, etc.) can be sent to PHP-Auth (e.g. `POST /api/external/audit-log`) so one central audit log covers this app and others. Website-cms sends events with `login_source: website-cms` and application/org identifiers.
+
+**Tenant (site) and feature gating in website-cms:**
+- **Tenant/site list** and **tenant-enabled features** (which CMS features are “on” for a site) remain in website-cms (e.g. `tenant_sites`, `tenant_feature_slugs`). Superadmin configures these at **Superadmin → Site Settings → Gating**.
+- **Effective features** for an admin = tenant-enabled features ∩ role-allowed features (from PHP-Auth when configured). Sidebar and route guards use this intersection; items not in the role are hidden or ghosted; items in the role but not tenant-enabled are ghosted with an upgrade path.
+
+**When PHP-Auth is not configured:**
+- The app falls back to local data: role from Supabase user metadata (superadmin) or `tenant_user_assignments` (tenant admins); role→features from local `role_features` + `feature_registry`. This allows development or deployments without PHP-Auth.
+
+**Summary:** Supabase Auth = identity and session. PHP-Auth (when configured) = SSOT for roles, features, permissions, and central audit for this app. No session carry-over between the two; auth persists across website-cms forks (one login + MFA for all forks). Reference: [php-auth-ssot-roles-features-plan.md](./reference/php-auth-ssot-roles-features-plan.md), [php-auth-website-cms-tables-cross-reference.md](./reference/php-auth-website-cms-tables-cross-reference.md).
 
 ### Two-Factor Authentication (2FA/MFA)
 

@@ -116,8 +116,11 @@ export async function middleware(request: NextRequest) {
     return res;
   }
 
-  // Check if route is protected (all /admin/* except /admin/login)
-  const isProtectedRoute = pathname.startsWith("/admin") && !pathname.startsWith("/admin/login");
+  // Check if route is protected (all /admin/* except /admin/login, plus PWA /status)
+  const isStatusRoute = pathname === "/status";
+  const isProtectedRoute =
+    (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) ||
+    isStatusRoute;
   const isAuthRoute = pathname.startsWith("/admin/login");
   const isSuperadminRoute = pathname.startsWith("/admin/super");
 

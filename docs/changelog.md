@@ -11,6 +11,28 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-03-05 (afternoon) CT — Session wrap-up: Author on blog posts
+
+**Context for Next Session:** Author assignment and display for posts is complete. Content editor has an Author dropdown in the Content Status block (options from site-assigned users via GET /api/admin/authors); author_id (tenant_user id) is saved on create/update and shown as “By {name}” on the public blog post page. **Next up:** See sessionlog — blog template (RSS feed), then blog comments, SMTP/contact activity, Media Copy Shortcode, CRM/forms/buttons.
+
+**Changes:**
+- **Author on post:** GET /api/admin/authors returns site-assigned users (id, display_name, email) for any admin. Content editor: Author dropdown in Content Status card; state and save author_id (tenant_user id). insertContent/updateContent accept author_id. Public /blog/[slug]: resolve author via getTenantUserById, show “By {display_name or email}” next to date.
+- **Key files:** `src/app/api/admin/authors/route.ts`, `src/components/content/ContentEditorForm.tsx`, `src/lib/supabase/content.ts`, `src/app/(public)/blog/[slug]/page.tsx`.
+
+---
+
+### 2026-03-05 CT — Session summary: PHP-Auth docs, PRD, Roles step 5, sessionlog cleanup
+
+**Context for Next Session:** PHP-Auth is fully documented as SSOT for roles, features, permissions, and audit. Roles transition step 5 (deprecation doc) complete. Sessionlog is trimmed to start with Next up only. **Next up:** See sessionlog (SMTP + contact activity, PWA notifications, Media Copy Shortcode, Terms/Policys link, CRM sorting, Form submission pagination/filter).
+
+**Changes:**
+- **PRD (docs/prd.md):** Technology Stack auth line updated; new subsection *PHP-Auth integration (SSOT for roles, features, permissions, and audit)* under Authentication — identity vs authorization, what PHP-Auth is SSOT for, tenant/gating in website-cms, when PHP-Auth is not configured, summary and reference links. Multi-Client Strategy note added for PHP-Auth-configured path.
+- **Roles step 5 — Deprecation doc:** [php-auth-website-cms-tables-cross-reference.md](./reference/php-auth-website-cms-tables-cross-reference.md) §2 expanded: admin_roles (not SSOT for role definitions; PHP-Auth auth_roles/roles API), role_features (not SSOT for role→features), tenant_user_assignments read path (role from validate-user; fallback + team/is_owner), tenant_sites (unchanged; website-cms SSOT). Role resolution and effective-features bullets updated for configured vs fallback.
+- **Archive:** authplanlog.md moved to [docs/reference/Repurpose/authplanlog.md](./reference/Repurpose/authplanlog.md); references updated in sessionlog, changelog, MFA-fix-005.
+- **Sessionlog:** Where we are, Current Focus, and Remaining work sections removed; log now starts with Next up. Completed Roles step 5 and checklist removed.
+
+---
+
 ### 2026-03-04 18:30 CT - Session wrap-up: F6 View As fix, Phase E (E10, E10a, E11)
 
 **Context for Next Session:**
@@ -125,8 +147,8 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 ### 2026-02-17 CT - Session wrap-up: PHP-Auth repurpose planning (authplanlog.md)
 
 **Context for Next Session:**
-- Planning only (no code changes). **Current top priority:** see and work from [authplanlog.md](./authplanlog.md) — Section 1 (modify PHP-Auth app) and Section 2 (modify website-cms app). Plan covers: data/schema cleanup (keep auth_users; simplify roles to Superadmin, admin-style, GPUM); MFA (TOTP) implementation notes from website-cms (form POST, token-relay fallback on Vercel); API keys generated and stored in PHP-Auth only; no session carry-over between PHP-Auth and website-cms; auth persists across website-cms forks (one MFA for all forks). Sessionlog Current focus points to authplanlog as next focus.
-- Key doc: `docs/authplanlog.md`. Reference: `docs/reference/RepurposeAuthApp/` (AUTH_APP_OVERVIEW_SCHEMA.md, AuthApp-prd.md). Planlog/sessionlog "Integrate with PHPAUTH standalone app" item remains; authplanlog is the detailed step-by-step plan for that work.
+- Planning only (no code changes). **Current top priority:** see and work from [authplanlog.md](./reference/Repurpose/authplanlog.md) — Section 1 (modify PHP-Auth app) and Section 2 (modify website-cms app). Plan covers: data/schema cleanup (keep auth_users; simplify roles to Superadmin, admin-style, GPUM); MFA (TOTP) implementation notes from website-cms (form POST, token-relay fallback on Vercel); API keys generated and stored in PHP-Auth only; no session carry-over between PHP-Auth and website-cms; auth persists across website-cms forks (one MFA for all forks). Sessionlog Current focus points to authplanlog as next focus.
+- Key doc: `docs/reference/Repurpose/authplanlog.md` (archived). Reference: `docs/reference/RepurposeAuthApp/` (AUTH_APP_OVERVIEW_SCHEMA.md, AuthApp-prd.md). Planlog/sessionlog "Integrate with PHPAUTH standalone app" item remains; authplanlog is the detailed step-by-step plan for that work.
 
 **Changes:**
 - **authplanlog.md:** Created and refined: two-section plan (Section 1 PHP-Auth, Section 2 website-cms). Added API key responsibility (PHP-Auth generates/stores; website-cms receives/stores in env). Added MFA implementation notes from website-cms (§1.2.1: form POST, token relay for Vercel, standalone challenge/success). Clarified session rules (§1.2.2): no carry-over to/from PHP-Auth; auth persists across website-cms forks (one login + MFA for all forks). Summary table updated. No changelog/sessionlog/planlog checkoffs this session (planning only).

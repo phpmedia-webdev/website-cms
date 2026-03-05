@@ -76,7 +76,7 @@ During website-cms development, MFA (TOTP) had persistent issues on Vercel (infi
 
 **Standalone MFA flow**
 
-- Use **standalone** MFA routes (minimal layout, no app sidebar). Include both challenge and success in the middleware’s “allowed without AAL2” list so the user is not redirected back to challenge while on the success page. After verify, a short **delay** (e.g. 2–3 seconds) on the success page before redirecting gives the browser time to apply cookies before the next request.
+- Use **standalone** MFA routes (minimal layout, no app sidebar). Include both challenge and success in the middleware's "allowed without AAL2" list so the user is not redirected back to challenge while on the success page. After verify, a short **delay** (e.g. 2–3 seconds) on the success page before redirecting gives the browser time to apply cookies before the next request.
 
 **Reference (website-cms)**
 

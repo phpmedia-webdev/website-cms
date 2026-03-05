@@ -6,12 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { TenantSite } from "@/types/tenant-sites";
-import { Settings, Shield, Code } from "lucide-react";
+import { Settings, Shield, Code, Mail } from "lucide-react";
 import { TenantSiteModeCard } from "@/components/superadmin/TenantSiteModeCard";
 import {
   TenantFeaturesManager,
   type TenantFeatureItem,
 } from "@/components/superadmin/TenantFeaturesManager";
+import { SmtpConfigForm } from "@/components/settings/SmtpConfigForm";
 
 const ENDPOINTS = [
   "GET /api/posts - List published posts",
@@ -139,6 +140,21 @@ export function SiteSettingsTabsClient({
             <Button onClick={handleSaveGeneral} disabled={saving} size="sm">
               {saving ? "Saving..." : "Save Changes"}
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4 pb-2">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-lg">Email / SMTP</CardTitle>
+            </div>
+            <CardDescription className="mt-0.5">
+              Set up SMTP for this site so the app can send email notifications. You can configure this here initially; the tenant admin can change it later from Admin → Settings → Notifications.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <SmtpConfigForm idPrefix="super-smtp" saveLabel="Save SMTP settings" />
           </CardContent>
         </Card>
       </TabsContent>

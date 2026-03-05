@@ -491,6 +491,108 @@ export async function getTaxonomyForContent(
   }
 }
 
+/** Term with name and slug for public display (e.g. blog post). */
+export interface TaxonomyTermDisplay {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/**
+ * Server-only: get a single taxonomy term by slug and type (for archive pages).
+ * Returns null if not found.
+ */
+export async function getTermBySlugAndType(
+  slug: string,
+  type: "category" | "tag"
+): Promise<{ id: string; name: string; slug: string } | null> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+    const { data, error } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .select("id, name, slug")
+      .eq("slug", slug)
+      .eq("type", type)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as { id: string; name: string; slug: string };
+  } catch (e) {
+    console.warn("getTermBySlugAndType:", e);
+    return null;
+  }
+}
+
+/**
+ * Server-only: get content IDs linked to a term for a given content type (e.g. "post").
+ */
+export async function getContentIdsByTermId(
+  termId: string,
+  contentTypeSlug: string
+): Promise<string[]> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+    const { data, error } = await supabase
+      .schema(schema)
+      .from("taxonomy_relationships")
+      .select("content_id")
+      .eq("term_id", termId)
+      .eq("content_type", contentTypeSlug);
+    if (error) return [];
+    return [...new Set((data || []).map((r: { content_id: string }) => r.content_id))];
+  } catch (e) {
+    console.warn("getContentIdsByTermId:", e);
+    return [];
+  }
+}
+
+/**
+ * Server-only: get categories and tags assigned to a content item, with name and slug for display.
+ * Use on public blog/post page to show taxonomy and link to archive routes.
+ */
+export async function getTaxonomyTermsForContentDisplay(
+  contentId: string,
+  contentTypeSlug: string
+): Promise<{ categories: TaxonomyTermDisplay[]; tags: TaxonomyTermDisplay[] }> {
+  try {
+    const supabase = createServerSupabaseClient();
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+    const { data: rels, error: relErr } = await supabase
+      .schema(schema)
+      .from("taxonomy_relationships")
+      .select("term_id")
+      .eq("content_type", contentTypeSlug)
+      .eq("content_id", contentId);
+
+    if (relErr || !rels?.length) {
+      return { categories: [], tags: [] };
+    }
+    const termIds = [...new Set(rels.map((r) => r.term_id))];
+    const { data: terms, error: termErr } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .select("id, name, slug, type")
+      .in("id", termIds);
+
+    if (termErr || !terms?.length) {
+      return { categories: [], tags: [] };
+    }
+    const byType = (type: string) =>
+      (terms as { id: string; name: string; slug: string; type: string }[])
+        .filter((t) => t.type === type)
+        .map((t) => ({ id: t.id, name: t.name, slug: t.slug }));
+    return {
+      categories: byType("category"),
+      tags: byType("tag"),
+    };
+  } catch (e) {
+    console.warn("getTaxonomyTermsForContentDisplay:", e);
+    return { categories: [], tags: [] };
+  }
+}
+
 /**
  * Set taxonomy for a content item. Replaces existing assignments.
  * content_type = content_types.slug (e.g. post, page, portfolio).

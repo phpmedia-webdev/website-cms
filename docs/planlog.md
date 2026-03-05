@@ -16,6 +16,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - **Tenant admin team:** Settings → Users, Owner flag, GET/POST/PATCH team API, RLS. View as Creator hides Users link.
 - **Calendar one-step create:** Taxonomy, participants (type-to-search team + CRM), resources (multi-select) on new events; applied on submit. Steps 1–4 done.
 - **CRM contacts list:** Pagination (25/50/100), selection, bulk actions (Export, Add/Remove list, Change status, Taxonomy, Delete, Restore, Empty trash), Show Trashed, backend `deleted_at` and bulk APIs.
+- **Notifications & PWA:** Admin → Settings → Notifications (route, actions list, preferences); SMTP config storage, encryption, Admin/Superadmin UIs, send lib, test endpoint; `notifyOnFormSubmitted` (email + PWA per preferences). PWA: `/status` page, manifest, push subscriptions, VAPID, service worker, StatusPushSubscribe. Tenant setup checklist: single doc with env list, Vercel section, merged env templates (archived).
 
 ---
 
@@ -63,6 +64,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 - [x] Document content-by-UID for code library; example snippets
 - [x] Optional: FAQ block content type (create/edit, body or fields, public render)
+- [x] Blog template — author on post: Author dropdown in Content Status (GET /api/admin/authors); author_id saved; “By {name}” on /blog/[slug].
 
 ### Phase 07: CRM
 
@@ -120,7 +122,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 **Status:** Deferred (after Phase 11).
 
 - [ ] Enhance public API (error handling, SEO metadata, pagination, search/filter); ensure protected endpoints check MAG
-- [ ] Form submission email notifications (Nodemailer/SMTP, env vars, mailer utility)
+- [x] Form submission email notifications (Nodemailer/SMTP, env vars, mailer utility, notifyOnFormSubmitted)
 - [ ] API documentation (docs/api.md, endpoints, auth, MAG, rate limiting)
 
 ### Phase 11: CLI & Deployment Tools

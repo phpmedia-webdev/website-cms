@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Code,
   Activity,
+  Bell,
 } from "lucide-react";
 
 /** Session storage keys for sidebar accordion open state. */
@@ -68,6 +69,7 @@ export const settingsSubNav: SubNavItem[] = [
   { name: "Style", href: "/admin/settings/style", icon: Palette, featureSlug: "style" },
   { name: "Taxonomy", href: "/admin/settings/taxonomy", icon: Tags, featureSlug: "taxonomy" },
   { name: "Customizer", href: "/admin/settings/customizer", icon: Sliders, featureSlug: "customizer" },
+  { name: "Notifications", href: "/admin/settings/notifications", icon: Bell, featureSlug: "notifications", adminOnly: true },
   { name: "Users", href: "/admin/settings/users", icon: Users, featureSlug: "users", adminOnly: true },
   { name: "My Profile", href: "/admin/settings/profile", icon: User },
 ];

@@ -117,6 +117,8 @@ ref: React.Ref<ContentEditorFormHandle>) => {
     item?.use_for_agent_training ?? false
   );
   const [bodyCharCount, setBodyCharCount] = useState(0);
+  const [authorId, setAuthorId] = useState<string>(item?.author_id ?? "");
+  const [authorOptions, setAuthorOptions] = useState<{ id: string; display_name: string | null; email: string }[]>([]);
   const handleSaveRef = useRef<() => void>(() => {});
   const useForAgentTraining =
     controlledUseForAgentTraining !== undefined ? controlledUseForAgentTraining : internalUseForAgentTraining;
@@ -151,6 +153,7 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setVisibilityMode((item.visibility_mode as "hidden" | "message") || "hidden");
       setRestrictedMessage(item.restricted_message || "");
       setRequiredMagId(item.required_mag_id || "");
+      setAuthorId(item.author_id ?? "");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(item.use_for_agent_training ?? false);
       else setInternalUseForAgentTraining(item.use_for_agent_training ?? false);
     } else {
@@ -174,6 +177,7 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setVisibilityMode("hidden");
       setRestrictedMessage("");
       setRequiredMagId("");
+      setAuthorId("");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(false);
       else setInternalUseForAgentTraining(false);
     }
@@ -184,6 +188,13 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setAvailableMags(data ?? []))
       .catch(() => setAvailableMags([]));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/admin/authors")
+      .then((res) => (res.ok ? res.json() : { users: [] }))
+      .then((data) => setAuthorOptions(Array.isArray(data.users) ? data.users : []))
+      .catch(() => setAuthorOptions([]));
   }, []);
 
   useEffect(() => {
@@ -227,6 +238,7 @@ ref: React.Ref<ContentEditorFormHandle>) => {
         status,
         published_at: status === "published" ? new Date().toISOString() : null,
         featured_image_id: item?.featured_image_id ?? null,
+        author_id: authorId?.trim() || null,
         custom_fields: customFields,
         access_level: accessLevel,
         visibility_mode: visibilityMode,
@@ -394,6 +406,22 @@ ref: React.Ref<ContentEditorFormHandle>) => {
               >
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="content-author">Author</Label>
+              <select
+                id="content-author"
+                value={authorId}
+                onChange={(e) => setAuthorId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">No author</option>
+                {authorOptions.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.display_name?.trim() || u.email}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="flex items-center gap-2">

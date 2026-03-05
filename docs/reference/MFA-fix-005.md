@@ -1,6 +1,6 @@
 ## Section 3: MFA fix applied in PHP-Auth (2026-02)
 
-**This was the fix that actually worked** for PHP-Auth on Vercel/serverless. It differs from the original authplanlog.md §1.2.1 instructions (Option A / Option B).
+**This was the fix that actually worked** for PHP-Auth on Vercel/serverless. It differs from the original [authplanlog.md](./Repurpose/authplanlog.md) (§1.2.1) instructions (Option A / Option B).
 
 ### What we tried first (per §1.2.1)
 

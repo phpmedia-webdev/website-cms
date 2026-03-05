@@ -28,6 +28,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
         {/* Load Google Fonts if needed */}
         {googleFontsURL && (
           <link rel="stylesheet" href={googleFontsURL} />

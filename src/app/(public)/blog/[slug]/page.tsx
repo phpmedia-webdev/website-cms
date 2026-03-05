@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getPublishedContentByTypeAndSlug } from "@/lib/supabase/content";
+import { getTaxonomyTermsForContentDisplay } from "@/lib/supabase/taxonomy";
+import { getTenantUserById } from "@/lib/supabase/tenant-users";
 import { PublicContentRenderer } from "@/components/public/content/PublicContentRenderer";
 import { checkContentAccess } from "@/lib/auth/content-access";
 
@@ -54,6 +56,12 @@ export default async function BlogPostPage({ params }: Props) {
     );
   }
 
+  const [author, { categories, tags }] = await Promise.all([
+    post.author_id ? getTenantUserById(post.author_id) : Promise.resolve(null),
+    getTaxonomyTermsForContentDisplay(post.id, "post"),
+  ]);
+  const authorLabel = author ? (author.display_name?.trim() || author.email) : null;
+
   return (
     <main className="container mx-auto px-4 py-16 max-w-3xl">
       <Link href="/blog" className="text-sm text-muted-foreground hover:underline mb-6 inline-block">
@@ -61,10 +69,52 @@ export default async function BlogPostPage({ params }: Props) {
       </Link>
       <article>
         <h1 className="text-4xl font-bold mb-2">{post.title}</h1>
-        {post.published_at && (
-          <time className="text-sm text-muted-foreground block mb-6" dateTime={post.published_at}>
-            {format(new Date(post.published_at), "MMMM d, yyyy")}
-          </time>
+        {(post.published_at || authorLabel) && (
+          <div className="text-sm text-muted-foreground mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {post.published_at && (
+              <time dateTime={post.published_at}>
+                {format(new Date(post.published_at), "MMMM d, yyyy")}
+              </time>
+            )}
+            {authorLabel && (
+              <span>
+                {post.published_at ? " · " : null}
+                By {authorLabel}
+              </span>
+            )}
+          </div>
+        )}
+        {(categories.length > 0 || tags.length > 0) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mb-6 text-sm text-muted-foreground">
+            {categories.length > 0 && (
+              <span className="flex items-center gap-2">
+                <span className="font-medium text-foreground">Categories:</span>
+                {categories.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/blog/category/${encodeURIComponent(c.slug)}`}
+                    className="hover:underline"
+                  >
+                    {c.name}
+                  </Link>
+                ))}
+              </span>
+            )}
+            {tags.length > 0 && (
+              <span className="flex items-center gap-2">
+                <span className="font-medium text-foreground">Tags:</span>
+                {tags.map((t) => (
+                  <Link
+                    key={t.id}
+                    href={`/blog/tag/${encodeURIComponent(t.slug)}`}
+                    className="hover:underline"
+                  >
+                    {t.name}
+                  </Link>
+                ))}
+              </span>
+            )}
+          </div>
         )}
         {post.excerpt && <p className="text-lg text-muted-foreground mb-8">{post.excerpt}</p>}
         <PublicContentRenderer content={post.body} />

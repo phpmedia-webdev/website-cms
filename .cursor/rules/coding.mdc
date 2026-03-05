@@ -71,6 +71,7 @@ When the developer is in learning mode or asks for explanation, provide feedback
 - **At session wrap-up:** Verify no database tables were left in a vulnerable state (e.g. RLS disabled for testing). See Supabase rules — re-enable RLS or add a migration before ending the session.
 - Don't install packages unless asked
 - Prefer iteration and modularization over code duplication
+- **#DNC (Discuss, Do Not Code):** When the user ends a message with `#DNC`, treat it as discussion only — answer the question, explain options, or advise, but do not write, edit, or run code unless the user explicitly asks to implement something afterward.  
 
 ## MVT (Module Version Tracker)
 

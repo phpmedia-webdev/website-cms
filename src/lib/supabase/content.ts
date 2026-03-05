@@ -296,16 +296,24 @@ export async function getPublishedContentByTypeAndSlug(
   return data as ContentRow | null;
 }
 
+const DEFAULT_BLOG_PAGE_SIZE = 20;
+
 /**
  * Server-only: fetch published posts for blog list. Ordered by published_at desc.
  * Per prd-technical: uses RPC (get_published_posts_dynamic), not .from().
+ * @param limit - Page size (default 20)
+ * @param offset - Number of rows to skip (default 0)
  */
-export async function getPublishedPosts(limit = 50): Promise<ContentRow[]> {
+export async function getPublishedPosts(
+  limit = DEFAULT_BLOG_PAGE_SIZE,
+  offset = 0
+): Promise<ContentRow[]> {
   const supabase = createServerSupabaseClient();
 
   const { data, error } = await supabase.schema("public").rpc("get_published_posts_dynamic", {
     schema_name: CONTENT_SCHEMA,
     limit_param: limit,
+    offset_param: offset,
   });
 
   if (error) {
@@ -318,6 +326,93 @@ export async function getPublishedPosts(limit = 50): Promise<ContentRow[]> {
   return (data as ContentRow[]) ?? [];
 }
 
+/**
+ * Server-only: total count of published posts (for blog list pagination).
+ * Uses get_published_posts_count_dynamic RPC (migration 117). Returns 0 if RPC missing or fails.
+ */
+export async function getPublishedPostsCount(): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.schema("public").rpc("get_published_posts_count_dynamic", {
+    schema_name: CONTENT_SCHEMA,
+  });
+  if (error) {
+    console.warn("getPublishedPostsCount:", error.message);
+    return 0;
+  }
+  const n = Number(data);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * Server-only: fetch published posts that have a given taxonomy term (for category/tag archive).
+ * Returns posts ordered by published_at desc; applies same limit/offset as main blog list.
+ */
+export async function getPublishedPostsByTermId(
+  termId: string,
+  limit = DEFAULT_BLOG_PAGE_SIZE,
+  offset = 0
+): Promise<ContentRow[]> {
+  const { getContentIdsByTermId } = await import("@/lib/supabase/taxonomy");
+  const contentIds = await getContentIdsByTermId(termId, "post");
+  if (contentIds.length === 0) return [];
+
+  const supabase = createServerSupabaseClient();
+  const { data: typeRow } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content_types")
+    .select("id")
+    .eq("slug", "post")
+    .maybeSingle();
+  if (!typeRow) return [];
+
+  const { data, error } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content")
+    .select(
+      "id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, section_restrictions, created_at, updated_at"
+    )
+    .in("id", contentIds)
+    .eq("content_type_id", typeRow.id)
+    .eq("status", "published")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    console.warn("getPublishedPostsByTermId:", error.message);
+    return [];
+  }
+  return (data as ContentRow[]) ?? [];
+}
+
+/**
+ * Server-only: count of published posts that have a given taxonomy term (for archive pagination).
+ */
+export async function getPublishedPostsCountByTermId(termId: string): Promise<number> {
+  const { getContentIdsByTermId } = await import("@/lib/supabase/taxonomy");
+  const contentIds = await getContentIdsByTermId(termId, "post");
+  if (contentIds.length === 0) return 0;
+
+  const supabase = createServerSupabaseClient();
+  const { data: typeRow } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content_types")
+    .select("id")
+    .eq("slug", "post")
+    .maybeSingle();
+  if (!typeRow) return 0;
+
+  const { count, error } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content")
+    .select("id", { count: "exact", head: true })
+    .in("id", contentIds)
+    .eq("content_type_id", typeRow.id)
+    .eq("status", "published");
+
+  if (error) return 0;
+  return typeof count === "number" ? count : 0;
+}
+
 export async function insertContent(row: {
   content_type_id: string;
   title: string;
@@ -327,6 +422,7 @@ export async function insertContent(row: {
   featured_image_id: string | null;
   status: string;
   published_at: string | null;
+  author_id?: string | null;
   custom_fields?: Record<string, unknown>;
   access_level?: string | null;
   required_mag_id?: string | null;
@@ -363,6 +459,7 @@ export async function updateContent(
     featured_image_id: string | null;
     status: string;
     published_at: string | null;
+    author_id: string | null;
     custom_fields: Record<string, unknown>;
     access_level: string | null;
     required_mag_id: string | null;

@@ -14,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Copy, Check } from "lucide-react";
+import Link from "next/link";
+import { Copy, Check, ExternalLink, Smartphone, Loader2 } from "lucide-react";
 
 export function GeneralSettingsContent() {
   const [name, setName] = useState("");
@@ -29,6 +30,14 @@ export function GeneralSettingsContent() {
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [savingMode, setSavingMode] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const [pwaName, setPwaName] = useState("");
+  const [pwaShortName, setPwaShortName] = useState("");
+  const [pwaThemeColor, setPwaThemeColor] = useState("#0f172a");
+  const [pwaBackgroundColor, setPwaBackgroundColor] = useState("#ffffff");
+  const [pwaIconValue, setPwaIconValue] = useState("");
+  const [pwaSaving, setPwaSaving] = useState(false);
+  const [pwaSaved, setPwaSaved] = useState(false);
 
   const copyToClipboard = async (value: string, field: string) => {
     if (!value.trim()) return;
@@ -46,7 +55,8 @@ export function GeneralSettingsContent() {
       fetch("/api/settings/site-metadata").then((res) => (res.ok ? res.json() : null)),
       fetch("/api/settings/site-mode").then((res) => (res.ok ? res.json() : null)),
       fetch("/api/settings/snippets").then((res) => (res.ok ? res.json() : [])),
-    ]).then(([meta, mode, snippets]) => {
+      fetch("/api/settings/pwa").then((res) => (res.ok ? res.json() : null)),
+    ]).then(([meta, mode, snippets, pwa]) => {
       if (meta) {
         setName(meta.name ?? "");
         setDescription(meta.description ?? "");
@@ -59,6 +69,13 @@ export function GeneralSettingsContent() {
         setComingSoonSnippetId(mode.coming_soon_snippet_id ?? null);
       }
       setSnippetOptions(Array.isArray(snippets) ? snippets : []);
+      if (pwa && typeof pwa === "object") {
+        setPwaName(pwa.name ?? "Site Status");
+        setPwaShortName(pwa.short_name ?? "Status");
+        setPwaThemeColor(pwa.theme_color ?? "#0f172a");
+        setPwaBackgroundColor(pwa.background_color ?? "#ffffff");
+        setPwaIconValue(pwa.icon_url?.trim() ?? pwa.icon_media_id?.trim() ?? "");
+      }
       fetch("/api/admin/me/context")
         .then((r) => (r.ok ? r.json() : null))
         .then((ctx) => setIsSuperadmin(!!ctx?.isSuperadmin))
@@ -118,6 +135,48 @@ export function GeneralSettingsContent() {
       alert(err instanceof Error ? err.message : "Failed to update lock");
     } finally {
       setSavingMode(false);
+    }
+  };
+
+  const handlePwaSave = async () => {
+    setPwaSaving(true);
+    setPwaSaved(false);
+    try {
+      const isUrl = /^https?:\/\//i.test(pwaIconValue.trim());
+      const body: Record<string, string> = {
+        name: pwaName.trim() || "Site Status",
+        short_name: pwaShortName.trim() || "Status",
+        theme_color: pwaThemeColor.trim() || "#0f172a",
+        background_color: pwaBackgroundColor.trim() || "#ffffff",
+      };
+      if (pwaIconValue.trim()) {
+        if (isUrl) {
+          body.icon_url = pwaIconValue.trim();
+          body.icon_media_id = "";
+        } else {
+          body.icon_media_id = pwaIconValue.trim();
+          body.icon_url = "";
+        }
+      } else {
+        body.icon_url = "";
+        body.icon_media_id = "";
+      }
+      const res = await fetch("/api/settings/pwa", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to save");
+      }
+      setPwaSaved(true);
+      setTimeout(() => setPwaSaved(false), 2000);
+    } catch (err) {
+      console.error("PWA save error:", err);
+      alert(err instanceof Error ? err.message : "Failed to save PWA settings");
+    } finally {
+      setPwaSaving(false);
     }
   };
 
@@ -340,6 +399,155 @@ export function GeneralSettingsContent() {
             <p className="text-xs text-muted-foreground mt-1">
               Site domain (set in Superadmin → Site Settings). Used for API base URL, gallery links, and canonical URLs.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>PWA / Status App Install</CardTitle>
+          </div>
+          <CardDescription>
+            Customize the app name, colors, and icon shown when users add the app to their home screen. Icon can be a media ID from the Media library or a full image URL.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="pwa-name">PWA App name</Label>
+              <Input
+                id="pwa-name"
+                value={pwaName}
+                onChange={(e) => setPwaName(e.target.value)}
+                placeholder="Site Status"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="pwa-short-name">Short name (home screen)</Label>
+              <Input
+                id="pwa-short-name"
+                value={pwaShortName}
+                onChange={(e) => setPwaShortName(e.target.value)}
+                placeholder="Status"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="pwa-theme">Theme color</Label>
+              <div className="flex gap-2 items-center mt-1">
+                <input
+                  type="color"
+                  id="pwa-theme"
+                  value={pwaThemeColor}
+                  onChange={(e) => setPwaThemeColor(e.target.value)}
+                  className="h-9 w-14 cursor-pointer rounded border bg-muted"
+                />
+                <Input
+                  value={pwaThemeColor}
+                  onChange={(e) => setPwaThemeColor(e.target.value)}
+                  placeholder="#0f172a"
+                  className="flex-1 font-mono text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="pwa-bg">Background color</Label>
+              <div className="flex gap-2 items-center mt-1">
+                <input
+                  type="color"
+                  id="pwa-bg"
+                  value={pwaBackgroundColor}
+                  onChange={(e) => setPwaBackgroundColor(e.target.value)}
+                  className="h-9 w-14 cursor-pointer rounded border bg-muted"
+                />
+                <Input
+                  value={pwaBackgroundColor}
+                  onChange={(e) => setPwaBackgroundColor(e.target.value)}
+                  placeholder="#ffffff"
+                  className="flex-1 font-mono text-sm"
+                />
+              </div>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="pwa-icon">Icon (media ID or image URL)</Label>
+            <Input
+              id="pwa-icon"
+              value={pwaIconValue}
+              onChange={(e) => setPwaIconValue(e.target.value)}
+              placeholder="Media ID from Media library or https://..."
+              className="mt-1 font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Use a media ID from{" "}
+              <Link href="/admin/media" className="underline" target="_blank" rel="noopener noreferrer">
+                Media library
+              </Link>{" "}
+              (open an image and copy its ID) or enter a full image URL. Recommended: 512×512 PNG for install icon. Same image is used for the PWA and can serve as favicon.
+            </p>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">PWA / Status URL</label>
+            <div className="flex gap-2 items-center">
+              <Input
+                value={url?.trim() ? `${url.replace(/\/$/, "")}/status` : ""}
+                readOnly
+                placeholder="—"
+                className="bg-muted flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => copyToClipboard(url?.trim() ? `${url.replace(/\/$/, "")}/status` : "", "statusUrl")}
+                disabled={!url?.trim()}
+                title="Copy URL"
+              >
+                {copiedField === "statusUrl" ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                asChild
+                title="Open Status page"
+              >
+                <a href="/status" target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Admin status dashboard and PWA. Open in a new tab or add to home screen for quick access.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handlePwaSave} disabled={pwaSaving}>
+              {pwaSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Saving…
+                </>
+              ) : pwaSaved ? (
+                <>
+                  <Check className="h-4 w-4 text-green-600 mr-2" />
+                  Saved
+                </>
+              ) : (
+                "Save PWA settings"
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>

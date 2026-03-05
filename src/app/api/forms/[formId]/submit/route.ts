@@ -13,6 +13,7 @@ import {
   type FormFieldAssignment,
 } from "@/lib/supabase/crm";
 import { getCrmContactStatuses } from "@/lib/supabase/settings";
+import { notifyOnFormSubmitted } from "@/lib/notifications";
 
 const CORE_KEYS = [
   "email",
@@ -216,6 +217,16 @@ async function handler(
     const successMessage =
       (form.settings as { success_message?: string })?.success_message ??
       "Thank you for your submission!";
+
+    // Fire-and-forget: email and/or PWA push per Admin → Settings → Notifications
+    void notifyOnFormSubmitted({
+      formId: form.id,
+      formName: form.name,
+      submissionId: submission.id,
+      contactId: contactId ?? undefined,
+    }).catch((err) => {
+      console.error("notifyOnFormSubmitted failed:", err);
+    });
 
     return NextResponse.json({
       success: true,
