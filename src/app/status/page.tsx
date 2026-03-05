@@ -47,7 +47,7 @@ function formatDateTime(iso: string): string {
 
 export default async function StatusPage() {
   const user = await getCurrentUser();
-  const displayName = user?.user_metadata?.display_name ?? user?.email ?? "Admin";
+  const displayName = user?.display_name ?? user?.email ?? "Admin";
 
   let siteName: string | null = null;
   let contactsTotal = 0;
