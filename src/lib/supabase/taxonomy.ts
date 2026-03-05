@@ -541,7 +541,8 @@ export async function getContentIdsByTermId(
       .eq("term_id", termId)
       .eq("content_type", contentTypeSlug);
     if (error) return [];
-    return [...new Set((data || []).map((r: { content_id: string }) => r.content_id))];
+    const rows = (data || []) as { content_id: string }[];
+    return [...new Set(rows.map((r) => r.content_id))];
   } catch (e) {
     console.warn("getContentIdsByTermId:", e);
     return [];
