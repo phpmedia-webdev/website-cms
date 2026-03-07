@@ -10,6 +10,16 @@ import type { CrmNote } from "@/lib/supabase/crm";
 /** Display row: either a real note or a system line (e.g. "Contact added"). */
 type ActivityRow = CrmNote | { id: string; body: string; created_at: string; note_type: string | null; isSystem: true };
 
+const TYPE_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "note", label: "Notes" },
+  { value: "email_sent", label: "Outbound email" },
+  { value: "form_submission", label: "Form submissions" },
+  { value: "contact_added", label: "Contact added" },
+  { value: "mag_assignment", label: "MAG assignment" },
+  { value: "marketing_list", label: "Marketing list" },
+] as const;
+
 interface ContactNotesSectionProps {
   contactId: string;
   initialNotes: CrmNote[];
@@ -47,6 +57,7 @@ export function ContactNotesSection({
   const [noteType, setNoteType] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSearch, setNoteSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   useEffect(() => {
     setNotes(initialNotes);
@@ -96,14 +107,24 @@ export function ContactNotesSection({
   }, [notes, contactCreatedAt, initialFormSubmissions, formNameById, initialMags, initialMarketingLists]);
 
   const filteredNotes = useMemo(() => {
-    if (!noteSearch.trim()) return allActivityRows;
-    const q = noteSearch.toLowerCase();
-    return allActivityRows.filter(
-      (n) =>
-        n.body.toLowerCase().includes(q) ||
-        (n.note_type && n.note_type.toLowerCase().includes(q))
-    );
-  }, [allActivityRows, noteSearch]);
+    let list = allActivityRows;
+    if (typeFilter !== "all") {
+      list = list.filter((n) => {
+        const isSystem = "isSystem" in n && n.isSystem;
+        if (typeFilter === "note") return !isSystem && n.note_type !== "email_sent";
+        return n.note_type === typeFilter;
+      });
+    }
+    if (noteSearch.trim()) {
+      const q = noteSearch.toLowerCase();
+      list = list.filter(
+        (n) =>
+          n.body.toLowerCase().includes(q) ||
+          (n.note_type && n.note_type.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [allActivityRows, typeFilter, noteSearch]);
 
   const openAddNoteModal = () => {
     setEditingNote(null);
@@ -184,19 +205,33 @@ export function ContactNotesSection({
           </Button>
         </div>
         <div className="p-3 space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search activity..."
-              value={noteSearch}
-              onChange={(e) => setNoteSearch(e.target.value)}
-              className="pl-7 h-8 text-sm"
-            />
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[140px]">
+              <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search activity..."
+                value={noteSearch}
+                onChange={(e) => setNoteSearch(e.target.value)}
+                className="pl-7 h-8 text-sm"
+              />
+            </div>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
+              aria-label="Filter activity by type"
+            >
+              {TYPE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="max-h-64 overflow-y-auto space-y-1">
             {filteredNotes.length === 0 ? (
               <p className="text-xs text-muted-foreground py-3 text-center">
-                {allActivityRows.length === 0 ? "No activity yet" : "No activity matches your search"}
+                {allActivityRows.length === 0 ? "No activity yet" : "No activity matches your search or filter"}
               </p>
             ) : (
               filteredNotes.map((n) => {

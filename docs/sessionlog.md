@@ -10,27 +10,23 @@
 
 ## Where we are
 
-- **Done:** Notifications settings page; SMTP/PWA as above. Tenant setup checklist. Blog: pagination, categories/tags on post, category/tag archives, author (dropdown in Content Status, display on /blog/[slug]).
-- **Next:** Notification events/recipients documented; stub entry points in place (wire from flows when ready). Continue with blog template (RSS feed remaining), then blog comments, then CRM/forms/media/buttons.
+- **Done:** Notifications settings page; SMTP/PWA as above. Tenant setup checklist. Blog: pagination, categories/tags on post, category/tag archives, author (dropdown in Content Status, display on /blog/[slug]). GPUM member area: dashboard and My Profile in place at /members and /members/profile.
+- **Next:** Notification events/recipients documented; stub entry points in place (wire from flows when ready). Continue with blog template (RSS feed remaining), then blog comments; GPUM Account settings (password etc.); then CRM/forms/media/buttons.
 
 ---
 
 ## Next up
 
-**Outbound SMTP (remaining)**
+**Outbound SMTP:** Steps 4–7 complete (see changelog).
 
-- [x] **4. Define notification events and recipients** — Documented in `docs/reference/notification-events-and-recipients.md`: form_submitted (admins), contact_joins_membership (admins), member_signed_up (welcome to user + optional admins). Fire-and-forget and “adding a new event” steps noted.
-- [x] **5. Stub entry points for later wiring** — `notifyOnFormSubmitted` wired from form submit API. `notifyOnContactJoinsMembership` and `notifyOnMemberSignedUp` implemented as entry points; wire from membership-join and signup flows when those exist. No further wiring until deploy or test need.
-- [ ] **6. Optional: templates and branding** — Site name / from name from settings or env; optional HTML wrapper. Keep minimal for v1.
-- [ ] **7. Contact activity stream (outbound email logging)** — When an admin sends email to a contact from the app: send email then create CRM note (note_type `email_sent`, subject/snippet in body). Optional: add `email_sent` to CRM note types; UI from contact detail to compose/send.
+**GPUM / Member area (MVP)** — Dashboard and My Profile in place. Remaining:
+
+- [ ] **GPUM Account settings** — `/members/account`: password change and other account options. Currently placeholder; build for MVP completeness.
 
 **Other**
 
 **Blog (template – important)**
 
-- [x] **Blog list pagination** — Paginate `/blog` with `?page=2` (20 per page). Migration 117 adds offset + count RPC; content.ts has getPublishedPosts(limit, offset) and getPublishedPostsCount(); blog page has Prev/Next. Run `supabase/migrations/117_get_published_posts_pagination.sql` in SQL Editor (replace schema name if needed).
-- [x] **Categories/tags on single post** — Show categories and tags on `/blog/[slug]` via `getTaxonomyTermsForContentDisplay(post.id, "post")`. Labels and links to `/blog/category/[slug]` and `/blog/tag/[slug]` (archive routes added in next item).
-- [x] **One archive type** — Added `/blog/category/[slug]` and `/blog/tag/[slug]`. Term resolved by slug + type; posts via `getPublishedPostsByTermId` / `getPublishedPostsCountByTermId`; same list + pagination as main blog; access filtering applied.
 - [ ] **RSS feed** — One feed for all published posts (e.g. `/blog/feed.xml` or `/feed`). Useful for syndication and SEO.
 
 **Blog comments (add to activity stream)**

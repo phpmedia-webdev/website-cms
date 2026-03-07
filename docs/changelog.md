@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 For planned work and backlog items, see [planlog.md](./planlog.md). For session continuity (current focus, next up), see [sessionlog.md](./sessionlog.md).
 
 ## [Unreleased]
+
+---
+
+### 2026-03-07 CT — Session wrap-up: Drop-in ComposeEmail, SMTP branding MVP, contact UX, GPUM steps in sessionlog
+
+**Context for Next Session:** Contact outbound email uses drop-in `ComposeEmail` (subject, body, attachments); send-email API and activity log support attachments. SMTP branding MVP: from-name fallback to site name when unset; minimal HTML wrapper for text-only sends. Contact: delete button on edit page only; top row order Status, Merge, Edit, Compose email. #DNC rule rephrased in coding.mdc. GPUM (member area) steps added to sessionlog: dashboard and My Profile in place; Account settings (/members/account) remains placeholder. **Next up:** See sessionlog — GPUM Account settings, blog RSS feed, blog comments, Media Copy Shortcode, CRM/forms/buttons.
+
+**Changes:**
+- **ComposeEmail:** New drop-in component `src/components/email/ComposeEmail.tsx` (to, toLabel, defaultSubject/Body, onSubmit, onSent, children as trigger, allowAttachments, maxAttachmentSize, maxAttachments). Dialog-based modal; optional attachments (base64). Contact page uses it via refactored ContactComposeEmailButton.
+- **Send email + API:** `sendEmail()` and POST `/api/crm/contacts/[id]/send-email` accept attachments (filename + base64); activity note includes attachment count. `EmailAttachment` type in send.ts.
+- **SMTP branding (step 6 MVP):** In send.ts, when from has no display name, fallback to `getSiteMetadata().name`. When only text provided, auto-wrap in minimal HTML (`<p style="white-space: pre-wrap;">`); escapeHtml helper.
+- **Contact UX:** Delete button removed from contact detail page; added to contact edit page header. Contact detail top row order: Status, Merge, Edit, Compose email.
+- **#DNC rule:** coding.mdc — when user includes #DNC, discussion only; no code/file/terminal unless user later explicitly asks to implement.
+- **Sessionlog:** Outbound SMTP steps 4–7 and GPUM dashboard + My Profile marked complete; GPUM section added with remaining GPUM Account settings. Planlog: Completed/Reference updated; Phase 09 GPUM member area (public) checked.
+- **Step 7:** Sessionlog step 7 (contact outbound email) checked complete.
+
+**Key files:** `src/components/email/ComposeEmail.tsx`, `src/app/admin/crm/contacts/[id]/ContactComposeEmailButton.tsx`, `src/lib/email/send.ts`, `src/app/api/crm/contacts/[id]/send-email/route.ts`, `src/app/admin/crm/contacts/[id]/page.tsx`, `src/app/admin/crm/contacts/[id]/edit/page.tsx`, `.cursor/rules/coding.mdc`, `docs/sessionlog.md`, `docs/planlog.md`.
 
 ---
 

@@ -20,8 +20,8 @@ import { ContactTaxonomyBlock } from "./ContactTaxonomyBlock";
 import { ContactCardStatusBadge } from "./ContactCardStatusBadge";
 import { ContactDetailTabs } from "./ContactDetailTabs";
 import { CopyMessageToNotesButton } from "./CopyMessageToNotesButton";
-import { ContactDeleteButton } from "./ContactDeleteButton";
 import { ContactMergeButton } from "./ContactMergeButton";
+import { ContactComposeEmailButton } from "./ContactComposeEmailButton";
 
 export default async function ContactDetailPage({
   params,
@@ -84,19 +84,23 @@ export default async function ContactDetailPage({
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
               <ContactCardStatusBadge
                 contactId={id}
                 status={contact.status}
                 contactStatuses={contactStatuses}
               />
+              <ContactMergeButton contactId={id} displayName={displayName} />
               <Link href={`/admin/crm/contacts/${id}/edit`}>
                 <Button variant="outline" size="sm" className="h-8">
                   Edit
                 </Button>
               </Link>
-              <ContactMergeButton contactId={id} displayName={displayName} />
-              <ContactDeleteButton contactId={id} displayName={displayName} />
+              <ContactComposeEmailButton
+                contactId={id}
+                contactEmail={contact.email}
+                displayName={displayName}
+              />
             </div>
           </div>
 

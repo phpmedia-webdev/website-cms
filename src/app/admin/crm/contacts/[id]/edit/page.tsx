@@ -5,6 +5,7 @@ import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ContactEditForm } from "./ContactEditForm";
+import { ContactDeleteButton } from "../ContactDeleteButton";
 
 export default async function ContactEditPage({
   params,
@@ -21,20 +22,27 @@ export default async function ContactEditPage({
     notFound();
   }
 
+  const displayName =
+    contact.full_name ||
+    [contact.first_name, contact.last_name].filter(Boolean).join(" ") ||
+    contact.email ||
+    "Contact";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href={`/admin/crm/contacts/${id}`}>
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold">Edit contact</h1>
-          <p className="text-muted-foreground mt-1">
-            {contact.full_name || [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email || id}
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link href={`/admin/crm/contacts/${id}`}>
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold">Edit contact</h1>
+            <p className="text-muted-foreground mt-1">{displayName}</p>
+          </div>
         </div>
+        <ContactDeleteButton contactId={id} displayName={displayName} />
       </div>
       <ContactEditForm contact={contact} contactStatuses={contactStatuses} />
     </div>

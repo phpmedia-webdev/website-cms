@@ -4,13 +4,28 @@
  */
 
 import nodemailer from "nodemailer";
-import { getSetting } from "@/lib/supabase/settings";
+import { getSetting, getSiteMetadata } from "@/lib/supabase/settings";
 import {
   SMTP_CONFIG_KEY,
   decryptSmtpPassword,
   toResolvedConfig,
   type SmtpConfigStored,
 } from "./smtp-config";
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export interface EmailAttachment {
+  filename: string;
+  /** Base64-encoded content. */
+  content: string;
+}
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -19,6 +34,8 @@ export interface SendEmailOptions {
   html?: string;
   /** Override from address (optional). */
   from?: string;
+  /** Optional attachments (filename + base64 content). */
+  attachments?: EmailAttachment[];
 }
 
 /**
@@ -35,6 +52,20 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   if (!pass) return false;
 
   const resolved = toResolvedConfig(stored, pass);
+  let from = options.from ?? resolved.from;
+  // MVP branding: if no display name (from is just email), use site name from settings
+  if (!from.includes(" <") && !from.includes(">")) {
+    try {
+      const meta = await getSiteMetadata();
+      if (meta.name?.trim()) {
+        const email = from.trim();
+        from = `"${meta.name.replace(/"/g, '\\"')}" <${email}>`;
+      }
+    } catch {
+      // keep from as-is if metadata unavailable
+    }
+  }
+
   const transport = nodemailer.createTransport({
     host: resolved.host,
     port: resolved.port,
@@ -43,15 +74,30 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   });
 
   const to = Array.isArray(options.to) ? options.to : [options.to];
-  const from = options.from ?? resolved.from;
+
+  const attachmentPayload =
+    options.attachments?.length
+      ? options.attachments.map((a) => ({
+      filename: a.filename,
+      content: Buffer.from(a.content, "base64"),
+    }))
+      : undefined;
+
+  const text = options.text ?? undefined;
+  const html =
+    options.html ??
+    (text
+      ? `<!DOCTYPE html><html><body><p style="white-space: pre-wrap;">${escapeHtml(text)}</p></body></html>`
+      : undefined);
 
   try {
     await transport.sendMail({
       from,
       to,
       subject: options.subject,
-      text: options.text ?? undefined,
-      html: options.html ?? undefined,
+      text: text ?? undefined,
+      html,
+      attachments: attachmentPayload?.length ? attachmentPayload : undefined,
     });
     return true;
   } catch (err) {

@@ -17,6 +17,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - **Calendar one-step create:** Taxonomy, participants (type-to-search team + CRM), resources (multi-select) on new events; applied on submit. Steps 1–4 done.
 - **CRM contacts list:** Pagination (25/50/100), selection, bulk actions (Export, Add/Remove list, Change status, Taxonomy, Delete, Restore, Empty trash), Show Trashed, backend `deleted_at` and bulk APIs.
 - **Notifications & PWA:** Admin → Settings → Notifications (route, actions list, preferences); SMTP config storage, encryption, Admin/Superadmin UIs, send lib, test endpoint; `notifyOnFormSubmitted` (email + PWA per preferences). PWA: `/status` page, manifest, push subscriptions, VAPID, service worker, StatusPushSubscribe. Tenant setup checklist: single doc with env list, Vercel section, merged env templates (archived).
+- **Contact outbound email & SMTP branding:** Drop-in `ComposeEmail` component (subject, body, attachments, dialog); send-email API and `sendEmail()` support attachments; activity log `email_sent` with snippet + attachment count. SMTP branding MVP: from-name fallback to site name when unset; minimal HTML wrapper for text-only sends. Contact UX: delete button moved to edit page; top row order Status, Merge, Edit, Compose email.
+- **GPUM member area (public):** `/members` dashboard (links to profile, account; Apply code); `/members/profile` (display name, avatar via user_metadata); `/members/account` placeholder for password etc. Sessionlog documents MVP; account settings to be built.
 
 ---
 
@@ -94,6 +96,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [ ] Content editor: section-level restrictions; Tiptap protected text (shortcode); menu item restrictions
 - [ ] Ecommerce: `api_keys` table, payment webhooks (Stripe/Shopify/WooCommerce), payment-to-MAG flow
 - [x] Member auth: optional register page; `/api/auth/member/*`; middleware for member routes
+- [x] GPUM member area (public): `/members` dashboard, `/members/profile` (display name, avatar); `/members/account` placeholder
 - [ ] Dashboard: membership stats; `/admin/members` list; link form submissions to member profiles (email match)
 
 ### Phase 9C: Members Table & Ownership
