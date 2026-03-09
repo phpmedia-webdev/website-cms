@@ -26,21 +26,6 @@ function MemberLoginContent() {
 
   const redirect = searchParams.get("redirect") || "/";
 
-  const redeemCodeIfProvided = async () => {
-    const code = signupCode.trim();
-    if (!code) return;
-    try {
-      await fetch("/api/members/redeem-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-        credentials: "include",
-      });
-    } catch {
-      // Non-blocking; user can apply code from dashboard
-    }
-  };
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -99,8 +84,21 @@ function MemberLoginContent() {
           body: JSON.stringify({ action: "login_success" }),
           credentials: "include",
         }).catch(() => {});
-        await redeemCodeIfProvided();
-        window.location.replace(redirect);
+        try {
+          const res = await fetch("/api/signup-pipeline/process", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ signupCode: signupCode.trim() || undefined }),
+            credentials: "include",
+          });
+          const data = (await res.json()) as { redirectTo?: string };
+          const to = data?.redirectTo?.trim() && data.redirectTo.startsWith("/")
+            ? data.redirectTo
+            : redirect;
+          window.location.replace(to);
+        } catch {
+          window.location.replace(redirect);
+        }
         return;
       }
 
@@ -176,17 +174,21 @@ function MemberLoginContent() {
 
       if (authData.session) {
         setSuccess("Account created. Redirecting…");
-        // Ensure new member is in CRM with status "New" (for memberships)
         try {
-          await fetch("/api/automations/on-member-signup", {
+          const res = await fetch("/api/signup-pipeline/process", {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ signupCode: signupCode.trim() || undefined }),
             credentials: "include",
           });
+          const data = (await res.json()) as { redirectTo?: string };
+          const to = data?.redirectTo?.trim() && data.redirectTo.startsWith("/")
+            ? data.redirectTo
+            : redirect;
+          window.location.replace(to);
         } catch {
-          // Non-blocking: CRM sync will also run on email confirm callback if needed
+          window.location.replace(redirect);
         }
-        await redeemCodeIfProvided();
-        window.location.replace(redirect);
         return;
       }
 

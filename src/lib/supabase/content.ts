@@ -240,7 +240,7 @@ export async function getContentByIdServer(
   const { data, error } = await supabase
     .schema(schemaName)
     .from("content")
-    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at, use_for_agent_training")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at, use_for_agent_training, seo_title, meta_description, og_image_id")
     .eq("id", id)
     .maybeSingle();
   if (error) {
@@ -279,7 +279,7 @@ export async function getPublishedContentByTypeAndSlug(
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
-    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, created_at, updated_at")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, created_at, updated_at, seo_title, meta_description, og_image_id")
     .eq("content_type_id", pageType.id)
     .eq("slug", slug)
     .eq("status", "published")
@@ -369,7 +369,7 @@ export async function getPublishedPostsByTermId(
     .schema(CONTENT_SCHEMA)
     .from("content")
     .select(
-      "id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, section_restrictions, created_at, updated_at"
+      "id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, section_restrictions, created_at, updated_at, seo_title, meta_description, og_image_id"
     )
     .in("id", contentIds)
     .eq("content_type_id", typeRow.id)
@@ -429,6 +429,9 @@ export async function insertContent(row: {
   visibility_mode?: string | null;
   restricted_message?: string | null;
   use_for_agent_training?: boolean;
+  seo_title?: string | null;
+  meta_description?: string | null;
+  og_image_id?: string | null;
 }): Promise<{ id: string } | null> {
   const supabase = createClientSupabaseClient();
   const insertRow = {
@@ -466,6 +469,9 @@ export async function updateContent(
     visibility_mode: string | null;
     restricted_message: string | null;
     use_for_agent_training: boolean;
+    seo_title: string | null;
+    meta_description: string | null;
+    og_image_id: string | null;
   }>
 ): Promise<boolean> {
   const supabase = createClientSupabaseClient();

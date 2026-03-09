@@ -15,7 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
-import { Copy, Check, ExternalLink, Smartphone, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Copy, Check, ExternalLink, Smartphone, Loader2, ChevronUp, ChevronDown, Share2, Plus, Trash2 } from "lucide-react";
+import type { SocialLinkItem } from "@/lib/share-to-social/settings";
+import { SOCIAL_LINK_ICONS } from "@/lib/share-to-social/settings";
 
 export function GeneralSettingsContent() {
   const [name, setName] = useState("");
@@ -39,6 +42,12 @@ export function GeneralSettingsContent() {
   const [pwaSaving, setPwaSaving] = useState(false);
   const [pwaSaved, setPwaSaved] = useState(false);
 
+  const [shareLinks, setShareLinks] = useState<SocialLinkItem[]>([]);
+  const [shareDisplayStyle, setShareDisplayStyle] = useState<"horizontal" | "vertical">("horizontal");
+  const [shareShowLabels, setShareShowLabels] = useState(true);
+  const [shareSaving, setShareSaving] = useState(false);
+  const [shareSaved, setShareSaved] = useState(false);
+
   const copyToClipboard = async (value: string, field: string) => {
     if (!value.trim()) return;
     try {
@@ -56,7 +65,8 @@ export function GeneralSettingsContent() {
       fetch("/api/settings/site-mode").then((res) => (res.ok ? res.json() : null)),
       fetch("/api/settings/snippets").then((res) => (res.ok ? res.json() : [])),
       fetch("/api/settings/pwa").then((res) => (res.ok ? res.json() : null)),
-    ]).then(([meta, mode, snippets, pwa]) => {
+      fetch("/api/settings/share-to-social").then((res) => (res.ok ? res.json() : null)),
+    ]).then(([meta, mode, snippets, pwa, share]) => {
       if (meta) {
         setName(meta.name ?? "");
         setDescription(meta.description ?? "");
@@ -75,6 +85,13 @@ export function GeneralSettingsContent() {
         setPwaThemeColor(pwa.theme_color ?? "#0f172a");
         setPwaBackgroundColor(pwa.background_color ?? "#ffffff");
         setPwaIconValue(pwa.icon_url?.trim() ?? pwa.icon_media_id?.trim() ?? "");
+      }
+      if (share && typeof share === "object" && Array.isArray(share.links)) {
+        setShareLinks(share.links);
+        setShareDisplayStyle(share.displayStyle === "vertical" ? "vertical" : "horizontal");
+        setShareShowLabels(typeof share.showLabels === "boolean" ? share.showLabels : true);
+      } else {
+        setShareLinks([]);
       }
       fetch("/api/admin/me/context")
         .then((r) => (r.ok ? r.json() : null))
@@ -205,6 +222,63 @@ export function GeneralSettingsContent() {
     }
   };
 
+  const moveShareLink = (index: number, direction: "up" | "down") => {
+    const next = [...shareLinks];
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setShareLinks(next);
+  };
+
+  const updateShareLink = (index: number, field: keyof SocialLinkItem, value: string) => {
+    setShareLinks((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const addShareLink = () => {
+    setShareLinks((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID?.() ?? `link-${Date.now()}`,
+        name: "",
+        icon: "link" as const,
+        url: "",
+      },
+    ]);
+  };
+
+  const removeShareLink = (index: number) => {
+    setShareLinks((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleShareSave = async () => {
+    setShareSaving(true);
+    setShareSaved(false);
+    try {
+      const res = await fetch("/api/settings/share-to-social", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          links: shareLinks,
+          displayStyle: shareDisplayStyle,
+          showLabels: shareShowLabels,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to save");
+      }
+      setShareSaved(true);
+      setTimeout(() => setShareSaved(false), 2000);
+    } catch (err) {
+      console.error("Share settings save error:", err);
+      alert(err instanceof Error ? err.message : "Failed to save share settings");
+    } finally {
+      setShareSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -223,6 +297,14 @@ export function GeneralSettingsContent() {
         </p>
       </div>
 
+      <Tabs defaultValue="site" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="site">Site</TabsTrigger>
+          <TabsTrigger value="pwa">PWA</TabsTrigger>
+          <TabsTrigger value="share">Social Share</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="site" className="space-y-6 mt-6">
       <Card>
         <CardHeader>
           <CardTitle>Site Mode</CardTitle>
@@ -400,9 +482,52 @@ export function GeneralSettingsContent() {
               Site domain (set in Superadmin → Site Settings). Used for API base URL, gallery links, and canonical URLs.
             </p>
           </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">RSS feed URL</label>
+            <div className="flex gap-2 items-center">
+              <Input
+                value={url?.trim() ? `${url.replace(/\/$/, "")}/blog/feed.xml` : ""}
+                readOnly
+                placeholder="—"
+                className="bg-muted flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => copyToClipboard(url?.trim() ? `${url.replace(/\/$/, "")}/blog/feed.xml` : "", "rssUrl")}
+                disabled={!url?.trim()}
+                title="Copy URL"
+              >
+                {copiedField === "rssUrl" ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                asChild
+                title="Open RSS feed"
+              >
+                <a href="/blog/feed.xml" target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              RSS 2.0 feed for published blog posts. Use in readers or for syndication.
+            </p>
+          </div>
         </CardContent>
       </Card>
+        </TabsContent>
 
+        <TabsContent value="pwa" className="mt-6">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -551,6 +676,184 @@ export function GeneralSettingsContent() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="share" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Share2 className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Share to social</CardTitle>
+              </div>
+              <CardDescription>
+                Build a list of social or other links (name, icon, URL). Use the arrows to reorder. Stored as a simple JSON blob in tenant settings. Placement on the page is controlled by the developer in the theme.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Links (order and details)</Label>
+                {shareLinks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 border rounded-md bg-muted/30 px-3">
+                    No links yet. Add one below.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {shareLinks.map((link, index) => (
+                      <li
+                        key={link.id ?? index}
+                        className="border rounded-md p-3 bg-muted/30 space-y-3"
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="flex flex-col gap-0 shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => moveShareLink(index, "up")}
+                              disabled={index === 0}
+                              title="Move up"
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => moveShareLink(index, "down")}
+                              disabled={index === shareLinks.length - 1}
+                              title="Move down"
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="flex-1 grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto] items-end">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Name</Label>
+                              <Input
+                                value={link.name}
+                                onChange={(e) => updateShareLink(index, "name", e.target.value)}
+                                placeholder="e.g. Facebook"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Icon</Label>
+                              <Select
+                                value={link.icon}
+                                onValueChange={(v) => updateShareLink(index, "icon", v)}
+                              >
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {SOCIAL_LINK_ICONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">URL</Label>
+                              <Input
+                                value={link.url}
+                                onChange={(e) => updateShareLink(index, "url", e.target.value)}
+                                placeholder="https://..."
+                                className="mt-1 font-mono text-sm"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9"
+                                onClick={() => link.url?.trim() && window.open(link.url.trim(), "_blank", "noopener,noreferrer")}
+                                disabled={!link.url?.trim()}
+                                title="Open link in new tab"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 text-destructive hover:text-destructive"
+                                onClick={() => removeShareLink(index)}
+                                title="Remove link"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={addShareLink}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add link
+                </Button>
+              </div>
+              <div>
+                <Label htmlFor="share-display-style" className="text-sm font-medium mb-2 block">Display style</Label>
+                <Select
+                  value={shareDisplayStyle}
+                  onValueChange={(v) => setShareDisplayStyle(v as "horizontal" | "vertical")}
+                >
+                  <SelectTrigger id="share-display-style" className="max-w-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="horizontal">Horizontal</SelectItem>
+                    <SelectItem value="vertical">Vertical</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Suggestion for theme: horizontal = row of buttons; vertical = stacked (e.g. sidebars).
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="share-show-labels"
+                  checked={shareShowLabels}
+                  onCheckedChange={(v) => setShareShowLabels(!!v)}
+                />
+                <Label htmlFor="share-show-labels" className="font-normal cursor-pointer">
+                  Show labels next to icons
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <Button onClick={handleShareSave} disabled={shareSaving}>
+                  {shareSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Saving…
+                    </>
+                  ) : shareSaved ? (
+                    <>
+                      <Check className="h-4 w-4 text-green-600 mr-2" />
+                      Saved
+                    </>
+                  ) : (
+                    "Save share settings"
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

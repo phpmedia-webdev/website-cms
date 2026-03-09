@@ -35,6 +35,7 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (pathname.startsWith("/admin/settings/style")) return "style";
   if (pathname.startsWith("/admin/settings/taxonomy")) return "taxonomy";
   if (pathname.startsWith("/admin/settings/customizer")) return "customizer";
+  if (pathname.startsWith("/admin/settings/workflows")) return "workflows";
   if (pathname.startsWith("/admin/settings/notifications")) return "notifications";
   if (pathname.startsWith("/admin/settings/users")) return "users";
   if (pathname.startsWith("/admin/settings")) return "settings";
@@ -70,6 +71,7 @@ export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
   style: "style",
   taxonomy: "taxonomy",
   customizer: "customizer",
+  workflows: "workflows",
   notifications: "notifications",
   users: "users",
   support: "support",

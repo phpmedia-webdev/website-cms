@@ -80,6 +80,12 @@ export interface ContentRow {
   updated_at: string;
   /** Include in RAG Knowledge Export for chatbot training. */
   use_for_agent_training?: boolean;
+  /** SEO/social: override for <title> and og:title. */
+  seo_title?: string | null;
+  /** SEO/social: override for meta description and og:description. */
+  meta_description?: string | null;
+  /** SEO/social: override for og:image; null = use featured_image_id. */
+  og_image_id?: string | null;
 }
 
 export interface Gallery {

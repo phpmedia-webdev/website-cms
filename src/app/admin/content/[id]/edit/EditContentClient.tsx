@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { getContentById, getContentTypes } from "@/lib/supabase/content";
 import { ContentEditorForm, type ContentEditorFormHandle } from "@/components/content/ContentEditorForm";
+import { ContentCommentsBlock } from "@/components/content/ContentCommentsBlock";
 import { Button } from "@/components/ui/button";
 import type { ContentRow, ContentType } from "@/types/content";
 
@@ -111,6 +112,9 @@ export function EditContentClient() {
         onUseForAgentTrainingChange={setUseForAgentTraining}
         onSavingChange={setSaving}
       />
+      {types.find((t) => t.id === item.content_type_id)?.slug === "post" && (
+        <ContentCommentsBlock contentId={item.id} />
+      )}
     </div>
   );
 }

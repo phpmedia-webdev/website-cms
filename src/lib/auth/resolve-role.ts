@@ -49,6 +49,40 @@ async function getValidateUserDataForRequest(): Promise<PhpAuthValidateUserData 
 
 const getValidateUserDataCached = cache(getValidateUserDataForRequest);
 
+/** Permission slug in PHP-Auth for comment/content moderation. Must match role assignment in PHP-Auth. */
+export const PERMISSION_APPROVE_REJECT = "approve_reject";
+
+/**
+ * Get the current user's permission slugs (from PHP-Auth assignment.permissions when configured).
+ * When PHP-Auth is not configured, returns [] (call hasPermission for role-based fallback).
+ */
+export async function getCurrentUserPermissionSlugs(): Promise<string[]> {
+  if (!isPhpAuthConfigured()) return [];
+  const data = await getValidateUserDataCached();
+  const perms = data?.assignment?.permissions;
+  if (!Array.isArray(perms)) return [];
+  return perms
+    .filter((p) => p?.slug && (p as { isEnabled?: boolean }).isEnabled !== false)
+    .map((p) => (p as { slug: string }).slug.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Check if the current user has a permission (by slug).
+ * When PHP-Auth is configured: true if assignment.permissions includes the slug (and isEnabled).
+ * When not configured: true for admin/superadmin only when slug is PERMISSION_APPROVE_REJECT (fallback).
+ */
+export async function hasPermission(permissionSlug: string): Promise<boolean> {
+  const slugs = await getCurrentUserPermissionSlugs();
+  if (slugs.length > 0) return slugs.includes(permissionSlug.trim());
+  const role = await getRoleForCurrentUser();
+  if (!role) return false;
+  if (permissionSlug === PERMISSION_APPROVE_REJECT && (isSuperadminFromRole(role) || isAdminRole(role))) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Async superadmin check for API routes and server code.
  * Uses getRoleForCurrentUser() (PHP-Auth when configured, else fallback) then isSuperadminFromRole(role).

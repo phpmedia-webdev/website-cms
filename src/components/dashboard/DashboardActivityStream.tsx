@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import type { DashboardActivityItem } from "@/lib/supabase/crm";
 
 const TYPE_OPTIONS = [
   { value: "all", label: "All" },
   { value: "note", label: "Notes" },
+  { value: "blog_comment", label: "Comments" },
   { value: "form_submission", label: "Form submissions" },
   { value: "contact_added", label: "Contact added" },
 ] as const;
@@ -22,6 +25,8 @@ function formatItem(item: DashboardActivityItem): string {
   switch (item.type) {
     case "note":
       return item.body?.trim() ? item.body : "Note";
+    case "blog_comment":
+      return item.body?.trim() ? item.body : "Comment";
     case "form_submission":
       return `Submitted ${item.formName ?? "form"}`;
     case "contact_added":
@@ -32,8 +37,34 @@ function formatItem(item: DashboardActivityItem): string {
 }
 
 export function DashboardActivityStream({ initialItems }: DashboardActivityStreamProps) {
+  const router = useRouter();
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [moderatingId, setModeratingId] = useState<string | null>(null);
+  const [canApproveReject, setCanApproveReject] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/me/context", { cache: "no-store" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((ctx: { canApproveReject?: boolean } | null) => {
+        setCanApproveReject(!!ctx?.canApproveReject);
+      })
+      .catch(() => setCanApproveReject(false));
+  }, []);
+
+  const handleCommentStatus = async (noteId: string, status: "approved" | "rejected") => {
+    setModeratingId(noteId);
+    try {
+      const res = await fetch(`/api/blog/comments/${noteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setModeratingId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     let list = initialItems;
@@ -56,7 +87,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Activity</CardTitle>
-        <p className="text-xs text-muted-foreground">Recent notes, form submissions, and new contacts</p>
+        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, and new contacts</p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
@@ -85,25 +116,57 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
           {filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground py-4 text-center">No activity matches</p>
           ) : (
-            filtered.map((item) => (
-              <Link
-                key={`${item.type}-${item.at}-${item.contactId}`}
-                href={`/admin/crm/contacts/${item.contactId}`}
-                className="block rounded px-2 py-1.5 hover:bg-muted/50 text-sm transition-colors"
+            filtered.map((item) => {
+              const href =
+                item.type === "blog_comment" && item.contentId
+                  ? `/admin/content/${item.contentId}/edit`
+                  : item.contactId
+                    ? `/admin/crm/contacts/${item.contactId}`
+                    : "#";
+              const isPendingComment = item.type === "blog_comment" && item.status === "pending" && item.id;
+              return (
+              <div
+                key={`${item.type}-${item.at}-${item.contactId}-${item.contentId ?? ""}-${item.id ?? ""}`}
+                className="flex items-start justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50 group"
               >
-                <p className="truncate">{formatItem(item)}</p>
-                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                  <span>{item.contactName}</span>
-                  <span>·</span>
-                  <span>{new Date(item.at).toLocaleString()}</span>
-                  {item.noteType && (
-                    <span className="inline-flex rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
-                      {item.noteType}
-                    </span>
-                  )}
-                </p>
-              </Link>
-            ))
+                <Link href={href} className="flex-1 min-w-0 text-sm transition-colors">
+                  <p className="truncate">{formatItem(item)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                    <span>{item.contactName}</span>
+                    <span>·</span>
+                    <span>{new Date(item.at).toLocaleString()}</span>
+                    {item.noteType && (
+                      <span className="inline-flex rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
+                        {item.noteType}
+                      </span>
+                    )}
+                  </p>
+                </Link>
+                {canApproveReject && isPendingComment && item.id && (
+                  <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={moderatingId === item.id}
+                      onClick={() => handleCommentStatus(item.id!, "approved")}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs text-destructive hover:text-destructive"
+                      disabled={moderatingId === item.id}
+                      onClick={() => handleCommentStatus(item.id!, "rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+            })
           )}
         </div>
       </CardContent>

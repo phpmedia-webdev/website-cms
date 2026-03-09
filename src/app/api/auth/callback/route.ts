@@ -68,24 +68,29 @@ export async function GET(request: NextRequest) {
     browser: ctx.browser,
   }).catch(() => {});
 
-  // New member signup: ensure they exist in CRM with status "New" for memberships
+  // New member signup: run signup pipeline (ensure CRM, member row, code-dependent actions)
+  let finalNext = next;
   if (type === "signup" && data?.session?.user) {
     const user = data.session.user;
     const metadata = user.user_metadata as { type?: string; display_name?: string } | undefined;
     if (metadata?.type === "member") {
-      const { ensureMemberInCrm } = await import("@/lib/automations/on-member-signup");
-      const result = await ensureMemberInCrm({
+      const { processSignup } = await import("@/lib/signup-pipeline");
+      const result = await processSignup({
         userId: user.id,
         email: user.email ?? "",
         displayName: metadata?.display_name ?? undefined,
+        signupCode: null,
       });
-      if (result.error) {
-        console.error("Automation ensureMemberInCrm after signup:", result.error);
+      if (result.errors?.length) {
+        console.error("Signup pipeline after email confirm:", result.errors);
+      }
+      if (result.redirectTo?.startsWith("/")) {
+        finalNext = result.redirectTo;
       }
     }
   }
 
-  const redirectUrl = next.startsWith("/") ? new URL(next, requestUrl.origin) : new URL("/login", requestUrl.origin);
+  const redirectUrl = finalNext.startsWith("/") ? new URL(finalNext, requestUrl.origin) : new URL("/login", requestUrl.origin);
   const response = NextResponse.redirect(redirectUrl);
 
   cookiesToSet.forEach((c) => {

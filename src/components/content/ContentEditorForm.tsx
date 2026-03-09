@@ -119,6 +119,9 @@ ref: React.Ref<ContentEditorFormHandle>) => {
   const [bodyCharCount, setBodyCharCount] = useState(0);
   const [authorId, setAuthorId] = useState<string>(item?.author_id ?? "");
   const [authorOptions, setAuthorOptions] = useState<{ id: string; display_name: string | null; email: string }[]>([]);
+  const [seoTitle, setSeoTitle] = useState("");
+  const [metaDescription, setMetaDescription] = useState("");
+  const [ogImageId, setOgImageId] = useState("");
   const handleSaveRef = useRef<() => void>(() => {});
   const useForAgentTraining =
     controlledUseForAgentTraining !== undefined ? controlledUseForAgentTraining : internalUseForAgentTraining;
@@ -154,6 +157,9 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setRestrictedMessage(item.restricted_message || "");
       setRequiredMagId(item.required_mag_id || "");
       setAuthorId(item.author_id ?? "");
+      setSeoTitle(item.seo_title ?? "");
+      setMetaDescription(item.meta_description ?? "");
+      setOgImageId(item.og_image_id ?? "");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(item.use_for_agent_training ?? false);
       else setInternalUseForAgentTraining(item.use_for_agent_training ?? false);
     } else {
@@ -178,6 +184,9 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setRestrictedMessage("");
       setRequiredMagId("");
       setAuthorId("");
+      setSeoTitle("");
+      setMetaDescription("");
+      setOgImageId("");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(false);
       else setInternalUseForAgentTraining(false);
     }
@@ -245,6 +254,9 @@ ref: React.Ref<ContentEditorFormHandle>) => {
         restricted_message: restrictedMessage.trim() || null,
         required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
         use_for_agent_training: useForAgentTraining,
+        seo_title: seoTitle.trim() || null,
+        meta_description: metaDescription.trim() || null,
+        og_image_id: ogImageId.trim() || null,
       };
 
       if (isEdit && item) {
@@ -456,6 +468,9 @@ ref: React.Ref<ContentEditorFormHandle>) => {
         <TabsList>
           <TabsTrigger value="taxonomy">Taxonomy settings</TabsTrigger>
           <TabsTrigger value="membership">Membership settings</TabsTrigger>
+          {currentType?.slug === "post" && (
+            <TabsTrigger value="seo">SEO / Social</TabsTrigger>
+          )}
           <TabsTrigger value="custom-fields">Custom fields</TabsTrigger>
         </TabsList>
         <TabsContent value="taxonomy" className="space-y-4">
@@ -534,6 +549,54 @@ ref: React.Ref<ContentEditorFormHandle>) => {
             </CardContent>
           </Card>
         </TabsContent>
+        {currentType?.slug === "post" && (
+          <TabsContent value="seo" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>SEO / Social</CardTitle>
+                <CardDescription>
+                  Optional overrides for search and social sharing. Leave blank to use the post title, excerpt, and featured image.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="seo-title">SEO title</Label>
+                  <Input
+                    id="seo-title"
+                    value={seoTitle}
+                    onChange={(e) => setSeoTitle(e.target.value)}
+                    placeholder="Override for &lt;title&gt; and social"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="meta-description">Meta description</Label>
+                  <textarea
+                    id="meta-description"
+                    value={metaDescription}
+                    onChange={(e) => setMetaDescription(e.target.value)}
+                    placeholder="Override for search snippet and og:description (e.g. 150–160 chars)"
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
+                    maxLength={320}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="og-image-id">OG / Social image (media ID)</Label>
+                  <Input
+                    id="og-image-id"
+                    value={ogImageId}
+                    onChange={(e) => setOgImageId(e.target.value)}
+                    placeholder="Media library ID for share image; blank = use featured image"
+                    className="mt-1 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use a media ID from the Media library. Leave blank to use the featured image.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
         <TabsContent value="custom-fields" className="space-y-4">
           {fieldDefs.length > 0 ? (
             <div className="space-y-4">

@@ -53,12 +53,16 @@ export interface CrmContact {
 
 export interface CrmNote {
   id: string;
-  contact_id: string;
+  contact_id: string | null;
   body: string;
   author_id: string | null;
   note_type: string | null;
   created_at: string;
   updated_at: string | null;
+  /** Set when note_type = 'blog_comment' (content/post id). */
+  content_id?: string | null;
+  /** For blog_comment: 'pending' | 'approved' | 'rejected'. Null for other note types. */
+  status?: string | null;
 }
 
 export interface Form {
@@ -802,6 +806,75 @@ export async function deleteNote(noteId: string): Promise<{ success: boolean; er
     .eq("id", noteId);
   if (error) {
     console.error("Error deleting note:", { message: error.message, code: error.code });
+    return { success: false, error: new Error(error.message) };
+  }
+  return { success: true, error: null };
+}
+
+/** Create a blog comment (write). Requires authenticated user; contact_id is null; status = 'pending'. */
+export async function createBlogComment(
+  contentId: string,
+  body: string,
+  authorId: string
+): Promise<{ note: CrmNote | null; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_notes")
+    .insert({
+      contact_id: null,
+      content_id: contentId,
+      body: body.trim(),
+      author_id: authorId,
+      note_type: "blog_comment",
+      status: "pending",
+    })
+    .select()
+    .single();
+  if (error) {
+    console.error("Error creating blog comment:", { message: error.message, code: error.code });
+    return { note: null, error: new Error(error.message) };
+  }
+  return { note: data as CrmNote, error: null };
+}
+
+/** Get comments for a post. Pass status = 'approved' for public display. */
+export async function getCommentsByContentId(
+  contentId: string,
+  status?: "pending" | "approved" | "rejected"
+): Promise<CrmNote[]> {
+  const supabase = createServerSupabaseClient();
+  let q = supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_notes")
+    .select("id, contact_id, body, author_id, note_type, created_at, updated_at, content_id, status")
+    .eq("content_id", contentId)
+    .eq("note_type", "blog_comment")
+    .order("created_at", { ascending: true });
+  if (status) {
+    q = q.eq("status", status);
+  }
+  const { data, error } = await q;
+  if (error) {
+    console.error("Error fetching comments by content:", { message: error.message, code: error.code });
+    return [];
+  }
+  return (data as CrmNote[]) ?? [];
+}
+
+/** Update a note's status (for blog comment moderation). */
+export async function updateNoteStatus(
+  noteId: string,
+  status: "pending" | "approved" | "rejected"
+): Promise<{ success: boolean; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_notes")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", noteId);
+  if (error) {
+    console.error("Error updating note status:", { message: error.message, code: error.code });
     return { success: false, error: new Error(error.message) };
   }
   return { success: true, error: null };
@@ -1642,25 +1715,31 @@ export async function getFormSubmissionsByContactId(contactId: string): Promise<
   return rows.map(normalizeSubmissionRow);
 }
 
-/** Dashboard activity item (merged from notes, form submissions, contact created). */
+/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments). */
 export interface DashboardActivityItem {
-  type: "note" | "form_submission" | "contact_added";
+  type: "note" | "form_submission" | "contact_added" | "blog_comment";
   at: string;
   contactId: string;
   contactName: string;
   body?: string;
   noteType?: string | null;
   formName?: string;
+  /** Set when type = 'blog_comment' (link to post). */
+  contentId?: string | null;
+  /** Set when type = 'blog_comment': pending, approved, rejected. */
+  status?: string | null;
+  /** Note id (for blog_comment moderation). */
+  id?: string;
 }
 
-/** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. */
+/** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. Includes blog comments. */
 export async function getDashboardActivity(limit = 50): Promise<DashboardActivityItem[]> {
   const supabase = createServerSupabaseClient();
   const [notesData, subsData, contactsData] = await Promise.all([
     supabase
       .schema(CRM_SCHEMA)
       .from("crm_notes")
-      .select("id, contact_id, body, created_at, note_type")
+      .select("id, contact_id, body, created_at, note_type, author_id, content_id, status")
       .order("created_at", { ascending: false })
       .limit(Math.floor(limit / 2)),
     supabase
@@ -1678,12 +1757,12 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       .limit(20),
   ]);
 
-  const notes = (notesData.data as { id: string; contact_id: string; body: string; created_at: string; note_type: string | null }[] | null) ?? [];
+  const notes = (notesData.data as { id: string; contact_id: string | null; body: string; created_at: string; note_type: string | null; author_id: string | null; content_id: string | null; status: string | null }[] | null) ?? [];
   const subs = (subsData.data as { id: string; contact_id: string | null; form_id: string; submitted_at: string }[] | null) ?? [];
   const contacts = (contactsData.data as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; email: string | null; created_at: string }[] | null) ?? [];
 
   const contactIds = new Set<string>();
-  notes.forEach((n) => contactIds.add(n.contact_id));
+  notes.forEach((n) => { if (n.contact_id) contactIds.add(n.contact_id); });
   subs.forEach((s) => { if (s.contact_id) contactIds.add(s.contact_id); });
   contacts.forEach((c) => contactIds.add(c.id));
 
@@ -1701,19 +1780,43 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
     }
   }
 
+  const authorIds = new Set<string>();
+  notes.forEach((n) => { if (n.note_type === "blog_comment" && n.author_id) authorIds.add(n.author_id); });
+  let authorNames: Record<string, string> = {};
+  if (authorIds.size > 0) {
+    const { getCommentAuthorDisplayName } = await import("@/lib/blog-comments/author-name");
+    await Promise.all([...authorIds].map(async (authId) => {
+      authorNames[authId] = await getCommentAuthorDisplayName(authId);
+    }));
+  }
+
   const forms = await getForms();
   const formNameById: Record<string, string> = Object.fromEntries(forms.map((f) => [f.id, f.name]));
 
   const items: DashboardActivityItem[] = [];
   for (const n of notes) {
-    items.push({
-      type: "note",
-      at: n.created_at,
-      contactId: n.contact_id,
-      contactName: contactNames[n.contact_id] ?? "Contact",
-      body: n.body,
-      noteType: n.note_type,
-    });
+    if (n.note_type === "blog_comment") {
+      items.push({
+        type: "blog_comment",
+        id: n.id,
+        at: n.created_at,
+        contactId: n.contact_id ?? "",
+        contactName: n.author_id ? (authorNames[n.author_id] ?? "Commenter") : "Commenter",
+        body: n.body,
+        noteType: "blog_comment",
+        contentId: n.content_id ?? null,
+        status: n.status ?? null,
+      });
+    } else {
+      items.push({
+        type: "note",
+        at: n.created_at,
+        contactId: n.contact_id ?? "",
+        contactName: contactNames[n.contact_id ?? ""] ?? "Contact",
+        body: n.body,
+        noteType: n.note_type,
+      });
+    }
   }
   for (const s of subs) {
     if (!s.contact_id) continue;
