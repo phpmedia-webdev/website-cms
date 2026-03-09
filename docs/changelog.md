@@ -11,6 +11,19 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-03-09 CT — Session wrap-up: Shortcode MVP planning, sessionlog cleanup, Next up = Shortcode implementation
+
+**Context for Next Session:** This session was planning and discussion only (no shortcode code changes). Shortcode MVP scope agreed: universal shortcode picker (one icon, replace dedicated Image/Gallery toolbar buttons); public shared library table (`shortcode_types`) so new types are available to all tenant sites; parse/render logic stays in app code. Gallery will be repurposed as one shortcode type (picker by id/name). Carousel/rotator = existing gallery + slider display style (no new table). Quote carousel: block-with-rotator option and/or quote shortcode (quotes entity) for reuse. Alignment: Tiptap paragraph alignment applies to shortcode-in-paragraph; renderer should preserve wrapper for front end. Columns/Container/Flexbox = paired shortcodes (open/close); accordion = block or shortcode later. **Next up:** See sessionlog — Shortcode implementation Phase 1 (library table, universal picker, Gallery + Media + simple blocks + Button + Form + Snippet), Phase 2 (paired layout: Columns, Container, Flexbox), Phase 3 (Quotes, FAQ, Accordion entities/pickers). Other backlog: Media Copy Shortcode, CRM sorting, Form submission list, App version number.
+
+**Changes:**
+- **Changelog:** This entry.
+- **Sessionlog:** Cleaned; completed Signup pipeline, Blog (RSS, SEO, Social Share, comments), GPUM Account settings removed from active list. New **Next up** section: **Shortcode implementation** with detailed steps for Phase 1 (public `shortcode_types` table, universal picker UI, repurpose Gallery, Media/Image, Separator, Section break, Spacer, Clear, Button, Form, Snippet), Phase 2 (paired shortcode parser and Columns, Container, Flexbox), Phase 3 (Quotes, FAQ, Accordion). Other/Backlog: Media Copy Shortcode, Terms and Policys, CRM Sorting, Form Submission List, App Version Number.
+- **Planlog:** Shortcode Library MVP added under Phase 06 / Content; reference sessionlog for phased steps.
+
+**Key files:** `docs/sessionlog.md`, `docs/changelog.md`, `docs/planlog.md`.
+
+---
+
 ### 2026-03-07 CT — Session wrap-up: Drop-in ComposeEmail, SMTP branding MVP, contact UX, GPUM steps in sessionlog
 
 **Context for Next Session:** Contact outbound email uses drop-in `ComposeEmail` (subject, body, attachments); send-email API and activity log support attachments. SMTP branding MVP: from-name fallback to site name when unset; minimal HTML wrapper for text-only sends. Contact: delete button on edit page only; top row order Status, Merge, Edit, Compose email. #DNC rule rephrased in coding.mdc. GPUM (member area) steps added to sessionlog: dashboard and My Profile in place; Account settings (/members/account) remains placeholder. **Next up:** See sessionlog — GPUM Account settings, blog RSS feed, blog comments, Media Copy Shortcode, CRM/forms/buttons.

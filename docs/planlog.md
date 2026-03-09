@@ -62,11 +62,12 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 ### Phase 06: Content Management
 
-**Status:** Core complete.
+**Status:** Core complete. Shortcode Library MVP planned (see sessionlog for phased steps).
 
 - [x] Document content-by-UID for code library; example snippets
 - [x] Optional: FAQ block content type (create/edit, body or fields, public render)
 - [x] Blog template — author on post: Author dropdown in Content Status (GET /api/admin/authors); author_id saved; “By {name}” on /blog/[slug].
+- [ ] **Shortcode Library MVP:** Public shortcode_types table; universal picker; Phase 1 (Gallery repurpose, Media, Separator, Section break, Spacer, Clear, Button, Form, Snippet); Phase 2 (paired: Columns, Container, Flexbox); Phase 3 (Quotes, FAQ, Accordion). See sessionlog Next up for detailed steps.
 
 ### Phase 07: CRM
 
