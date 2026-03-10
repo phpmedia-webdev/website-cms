@@ -14,31 +14,36 @@ import { Label } from "@/components/ui/label";
 import {
   Minus,
   Layout,
+  LayoutGrid,
   Space,
   Eraser,
   Image,
   ImagePlus,
   MousePointer,
-  FileInput,
+  FileText,
   FileCode,
   Loader2,
 } from "lucide-react";
 import type { ShortcodeType } from "@/lib/shortcodes/types";
 import { GalleryPickerModal } from "./GalleryPickerModal";
 import { MediaPickerModal } from "./MediaPickerModal";
+import { LayoutWizardModal } from "./LayoutWizardModal";
 import { MEDIA_SIZE_OPTIONS } from "./MediaShortcodeRender";
+import { getContentTypes, getContentListWithTypes } from "@/lib/supabase/content";
+import type { ContentType, ContentListItem } from "@/types/content";
 import type { ButtonStyle } from "@/types/design-system";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   ImagePlus,
   Image,
+  FileText,
+  LayoutGrid,
   Minus,
   Layout,
   Space,
   ClearFormatting: Eraser,
   Eraser,
   MousePointer,
-  FileInput,
   FileCode,
 };
 
@@ -53,30 +58,33 @@ interface ShortcodePickerModalProps {
   open: boolean;
   onClose: () => void;
   onSelect: (shortcode: string) => void;
+  /** Exclude this content id from Content picker to prevent self-reference / infinite recursion. */
+  excludeContentId?: string | null;
 }
 
 export function ShortcodePickerModal({
   open,
   onClose,
   onSelect,
+  excludeContentId,
 }: ShortcodePickerModalProps) {
   const [types, setTypes] = useState<ShortcodeType[]>([]);
   const [loading, setLoading] = useState(false);
   const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
   const [buttonFormOpen, setButtonFormOpen] = useState(false);
-  const [formListOpen, setFormListOpen] = useState(false);
-  const [snippetListOpen, setSnippetListOpen] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [buttonLabel, setButtonLabel] = useState("");
   const [buttonUrl, setButtonUrl] = useState("");
   const [buttonStyles, setButtonStyles] = useState<ButtonStyle[]>([]);
   const [buttonStyleSlug, setButtonStyleSlug] = useState("primary");
-  const [formId, setFormId] = useState("");
-  const [forms, setForms] = useState<{ id: string; name: string }[]>([]);
-  const [snippets, setSnippets] = useState<{ id: string; title: string }[]>([]);
-  const [snippetId, setSnippetId] = useState("");
   const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
   const [mediaSize, setMediaSize] = useState<string>("medium");
+  const [layoutWizardOpen, setLayoutWizardOpen] = useState(false);
+  const [contentPickerOpen, setContentPickerOpen] = useState(false);
+  const [contentTypes, setContentTypes] = useState<ContentType[]>([]);
+  const [contentList, setContentList] = useState<ContentListItem[]>([]);
+  const [contentPickerStep, setContentPickerStep] = useState<"type" | "item">("type");
+  const [contentPickerTypeSlug, setContentPickerTypeSlug] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -106,26 +114,60 @@ export function ShortcodePickerModal({
       case "media":
         setMediaPickerOpen(true);
         break;
+      case "content":
+        setContentPickerOpen(true);
+        setContentPickerStep("type");
+        setContentPickerTypeSlug(null);
+        getContentTypes()
+          .then((list) => setContentTypes(list.filter((x) => x.is_core && x.slug !== "page")))
+          .catch(() => setContentTypes([]));
+        getContentListWithTypes()
+          .then(setContentList)
+          .catch(() => setContentList([]));
+        break;
       case "button":
         setButtonFormOpen(true);
+        fetch("/api/settings/button-styles")
+          .then((r) => (r.ok ? r.json() : []))
+          .then((list) => setButtonStyles(Array.isArray(list) ? list : []))
+          .catch(() => setButtonStyles([]));
         break;
-      case "form":
-        setFormListOpen(true);
-        fetch("/api/crm/forms")
-          .then((r) => r.ok ? r.json() : [])
-          .then((list) => setForms(Array.isArray(list) ? list.map((f: { id: string; name: string }) => ({ id: f.id, name: f.name })) : []))
-          .catch(() => setForms([]));
-        break;
-      case "snippet":
-        setSnippetListOpen(true);
-        fetch("/api/settings/snippets")
-          .then((r) => r.ok ? r.json() : [])
-          .then((data) => setSnippets(Array.isArray(data) ? data : []))
-          .catch(() => setSnippets([]));
+      case "layout":
+        setLayoutWizardOpen(true);
         break;
       default:
         break;
     }
+  };
+
+  const contentTypesForPicker = contentTypes;
+  const contentItemsForPicker =
+    contentPickerTypeSlug == null
+      ? []
+      : contentList.filter(
+          (c) => c.type_slug === contentPickerTypeSlug && c.id !== excludeContentId
+        );
+
+  const handleContentTypeSelect = (typeSlug: string) => {
+    setContentPickerTypeSlug(typeSlug);
+    setContentPickerStep("item");
+  };
+
+  const handleContentItemSelect = (contentId: string) => {
+    const typeSlug = contentPickerTypeSlug ?? "snippet";
+    const shortcode =
+      typeSlug === "snippet" ? `[[snippet:${contentId}]]` : `[[content:${contentId}]]`;
+    onSelect(shortcode);
+    setContentPickerOpen(false);
+    setContentPickerStep("type");
+    setContentPickerTypeSlug(null);
+    onClose();
+  };
+
+  const handleLayoutSelect = (shortcode: string) => {
+    setLayoutWizardOpen(false);
+    onSelect(shortcode);
+    onClose();
   };
 
   const handleGallerySelect = (shortcode: string) => {
@@ -156,22 +198,6 @@ export function ShortcodePickerModal({
     onSelect(`[[media:${pendingMediaId}|${mediaSize}]]`);
     setPendingMediaId(null);
     setMediaSize("medium");
-    onClose();
-  };
-
-  const insertForm = () => {
-    if (!formId) return;
-    onSelect(`[[form:${formId}]]`);
-    setFormListOpen(false);
-    setFormId("");
-    onClose();
-  };
-
-  const insertSnippet = () => {
-    if (!snippetId) return;
-    onSelect(`[[snippet:${snippetId}]]`);
-    setSnippetListOpen(false);
-    setSnippetId("");
     onClose();
   };
 
@@ -313,57 +339,86 @@ export function ShortcodePickerModal({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={formListOpen} onOpenChange={setFormListOpen}>
-        <DialogContent className="max-w-sm">
+      <Dialog
+        open={contentPickerOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setContentPickerOpen(false);
+            setContentPickerStep("type");
+            setContentPickerTypeSlug(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm max-h-[80vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Insert form</DialogTitle>
-            <DialogDescription>Choose a form to embed.</DialogDescription>
+            <DialogTitle>
+              {contentPickerStep === "type" ? "Choose content type" : "Choose content"}
+            </DialogTitle>
+            <DialogDescription>
+              {contentPickerStep === "type"
+                ? "Select a content type, then pick an item to embed. Current document is excluded to prevent self-reference."
+                : `Select a ${contentPickerTypeSlug ?? ""} item.`}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {forms.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No forms. Create one in CRM → Forms.</p>
+          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+            {contentPickerStep === "type" ? (
+              contentTypesForPicker.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No content types available.</p>
+              ) : (
+                contentTypesForPicker.map((t) => (
+                  <Button
+                    key={t.id}
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => handleContentTypeSelect(t.slug)}
+                  >
+                    {t.label}
+                  </Button>
+                ))
+              )
             ) : (
-              forms.map((f) => (
+              <>
                 <Button
-                  key={f.id}
-                  variant={formId === f.id ? "default" : "outline"}
+                  variant="ghost"
                   size="sm"
-                  className="w-full justify-start"
-                  onClick={() => { setFormId(f.id); insertForm(); }}
+                  className="mb-2"
+                  onClick={() => {
+                    setContentPickerStep("type");
+                    setContentPickerTypeSlug(null);
+                  }}
                 >
-                  {f.name}
+                  Back
                 </Button>
-              ))
+                {contentItemsForPicker.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No items of this type{excludeContentId ? " (current document excluded)" : ""}.
+                  </p>
+                ) : (
+                  contentItemsForPicker.map((c) => (
+                    <Button
+                      key={c.id}
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => handleContentItemSelect(c.id)}
+                    >
+                      {c.title ?? c.slug ?? c.id}
+                    </Button>
+                  ))
+                )}
+              </>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={snippetListOpen} onOpenChange={setSnippetListOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Insert snippet</DialogTitle>
-            <DialogDescription>Choose a snippet from the content library.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {snippets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No snippets. Create content type Snippet in Settings.</p>
-            ) : (
-              snippets.map((s) => (
-                <Button
-                  key={s.id}
-                  variant={snippetId === s.id ? "default" : "outline"}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => { setSnippetId(s.id); insertSnippet(); }}
-                >
-                  {s.title ?? s.id}
-                </Button>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <LayoutWizardModal
+        open={layoutWizardOpen}
+        onClose={() => setLayoutWizardOpen(false)}
+        onSelect={handleLayoutSelect}
+        excludeContentId={excludeContentId ?? undefined}
+      />
     </>
   );
 }

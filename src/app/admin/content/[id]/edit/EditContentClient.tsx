@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, ExternalLink } from "lucide-react";
 import { getContentById, getContentTypes } from "@/lib/supabase/content";
 import { ContentEditorForm, type ContentEditorFormHandle } from "@/components/content/ContentEditorForm";
 import { ContentCommentsBlock } from "@/components/content/ContentCommentsBlock";
@@ -43,7 +43,7 @@ export function EditContentClient() {
   }, [id]);
 
   const handleSaved = () => {
-    router.push("/admin/content");
+    // Stay on edit page after save so user can preview or keep editing. Use "Back" to return to list.
   };
 
   const handleCancel = () => {
@@ -87,6 +87,20 @@ export function EditContentClient() {
           <span className="font-bold text-2xl">Edit Content</span>
         </div>
         <div className="flex justify-end gap-2">
+          {types.find((t) => t.id === item.content_type_id)?.slug === "post" && item.slug && (
+            <Button
+              type="button"
+              variant="outline"
+              title="Open post in a new tab (draft visible to you only)"
+              onClick={() => {
+                const url = `${window.location.origin}/blog/${encodeURIComponent(item.slug)}`;
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+            >
+              <ExternalLink className="h-4 w-4 mr-1.5" />
+              Preview
+            </Button>
+          )}
           <Button variant="outline" onClick={handleCancel} disabled={saving}>
             Cancel
           </Button>

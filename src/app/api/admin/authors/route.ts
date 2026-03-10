@@ -1,7 +1,8 @@
 /**
  * GET /api/admin/authors
  * List tenant users assigned to the current site (for content author dropdown).
- * Requires admin or superadmin. Returns id (tenant_user id), display_name, email.
+ * Requires admin or superadmin. Returns id (tenant_user id or auth user id), display_name, email.
+ * When current user is superadmin and not in the site list, they are appended so they can be chosen as author.
  */
 
 import { NextResponse } from "next/server";
@@ -10,6 +11,7 @@ import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import { listUsersByTenantSite } from "@/lib/supabase/tenant-users";
+import { getProfileByUserId } from "@/lib/supabase/profiles";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -27,12 +29,30 @@ export async function GET() {
     return NextResponse.json({ error: "Site not found" }, { status: 404 });
   }
 
-  const users = await listUsersByTenantSite(site.id);
-  return NextResponse.json({
-    users: users.map((u) => ({
-      id: u.id,
-      display_name: u.display_name ?? null,
-      email: u.email,
-    })),
-  });
+  const siteUsers = await listUsersByTenantSite(site.id);
+  const users: { id: string; display_name: string | null; email: string }[] = siteUsers.map((u) => ({
+    id: u.id,
+    display_name: u.display_name ?? null,
+    email: u.email,
+  }));
+
+  // Superadmin fallback: if current user is not in the site list, add them (by auth id) so they can be chosen as author.
+  // Use profile display_name (Settings → My Profile) when set, else Auth display_name, else email.
+  if (isSuperadminFromRole(role)) {
+    const alreadyInList = siteUsers.some((u) => u.user_id === user.id);
+    if (!alreadyInList) {
+      const profile = await getProfileByUserId(user.id);
+      const displayName =
+        profile?.display_name?.trim() ||
+        user.display_name?.trim() ||
+        null;
+      users.push({
+        id: user.id,
+        display_name: displayName,
+        email: user.email ?? "",
+      });
+    }
+  }
+
+  return NextResponse.json({ users });
 }

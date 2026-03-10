@@ -45,6 +45,8 @@ interface RichTextEditorProps {
   onChange?: (content: Record<string, unknown>) => void;
   onCharCountChange?: (count: number) => void;
   placeholder?: string;
+  /** Exclude this content id from shortcode Content picker to prevent self-reference. */
+  excludeContentId?: string | null;
 }
 
 const BLOCK_OPTIONS = [
@@ -62,6 +64,7 @@ export function RichTextEditor({
   onChange,
   onCharCountChange,
   placeholder = "Start writing...",
+  excludeContentId,
 }: RichTextEditorProps) {
   const [, setTick] = useState(0);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -495,6 +498,7 @@ export function RichTextEditor({
         open={shortcodePickerOpen}
         onClose={() => setShortcodePickerOpen(false)}
         onSelect={handleShortcodeSelect}
+        excludeContentId={excludeContentId}
       />
     </div>
   );

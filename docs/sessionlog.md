@@ -56,24 +56,47 @@
 - [ ] **9a.3 Media shortcode align (optional)** — If not relying only on paragraph alignment, add `align` param and apply to wrapper or image.
 - [x] **9a.4 Picker UI** — After selecting an image, "Image size" dialog with Size dropdown (Small, Medium, Large, Full); inserted shortcode includes size (e.g. `[[media:id|medium]]`).
 - [x] **9a.5 Theme/CSS** — Size applied via Tailwind classes on the shortcode wrapper; no extra CSS file.
+- [x] **9a.6 Post preview** — Preview only after post is saved. Edit page: Preview button (content type = post) opens `/blog/[slug]` in new tab. Draft posts: same URL; operators (admin/superadmin) can see draft at `/blog/[slug]`; public gets 404. Draft banner shown when viewing draft. `getContentByTypeAndSlug` for any-status fetch; `canPreviewDraft()` for operator check.
 
 ---
 
-#### Phase 2 — Paired shortcodes (layout)
+#### Phase 2 — Layout wizard + columns/col backend (single-row columns)
+
+**Design:** Modal offers one **"Layout"** item that opens the **Layout wizard**. Wizard: column widths (%), row height (px), per-column content (Blank | Image | Button | Form | Snippet | FAQ | Quote). Backend: paired `columns` and `col` only.
+
+**Backend:**
 
 - [ ] **11. Paired shortcode parser** — In content renderer (e.g. ContentWithGalleries or generalized shortcode handler): find open/close pairs by type (e.g. `[[columns|2]]` … `[[/columns]]`). Match by stack (nested same type). Extract HTML between; recursively process inner content; replace with wrapper div + processed inner HTML.
-- [ ] **12. Columns shortcode** — `[[columns|2]]` … `[[/columns]]` (optional 3, 4). Picker inserts open + newline + close, cursor between. Renderer → `<div class="columns-2">` (or columns-3, columns-4). Theme: grid or flex.
-- [ ] **13. Container shortcode** — `[[container]]` … `[[/container]]`; optional `[[container|narrow]]`. Renderer → `<div class="container">` or `container-narrow`. Theme: max-width, padding.
-- [ ] **14. Flexbox shortcode** — `[[flex|row]]` … `[[/flex]]` or `[[flex|column|wrap]]` … `[[/flex]]`. Attributes → classes (e.g. flex, flex-row, flex-wrap). Renderer → `<div class="flex flex-row flex-wrap">`. Theme: display flex, etc.
-- [ ] **15. Seed paired types in shortcode_types** — Add rows for columns, container, flex (has_picker false or simple “number of columns” / variant); picker inserts open + close with cursor between.
+- [ ] **12. Columns shortcode** — `[[columns|widths|height]]` … `[[/columns]]`. widths = comma-separated % (e.g. 30,40,30), sum 100; height = row height px (e.g. 150). Renderer: single-row grid/flex, min-height.
+- [ ] **13. Col shortcode** — `[[col]]` … `[[/col]]` inside columns only. Each pair = one column (left to right). Renderer: column wrapper; inner content processed recursively. Images scale to row height when height set.
+- [ ] **14. Add "Layout" to shortcode modal** — New entry "Layout" in picker. Selecting it opens Layout wizard; on completion calls onSelect(generatedShortcode) and closes.
+- [ ] **15. Prompt/description per item** — Short prompt under each item (e.g. "Insert a single image."). Source: optional description on shortcode_types + API, or static map.
+- [ ] **16. Wizard step 1: Layout definition** — Column widths (%) comma-separated, validate sum = 100; row height (px) default 150. N columns = number of width values.
+- [ ] **17. Wizard step 2: Assign content per column** — For each column 1..N: Blank | Image | Button | Form | Snippet | FAQ | Quote. If not Blank, open that picker; store id/params. Reuse existing pickers.
+- [ ] **18. Wizard step 3: Insert** — Build columns/col shortcode string with each col body empty or chosen shortcode. onSelect(shortcode); close.
+- [ ] **19. Seed Layout + optional description** — Add layout to shortcode_types for "Layout" entry; optionally add description column for modal prompts.
 
 ---
 
-#### Phase 3 — Entity-backed shortcodes (Quotes, FAQ, Accordion)
+#### Phase 2b — Form display, embed code, and shortcode integration (CRM)
 
-- [ ] **16. Quotes shortcode (optional)** — `quotes` entity (table: id, quote text, author, order, tenant). Admin UI to manage quotes. Shortcode `[[quotes:id1,id2]]` or `[[quotes:collection-id]]`; picker: multi-select or collection. Renderer: quote carousel/rotator component.
-- [ ] **17. FAQ shortcode (optional)** — Option A: keep FAQ as inline block only. Option B: `faq_sets` table; shortcode `[[faq:set-id]]`; picker picks set. Renderer: accordion or list from set.
-- [ ] **18. Accordion (optional)** — Option A: accordion as content block (like FAQ) with “display as accordion.” Option B: accordion sets table; shortcode `[[accordion:set-id]]`; picker. Renderer: collapsible sections. Defer or implement after Phase 1–2.
+**Goal:** CRM form manager builds full-use form objects (form ID, embed script). Forms can be embedded in posts via shortcode (inline display) and in Layout wizard column cells. Styling options in form manager deferred to a later upgrade.
+
+- [ ] **2b.1 Form display routine** — Shared routine that, given form id/slug, loads form config (field assignments, core/custom fields) and renders the form (reuse or share with PublicFormClient). Used by: (1) existing `/forms/[slug]` page; (2) ContentWithGalleries shortcode render so `[[form:id]]` outputs the form inline instead of a "View form" link.
+- [ ] **2b.2 Embed code in form manager** — In CRM → Forms (list or edit): "Copy embed code" that shows copyable iframe (and optionally script) using the form URL. Form identified by id/slug; no backend change for the form page itself.
+- [ ] **2b.3 Form in main shortcode picker** — Add "Form" as a top-level item in the shortcode picker (not under Content). On select: open form picker modal (list from `/api/crm/forms`), choose form → insert `[[form:id]]` or `[[form:slug]]`.
+- [ ] **2b.4 Form in Layout wizard** — Add "Form" as a column content option in the Layout wizard (with Blank, Image, Gallery, Content). Choosing Form opens the same form picker; selected form shortcode is stored in that column’s content.
+- [ ] **Later:** Form manager styling (colors, button style, etc.) as a separate upgrade.
+
+---
+
+#### Phase 3 — Quote, FAQ (and optional Accordion) for standalone + Layout cells
+
+**Design:** Quote and FAQ usable as standalone shortcodes and as Layout wizard cell types. Exclude current post from pickers in wizard.
+
+- [ ] **20. Quote shortcode (standalone + Layout cell)** — `quotes` entity (table: id, quote text, author, order, tenant). Admin UI to manage quotes. Shortcode `[[quotes:id1,id2]]` or `[[quotes:collection-id]]`; picker: multi-select or collection. Renderer: quote carousel/rotator component.
+- [ ] **21. FAQ shortcode (standalone + Layout cell)** — Option A: keep FAQ as inline block only. Option B: `faq_sets` table; shortcode `[[faq:set-id]]`; picker picks set. Renderer: accordion or list from set.
+- [ ] **22. Accordion (optional, defer)** — Option A: accordion as content block (like FAQ) with “display as accordion.” Option B: accordion sets table; shortcode `[[accordion:set-id]]`; picker. Renderer: collapsible sections. Defer or implement after Phase 1–2.
 
 ---
 

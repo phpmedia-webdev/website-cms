@@ -69,6 +69,8 @@ export interface ContentRow {
   featured_image_id: string | null;
   status: string;
   published_at: string | null;
+  /** When set, post is hidden after this time. Null = display indefinitely. */
+  expires_at?: string | null;
   author_id: string | null;
   custom_fields: Record<string, unknown>;
   access_level: string | null;

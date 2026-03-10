@@ -23,7 +23,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2 } from "lucide-react";
+import { Loader2, Clock, X } from "lucide-react";
+import { format } from "date-fns";
+
+/** Convert ISO date to datetime-local input value (local time). */
+function toDatetimeLocal(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day}T${h}:${min}`;
+}
 
 export interface ContentEditorFormProps {
   item: ContentRow | null;
@@ -63,7 +75,37 @@ function getQuoteTemplateBody(): Record<string, unknown> {
     type: "doc",
     content: [
       { type: "paragraph", content: [{ type: "text", text: "Quote: Add the quote or testimonial text here." }] },
-      { type: "paragraph", content: [{ type: "text", text: "Author: Name, title, or attribution." }] },
+      { type: "paragraph", content: [{ type: "text", text: "Author Name:" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Author Title or attribution:" }] },
+    ],
+  };
+}
+
+/** Tiptap JSON body for new Accordion content (Icon / Header / Items template). Parser uses prefixes for layout. */
+function getAccordionTemplateBody(): Record<string, unknown> {
+  return {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: 'Icon = "+"' }] },
+      { type: "paragraph", content: [{ type: "text", text: "Header Title: Add title" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Item 1:" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Item 2:" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Item 3:" }] },
+    ],
+  };
+}
+
+/** Tiptap JSON body for new Portfolio content. Parser uses prefixes for layout. */
+function getPortfolioTemplateBody(): Record<string, unknown> {
+  return {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "ID: (string or number): Unique identifier for the portfolio item" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Title: (string): Name or title of the project/product/business" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Subtitle: (string): Short tagline or description" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Description: (string): Detailed info about the project or product" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Price: (number or string): Cost or price range, if applicable" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Features: (array of strings): Key features or highlights" }] },
     ],
   };
 }
@@ -94,7 +136,11 @@ ref: React.Ref<ContentEditorFormHandle>) => {
         ? getFaqTemplateBody()
         : initialContentTypeSlug === "quote"
           ? getQuoteTemplateBody()
-          : null)
+          : initialContentTypeSlug === "accordion"
+            ? getAccordionTemplateBody()
+            : initialContentTypeSlug === "portfolio"
+              ? getPortfolioTemplateBody()
+              : null)
   );
   const [excerpt, setExcerpt] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
@@ -119,6 +165,14 @@ ref: React.Ref<ContentEditorFormHandle>) => {
   const [bodyCharCount, setBodyCharCount] = useState(0);
   const [authorId, setAuthorId] = useState<string>(item?.author_id ?? "");
   const [authorOptions, setAuthorOptions] = useState<{ id: string; display_name: string | null; email: string }[]>([]);
+  /** Start of visibility (datetime-local); empty = publish immediately. */
+  const [publishAt, setPublishAt] = useState<string>(() =>
+    item?.published_at ? toDatetimeLocal(item.published_at) : ""
+  );
+  /** End of visibility (datetime-local); empty = display indefinitely. */
+  const [expiresAt, setExpiresAt] = useState<string>(() =>
+    item?.expires_at ? toDatetimeLocal(item.expires_at) : ""
+  );
   const [seoTitle, setSeoTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
   const [ogImageId, setOgImageId] = useState("");
@@ -160,6 +214,8 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setSeoTitle(item.seo_title ?? "");
       setMetaDescription(item.meta_description ?? "");
       setOgImageId(item.og_image_id ?? "");
+      setPublishAt(item.published_at ? toDatetimeLocal(item.published_at) : "");
+      setExpiresAt(item.expires_at ? toDatetimeLocal(item.expires_at) : "");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(item.use_for_agent_training ?? false);
       else setInternalUseForAgentTraining(item.use_for_agent_training ?? false);
     } else {
@@ -171,7 +227,11 @@ ref: React.Ref<ContentEditorFormHandle>) => {
           ? getFaqTemplateBody()
           : initialContentTypeSlug === "quote"
             ? getQuoteTemplateBody()
-            : null
+            : initialContentTypeSlug === "accordion"
+              ? getAccordionTemplateBody()
+              : initialContentTypeSlug === "portfolio"
+                ? getPortfolioTemplateBody()
+                : null
       );
       setExcerpt("");
       setStatus("draft");
@@ -187,6 +247,8 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setSeoTitle("");
       setMetaDescription("");
       setOgImageId("");
+      setPublishAt("");
+      setExpiresAt("");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(false);
       else setInternalUseForAgentTraining(false);
     }
@@ -245,7 +307,16 @@ ref: React.Ref<ContentEditorFormHandle>) => {
         excerpt: excerpt.trim() || null,
         body: data,
         status,
-        published_at: status === "published" ? new Date().toISOString() : null,
+        published_at:
+          status === "published"
+            ? publishAt.trim()
+              ? new Date(publishAt.trim()).toISOString()
+              : new Date().toISOString()
+            : null,
+        expires_at:
+          status === "published" && expiresAt.trim()
+            ? new Date(expiresAt.trim()).toISOString()
+            : null,
         featured_image_id: item?.featured_image_id ?? null,
         author_id: authorId?.trim() || null,
         custom_fields: customFields,
@@ -357,22 +428,22 @@ ref: React.Ref<ContentEditorFormHandle>) => {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-[60%_40%] gap-4">
         <Card>
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="pt-3 space-y-2">
             {(isEdit || initialContentTypeSlug) ? (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label className="text-base font-semibold">Content type</Label>
-                <div className="rounded-md border border-input bg-muted/50 px-3 py-2.5">
+                <div className="rounded-md border border-input bg-muted/50 px-3 py-1.5">
                   <p className="text-base font-medium">{currentType?.label ?? "—"}</p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="content-type" className="text-base font-semibold">Content type</Label>
                 <select
                   id="content-type"
                   value={contentTypeId}
                   onChange={(e) => setContentTypeId(e.target.value)}
-                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-base"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
                 >
                   <option value="">Select type…</option>
                   {types.map((t) => (
@@ -383,16 +454,17 @@ ref: React.Ref<ContentEditorFormHandle>) => {
                 </select>
               </div>
             )}
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label htmlFor="content-name">Name</Label>
               <Input
                 id="content-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Title"
+                className="h-9"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label htmlFor="content-slug">Slug</Label>
               <Input
                 id="content-slug"
@@ -402,31 +474,87 @@ ref: React.Ref<ContentEditorFormHandle>) => {
                   setSlugManuallyEdited(true);
                 }}
                 placeholder="url-slug"
+                className="h-9"
               />
+            </div>
+            <div className="flex items-center gap-2 pt-0.5">
+              <Checkbox
+                id="content-use-for-agent-training"
+                checked={useForAgentTraining}
+                onCheckedChange={(v) => setUseForAgentTraining(!!v)}
+              />
+              <Label htmlFor="content-use-for-agent-training" className="font-normal cursor-pointer text-sm">
+                Use for AI Agent Training
+              </Label>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="space-y-2">
+          <CardContent className="pt-3 space-y-2">
+            <div className="space-y-1">
               <Label htmlFor="content-status">Status</Label>
               <select
                 id="content-status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as "draft" | "published")}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
               >
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
               </select>
             </div>
-            <div className="space-y-2">
+            {currentType?.slug === "post" && (
+              <div className="space-y-1">
+                <Label>Publish date & time</Label>
+                <div className="flex gap-1.5 items-center">
+                  <span className="text-muted-foreground text-sm w-10 shrink-0">Start</span>
+                  <input
+                    id="content-publish-at"
+                    type="datetime-local"
+                    value={publishAt}
+                    onChange={(e) => setPublishAt(e.target.value)}
+                    className="flex h-9 flex-1 min-w-0 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    title="Set to now"
+                    onClick={() => setPublishAt(toDatetimeLocal(new Date().toISOString()))}
+                  >
+                    <Clock className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex gap-1.5 items-center">
+                  <span className="text-muted-foreground text-sm w-10 shrink-0">End</span>
+                  <input
+                    id="content-expires-at"
+                    type="datetime-local"
+                    value={expiresAt}
+                    onChange={(e) => setExpiresAt(e.target.value)}
+                    className="flex h-9 flex-1 min-w-0 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    title="Clear end date (display indefinitely)"
+                    onClick={() => setExpiresAt("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-1">
               <Label htmlFor="content-author">Author</Label>
               <select
                 id="content-author"
                 value={authorId}
                 onChange={(e) => setAuthorId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
               >
                 <option value="">No author</option>
                 {authorOptions.map((u) => (
@@ -436,16 +564,22 @@ ref: React.Ref<ContentEditorFormHandle>) => {
                 ))}
               </select>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="content-use-for-agent-training"
-                checked={useForAgentTraining}
-                onCheckedChange={(v) => setUseForAgentTraining(!!v)}
-              />
-              <Label htmlFor="content-use-for-agent-training" className="font-normal cursor-pointer">
-                Use for AI Agent Training
-              </Label>
-            </div>
+            {currentType?.slug === "post" && item && (
+              <div className="space-y-0.5 rounded-md border border-border/50 bg-muted/30 px-3 py-1.5 text-sm">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Created</span>
+                  <span>{item.created_at ? format(new Date(item.created_at), "MMM d, yyyy h:mm a") : "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Updated</span>
+                  <span>{item.updated_at ? format(new Date(item.updated_at), "MMM d, yyyy h:mm a") : "—"}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Published</span>
+                  <span>{item.published_at ? format(new Date(item.published_at), "MMM d, yyyy h:mm a") : "—"}</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -461,6 +595,7 @@ ref: React.Ref<ContentEditorFormHandle>) => {
           onChange={setData}
           onCharCountChange={setBodyCharCount}
           placeholder="Body content…"
+          excludeContentId={item?.id ?? null}
         />
       </div>
 

@@ -2,10 +2,9 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
-import { getPublishedContentByTypeAndSlug } from "@/lib/supabase/content";
+import { getPublishedContentByTypeAndSlug, getContentByTypeAndSlug } from "@/lib/supabase/content";
 import { getButtonStyles, getDesignSystemConfig } from "@/lib/supabase/settings";
 import { getTaxonomyTermsForContentDisplay } from "@/lib/supabase/taxonomy";
-import { getTenantUserById } from "@/lib/supabase/tenant-users";
 import { getSiteUrl } from "@/lib/supabase/settings";
 import { getMediaById } from "@/lib/supabase/media";
 import { PublicContentRenderer } from "@/components/public/content/PublicContentRenderer";
@@ -13,17 +12,31 @@ import { checkContentAccess } from "@/lib/auth/content-access";
 import { getCommentsByContentId } from "@/lib/supabase/crm";
 import { getMemberByUserId } from "@/lib/supabase/members";
 import { getRoleForCurrentUser, isAdminRole, isSuperadminFromRole } from "@/lib/auth/resolve-role";
-import { getCommentAuthorDisplayName } from "@/lib/blog-comments/author-name";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getCommentAuthorDisplayName, getContentAuthorDisplayName } from "@/lib/blog-comments/author-name";
 import { BlogPostComments } from "@/components/blog/BlogPostComments";
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
+/** True if current user can preview draft posts (admin/superadmin). */
+async function canPreviewDraft(): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const role = await getRoleForCurrentUser();
+  return role !== null && (isSuperadminFromRole(role) || isAdminRole(role));
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = await getPublishedContentByTypeAndSlug("post", slug);
-  if (!post) return { title: "Post Not Found" };
+  let post = await getPublishedContentByTypeAndSlug("post", slug);
+  if (!post) {
+    const anyPost = await getContentByTypeAndSlug("post", slug);
+    if (!anyPost || anyPost.status === "published") return { title: "Post Not Found" };
+    if (!(await canPreviewDraft())) return { title: "Post Not Found" };
+    post = anyPost;
+  }
 
   const baseUrl = await getSiteUrl();
   const title = post.seo_title?.trim() || post.title;
@@ -72,8 +85,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params;
-  const post = await getPublishedContentByTypeAndSlug("post", slug);
-  if (!post) notFound();
+  let post = await getPublishedContentByTypeAndSlug("post", slug);
+  if (!post) {
+    const anyPost = await getContentByTypeAndSlug("post", slug);
+    if (!anyPost) notFound();
+    if (anyPost.status !== "published") {
+      const allowed = await canPreviewDraft();
+      if (!allowed) notFound();
+      post = anyPost;
+    } else {
+      post = anyPost;
+    }
+  }
+  const isDraft = post.status !== "published";
 
   const access = await checkContentAccess({
     access_level: (post.access_level as "public" | "members" | "mag") ?? "public",
@@ -107,13 +131,11 @@ export default async function BlogPostPage({ params }: Props) {
     );
   }
 
-  const [author, { categories, tags }, approvedComments] = await Promise.all([
-    post.author_id ? getTenantUserById(post.author_id) : Promise.resolve(null),
+  const [authorLabel, { categories, tags }, approvedComments] = await Promise.all([
+    post.author_id ? getContentAuthorDisplayName(post.author_id) : Promise.resolve(""),
     getTaxonomyTermsForContentDisplay(post.id, "post"),
     getCommentsByContentId(post.id, "approved"),
   ]);
-  const authorLabel = author ? (author.display_name?.trim() || author.email) : null;
-
   const commentAuthorIds = [...new Set(approvedComments.map((c) => c.author_id).filter(Boolean))] as string[];
   const authorNames: Record<string, string> = {};
   await Promise.all(
@@ -179,6 +201,11 @@ export default async function BlogPostPage({ params }: Props) {
       <Link href="/blog" className="text-sm text-muted-foreground hover:underline mb-6 inline-block">
         ← Back to Blog
       </Link>
+      {isDraft && (
+        <div className="mb-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          Draft preview — not visible to the public. Publish the post to make it live.
+        </div>
+      )}
       <article>
         <h1 className="text-4xl font-bold mb-2">{post.title}</h1>
         {(post.published_at || authorLabel) && (

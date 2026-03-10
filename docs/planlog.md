@@ -67,7 +67,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [x] Document content-by-UID for code library; example snippets
 - [x] Optional: FAQ block content type (create/edit, body or fields, public render)
 - [x] Blog template — author on post: Author dropdown in Content Status (GET /api/admin/authors); author_id saved; “By {name}” on /blog/[slug].
-- [x] **Shortcode Library MVP Phase 1 + 1a:** Public shortcode_types table; universal picker; Phase 1 complete (Gallery, Media, Separator, Section break, Spacer, Clear, Button, Form, Snippet; alignment preservation). Phase 1a: media shortcode size param (small/medium/large/full), picker size step. Phase 2 (paired: Columns, Container, Flexbox) and Phase 3 (Quotes, FAQ, Accordion) next. See sessionlog for steps.
+- [x] Author display from profile: Superadmin in author picker; content/comment author resolution uses profile display_name (Settings → My Profile) first, then user_metadata, then email. Phase 2b form steps in sessionlog.
+- [x] **Shortcode Library MVP Phase 1 + 1a:** Public shortcode_types table; universal picker; Phase 1 complete (Gallery, Media, Separator, Section break, Spacer, Clear, Button, Form, Snippet; alignment preservation). Phase 1a: media shortcode size param (small/medium/large/full), picker size step. Phase 2 (Layout wizard + columns/col backend, single-row columns; add "Layout" to modal; prompt per item; wizard steps 1–3) and Phase 3 (Quote, FAQ for standalone + Layout cells; Accordion defer) next. See sessionlog for steps.
 
 ### Phase 07: CRM
 

@@ -240,7 +240,7 @@ export async function getContentByIdServer(
   const { data, error } = await supabase
     .schema(schemaName)
     .from("content")
-    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at, use_for_agent_training, seo_title, meta_description, og_image_id")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at, use_for_agent_training, seo_title, meta_description, og_image_id, expires_at")
     .eq("id", id)
     .maybeSingle();
   if (error) {
@@ -276,6 +276,7 @@ export async function getPublishedContentByTypeAndSlug(
 
   if (!pageType) return null;
 
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
@@ -283,6 +284,8 @@ export async function getPublishedContentByTypeAndSlug(
     .eq("content_type_id", pageType.id)
     .eq("slug", slug)
     .eq("status", "published")
+    .or(`published_at.is.null,published_at.lte.${nowIso}`)
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
     .maybeSingle();
 
   if (error) {
@@ -290,6 +293,48 @@ export async function getPublishedContentByTypeAndSlug(
       message: error.message,
       code: error.code,
     });
+    return null;
+  }
+
+  return data as ContentRow | null;
+}
+
+/**
+ * Server-only: fetch post (or page) by type and slug regardless of status.
+ * Used for draft preview: operators can see draft at the same URL as published.
+ */
+export async function getContentByTypeAndSlug(
+  typeSlug: "page" | "post",
+  slug: string
+): Promise<ContentRow | null> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+
+  const supabase = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const { data: pageType } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content_types")
+    .select("id")
+    .eq("slug", typeSlug)
+    .maybeSingle();
+
+  if (!pageType) return null;
+
+  const { data, error } = await supabase
+    .schema(CONTENT_SCHEMA)
+    .from("content")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, created_at, updated_at, seo_title, meta_description, og_image_id")
+    .eq("content_type_id", pageType.id)
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    console.error("getContentByTypeAndSlug:", { message: error.message, code: error.code });
     return null;
   }
 
@@ -365,6 +410,7 @@ export async function getPublishedPostsByTermId(
     .maybeSingle();
   if (!typeRow) return [];
 
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
@@ -374,6 +420,8 @@ export async function getPublishedPostsByTermId(
     .in("id", contentIds)
     .eq("content_type_id", typeRow.id)
     .eq("status", "published")
+    .or(`published_at.is.null,published_at.lte.${nowIso}`)
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
     .order("published_at", { ascending: false, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
@@ -401,13 +449,16 @@ export async function getPublishedPostsCountByTermId(termId: string): Promise<nu
     .maybeSingle();
   if (!typeRow) return 0;
 
+  const nowIso = new Date().toISOString();
   const { count, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
     .select("id", { count: "exact", head: true })
     .in("id", contentIds)
     .eq("content_type_id", typeRow.id)
-    .eq("status", "published");
+    .eq("status", "published")
+    .or(`published_at.is.null,published_at.lte.${nowIso}`)
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`);
 
   if (error) return 0;
   return typeof count === "number" ? count : 0;
@@ -422,6 +473,7 @@ export async function insertContent(row: {
   featured_image_id: string | null;
   status: string;
   published_at: string | null;
+  expires_at?: string | null;
   author_id?: string | null;
   custom_fields?: Record<string, unknown>;
   access_level?: string | null;
@@ -462,6 +514,7 @@ export async function updateContent(
     featured_image_id: string | null;
     status: string;
     published_at: string | null;
+    expires_at: string | null;
     author_id: string | null;
     custom_fields: Record<string, unknown>;
     access_level: string | null;

@@ -16,7 +16,8 @@ export type ShortcodePart =
   | { type: "clear"; match: string; alignment?: TextAlignValue }
   | { type: "button"; match: string; label: string; url: string; style: string; alignment?: TextAlignValue }
   | { type: "form"; match: string; formId: string; alignment?: TextAlignValue }
-  | { type: "snippet"; match: string; snippetId: string; alignment?: TextAlignValue };
+  | { type: "snippet"; match: string; snippetId: string; alignment?: TextAlignValue }
+  | { type: "layout"; match: string; widths: string; heightPx: number; columnContents: string[]; alignment?: TextAlignValue };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -75,6 +76,21 @@ function parseOne(match: string): ShortcodePart | null {
     const snippetId = rest.trim();
     if (snippetId) {
       return { type: "snippet", match, snippetId };
+    }
+    return null;
+  }
+
+  /** Column delimiter used inside [[layout|...]] (must match LayoutWizardModal COL_DELIM). */
+  const LAYOUT_COL_DELIM = "{{COL}}";
+  if (type === "layout") {
+    const segments = rest.split("|").map((s) => s.trim());
+    if (segments.length >= 3) {
+      const [widths, heightStr, encodedCols] = segments;
+      const heightPx = parseInt(heightStr ?? "", 10) || 150;
+      const columnContents = (encodedCols ?? "").split(LAYOUT_COL_DELIM).map((s) => s.trim());
+      if (widths) {
+        return { type: "layout", match, widths, heightPx, columnContents };
+      }
     }
     return null;
   }

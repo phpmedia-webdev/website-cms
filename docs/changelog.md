@@ -11,6 +11,18 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-03-04 16:30 CT — Session wrap-up: Author display from profile, Phase 2b form steps in sessionlog
+
+**Context for Next Session:** Author display now uses the profile "Display name" (Settings → My Profile) when available: (1) Authors API appends current superadmin with `getProfileByUserId` so their profile display name appears in the author dropdown; (2) `getContentAuthorDisplayName` and `getCommentAuthorDisplayName` resolve auth users via new `getAuthUserDisplayName()` helper that checks profile first, then user_metadata (full_name, name, display_name), then email. So updating Display name in My Profile is reflected in the author picker and in post/comment author display. **Sessionlog:** Phase 2b steps added (no coding): 2b.1 Form display routine (inline render for `[[form:id]]`), 2b.2 Embed code in form manager, 2b.3 Form in main shortcode picker, 2b.4 Form in Layout wizard column options; form manager styling deferred. **Next up:** Continue shortcode Phase 2 (Layout wizard) or start Phase 2b (form display + embed + form in picker and Layout). See sessionlog.
+
+**Changes:**
+- **Author from profile:** `src/lib/blog-comments/author-name.ts` — `getAuthUserDisplayName()` uses `getProfileByUserId()` first, then Auth user_metadata; `getCommentAuthorDisplayName` and `getContentAuthorDisplayName` use it for auth-user resolution. `src/app/api/admin/authors/route.ts` — when appending superadmin to authors list, use `getProfileByUserId(user.id)` for display_name (profile → user.display_name → null).
+- **Sessionlog:** Phase 2b — Form display, embed code, and shortcode integration (CRM): steps 2b.1–2b.4 and "Later" styling item added.
+
+**Key files:** `src/lib/blog-comments/author-name.ts`, `src/app/api/admin/authors/route.ts`, `src/lib/supabase/profiles.ts`, `docs/sessionlog.md`, `docs/changelog.md`.
+
+---
+
 ### 2026-03-09 CT — Session wrap-up: Shortcode Phase 1 complete, alignment, media picker, image size params
 
 **Context for Next Session:** Phase 1 shortcodes are complete. Alignment is preserved when rendering: parser reads `text-align` from the containing block before each shortcode; ContentWithGalleries wraps shortcode output in a div with that alignment. Media/image shortcode picker: search (name, Slug/UID, taxonomy/tags via API), scrollable list with max-height, list/grid view toggle; API `/api/shortcodes/media-list` supports `?search=` and returns `uid` (slug); taxonomy search via `getMediaIdsWithTermMatching`. Media library image detail: Slug/UID shown in the blue metadata block (top right) and in Edit Metadata / read-only summary. Phase 1a (styling): Option A decided—params at shortcode only. Media shortcode supports `size` (positional or named: `[[media:id|medium]]`, `[[media:id|size=large]]`); renderer uses Tailwind size classes (small/medium/large/full), default medium; after picking an image, "Image size" dialog lets user choose size before inserting. **Next up:** Sessionlog Phase 2 (paired shortcodes: columns, container, flexbox); optional 9a.3 (align param on media shortcode). Other: Media Copy Shortcode, CRM sorting, Form submission list.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getContentTypes, getContentListWithTypes, deleteContent } from "@/lib/supabase/content";
 import {
@@ -21,8 +21,11 @@ import {
 import { TaxonomyMultiSelect, type TaxonomyMultiSelectOption } from "@/components/media/TaxonomyMultiSelect";
 import type { ContentListItem, ContentType } from "@/types/content";
 import type { TaxonomyTerm } from "@/types/taxonomy";
-import { Plus, Search, Edit, Trash2, RotateCcw } from "lucide-react";
+import { Plus, Search, Edit, Trash2, RotateCcw, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
+
+type SortColumn = "type" | "title" | "status" | "membership" | "updated";
+type SortDir = "asc" | "desc";
 
 export function ContentPageClient() {
   const router = useRouter();
@@ -39,6 +42,8 @@ export function ContentPageClient() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [filterMembershipOnly, setFilterMembershipOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<SortColumn>("updated");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [deleting, setDeleting] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
@@ -107,6 +112,45 @@ export function ContentPageClient() {
       !filterMembershipOnly || c.access_level === "members" || c.access_level === "mag";
     return matchSearch && matchType && matchTaxonomy && matchMembership;
   });
+
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    const mult = sortDir === "asc" ? 1 : -1;
+    const isMember = (c: ContentListItem) =>
+      c.access_level === "members" || c.access_level === "mag";
+    list.sort((a, b) => {
+      switch (sortBy) {
+        case "type":
+          return mult * (a.type_label ?? "").localeCompare(b.type_label ?? "");
+        case "title":
+          return mult * (a.title ?? a.slug ?? "").localeCompare(b.title ?? b.slug ?? "");
+        case "status":
+          return mult * (a.status ?? "").localeCompare(b.status ?? "");
+        case "membership": {
+          const ma = isMember(a) ? 1 : 0;
+          const mb = isMember(b) ? 1 : 0;
+          return mult * (ma - mb);
+        }
+        case "updated": {
+          const da = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          const db = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          return mult * (da - db);
+        }
+        default:
+          return 0;
+      }
+    });
+    return list;
+  }, [filtered, sortBy, sortDir]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortBy === column) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortDir(column === "updated" ? "desc" : "asc");
+    }
+  };
 
   const hasFilters =
     search.trim().length > 0 ||
@@ -297,20 +341,61 @@ export function ContentPageClient() {
                 <table className="w-full">
                   <thead className="bg-muted sticky top-0 z-10">
                     <tr>
-                      <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                        Type
+                      <th className="text-left px-3 py-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 -ml-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                          onClick={() => handleSort("type")}
+                        >
+                          Type
+                          {sortBy === "type" ? (sortDir === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />) : null}
+                        </Button>
                       </th>
-                      <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                        Title
+                      <th className="text-left px-3 py-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 -ml-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                          onClick={() => handleSort("title")}
+                        >
+                          Title
+                          {sortBy === "title" ? (sortDir === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />) : null}
+                        </Button>
                       </th>
-                      <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                        Status
+                      <th className="text-left px-3 py-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 -ml-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                          onClick={() => handleSort("status")}
+                        >
+                          Status
+                          {sortBy === "status" ? (sortDir === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />) : null}
+                        </Button>
                       </th>
-                      <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground" title="Membership restricted">
-                        Membership
+                      <th className="text-left px-3 py-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 -ml-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                          title="Membership restricted"
+                          onClick={() => handleSort("membership")}
+                        >
+                          Membership
+                          {sortBy === "membership" ? (sortDir === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />) : null}
+                        </Button>
                       </th>
-                      <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                        Updated
+                      <th className="text-left px-3 py-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 -ml-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                          onClick={() => handleSort("updated")}
+                        >
+                          Updated
+                          {sortBy === "updated" ? (sortDir === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />) : null}
+                        </Button>
                       </th>
                       <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">
                         Actions
@@ -324,7 +409,7 @@ export function ContentPageClient() {
                           Loading…
                         </td>
                       </tr>
-                    ) : filtered.length === 0 ? (
+                    ) : sorted.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
                           {hasFilters
@@ -333,7 +418,7 @@ export function ContentPageClient() {
                         </td>
                       </tr>
                     ) : (
-                      filtered.map((c) => (
+                      sorted.map((c) => (
                         <tr key={c.id} className="border-t hover:bg-accent">
                           <td className="px-3 py-1.5 text-xs text-muted-foreground">
                             {c.type_label}
