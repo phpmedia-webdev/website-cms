@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import type { DesignSystemConfig, FontConfig } from "@/types/design-system";
+import type { DesignSystemConfig, FontConfig, ButtonStyle } from "@/types/design-system";
 import { Type, Eye, Save } from "lucide-react";
+import { ButtonStylesPreview } from "./ButtonStylesPreview";
 
 // Popular Google Fonts list (curated selection)
 const POPULAR_GOOGLE_FONTS = [
@@ -32,6 +33,8 @@ interface FontsSettingsProps {
   onSave: () => void;
   saving: boolean;
   saved: boolean;
+  /** Button styles for preview section (from Style page). */
+  buttonStyles?: ButtonStyle[] | null;
 }
 
 export function FontsSettings({
@@ -40,6 +43,7 @@ export function FontsSettings({
   onSave,
   saving,
   saved,
+  buttonStyles,
 }: FontsSettingsProps) {
   const updateFont = (
     type: "primary" | "secondary",
@@ -345,28 +349,12 @@ export function FontsSettings({
               >
                 Buttons
               </h4>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  style={{
-                    backgroundColor: config.colors.color01,
-                    color: "#ffffff",
-                    fontFamily: `"${config.fonts.primary.family}", sans-serif`,
-                  }}
-                  className="px-4 py-2 rounded-md font-medium hover:opacity-90 transition-opacity"
-                >
-                  Primary Button
-                </button>
-                <button
-                  style={{
-                    backgroundColor: config.colors.color02,
-                    color: "#ffffff",
-                    fontFamily: `"${config.fonts.primary.family}", sans-serif`,
-                  }}
-                  className="px-4 py-2 rounded-md font-medium hover:opacity-90 transition-opacity"
-                >
-                  Secondary Button
-                </button>
-              </div>
+              <ButtonStylesPreview
+                fontFamily={`"${config.fonts.primary.family}", sans-serif`}
+                className="flex flex-wrap gap-3"
+                styles={buttonStyles}
+                themeColors={config.colors}
+              />
             </div>
 
             {/* Links */}

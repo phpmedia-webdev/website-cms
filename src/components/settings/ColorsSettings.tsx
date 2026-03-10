@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import type { DesignSystemConfig, ColorPalette, ColorLabels } from "@/types/design-system";
+import type { DesignSystemConfig, ColorPalette, ColorLabels, ButtonStyle } from "@/types/design-system";
 import { Palette, Eye, Save, X } from "lucide-react";
 import { PaletteLibrary } from "./PaletteLibrary";
+import { ButtonStylesPreview } from "./ButtonStylesPreview";
 
 interface ColorsSettingsProps {
   config: DesignSystemConfig;
@@ -15,6 +16,8 @@ interface ColorsSettingsProps {
   onSave: () => void;
   saving: boolean;
   saved: boolean;
+  /** Button styles for preview section (from Style page). */
+  buttonStyles?: ButtonStyle[] | null;
 }
 
 /**
@@ -69,6 +72,7 @@ export function ColorsSettings({
   onSave,
   saving,
   saved,
+  buttonStyles,
 }: ColorsSettingsProps) {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [selectedColorKey, setSelectedColorKey] = useState<keyof ColorPalette | null>(null);
@@ -597,38 +601,12 @@ export function ColorsSettings({
               >
                 Buttons
               </h4>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  style={{
-                    backgroundColor: config.colors.color01,
-                    color: "#ffffff",
-                  }}
-                  className="px-4 py-2 rounded-md font-medium hover:opacity-90 transition-opacity"
-                >
-                  Primary Button
-                </button>
-                <button
-                  style={{
-                    backgroundColor: config.colors.color02,
-                    color: "#ffffff",
-                  }}
-                  className="px-4 py-2 rounded-md font-medium hover:opacity-90 transition-opacity"
-                >
-                  Secondary Button
-                </button>
-                <button
-                  style={{
-                    backgroundColor: "transparent",
-                    color: config.colors.color01,
-                    borderColor: config.colors.color01,
-                    borderWidth: "1px",
-                    borderStyle: "solid",
-                  }}
-                  className="px-4 py-2 rounded-md font-medium hover:opacity-80 transition-opacity"
-                >
-                  Outline Button
-                </button>
-              </div>
+              <ButtonStylesPreview
+                fontFamily={`"${config.fonts.primary.family}", sans-serif`}
+                className="flex flex-wrap gap-3"
+                styles={buttonStyles}
+                themeColors={config.colors}
+              />
             </div>
 
             {/* Links */}

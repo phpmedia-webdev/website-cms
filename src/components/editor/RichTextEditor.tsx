@@ -33,13 +33,12 @@ import {
   Undo,
   Redo,
   Link as LinkIcon,
-  Image as ImageIcon,
-  ImagePlus,
   Code,
   FileText,
+  Code2,
 } from "lucide-react";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react";
-import { GalleryPickerModal } from "./GalleryPickerModal";
+import { ShortcodePickerModal } from "./ShortcodePickerModal";
 
 interface RichTextEditorProps {
   content?: Record<string, unknown> | null;
@@ -71,7 +70,7 @@ export function RichTextEditor({
   const [linkSelection, setLinkSelection] = useState<{ from: number; to: number } | null>(null);
   const [codeView, setCodeView] = useState(false);
   const [codeViewHtml, setCodeViewHtml] = useState("");
-  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false);
+  const [shortcodePickerOpen, setShortcodePickerOpen] = useState(false);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -182,7 +181,7 @@ export function RichTextEditor({
     setLinkOpenInNewTab(false);
   };
 
-  const handleGallerySelect = (shortcode: string) => {
+  const handleShortcodeSelect = (shortcode: string) => {
     if (!editor) return;
     editor.chain().focus().insertContent(`<p>${shortcode}</p>`).run();
     forceToolbarUpdate();
@@ -369,28 +368,14 @@ export function RichTextEditor({
               type="button"
               variant="ghost"
               size="icon"
-              onClick={() => {
-                const url = window.prompt("Enter image URL:");
-                if (url) {
-                  editor.chain().focus().setImage({ src: url }).run();
-                }
-              }}
-              aria-label="Image"
-            >
-              <ImageIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
               onMouseDown={(e) => {
                 e.preventDefault();
-                setGalleryPickerOpen(true);
+                setShortcodePickerOpen(true);
               }}
-              aria-label="Insert gallery"
-              title="Insert gallery"
+              aria-label="Insert shortcode"
+              title="Insert shortcode (gallery, image, button, form, etc.)"
             >
-              <ImagePlus className="h-4 w-4" />
+              <Code2 className="h-4 w-4" />
             </Button>
             <div className="w-px h-6 bg-border mx-1" />
             <Button
@@ -506,10 +491,10 @@ export function RichTextEditor({
         </DialogContent>
       </Dialog>
 
-      <GalleryPickerModal
-        open={galleryPickerOpen}
-        onClose={() => setGalleryPickerOpen(false)}
-        onSelect={handleGallerySelect}
+      <ShortcodePickerModal
+        open={shortcodePickerOpen}
+        onClose={() => setShortcodePickerOpen(false)}
+        onSelect={handleShortcodeSelect}
       />
     </div>
   );

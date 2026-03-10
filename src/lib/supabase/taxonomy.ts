@@ -323,6 +323,37 @@ export async function getTaxonomyTermsClient(): Promise<TaxonomyTerm[]> {
 }
 
 /**
+ * Return media IDs that have at least one taxonomy term (category or tag) whose name or slug matches the search string.
+ * Used by shortcode media picker to search by taxonomy/tags.
+ */
+export async function getMediaIdsWithTermMatching(searchQuery: string): Promise<string[]> {
+  if (!searchQuery?.trim()) return [];
+  try {
+    const supabase = createClientSupabaseClient();
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+    const q = `%${searchQuery.trim()}%`;
+    const { data: terms, error: termsErr } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .select("id")
+      .or(`name.ilike.${q},slug.ilike.${q}`);
+    if (termsErr || !terms?.length) return [];
+    const termIds = terms.map((t) => t.id);
+    const { data: rels, error: relsErr } = await supabase
+      .schema(schema)
+      .from("taxonomy_relationships")
+      .select("content_id")
+      .eq("content_type", "media")
+      .in("term_id", termIds);
+    if (relsErr || !rels?.length) return [];
+    return [...new Set((rels as { content_id: string }[]).map((r) => r.content_id))];
+  } catch (e) {
+    console.error("getMediaIdsWithTermMatching:", e);
+    return [];
+  }
+}
+
+/**
  * Fetch taxonomy relationships for media items (content_type = 'media').
  * Returns { content_id, term_id }[] for filtering media by categories/tags.
  */

@@ -20,7 +20,7 @@ export default async function RootLayout({
   // Load design system settings from database
   const { config, cssVariables, googleFontsURL } = await loadDesignSystem();
 
-  // Convert CSS variables to inline style string
+  // Convert CSS variables to inline style string (theme applied only on public layout, not admin)
   const cssVariablesStyle = Object.entries(cssVariables)
     .map(([key, value]) => `${key}: ${value};`)
     .join(" ");
@@ -33,7 +33,7 @@ export default async function RootLayout({
         {googleFontsURL && (
           <link rel="stylesheet" href={googleFontsURL} />
         )}
-        {/* Inject CSS variables directly in head to avoid FOUC */}
+        {/* Inject CSS variables; body theme (background/text) is applied only in (public) layout */}
         <style dangerouslySetInnerHTML={{
           __html: `:root { ${cssVariablesStyle} }`
         }} />

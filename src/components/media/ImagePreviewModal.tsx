@@ -40,6 +40,7 @@ export function ImagePreviewModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [shortcodeCopied, setShortcodeCopied] = useState(false);
   const [localCopyStatus, setLocalCopyStatus] = useState<Record<string, "not_copied" | "copied" | "copying">>({});
 
   const [formData, setFormData] = useState({
@@ -210,6 +211,19 @@ export function ImagePreviewModal({
           <h2 className="font-semibold truncate min-w-0 flex-1">{media.name}</h2>
           <div className="flex items-center gap-2 shrink-0">
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const shortcode = `[[media:${media.id}]]`;
+                navigator.clipboard.writeText(shortcode);
+                setShortcodeCopied(true);
+                setTimeout(() => setShortcodeCopied(false), 2000);
+              }}
+              title="Copy shortcode for use in content editor"
+            >
+              {shortcodeCopied ? "Copied!" : "Copy shortcode"}
+            </Button>
+            <Button
               variant="destructive"
               size="sm"
               onClick={() => setShowConfirmDelete(true)}
@@ -259,15 +273,24 @@ export function ImagePreviewModal({
 
           {/* b. Original File Info */}
           <div className="p-2.5 bg-blue-50 border border-blue-200 rounded space-y-0.5">
-            <p className="text-xs text-blue-900">
-              <span className="font-medium">Original File: Section Type – {(media.media_type ?? "image") === "video" ? "Video" : "Image"}</span>
-            </p>
-            <p className="text-xs text-blue-800">
-              {media.original_filename} • {formatFileSize(media.original_size_bytes)}
-              {media.original_width != null && media.original_height != null && (
-                <> • {media.original_width}×{media.original_height}px</>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-xs text-blue-900">
+                  <span className="font-medium">Original File: Section Type – {(media.media_type ?? "image") === "video" ? "Video" : "Image"}</span>
+                </p>
+                <p className="text-xs text-blue-800">
+                  {media.original_filename} • {formatFileSize(media.original_size_bytes)}
+                  {media.original_width != null && media.original_height != null && (
+                    <> • {media.original_width}×{media.original_height}px</>
+                  )}
+                </p>
+              </div>
+              {media.slug && (
+                <p className="text-xs text-blue-700 font-medium shrink-0" title="Slug/UID for shortcodes and search">
+                  Slug/UID: {media.slug}
+                </p>
               )}
-            </p>
+            </div>
           </div>
 
           {/* c. Edit Metadata Section */}
@@ -289,7 +312,7 @@ export function ImagePreviewModal({
 
               <div className="space-y-2">
                 <Label htmlFor="edit-slug" className="text-sm">
-                  Slug
+                  Slug/UID
                 </Label>
                 <Input
                   id="edit-slug"
@@ -357,7 +380,7 @@ export function ImagePreviewModal({
                   <p className="text-sm truncate">{media.name}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Slug</p>
+                  <p className="text-xs font-medium text-muted-foreground">Slug/UID</p>
                   <p className="text-sm font-mono truncate">{media.slug}</p>
                 </div>
                 {media.alt_text && (

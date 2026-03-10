@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { ButtonStyle, ColorPalette } from "@/types/design-system";
 
 const ContentWithGalleries = dynamic(
   () =>
@@ -11,12 +12,22 @@ const ContentWithGalleries = dynamic(
 export interface PublicContentRendererProps {
   /** Tiptap JSON (content.body). */
   content?: Record<string, unknown> | null;
+  /** Button styles from Settings → Style → Buttons (for custom appearance on front-end). */
+  buttonStyles?: ButtonStyle[];
+  /** Theme colors to resolve theme refs in button styles (updates when theme changes). */
+  themeColors?: ColorPalette | null;
 }
 
 /**
  * Client component that renders Tiptap body with gallery shortcodes.
  * Uses ssr: false because ContentWithGalleries relies on browser APIs (generateHTML).
  */
-export function PublicContentRenderer({ content }: PublicContentRendererProps) {
-  return <ContentWithGalleries content={content} />;
+export function PublicContentRenderer({ content, buttonStyles, themeColors }: PublicContentRendererProps) {
+  return (
+    <ContentWithGalleries
+      content={content}
+      buttonStyles={buttonStyles}
+      themeColors={themeColors}
+    />
+  );
 }

@@ -13,8 +13,12 @@ import type {
   ColorPalette,
   ColorLabels,
   SiteMetadata,
+  ButtonStyle,
 } from "@/types/design-system";
-import { DEFAULT_DESIGN_SYSTEM as defaultConfig } from "@/types/design-system";
+import {
+  DEFAULT_DESIGN_SYSTEM as defaultConfig,
+  DEFAULT_BUTTON_STYLES,
+} from "@/types/design-system";
 
 /**
  * Migration helper: Convert old color schema (primary/secondary/alternate1-6) to new (color01-color15)
@@ -269,6 +273,32 @@ export async function updateDesignSystemConfig(
     console.error("Error updating design system config:", error);
     return false;
   }
+}
+
+const BUTTON_STYLES_KEY = "button_styles";
+
+/**
+ * Get button styles for shortcode picker and preview (Settings → Style → Buttons).
+ */
+export async function getButtonStyles(): Promise<ButtonStyle[]> {
+  try {
+    const raw = await getSetting<ButtonStyle[]>(BUTTON_STYLES_KEY);
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.filter(
+        (s) => s && typeof s.slug === "string" && typeof s.label === "string" && typeof s.className === "string"
+      );
+    }
+    return [...DEFAULT_BUTTON_STYLES];
+  } catch {
+    return [...DEFAULT_BUTTON_STYLES];
+  }
+}
+
+/**
+ * Save button styles (tenant settings).
+ */
+export async function setButtonStyles(styles: ButtonStyle[]): Promise<boolean> {
+  return setSetting(BUTTON_STYLES_KEY, styles);
 }
 
 /**

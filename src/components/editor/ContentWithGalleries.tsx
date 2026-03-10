@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { generateHTML, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
-import { findGalleryShortcodes } from "@/lib/shortcodes/gallery";
+import { findAllShortcodes, type ShortcodePart, type TextAlignValue } from "@/lib/shortcodes/parse";
 import { GalleryEmbed } from "@/components/public/media/GalleryEmbed";
+import { MediaShortcodeRender } from "./MediaShortcodeRender";
+import { buttonStyleHasVisual, buttonStyleToInlineStyle } from "@/components/settings/ButtonStylesPreview";
+import type { ButtonStyle, ColorPalette } from "@/types/design-system";
 import { cn } from "@/lib/utils";
 
 const EXTENSIONS = [
@@ -26,76 +29,59 @@ export interface ContentWithGalleriesProps {
   /** Tiptap JSON (content.body). */
   content?: Record<string, unknown> | null;
   className?: string;
+  /** Button styles for shortcode render. */
+  buttonStyles?: ButtonStyle[] | null;
+  /** Theme colors to resolve theme refs in button styles (e.g. backgroundColorTheme -> hex). */
+  themeColors?: ColorPalette | null;
 }
 
 /**
- * Server component. Renders Tiptap JSON as HTML with gallery shortcodes replaced by GalleryRenderer.
- * Shortcode format: [[gallery:gallery-id, style-id]] or [[gallery:gallery-id]]
+ * Renders Tiptap JSON as HTML with all shortcodes replaced (gallery, media, separator, button, form, snippet, etc.).
  */
 export function ContentWithGalleries({
   content,
   className,
+  buttonStyles,
+  themeColors,
 }: ContentWithGalleriesProps) {
-  const html = useMemo(() => {
+  const parts = useMemo(() => {
     let parsed = content;
-    if (!parsed || typeof parsed !== "object") return "";
+    if (!parsed || typeof parsed !== "object") return [];
     if (typeof parsed === "string") {
       try {
         parsed = JSON.parse(parsed) as Record<string, unknown>;
       } catch {
-        return "";
+        return [];
       }
     }
     try {
-      const h = generateHTML(parsed as JSONContent, EXTENSIONS);
-      return h && h.trim() ? h : "";
+      const html = generateHTML(parsed as JSONContent, EXTENSIONS);
+      const trimmed = html?.trim() ?? "";
+      if (!trimmed) return [];
+      return findAllShortcodes(trimmed);
     } catch {
-      return "";
+      return [];
     }
   }, [content]);
 
-  if (!html) return null;
+  if (parts.length === 0) return null;
 
-  const shortcodes = findGalleryShortcodes(html);
   const proseClass = cn("prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none", className);
 
-  if (shortcodes.length === 0) {
-    return (
-      <div
-        className={proseClass}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    );
-  }
-
-  const parts: Array<{ type: "html" | "gallery"; value: string; galleryId?: string; styleId?: string }> = [];
-  let lastEnd = 0;
-
-  for (const sc of shortcodes) {
-    const { match, parsed: scParsed, index } = sc;
-    if (index > lastEnd) {
-      parts.push({
-        type: "html",
-        value: html.slice(lastEnd, index),
-      });
+  function wrapAlignment(part: ShortcodePart, node: React.ReactNode, key: string | number) {
+    const alignment = "alignment" in part ? (part.alignment as TextAlignValue | undefined) : undefined;
+    if (alignment) {
+      return (
+        <div key={key} className="not-prose my-2" style={{ textAlign: alignment }}>
+          {node}
+        </div>
+      );
     }
-    parts.push({
-      type: "gallery",
-      value: match,
-      galleryId: scParsed.galleryId,
-      styleId: scParsed.styleId ?? undefined,
-    });
-    lastEnd = index + match.length;
-  }
-  if (lastEnd < html.length) {
-    parts.push({
-      type: "html",
-      value: html.slice(lastEnd),
-    });
+    return <React.Fragment key={key}>{node}</React.Fragment>;
   }
 
   return (
-    <div className={cn("prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none", className)}>
+    <div className={proseClass}>
       {parts.map((part, i) => {
         if (part.type === "html") {
           return (
@@ -105,14 +91,79 @@ export function ContentWithGalleries({
             />
           );
         }
-        if (part.type === "gallery" && part.galleryId) {
-          return (
-            <div key={i} className="my-6 not-prose">
+        if (part.type === "gallery") {
+          return wrapAlignment(
+            part,
+            <div className="my-6 not-prose">
               <GalleryEmbed
                 galleryId={part.galleryId}
                 styleId={part.styleId ?? null}
               />
-            </div>
+            </div>,
+            i
+          );
+        }
+        if (part.type === "media") {
+          return wrapAlignment(
+            part,
+            <MediaShortcodeRender mediaId={part.mediaId} size={part.size} />,
+            i
+          );
+        }
+        if (part.type === "separator") {
+          return wrapAlignment(part, <hr className="shortcode-separator my-4 border-border" />, i);
+        }
+        if (part.type === "section_break") {
+          return wrapAlignment(part, <div className="section-break my-4" />, i);
+        }
+        if (part.type === "spacer") {
+          const sizeClass = part.size ? `spacer-${part.size}` : "spacer";
+          return wrapAlignment(part, <div className={cn("spacer my-2", sizeClass)} />, i);
+        }
+        if (part.type === "clear") {
+          return wrapAlignment(part, <div className="clearfix my-2" style={{ clear: "both" }} />, i);
+        }
+        if (part.type === "button") {
+          const matched = buttonStyles?.find((bs) => bs.slug === part.style);
+          const useVisual = matched && buttonStyleHasVisual(matched);
+          const inlineStyle = useVisual
+            ? buttonStyleToInlineStyle(matched!, { colors: themeColors ?? undefined })
+            : undefined;
+          const styleClass = useVisual ? "btn font-medium" : `btn btn-${part.style}`;
+          return wrapAlignment(
+            part,
+            <p className="not-prose my-2">
+              <a
+                href={part.url}
+                className={styleClass}
+                style={inlineStyle}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {part.label}
+              </a>
+            </p>,
+            i
+          );
+        }
+        if (part.type === "form") {
+          return wrapAlignment(
+            part,
+            <div className="not-prose my-4" data-shortcode="form" data-form-id={part.formId}>
+              <a href={`/forms/${part.formId}`} className="text-primary underline">
+                View form
+              </a>
+            </div>,
+            i
+          );
+        }
+        if (part.type === "snippet") {
+          return wrapAlignment(
+            part,
+            <div className="not-prose my-4" data-shortcode="snippet" data-snippet-id={part.snippetId}>
+              [Snippet: {part.snippetId}]
+            </div>,
+            i
           );
         }
         return null;

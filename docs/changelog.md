@@ -11,6 +11,21 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-03-04 CT — Session wrap-up: Shortcode Phase 1 complete, alignment, media picker, image size params
+
+**Context for Next Session:** Phase 1 shortcodes are complete. Alignment is preserved when rendering: parser reads `text-align` from the containing block before each shortcode; ContentWithGalleries wraps shortcode output in a div with that alignment. Media/image shortcode picker: search (name, Slug/UID, taxonomy/tags via API), scrollable list with max-height, list/grid view toggle; API `/api/shortcodes/media-list` supports `?search=` and returns `uid` (slug); taxonomy search via `getMediaIdsWithTermMatching`. Media library image detail: Slug/UID shown in the blue metadata block (top right) and in Edit Metadata / read-only summary. Phase 1a (styling): Option A decided—params at shortcode only. Media shortcode supports `size` (positional or named: `[[media:id|medium]]`, `[[media:id|size=large]]`); renderer uses Tailwind size classes (small/medium/large/full), default medium; after picking an image, "Image size" dialog lets user choose size before inserting. **Next up:** Sessionlog Phase 2 (paired shortcodes: columns, container, flexbox); optional 9a.3 (align param on media shortcode). Other: Media Copy Shortcode, CRM sorting, Form submission list.
+
+**Changes:**
+- **Alignment:** `parse.ts` — `getAlignmentBeforeIndex()`, optional `alignment` on all shortcode parts; `ContentWithGalleries` — `wrapAlignment()` so shortcode output respects paragraph text-align.
+- **Media list API:** `GET /api/shortcodes/media-list?search=` — uses `searchMedia()` and `getMediaIdsWithTermMatching()`; returns `id`, `name`, `uid` (slug), `thumbnailUrl`. Taxonomy helper `getMediaIdsWithTermMatching()` in `taxonomy.ts`.
+- **Media picker:** `MediaPickerModal` — search input (debounced), list/grid toggle, scrollable area; displays uid in list view.
+- **Media library:** `ImagePreviewModal` — Slug/UID in blue block (top right) and in metadata labels (Edit + summary).
+- **Media shortcode size:** `parse.ts` — media shortcode parses positional or named `size`; `MediaShortcodeRender` — `MEDIA_SIZE_OPTIONS`, Tailwind size classes, default medium; `ShortcodePickerModal` — after image select, "Image size" dialog with Size dropdown, inserts `[[media:id|size]]`.
+
+**Key files:** `src/lib/shortcodes/parse.ts`, `src/components/editor/ContentWithGalleries.tsx`, `src/app/api/shortcodes/media-list/route.ts`, `src/lib/supabase/taxonomy.ts`, `src/components/editor/MediaPickerModal.tsx`, `src/components/media/ImagePreviewModal.tsx`, `src/components/editor/MediaShortcodeRender.tsx`, `src/components/editor/ShortcodePickerModal.tsx`, `docs/sessionlog.md`, `docs/changelog.md`, `docs/planlog.md`.
+
+---
+
 ### 2026-03-09 CT — Session wrap-up: Shortcode MVP planning, sessionlog cleanup, Next up = Shortcode implementation
 
 **Context for Next Session:** This session was planning and discussion only (no shortcode code changes). Shortcode MVP scope agreed: universal shortcode picker (one icon, replace dedicated Image/Gallery toolbar buttons); public shared library table (`shortcode_types`) so new types are available to all tenant sites; parse/render logic stays in app code. Gallery will be repurposed as one shortcode type (picker by id/name). Carousel/rotator = existing gallery + slider display style (no new table). Quote carousel: block-with-rotator option and/or quote shortcode (quotes entity) for reuse. Alignment: Tiptap paragraph alignment applies to shortcode-in-paragraph; renderer should preserve wrapper for front end. Columns/Container/Flexbox = paired shortcodes (open/close); accordion = block or shortcode later. **Next up:** See sessionlog — Shortcode implementation Phase 1 (library table, universal picker, Gallery + Media + simple blocks + Button + Form + Snippet), Phase 2 (paired layout: Columns, Container, Flexbox), Phase 3 (Quotes, FAQ, Accordion entities/pickers). Other backlog: Media Copy Shortcode, CRM sorting, Form submission list, App version number.

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getPublishedContentByTypeAndSlug } from "@/lib/supabase/content";
+import { getButtonStyles, getDesignSystemConfig } from "@/lib/supabase/settings";
 import { getTaxonomyTermsForContentDisplay } from "@/lib/supabase/taxonomy";
 import { getTenantUserById } from "@/lib/supabase/tenant-users";
 import { getSiteUrl } from "@/lib/supabase/settings";
@@ -143,6 +144,7 @@ export default async function BlogPostPage({ params }: Props) {
 
   const baseUrl = await getSiteUrl();
   const canonicalUrl = baseUrl ? `${baseUrl}/blog/${encodeURIComponent(post.slug)}` : "";
+  const [buttonStyles, config] = await Promise.all([getButtonStyles(), getDesignSystemConfig()]);
   let jsonLdImage: string | undefined;
   const imageId = post.og_image_id || post.featured_image_id;
   if (imageId) {
@@ -227,7 +229,7 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
         )}
         {post.excerpt && <p className="text-lg text-muted-foreground mb-8">{post.excerpt}</p>}
-        <PublicContentRenderer content={post.body} />
+        <PublicContentRenderer content={post.body} buttonStyles={buttonStyles} themeColors={config.colors} />
       </article>
       <BlogPostComments
         contentId={post.id}

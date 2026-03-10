@@ -72,6 +72,43 @@ export interface DesignSystemConfig {
   colorLabels?: ColorLabels; // Optional user-defined labels for colors
 }
 
+/** Theme color keys (color01–color15) for button theme presets. */
+export const BUTTON_THEME_COLOR_KEYS = [
+  "color01", "color02", "color03", "color04", "color05",
+  "color06", "color07", "color08", "color09", "color10",
+  "color11", "color12", "color13", "color14", "color15",
+] as const;
+export type ButtonThemeColorKey = (typeof BUTTON_THEME_COLOR_KEYS)[number];
+
+/**
+ * Reusable button style for shortcodes and preview (Settings → Style → Buttons).
+ * When visual props are set, they are used as inline styles; otherwise className is used (theme).
+ * Theme refs (e.g. backgroundColorTheme) use design system colors and update when theme changes; custom hex is fixed.
+ */
+export interface ButtonStyle {
+  slug: string;
+  label: string;
+  className: string;
+  /** Optional visual overrides (no CSS required). When set, used in preview and content render. */
+  /** Theme preset: key from BUTTON_THEME_COLOR_KEYS. When set, overrides custom backgroundColor. */
+  backgroundColorTheme?: ButtonThemeColorKey | string;
+  backgroundColor?: string;
+  /** 0–100. When set with backgroundColor, output rgba() for transparency. */
+  backgroundColorAlpha?: number;
+  /** Theme preset for text color. */
+  colorTheme?: ButtonThemeColorKey | string;
+  color?: string;
+  colorAlpha?: number;
+  /** Theme preset for border color. */
+  borderColorTheme?: ButtonThemeColorKey | string;
+  borderColor?: string;
+  borderColorAlpha?: number;
+  borderWidth?: string;
+  borderRadius?: string;
+  paddingX?: string;
+  paddingY?: string;
+}
+
 /**
  * Site metadata (stored alongside design system)
  */
@@ -151,3 +188,10 @@ export const DEFAULT_DESIGN_SYSTEM: DesignSystemConfig = {
     color15: "Alternate 6",
   },
 };
+
+/** Default button styles (used when none saved). */
+export const DEFAULT_BUTTON_STYLES: ButtonStyle[] = [
+  { slug: "primary", label: "Primary", className: "btn-primary" },
+  { slug: "secondary", label: "Secondary", className: "btn-secondary" },
+  { slug: "outline", label: "Outline", className: "btn-outline" },
+];

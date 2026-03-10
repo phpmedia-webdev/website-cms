@@ -5,10 +5,12 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FontsSettings } from "@/components/settings/FontsSettings";
 import { ColorsSettings } from "@/components/settings/ColorsSettings";
-import type { DesignSystemConfig } from "@/types/design-system";
+import { ButtonStylesSettings } from "@/components/settings/ButtonStylesSettings";
+import type { DesignSystemConfig, ButtonStyle } from "@/types/design-system";
 
 const TAB_FONTS = "fonts";
 const TAB_COLORS = "colors";
+const TAB_BUTTONS = "buttons";
 
 interface StyleSettingsContentProps {
   initialConfig: DesignSystemConfig;
@@ -19,15 +21,41 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
   const router = useRouter();
   const pathname = usePathname();
   const tabParam = searchParams.get("tab");
-  const initialTab = tabParam === TAB_COLORS ? TAB_COLORS : TAB_FONTS;
+  const initialTab =
+    tabParam === TAB_COLORS
+      ? TAB_COLORS
+      : tabParam === TAB_BUTTONS
+        ? TAB_BUTTONS
+        : TAB_FONTS;
 
   const [config, setConfig] = useState<DesignSystemConfig>(initialConfig);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [buttonStyles, setButtonStyles] = useState<ButtonStyle[] | null>(null);
+
+  const refetchButtonStyles = useCallback(() => {
+    fetch("/api/settings/button-styles", { credentials: "include" })
+      .then(async (r) => {
+        const data = await r.json().catch(() => null);
+        return r.ok && Array.isArray(data) ? data : [];
+      })
+      .then(setButtonStyles)
+      .catch(() => setButtonStyles([]));
+  }, []);
 
   useEffect(() => {
-    setActiveTab(tabParam === TAB_COLORS ? TAB_COLORS : TAB_FONTS);
+    refetchButtonStyles();
+  }, [refetchButtonStyles]);
+
+  useEffect(() => {
+    setActiveTab(
+      tabParam === TAB_COLORS
+        ? TAB_COLORS
+        : tabParam === TAB_BUTTONS
+          ? TAB_BUTTONS
+          : TAB_FONTS
+    );
   }, [tabParam]);
 
   const setTab = useCallback(
@@ -82,6 +110,9 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
             <TabsTrigger value={TAB_COLORS} className="flex-1 sm:flex-initial">
               Colors
             </TabsTrigger>
+            <TabsTrigger value={TAB_BUTTONS} className="flex-1 sm:flex-initial">
+              Buttons
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         <p className="text-muted-foreground text-sm">{description}</p>
@@ -94,6 +125,7 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
           onSave={handleSave}
           saving={saving}
           saved={saved}
+          buttonStyles={buttonStyles}
         />
       )}
       {activeTab === TAB_COLORS && (
@@ -103,6 +135,14 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
           onSave={handleSave}
           saving={saving}
           saved={saved}
+          buttonStyles={buttonStyles}
+        />
+      )}
+      {activeTab === TAB_BUTTONS && (
+        <ButtonStylesSettings
+          themeColors={config.colors}
+          colorLabels={config.colorLabels}
+          onSaved={refetchButtonStyles}
         />
       )}
     </div>

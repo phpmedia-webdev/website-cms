@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublishedContentByTypeAndSlug } from "@/lib/supabase/content";
+import { getButtonStyles, getDesignSystemConfig } from "@/lib/supabase/settings";
 import { PublicContentRenderer } from "@/components/public/content/PublicContentRenderer";
 import { checkContentAccess } from "@/lib/auth/content-access";
 
@@ -47,10 +48,11 @@ export default async function DynamicPageRoute({ params }: Props) {
     );
   }
 
+  const [buttonStyles, config] = await Promise.all([getButtonStyles(), getDesignSystemConfig()]);
   return (
     <main className="container mx-auto px-4 py-16 max-w-3xl">
       <h1 className="text-4xl font-bold mb-6">{page.title}</h1>
-      <PublicContentRenderer content={page.body} />
+      <PublicContentRenderer content={page.body} buttonStyles={buttonStyles} themeColors={config.colors} />
     </main>
   );
 }

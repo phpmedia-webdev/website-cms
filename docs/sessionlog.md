@@ -25,16 +25,37 @@
 
 #### Phase 1 — Library table, universal picker, single/self-closing shortcodes
 
-- [ ] **1. Public shortcode_types table** — Migration in `public` schema: `shortcode_types` (slug, label, icon, has_picker, picker_type, display_order). Seed rows: gallery, media, separator, section_break, spacer, clear, button, form, snippet. Run in Supabase SQL Editor.
-- [ ] **2. API for shortcode types** — GET endpoint (e.g. `/api/shortcodes/types` or RPC) returns list for picker; used by editor. No tenant filter (shared library).
-- [ ] **3. Universal shortcode picker UI** — Single toolbar button “Insert shortcode” (icon); opens modal listing types from API. On select: if no picker, insert fixed shortcode and close; if picker, open type-specific picker then insert result.
-- [ ] **4. Repurpose Gallery** — Remove dedicated “Insert gallery” toolbar button. Gallery becomes one type in universal picker; selecting “Gallery” opens existing GalleryPickerModal; insert `[[gallery:id, style-id]]`. Renderer unchanged (ContentWithGalleries).
-- [ ] **5. Media/Image shortcode** — Type `media`; picker: media library (by id/name), optional size/align. Shortcode `[[media:id]]` or `[[media:id|size]]`. Parser + renderer: resolve media, output `<img>` (and optional wrapper for alignment). “Copy Shortcode” on media library item copies `[[media:id]]`.
-- [ ] **6. Simple block shortcodes (no picker)** — Implement parser + renderer for: `[[separator]]` → `<hr />` or themed divider; `[[section-break]]` or `[[section:full]]` → `<div class="section-break" />`; `[[spacer]]` or `[[spacer|size=md]]` → `<div class="spacer spacer-md" />`; `[[clear]]` → `<div class="clearfix" />` or clear both. Theme provides CSS. Picker inserts open/close for any that need wrappers (none in Phase 1).
-- [ ] **7. Button shortcode** — Type `button`; picker: label + URL + optional style key. Shortcode e.g. `[[button:Label|url|style]]`. Renderer → `<a href="..." class="btn btn-{style}">`. Style picker: predefined list (e.g. primary, secondary, outline) in code or tenant settings.
-- [ ] **8. Embed form shortcode** — Type `form`; picker: choose form by id/slug from existing `forms`. Shortcode `[[form:id]]` or `[[form:slug]]`. Renderer: embed existing form component.
-- [ ] **9. Snippet shortcode** — Type `snippet`; picker: choose snippet (existing Snippet content or snippet entity) by id/slug. Shortcode `[[snippet:id]]`. Renderer: fetch and render snippet body (Tiptap/HTML).
-- [ ] **10. Preserve alignment when rendering** — When replacing a shortcode in content, preserve the paragraph (or block) wrapper’s alignment (e.g. text-align) so front end displays left/center/right as set in editor.
+- [x] **1. Public shortcode_types table** — Migration in `public` schema: `shortcode_types` (slug, label, icon, has_picker, picker_type, display_order). Seed rows: gallery, media, separator, section_break, spacer, clear, button, form, snippet. Run in Supabase SQL Editor.
+- [x] **2. API for shortcode types** — GET endpoint (e.g. `/api/shortcodes/types` or RPC) returns list for picker; used by editor. No tenant filter (shared library).
+- [x] **3. Universal shortcode picker UI** — Single toolbar button “Insert shortcode” (icon); opens modal listing types from API. On select: if no picker, insert fixed shortcode and close; if picker, open type-specific picker then insert result.
+- [x] **4. Repurpose Gallery** — Remove dedicated “Insert gallery” toolbar button. Gallery becomes one type in universal picker; selecting “Gallery” opens existing GalleryPickerModal; insert `[[gallery:id, style-id]]`. Renderer unchanged (ContentWithGalleries).
+- [x] **5. Media/Image shortcode** — Type `media`; picker: media library (by id/name), optional size/align. Shortcode `[[media:id]]` or `[[media:id|size]]`. Parser + renderer: resolve media, output `<img>` (and optional wrapper for alignment). “Copy Shortcode” on media library item copies `[[media:id]]`.
+- [x] **6. Simple block shortcodes (no picker)** — Implement parser + renderer for: `[[separator]]` → `<hr />` or themed divider; `[[section-break]]` or `[[section:full]]` → `<div class="section-break" />`; `[[spacer]]` or `[[spacer|size=md]]` → `<div class="spacer spacer-md" />`; `[[clear]]` → `<div class="clearfix" />` or clear both. Theme provides CSS. Picker inserts open/close for any that need wrappers (none in Phase 1).
+- [x] **7. Button shortcode** — Type `button`; picker: label + URL + optional style key. Shortcode e.g. `[[button:Label|url|style]]`. Renderer → `<a href="..." class="btn btn-{style}">`. Style picker: predefined list (e.g. primary, secondary, outline) in code or tenant settings.
+- [x] **8. Embed form shortcode** — Type `form`; picker: choose form by id/slug from existing `forms`. Shortcode `[[form:id]]` or `[[form:slug]]`. Renderer: embed existing form component.
+- [x] **9. Snippet shortcode** — Type `snippet`; picker: choose snippet (existing Snippet content or snippet entity) by id/slug. Shortcode `[[snippet:id]]`. Renderer: fetch and render snippet body (Tiptap/HTML).
+- [x] **10. Preserve alignment when rendering** — When replacing a shortcode in content, preserve the paragraph (or block) wrapper’s alignment (e.g. text-align) so front end displays left/center/right as set in editor.
+
+---
+
+#### Phase 1a — Shortcode styling (e.g. image size)
+
+**Discussion (decide before implementing):**
+
+- **Option A — Shortcode parameters on the media shortcode**  
+  Extend `[[media:id]]` to e.g. `[[media:id|size=medium|align=center]]`. Parser already supports a single `size` segment; add named params: `size` (small / medium / large / full), `align` (left / center / right), optional `class`. Renderer outputs `<img>` with appropriate class or inline max-width. **Pros:** One shortcode, self-contained, clear. **Cons:** Picker UI needs size/align controls; media shortcode can grow many options.
+
+- **Option B — Wrapper shortcode**  
+  Use a layout shortcode (e.g. `[[container|narrow]]` … `[[/container]]` or a dedicated `[[figure]]` … `[[/figure]]`) and put the image shortcode inside. Constrain width via the wrapper. **Pros:** Reuses layout primitives; keeps media shortcode simple. **Cons:** User must insert two shortcodes; less obvious for "just make this image smaller."
+
+- **Option C — Hybrid**  
+  Media shortcode gets a few params (`size`, `align`) for the common case. Optional wrapper (container/figure) for when they need layout or caption. **Decided: Option A** (params at shortcode only; no styling on the media file).
+
+- [x] **9a.1 Decide approach** — Option A (shortcode parameters). Styling only at insert point, not on the media file.
+- [x] **9a.2 Media shortcode size** — Parser: support `size` param (positional or named: `[[media:id|medium]]`, `[[media:id|size=large]]`). Renderer: Tailwind size classes (small=max-w-xs, medium=max-w-md, large=max-w-2xl, full=max-w-full); default medium so images are not too large.
+- [ ] **9a.3 Media shortcode align (optional)** — If not relying only on paragraph alignment, add `align` param and apply to wrapper or image.
+- [x] **9a.4 Picker UI** — After selecting an image, "Image size" dialog with Size dropdown (Small, Medium, Large, Full); inserted shortcode includes size (e.g. `[[media:id|medium]]`).
+- [x] **9a.5 Theme/CSS** — Size applied via Tailwind classes on the shortcode wrapper; no extra CSS file.
 
 ---
 

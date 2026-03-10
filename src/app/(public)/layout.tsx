@@ -94,7 +94,14 @@ export default async function PublicLayout({
       )}
 
       <PublicPageTracker />
-      <div className="min-h-screen flex flex-col">
+      {/* Theme background/text (color04, color06) only on public pages so admin stays readable */}
+      <div
+        className="min-h-screen flex flex-col"
+        style={{
+          backgroundColor: "var(--color-04)",
+          color: "var(--color-06)",
+        }}
+      >
         <header className="border-b">
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <Link href="/" className="text-xl font-bold">

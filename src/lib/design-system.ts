@@ -3,6 +3,7 @@
  * Handles loading design system settings and converting them to CSS variables
  */
 
+import { unstable_noStore } from "next/cache";
 import { getDesignSystemConfig } from "@/lib/supabase/settings";
 import type { DesignSystemConfig, FontConfig } from "@/types/design-system";
 
@@ -101,6 +102,7 @@ export async function loadDesignSystem(): Promise<{
   googleFontsURL: string;
   config: DesignSystemConfig;
 }> {
+  unstable_noStore();
   try {
     const config = await getDesignSystemConfig();
     const cssVariables = designSystemToCSSVariables(config);

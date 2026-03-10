@@ -10,7 +10,7 @@
  */
 
 import Link from "next/link";
-import { getComingSoonCopy } from "@/lib/supabase/settings";
+import { getComingSoonCopy, getButtonStyles, getDesignSystemConfig } from "@/lib/supabase/settings";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import { getContentByIdServer } from "@/lib/supabase/content";
@@ -46,6 +46,7 @@ export default async function ComingSoonPage() {
   }
 
   const { headline, message, siteName } = await getComingSoonCopy();
+  const [buttonStyles, config] = await Promise.all([getButtonStyles(), getDesignSystemConfig()]);
 
   return (
     <div
@@ -64,7 +65,7 @@ export default async function ComingSoonPage() {
         Admin
       </Link>
       {snippetContent ? (
-        <ComingSoonSnippetView content={snippetContent} />
+        <ComingSoonSnippetView content={snippetContent} buttonStyles={buttonStyles} themeColors={config.colors} />
       ) : (
         <div className="container mx-auto px-4 text-center">
           <h1
