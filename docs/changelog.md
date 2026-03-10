@@ -11,7 +11,7 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
-### 2026-03-04 CT — Session wrap-up: Shortcode Phase 1 complete, alignment, media picker, image size params
+### 2026-03-09 CT — Session wrap-up: Shortcode Phase 1 complete, alignment, media picker, image size params
 
 **Context for Next Session:** Phase 1 shortcodes are complete. Alignment is preserved when rendering: parser reads `text-align` from the containing block before each shortcode; ContentWithGalleries wraps shortcode output in a div with that alignment. Media/image shortcode picker: search (name, Slug/UID, taxonomy/tags via API), scrollable list with max-height, list/grid view toggle; API `/api/shortcodes/media-list` supports `?search=` and returns `uid` (slug); taxonomy search via `getMediaIdsWithTermMatching`. Media library image detail: Slug/UID shown in the blue metadata block (top right) and in Edit Metadata / read-only summary. Phase 1a (styling): Option A decided—params at shortcode only. Media shortcode supports `size` (positional or named: `[[media:id|medium]]`, `[[media:id|size=large]]`); renderer uses Tailwind size classes (small/medium/large/full), default medium; after picking an image, "Image size" dialog lets user choose size before inserting. **Next up:** Sessionlog Phase 2 (paired shortcodes: columns, container, flexbox); optional 9a.3 (align param on media shortcode). Other: Media Copy Shortcode, CRM sorting, Form submission list.
 
