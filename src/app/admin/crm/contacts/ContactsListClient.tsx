@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Users, ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { Plus, Users, ChevronLeft, ChevronRight, Upload, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import type { CrmContact, ContactMag, ContactMarketingList, Mag, MarketingList } from "@/lib/supabase/crm";
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
@@ -79,6 +79,20 @@ export function ContactsListClient({
   const [mergeBulkDialogOpen, setMergeBulkDialogOpen] = useState(false);
   const bulkMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  type SortBy = "last_name" | "first_name" | "full_name" | "status" | "updated";
+  type SortDir = "asc" | "desc";
+  const [sortBy, setSortBy] = useState<SortBy>("updated");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const toggleSort = (column: SortBy) => {
+    if (sortBy === column) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortDir(column === "updated" ? "desc" : "asc");
+    }
+  };
 
   const handleRestore = async () => {
     if (selectedIds.size === 0) return;
@@ -169,16 +183,32 @@ export function ContactsListClient({
     if (selectedTagId) {
       list = list.filter((c) => c.termIds.includes(selectedTagId));
     }
+    const mult = sortDir === "asc" ? 1 : -1;
     return [...list].sort((a, b) => {
-      const lnA = (a.last_name ?? "").toLowerCase();
-      const lnB = (b.last_name ?? "").toLowerCase();
-      if (lnA !== lnB) return lnA.localeCompare(lnB);
-      const fnA = (a.first_name ?? "").toLowerCase();
-      const fnB = (b.first_name ?? "").toLowerCase();
-      if (fnA !== fnB) return fnA.localeCompare(fnB);
-      return (a.email ?? "").toLowerCase().localeCompare((b.email ?? "").toLowerCase());
+      let cmp = 0;
+      if (sortBy === "last_name") {
+        const lnA = (a.last_name ?? "").toLowerCase();
+        const lnB = (b.last_name ?? "").toLowerCase();
+        cmp = lnA.localeCompare(lnB) || (a.first_name ?? "").toLowerCase().localeCompare((b.first_name ?? "").toLowerCase());
+      } else if (sortBy === "first_name") {
+        const fnA = (a.first_name ?? "").toLowerCase();
+        const fnB = (b.first_name ?? "").toLowerCase();
+        cmp = fnA.localeCompare(fnB) || (a.last_name ?? "").toLowerCase().localeCompare((b.last_name ?? "").toLowerCase());
+      } else if (sortBy === "full_name") {
+        const fa = (a.full_name || `${a.first_name ?? ""} ${a.last_name ?? ""}`).trim().toLowerCase();
+        const fb = (b.full_name || `${b.first_name ?? ""} ${b.last_name ?? ""}`).trim().toLowerCase();
+        cmp = fa.localeCompare(fb);
+      } else if (sortBy === "status") {
+        const sa = (a.status ?? "").toLowerCase();
+        const sb = (b.status ?? "").toLowerCase();
+        cmp = sa.localeCompare(sb) || (a.updated_at ?? "").localeCompare(b.updated_at ?? "");
+      } else {
+        // updated (default: last activity at top)
+        cmp = (a.updated_at ?? "").localeCompare(b.updated_at ?? "");
+      }
+      return mult * (cmp || (a.id ?? "").localeCompare(b.id ?? ""));
     });
-  }, [enrichedContacts, searchQuery, selectedStatus, selectedMagId, selectedListId, selectedCategoryId, selectedTagId]);
+  }, [enrichedContacts, searchQuery, selectedStatus, selectedMagId, selectedListId, selectedCategoryId, selectedTagId, sortBy, sortDir]);
 
   const hasFilters = Boolean(selectedStatus || selectedMagId || selectedListId || selectedCategoryId || selectedTagId || searchQuery);
 
@@ -361,12 +391,57 @@ export function ContactsListClient({
                         onClick={(e) => e.stopPropagation()}
                       />
                     </th>
-                    <th className="text-left font-medium py-2 px-3">Last name</th>
-                    <th className="text-left font-medium py-2 px-3">First name</th>
-                    <th className="text-left font-medium py-2 px-3">Full name</th>
+                    <th className="text-left font-medium py-2 px-3">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
+                        onClick={() => toggleSort("last_name")}
+                      >
+                        Last name
+                        {sortBy === "last_name" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />}
+                      </button>
+                    </th>
+                    <th className="text-left font-medium py-2 px-3">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
+                        onClick={() => toggleSort("first_name")}
+                      >
+                        First name
+                        {sortBy === "first_name" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />}
+                      </button>
+                    </th>
+                    <th className="text-left font-medium py-2 px-3">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
+                        onClick={() => toggleSort("full_name")}
+                      >
+                        Full name
+                        {sortBy === "full_name" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />}
+                      </button>
+                    </th>
                     <th className="text-left font-medium py-2 px-3">Phone</th>
-                    <th className="text-left font-medium py-2 px-3">Status</th>
-                    <th className="text-left font-medium py-2 px-3">Updated</th>
+                    <th className="text-left font-medium py-2 px-3">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
+                        onClick={() => toggleSort("status")}
+                      >
+                        Status
+                        {sortBy === "status" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />}
+                      </button>
+                    </th>
+                    <th className="text-left font-medium py-2 px-3">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
+                        onClick={() => toggleSort("updated")}
+                      >
+                        Updated
+                        {sortBy === "updated" ? (sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />) : <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />}
+                      </button>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

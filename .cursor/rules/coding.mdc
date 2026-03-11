@@ -120,6 +120,8 @@ When the developer is in learning mode or asks for explanation, provide feedback
 
 - **Cursor rules (this project):**  
   `.cursor/rules/coding.mdc`, `.cursor/rules/sessions.mdc`, `.cursor/rules/supabase.mdc`, `.cursor/rules/Context7-MCP.md`
+- **Session workflow and docs:**  
+  **Read `.cursor/rules/sessions.mdc`** — defines how sessionlog, changelog, and planlog are used; **session start** (this checklist) and **session end** (review chat, mark off sessionlog, add dated changelog entry with Context for Next Session, remove completed items from sessionlog, sync planlog, commit and push). Following this at session end ensures work is fully and properly documented in the changelog.
 - **Docs (root of `docs/`):**  
   `docs/prd.md`, `docs/prd-technical.md`, `docs/sessionlog.md`
 - **Changelog:**  
@@ -127,4 +129,4 @@ When the developer is in learning mode or asks for explanation, provide feedback
 - **Planlog:**  
   `docs/planlog.md` — read enough to see current phases and next focus (e.g. first 150–200 lines or full file if shorter).
 
-**Then:** Use the checklist above so you have read: cursor rules, prd, prd-technical, sessionlog, prd-planned, changelog (last entry + context), planlog (current focus). Summarize for the user: current focus, recent context from changelog, and next up from sessionlog/planlog.
+**Then:** Use the checklist above so you have read: cursor rules, **sessions.mdc** (including session end workflow), prd, prd-technical, sessionlog, changelog (last entry + context), planlog (current focus). Summarize for the user: current focus, recent context from changelog, and next up from sessionlog/planlog.

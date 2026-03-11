@@ -1698,6 +1698,58 @@ export async function getFormSubmissions(formId: string): Promise<FormSubmission
   return rows.map(normalizeSubmissionRow);
 }
 
+export interface FormSubmissionsListOptions {
+  formId?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  limit: number;
+  offset: number;
+}
+
+/** List form submissions with optional form filter, date range, and pagination. Returns items with form name. */
+export async function getFormSubmissionsList(
+  options: FormSubmissionsListOptions
+): Promise<{ submissions: (FormSubmission & { formName: string })[]; total: number }> {
+  const supabase = createServerSupabaseClient();
+  const { formId, dateFrom, dateTo, limit, offset } = options;
+
+  let q = supabase
+    .schema(CRM_SCHEMA)
+    .from("form_submissions")
+    .select("*", { count: "exact" })
+    .order("submitted_at", { ascending: false });
+
+  if (formId && formId.trim()) {
+    q = q.eq("form_id", formId.trim());
+  }
+  if (dateFrom && dateFrom.trim()) {
+    q = q.gte("submitted_at", dateFrom.trim());
+  }
+  if (dateTo && dateTo.trim()) {
+    q = q.lte("submitted_at", dateTo.trim());
+  }
+
+  const { data, error, count } = await q.range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error("Error fetching form submissions list:", formatSupabaseError(error));
+    return { submissions: [], total: 0 };
+  }
+
+  const rows = (data as Record<string, unknown>[] | null) ?? [];
+  const submissions = rows.map(normalizeSubmissionRow);
+
+  const forms = await getForms();
+  const nameByFormId = new Map(forms.map((f) => [f.id, f.name]));
+
+  const withFormName: (FormSubmission & { formName: string })[] = submissions.map((s) => ({
+    ...s,
+    formName: nameByFormId.get(s.form_id) ?? "—",
+  }));
+
+  return { submissions: withFormName, total: count ?? 0 };
+}
+
 /** List form submissions for a contact (for Activity Stream). Tenant schema only. */
 export async function getFormSubmissionsByContactId(contactId: string): Promise<FormSubmission[]> {
   const supabase = createServerSupabaseClient();

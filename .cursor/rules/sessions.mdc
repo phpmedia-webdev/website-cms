@@ -105,10 +105,14 @@ A developer typically starts a new chat when context becomes too large, to preve
 
 ### Ending a work session
 
-1. Use the current chat/session to **check off** completed items in `sessionlog.md`.
-2. **Sync** those completions to `planlog.md` (check off the same items there). Do not delete items from planlog.
-3. **Remove** completed items from `sessionlog.md` to keep it lean.
-4. **Add a changelog entry:** Write a concise summary of session work and a **"Context for Next Session"** section (current state, what’s ready to test, where to continue, key files, important decisions). Use the sessionlog context, then clear that context block from sessionlog.
+1. **Review the session chat history** and **mark off** all completed items in `docs/sessionlog.md` (check the boxes for everything done this session).
+2. **Sync** those completions to `docs/planlog.md` — check off the same items there. Do not delete items from planlog.
+3. **Add a changelog entry** in `docs/changelog.md`:
+   - Use the **current date and time** (format: `### YYYY-MM-DD HH:MM CT — Brief title`). Multiple work sessions in a day get separate entries with different times.
+   - **List each and every checked-off item** from sessionlog in the changelog entry. The changelog is our history; we need a record of what was done and accomplished. Copy or summarize every completed item (e.g. "• 14. Add Layout to shortcode modal", "• 16. Wizard step 1: Layout definition") into the **Changes** or **Completed** section of the entry. Do not collapse them into a single line like "Phase 2 complete" — list the actual items so the changelog is the durable record.
+   - **Create the "Context for Next Session"** section at the top of the entry: current state, what is ready to test, where to continue, key files. This is the handoff for the next session.
+   - Include key files and any important code/behavior changes.
+4. **Remove** the completed items from `docs/sessionlog.md` so the sessionlog stays thin and is ready for the next work session.
 5. Update `prd.md` if architecture or specs changed.
 6. Pause and allow developer to review update to documents.
 7. **Commit and push** all changes (code + docs) in a single commit and push; e.g. message: `Session wrapup: [brief summary]`.

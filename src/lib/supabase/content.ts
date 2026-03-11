@@ -240,7 +240,7 @@ export async function getContentByIdServer(
   const { data, error } = await supabase
     .schema(schemaName)
     .from("content")
-    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, created_at, updated_at, use_for_agent_training, seo_title, meta_description, og_image_id, expires_at")
+    .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, created_at, updated_at, use_for_agent_training, seo_title, meta_description, og_image_id, expires_at")
     .eq("id", id)
     .maybeSingle();
   if (error) {
@@ -251,11 +251,11 @@ export async function getContentByIdServer(
 }
 
 /**
- * Server-only: fetch published page or post by type slug and URL slug. Used for public routes.
- * Uses direct query (same pattern as verify script) to ensure body is returned.
+ * Server-only: fetch published content by type slug and URL slug. Used for public routes.
+ * post → /blog/[slug]; article → /[slug] (main site pages) and homepage (slug "home").
  */
 export async function getPublishedContentByTypeAndSlug(
-  typeSlug: "page" | "post",
+  typeSlug: "post" | "article",
   slug: string
 ): Promise<ContentRow | null> {
   const { createClient } = await import("@supabase/supabase-js");
@@ -267,21 +267,21 @@ export async function getPublishedContentByTypeAndSlug(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: pageType } = await supabase
+  const { data: contentType } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content_types")
     .select("id")
     .eq("slug", typeSlug)
     .maybeSingle();
 
-  if (!pageType) return null;
+  if (!contentType) return null;
 
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
     .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, created_at, updated_at, seo_title, meta_description, og_image_id")
-    .eq("content_type_id", pageType.id)
+    .eq("content_type_id", contentType.id)
     .eq("slug", slug)
     .eq("status", "published")
     .or(`published_at.is.null,published_at.lte.${nowIso}`)
@@ -300,11 +300,11 @@ export async function getPublishedContentByTypeAndSlug(
 }
 
 /**
- * Server-only: fetch post (or page) by type and slug regardless of status.
+ * Server-only: fetch content by type and slug regardless of status.
  * Used for draft preview: operators can see draft at the same URL as published.
  */
 export async function getContentByTypeAndSlug(
-  typeSlug: "page" | "post",
+  typeSlug: "post" | "article",
   slug: string
 ): Promise<ContentRow | null> {
   const { createClient } = await import("@supabase/supabase-js");
@@ -316,20 +316,20 @@ export async function getContentByTypeAndSlug(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: pageType } = await supabase
+  const { data: contentType } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content_types")
     .select("id")
     .eq("slug", typeSlug)
     .maybeSingle();
 
-  if (!pageType) return null;
+  if (!contentType) return null;
 
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("content")
     .select("id, content_type_id, title, slug, body, excerpt, featured_image_id, status, published_at, author_id, custom_fields, access_level, required_mag_id, visibility_mode, restricted_message, created_at, updated_at, seo_title, meta_description, og_image_id")
-    .eq("content_type_id", pageType.id)
+    .eq("content_type_id", contentType.id)
     .eq("slug", slug)
     .maybeSingle();
 

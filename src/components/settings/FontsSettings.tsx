@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import type { DesignSystemConfig, FontConfig, ButtonStyle } from "@/types/design-system";
+import type { DesignSystemConfig, FontConfig, ButtonStyle, FormStyle } from "@/types/design-system";
 import { Type, Eye, Save } from "lucide-react";
 import { ButtonStylesPreview } from "./ButtonStylesPreview";
+import { FormStylesPreview } from "./FormStylesPreview";
 
 // Popular Google Fonts list (curated selection)
 const POPULAR_GOOGLE_FONTS = [
@@ -35,6 +36,8 @@ interface FontsSettingsProps {
   saved: boolean;
   /** Button styles for preview section (from Style page). */
   buttonStyles?: ButtonStyle[] | null;
+  /** Form styles for preview section (from Style page). */
+  formStyles?: FormStyle[] | null;
 }
 
 export function FontsSettings({
@@ -44,6 +47,7 @@ export function FontsSettings({
   saving,
   saved,
   buttonStyles,
+  formStyles,
 }: FontsSettingsProps) {
   const updateFont = (
     type: "primary" | "secondary",
@@ -353,6 +357,23 @@ export function FontsSettings({
                 fontFamily={`"${config.fonts.primary.family}", sans-serif`}
                 className="flex flex-wrap gap-3"
                 styles={buttonStyles}
+                themeColors={config.colors}
+              />
+            </div>
+
+            {/* Form styles */}
+            <div className="space-y-2">
+              <h4
+                style={{
+                  fontFamily: `"${config.fonts.primary.family}", sans-serif`,
+                  color: config.colors.color06,
+                }}
+                className="text-base font-semibold"
+              >
+                Form styles
+              </h4>
+              <FormStylesPreview
+                styles={formStyles}
                 themeColors={config.colors}
               />
             </div>

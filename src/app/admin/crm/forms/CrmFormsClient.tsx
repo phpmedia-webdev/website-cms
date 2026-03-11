@@ -29,7 +29,7 @@ import type {
   FormFieldAssignment,
 } from "@/lib/supabase/crm";
 import { CORE_FORM_FIELDS } from "@/lib/supabase/crm";
-import { Plus, Pencil, Trash2, ListTree, ClipboardList, ChevronUp, ChevronDown, Inbox } from "lucide-react";
+import { Plus, Pencil, Trash2, ListTree, ClipboardList, ChevronUp, ChevronDown, Inbox, Code2, Copy } from "lucide-react";
 
 const CUSTOM_FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -46,12 +46,16 @@ const CUSTOM_FIELD_TYPES = [
 interface CrmFormsClientProps {
   initialCustomFields: CrmCustomField[];
   initialForms: Form[];
+  /** Base URL for embed code (e.g. from getSiteUrl()). Fallback: client origin. */
+  siteUrl?: string;
 }
 
 export function CrmFormsClient({
   initialCustomFields,
   initialForms,
+  siteUrl: siteUrlProp = "",
 }: CrmFormsClientProps) {
+  const siteUrl = siteUrlProp || (typeof window !== "undefined" ? window.location.origin : "");
   const router = useRouter();
   const [customFields, setCustomFields] = useState(initialCustomFields);
   const [forms, setForms] = useState(initialForms);
@@ -71,6 +75,10 @@ export function CrmFormsClient({
   const [formFieldsLoading, setFormFieldsLoading] = useState(false);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Embed code dialog
+  const [embedForm, setEmbedForm] = useState<Form | null>(null);
+  const [embedCopied, setEmbedCopied] = useState(false);
 
   const openCfAdd = () => {
     setCfEditing(null);
@@ -324,6 +332,22 @@ export function CrmFormsClient({
     }
   };
 
+  const formEmbedUrl = embedForm && siteUrl ? `${siteUrl.replace(/\/$/, "")}/forms/${encodeURIComponent(embedForm.slug)}` : "";
+  const formEmbedIframe = formEmbedUrl
+    ? `<iframe src="${formEmbedUrl}" title="${embedForm?.name ?? "Form"}" width="100%" height="400" frameborder="0"></iframe>`
+    : "";
+
+  const copyEmbedCode = async () => {
+    if (!formEmbedIframe) return;
+    try {
+      await navigator.clipboard.writeText(formEmbedIframe);
+      setEmbedCopied(true);
+      setTimeout(() => setEmbedCopied(false), 2000);
+    } catch {
+      // fallback: select and suggest copy
+    }
+  };
+
   const deleteForm = async (id: string) => {
     if (!confirm("Delete this form? Contacts linked to it will have form cleared.")) return;
     try {
@@ -346,6 +370,13 @@ export function CrmFormsClient({
         <h1 className="text-2xl font-semibold">Forms &amp; Fields</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Define custom fields for contacts, then register forms that map submissions to CRM.
+        </p>
+        <p className="text-muted-foreground text-xs mt-1">
+          Form styling (colors, borders, etc.) is managed in{" "}
+          <Link href="/admin/settings?tab=forms" className="underline hover:no-underline">
+            Settings → Style → Forms
+          </Link>
+          .
         </p>
       </div>
 
@@ -406,6 +437,15 @@ export function CrmFormsClient({
                                 <Inbox className="h-3.5 w-3.5" />
                               </Button>
                             </Link>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              title="Copy embed code"
+                              onClick={() => setEmbedForm(f)}
+                            >
+                              <Code2 className="h-3.5 w-3.5" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -578,6 +618,55 @@ export function CrmFormsClient({
               {cfSaving ? "Saving…" : cfEditing ? "Update" : "Create"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Embed code dialog */}
+      <Dialog open={!!embedForm} onOpenChange={(open) => !open && setEmbedForm(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Code2 className="h-4 w-4" />
+              Embed form
+            </DialogTitle>
+          </DialogHeader>
+          {embedForm && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Use this code to embed &quot;{embedForm.name}&quot; on another page or site.
+              </p>
+              {formEmbedUrl ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Form URL</Label>
+                    <code className="block rounded bg-muted px-2 py-1.5 text-xs break-all">
+                      {formEmbedUrl}
+                    </code>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">iframe (copy and paste)</Label>
+                    <pre className="rounded bg-muted p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">
+                      {formEmbedIframe}
+                    </pre>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={copyEmbedCode}
+                      className="gap-2"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {embedCopied ? "Copied!" : "Copy iframe"}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Set Site URL in Settings → Site (or General) so embed links use your domain.
+                </p>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

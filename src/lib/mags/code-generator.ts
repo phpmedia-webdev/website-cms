@@ -168,12 +168,15 @@ export async function generateSingleUseCodes(
     excludeChars: options.excludeChars ?? b.exclude_chars ?? NO_AMBIGUOUS,
   };
 
+  // Duplicate prevention is per run only: we avoid generating the same full code twice in this request.
+  // With prefix (e.g. client) and postfix (e.g. event date), the center segment can repeat across batches;
+  // checking every existing code in the DB per generation would be impractical at scale.
   const seen = new Set<string>();
   const rows: { batch_id: string; code_hash: string; code_plain: string }[] = [];
   const plainCodes: string[] = [];
+  const maxAttempts = count * 3;
 
-  for (let i = 0; i < count * 2; i++) {
-    if (rows.length >= count) break;
+  for (let i = 0; i < maxAttempts && rows.length < count; i++) {
     const plain = generateCodeString(patternOptions);
     const h = hashCode(plain);
     if (seen.has(h)) continue;
@@ -194,6 +197,8 @@ export interface RedeemResult {
   success: boolean;
   error?: string;
   magId?: string;
+  /** Batch ID (for workflow/signup). Set when code is redeemed. */
+  batchId?: string;
 }
 
 /**
@@ -297,7 +302,7 @@ export async function redeemCode(
 
     const existing = await getContactMags(contactId);
     if (existing.some((m) => m.mag_id === b.mag_id)) {
-      return { success: true, magId: b.mag_id };
+      return { success: true, magId: b.mag_id, batchId: b.id };
     }
 
     const { error: assignErr } = await addContactToMag(contactId, b.mag_id, "code");
@@ -323,7 +328,7 @@ export async function redeemCode(
       "code_redemption"
     );
 
-    return { success: true, magId: b.mag_id };
+    return { success: true, magId: b.mag_id, batchId: b.id };
   }
 
   return { success: false, error: "Invalid or already used code" };

@@ -21,7 +21,7 @@ export function ContentNewClient() {
 
   useEffect(() => {
     getContentTypes().then((t) => {
-      setTypes(t.filter((x) => x.slug !== "page"));
+      setTypes(t);
     }).finally(() => setLoading(false));
   }, []);
 

@@ -18,6 +18,7 @@ export const SHORTCODE_TYPES_FALLBACK: ShortcodeType[] = [
   { slug: "gallery", label: "Gallery", icon: "ImagePlus", has_picker: true, picker_type: "gallery", display_order: 20 },
   { slug: "content", label: "Content", icon: "FileText", has_picker: true, picker_type: "content", display_order: 30 },
   { slug: "button", label: "Button", icon: "MousePointer", has_picker: true, picker_type: "button", display_order: 40 },
+  { slug: "form", label: "Form", icon: "FileInput", has_picker: true, picker_type: "form", display_order: 45 },
   { slug: "separator", label: "Separator", icon: "Minus", has_picker: false, picker_type: null, display_order: 50 },
   { slug: "section_break", label: "Section Break", icon: "Layout", has_picker: false, picker_type: null, display_order: 60 },
   { slug: "spacer", label: "Spacer", icon: "Space", has_picker: false, picker_type: null, display_order: 70 },

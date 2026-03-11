@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, KeyRound } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, KeyRound, Check } from "lucide-react";
 
 interface CodeRow {
+  code_id?: string;
   code: string;
   status: string;
   redeemed_at: string | null;
@@ -40,14 +42,35 @@ export function BatchExploreClient({
 }: BatchExploreClientProps) {
   const [codes, setCodes] = useState<CodeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [markingId, setMarkingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchCodes = () => {
+    setLoading(true);
     fetch(`/api/admin/membership-codes/batches/${batchId}/codes`)
       .then((res) => (res.ok ? res.json() : { codes: [] }))
       .then((data) => setCodes(data.codes ?? []))
       .catch(() => setCodes([]))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchCodes();
   }, [batchId]);
+
+  const handleMarkUsed = async (codeId: string) => {
+    setMarkingId(codeId);
+    try {
+      const res = await fetch(`/api/admin/membership-codes/codes/${codeId}/mark-used`, {
+        method: "POST",
+      });
+      if (res.ok) fetchCodes();
+      else alert((await res.json().catch(() => ({}))).error ?? "Failed to mark as used");
+    } catch {
+      alert("Failed to mark as used");
+    } finally {
+      setMarkingId(null);
+    }
+  };
 
   const formatExpires = (s: string | null) => {
     if (!s) return "Never";
@@ -101,6 +124,7 @@ export function BatchExploreClient({
                   <th className="text-left py-2 px-3 font-medium">Status</th>
                   <th className="text-left py-2 px-3 font-medium">Contact / Email</th>
                   <th className="text-left py-2 px-3 font-medium">Redeemed</th>
+                  {useType === "single_use" && <th className="text-right py-2 px-3 font-medium">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -125,6 +149,28 @@ export function BatchExploreClient({
                         ? new Date(row.redeemed_at).toLocaleString()
                         : "—"}
                     </td>
+                    {useType === "single_use" && (
+                      <td className="py-2 px-3 text-right">
+                        {row.status === "Open" && row.code_id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8"
+                            disabled={markingId === row.code_id}
+                            onClick={() => handleMarkUsed(row.code_id!)}
+                          >
+                            {markingId === row.code_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Check className="h-3.5 w-3.5 mr-1" />
+                                Mark used
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

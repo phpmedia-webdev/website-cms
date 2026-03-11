@@ -15,7 +15,7 @@ export type ShortcodePart =
   | { type: "spacer"; match: string; size?: string; alignment?: TextAlignValue }
   | { type: "clear"; match: string; alignment?: TextAlignValue }
   | { type: "button"; match: string; label: string; url: string; style: string; alignment?: TextAlignValue }
-  | { type: "form"; match: string; formId: string; alignment?: TextAlignValue }
+  | { type: "form"; match: string; formId: string; styleSlug?: string; alignment?: TextAlignValue }
   | { type: "snippet"; match: string; snippetId: string; alignment?: TextAlignValue }
   | { type: "layout"; match: string; widths: string; heightPx: number; columnContents: string[]; alignment?: TextAlignValue };
 
@@ -66,11 +66,19 @@ function parseOne(match: string): ShortcodePart | null {
     return null;
   }
   if (type === "form") {
-    const formId = rest.trim();
-    if (formId) {
-      return { type: "form", match, formId };
+    const segments = rest.split("|").map((s) => s.trim()).filter(Boolean);
+    const formId = segments[0];
+    if (!formId) return null;
+    let styleSlug: string | undefined;
+    for (let i = 1; i < segments.length; i++) {
+      const eq = segments[i].indexOf("=");
+      if (eq >= 0) {
+        const key = segments[i].slice(0, eq).trim().toLowerCase();
+        const val = segments[i].slice(eq + 1).trim();
+        if (key === "style" && val) styleSlug = val;
+      }
     }
-    return null;
+    return { type: "form", match, formId, ...(styleSlug && { styleSlug }) };
   }
   if (type === "snippet") {
     const snippetId = rest.trim();

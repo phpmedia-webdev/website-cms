@@ -47,7 +47,11 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, mag_id: result.magId });
+    return NextResponse.json({
+      success: true,
+      mag_id: result.magId,
+      batch_id: result.batchId,
+    });
   } catch (e) {
     console.error("Redeem code error:", e);
     return NextResponse.json(

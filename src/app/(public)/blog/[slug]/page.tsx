@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getPublishedContentByTypeAndSlug, getContentByTypeAndSlug } from "@/lib/supabase/content";
-import { getButtonStyles, getDesignSystemConfig } from "@/lib/supabase/settings";
+import { getButtonStyles, getFormStyles, getDesignSystemConfig } from "@/lib/supabase/settings";
 import { getTaxonomyTermsForContentDisplay } from "@/lib/supabase/taxonomy";
 import { getSiteUrl } from "@/lib/supabase/settings";
 import { getMediaById } from "@/lib/supabase/media";
@@ -15,6 +15,7 @@ import { getRoleForCurrentUser, isAdminRole, isSuperadminFromRole } from "@/lib/
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getCommentAuthorDisplayName, getContentAuthorDisplayName } from "@/lib/blog-comments/author-name";
 import { BlogPostComments } from "@/components/blog/BlogPostComments";
+import { ShareIntentLinks } from "@/components/blog/ShareIntentLinks";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -166,7 +167,7 @@ export default async function BlogPostPage({ params }: Props) {
 
   const baseUrl = await getSiteUrl();
   const canonicalUrl = baseUrl ? `${baseUrl}/blog/${encodeURIComponent(post.slug)}` : "";
-  const [buttonStyles, config] = await Promise.all([getButtonStyles(), getDesignSystemConfig()]);
+  const [buttonStyles, formStyles, config] = await Promise.all([getButtonStyles(), getFormStyles(), getDesignSystemConfig()]);
   let jsonLdImage: string | undefined;
   const imageId = post.og_image_id || post.featured_image_id;
   if (imageId) {
@@ -256,7 +257,18 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
         )}
         {post.excerpt && <p className="text-lg text-muted-foreground mb-8">{post.excerpt}</p>}
-        <PublicContentRenderer content={post.body} buttonStyles={buttonStyles} themeColors={config.colors} />
+        <PublicContentRenderer content={post.body} buttonStyles={buttonStyles} formStyles={formStyles} themeColors={config.colors} />
+        {canonicalUrl && (
+          <div className="mt-8 pt-6 border-t">
+            <ShareIntentLinks
+              url={canonicalUrl}
+              title={post.seo_title?.trim() || post.title}
+              description={(post.meta_description?.trim() || post.excerpt?.trim() || "").slice(0, 200)}
+              imageUrl={jsonLdImage}
+              label="Share this post"
+            />
+          </div>
+        )}
       </article>
       <BlogPostComments
         contentId={post.id}

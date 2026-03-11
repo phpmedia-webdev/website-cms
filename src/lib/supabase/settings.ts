@@ -14,10 +14,12 @@ import type {
   ColorLabels,
   SiteMetadata,
   ButtonStyle,
+  FormStyle,
 } from "@/types/design-system";
 import {
   DEFAULT_DESIGN_SYSTEM as defaultConfig,
   DEFAULT_BUTTON_STYLES,
+  DEFAULT_FORM_STYLES,
 } from "@/types/design-system";
 
 /**
@@ -299,6 +301,30 @@ export async function getButtonStyles(): Promise<ButtonStyle[]> {
  */
 export async function setButtonStyles(styles: ButtonStyle[]): Promise<boolean> {
   return setSetting(BUTTON_STYLES_KEY, styles);
+}
+
+const FORM_STYLES_KEY = "form_styles";
+
+/**
+ * Get form styles for shortcode picker and form display (Settings → Style → Forms).
+ */
+export async function getFormStyles(): Promise<FormStyle[]> {
+  try {
+    const raw = await getSetting<FormStyle[]>(FORM_STYLES_KEY);
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.filter((s) => s && typeof s.slug === "string" && typeof s.label === "string");
+    }
+    return [...DEFAULT_FORM_STYLES];
+  } catch {
+    return [...DEFAULT_FORM_STYLES];
+  }
+}
+
+/**
+ * Save form styles (tenant settings).
+ */
+export async function setFormStyles(styles: FormStyle[]): Promise<boolean> {
+  return setSetting(FORM_STYLES_KEY, styles);
 }
 
 /**

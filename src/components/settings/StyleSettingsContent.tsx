@@ -6,11 +6,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FontsSettings } from "@/components/settings/FontsSettings";
 import { ColorsSettings } from "@/components/settings/ColorsSettings";
 import { ButtonStylesSettings } from "@/components/settings/ButtonStylesSettings";
-import type { DesignSystemConfig, ButtonStyle } from "@/types/design-system";
+import { FormStylesSettings } from "@/components/settings/FormStylesSettings";
+import type { DesignSystemConfig, ButtonStyle, FormStyle } from "@/types/design-system";
 
 const TAB_FONTS = "fonts";
 const TAB_COLORS = "colors";
 const TAB_BUTTONS = "buttons";
+const TAB_FORMS = "forms";
 
 interface StyleSettingsContentProps {
   initialConfig: DesignSystemConfig;
@@ -26,13 +28,16 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
       ? TAB_COLORS
       : tabParam === TAB_BUTTONS
         ? TAB_BUTTONS
-        : TAB_FONTS;
+        : tabParam === TAB_FORMS
+          ? TAB_FORMS
+          : TAB_FONTS;
 
   const [config, setConfig] = useState<DesignSystemConfig>(initialConfig);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [buttonStyles, setButtonStyles] = useState<ButtonStyle[] | null>(null);
+  const [formStyles, setFormStyles] = useState<FormStyle[] | null>(null);
 
   const refetchButtonStyles = useCallback(() => {
     fetch("/api/settings/button-styles", { credentials: "include" })
@@ -44,9 +49,20 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
       .catch(() => setButtonStyles([]));
   }, []);
 
+  const refetchFormStyles = useCallback(() => {
+    fetch("/api/settings/form-styles", { credentials: "include" })
+      .then(async (r) => {
+        const data = await r.json().catch(() => null);
+        return r.ok && Array.isArray(data) ? data : [];
+      })
+      .then(setFormStyles)
+      .catch(() => setFormStyles([]));
+  }, []);
+
   useEffect(() => {
     refetchButtonStyles();
-  }, [refetchButtonStyles]);
+    refetchFormStyles();
+  }, [refetchButtonStyles, refetchFormStyles]);
 
   useEffect(() => {
     setActiveTab(
@@ -54,7 +70,9 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
         ? TAB_COLORS
         : tabParam === TAB_BUTTONS
           ? TAB_BUTTONS
-          : TAB_FONTS
+          : tabParam === TAB_FORMS
+            ? TAB_FORMS
+            : TAB_FONTS
     );
   }, [tabParam]);
 
@@ -113,6 +131,9 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
             <TabsTrigger value={TAB_BUTTONS} className="flex-1 sm:flex-initial">
               Buttons
             </TabsTrigger>
+            <TabsTrigger value={TAB_FORMS} className="flex-1 sm:flex-initial">
+              Forms
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         <p className="text-muted-foreground text-sm">{description}</p>
@@ -126,6 +147,7 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
           saving={saving}
           saved={saved}
           buttonStyles={buttonStyles}
+          formStyles={formStyles}
         />
       )}
       {activeTab === TAB_COLORS && (
@@ -136,6 +158,7 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
           saving={saving}
           saved={saved}
           buttonStyles={buttonStyles}
+          formStyles={formStyles}
         />
       )}
       {activeTab === TAB_BUTTONS && (
@@ -143,6 +166,13 @@ export function StyleSettingsContent({ initialConfig }: StyleSettingsContentProp
           themeColors={config.colors}
           colorLabels={config.colorLabels}
           onSaved={refetchButtonStyles}
+        />
+      )}
+      {activeTab === TAB_FORMS && (
+        <FormStylesSettings
+          themeColors={config.colors}
+          colorLabels={config.colorLabels}
+          onSaved={refetchFormStyles}
         />
       )}
     </div>

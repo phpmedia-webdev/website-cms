@@ -167,7 +167,7 @@ export interface Database {
         Row: {
           id: string;
           term_id: string;
-          content_type: "post" | "page" | "media" | "gallery";
+          content_type: "post" | "article" | "media" | "gallery";
           content_id: string;
           created_at: string;
         };
@@ -182,7 +182,7 @@ export interface Database {
           id: string;
           section_name: string;
           display_name: string;
-          content_type: "post" | "page" | "media" | "gallery";
+          content_type: "post" | "article" | "media" | "gallery";
           category_slugs: string[] | null;
           tag_slugs: string[] | null;
           created_at: string;

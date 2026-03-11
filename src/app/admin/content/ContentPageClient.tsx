@@ -89,9 +89,8 @@ export function ContentPageClient() {
     .filter((t) => t.type === "tag")
     .map((t) => ({ id: t.id, name: t.name }));
 
-  // Exclude "page" from content library: structure is built in code, not as content type (per product decision).
-  const contentTypesForLibrary = types.filter((t) => t.slug !== "page");
-  const contentItemsForLibrary = items.filter((c) => c.type_slug !== "page");
+  const contentTypesForLibrary = types;
+  const contentItemsForLibrary = items;
 
   const termFilterIds = [...selectedCategoryIds, ...selectedTagIds];
   const contentIdsWithTerms =

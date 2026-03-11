@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Copy, Check, ExternalLink, Smartphone, Loader2, ChevronUp, ChevronDown, Share2, Plus, Trash2 } from "lucide-react";
+import { Copy, Check, ExternalLink, Smartphone, Loader2, ChevronUp, ChevronDown, Share2, Plus, Trash2, FileText } from "lucide-react";
 import type { SocialLinkItem } from "@/lib/share-to-social/settings";
 import { SOCIAL_LINK_ICONS } from "@/lib/share-to-social/settings";
 
@@ -298,10 +298,11 @@ export function GeneralSettingsContent() {
       </div>
 
       <Tabs defaultValue="site" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="site">Site</TabsTrigger>
           <TabsTrigger value="pwa">PWA</TabsTrigger>
           <TabsTrigger value="share">Social Share</TabsTrigger>
+          <TabsTrigger value="terms">Terms and Policies</TabsTrigger>
         </TabsList>
 
         <TabsContent value="site" className="space-y-6 mt-6">
@@ -849,6 +850,39 @@ export function GeneralSettingsContent() {
                     "Save share settings"
                   )}
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="terms" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Terms and Policies</CardTitle>
+              </div>
+              <CardDescription>
+                This section is customizable per client. Embed your terms of service and policy content here and link to your provider so customers can log in and manage. For now, use the preview below and the link to open your terms management site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="rounded-lg border border-dashed bg-muted/30 p-6 min-h-[200px]">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Preview</p>
+                <p className="text-sm text-muted-foreground">
+                  Your terms of service and policy content will appear here. This area will show embedded policies and a login option so visitors can access the external site to manage their preferences.
+                </p>
+              </div>
+              <div>
+                <Button asChild variant="default">
+                  <a href="#" target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Manage your Site Terms
+                  </a>
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Opens your terms and policies management site in a new tab. Configure the URL in a future update.
+                </p>
               </div>
             </CardContent>
           </Card>

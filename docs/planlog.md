@@ -68,7 +68,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [x] Optional: FAQ block content type (create/edit, body or fields, public render)
 - [x] Blog template — author on post: Author dropdown in Content Status (GET /api/admin/authors); author_id saved; “By {name}” on /blog/[slug].
 - [x] Author display from profile: Superadmin in author picker; content/comment author resolution uses profile display_name (Settings → My Profile) first, then user_metadata, then email. Phase 2b form steps in sessionlog.
-- [x] **Shortcode Library MVP Phase 1 + 1a:** Public shortcode_types table; universal picker; Phase 1 complete (Gallery, Media, Separator, Section break, Spacer, Clear, Button, Form, Snippet; alignment preservation). Phase 1a: media shortcode size param (small/medium/large/full), picker size step. Phase 2 (Layout wizard + columns/col backend, single-row columns; add "Layout" to modal; prompt per item; wizard steps 1–3) and Phase 3 (Quote, FAQ for standalone + Layout cells; Accordion defer) next. See sessionlog for steps.
+- [x] **Shortcode Library MVP Phase 1 + 1a + 2 + 2b:** Public shortcode_types; universal picker; Gallery, Media, Separator, Section break, Spacer, Clear, Button, Form, Snippet; alignment; media size; Layout wizard (composite shortcode, Form column); Form styles, FormEmbed, embed code. **Phase 3 eliminated:** Content shortcode + default content types cover Quote/FAQ/Accordion (use content types + [[content:id]] or Layout → Content); no dedicated quote/faq_sets tables or specialized shortcodes.
 
 ### Phase 07: CRM
 
@@ -78,6 +78,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [x] Contact merge: detail page Merge button + bulk "Merge 2 contacts" (Bulk actions when exactly 2 selected); irreversible warning and checkbox; MergeBulkDialog to pick primary; mergeContacts in crm.ts, POST /api/crm/contacts/merge.
 - [x] Merge field selector: side-by-side UI (MergeSideBySide), fieldChoices in merge API, suggested primary in bulk; GET /api/crm/contacts/[id]/custom-fields.
 - [x] CRM external UIDs (4 columns): external_crm_id, external_vbout_id, external_stripe_id, external_ecommerce_id; migration 113; getContactByExternalId(source, id).
+- [x] CRM contact list sort: column headers (Last name, First name, Full name, Status, Updated) clickable; default sort = Updated desc (last activity at top).
 - [x] Optional: `crm_consents`; auto-assign tags on form submit; central automations layer; push to external CRM
 
 ### Phase 08: Forms Management
@@ -110,7 +111,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 ### Phase 9A: Code Generator & Redemption
 
-**Status:** Core complete. Apply code on member dashboard done.
+**Status:** Core complete. Apply code on member dashboard done. Code Generator module (CG.0–CG.8): batches table, create modal scrollable, codes living table with batch/status filter and search, CSV export, manual mark used, batch_id in redeem response for workflows. See sessionlog "Code Generator Workflow" for scenarios.
 
 - [ ] Optional: "No ambiguous" character preset in admin generator UI; custom exclude list
 

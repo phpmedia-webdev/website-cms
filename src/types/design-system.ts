@@ -195,3 +195,36 @@ export const DEFAULT_BUTTON_STYLES: ButtonStyle[] = [
   { slug: "secondary", label: "Secondary", className: "btn-secondary" },
   { slug: "outline", label: "Outline", className: "btn-outline" },
 ];
+
+/** Theme color key for form styles (same palette as buttons: color01–color15). */
+export type FormThemeColorKey = (typeof BUTTON_THEME_COLOR_KEYS)[number];
+
+/**
+ * Reusable form style for shortcode and form display (Settings → Style → Forms).
+ * All optional theme refs use design system colors for consistency.
+ */
+export interface FormStyle {
+  slug: string;
+  label: string;
+  /** Container background theme key. */
+  backgroundColorTheme?: FormThemeColorKey | string;
+  /** Container border color theme key. */
+  borderColorTheme?: FormThemeColorKey | string;
+  /** Label text color theme key. */
+  labelColorTheme?: FormThemeColorKey | string;
+  /** Input border color theme key. */
+  inputBorderColorTheme?: FormThemeColorKey | string;
+  /** Submit button background theme key (simple colored button). */
+  submitBackgroundTheme?: FormThemeColorKey | string;
+  /** Submit button text color theme key. */
+  submitColorTheme?: FormThemeColorKey | string;
+  /** Border radius (e.g. "0.375rem"). */
+  borderRadius?: string;
+}
+
+/** Default form styles (used when none saved). */
+export const DEFAULT_FORM_STYLES: FormStyle[] = [
+  { slug: "default", label: "Default", backgroundColorTheme: "color05", borderColorTheme: "color08", labelColorTheme: "color06", inputBorderColorTheme: "color08", submitBackgroundTheme: "color01", submitColorTheme: "color04", borderRadius: "0.375rem" },
+  { slug: "minimal", label: "Minimal", labelColorTheme: "color06", inputBorderColorTheme: "color08", submitBackgroundTheme: "color01", submitColorTheme: "color04", borderRadius: "0.25rem" },
+  { slug: "bordered", label: "Bordered", borderColorTheme: "color08", labelColorTheme: "color06", inputBorderColorTheme: "color08", submitBackgroundTheme: "color02", submitColorTheme: "color04", borderRadius: "0.5rem" },
+];

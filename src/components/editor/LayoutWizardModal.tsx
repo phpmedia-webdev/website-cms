@@ -16,8 +16,9 @@ import { MediaPickerModal } from "./MediaPickerModal";
 import { GalleryPickerModal } from "./GalleryPickerModal";
 import { getContentTypes, getContentListWithTypes } from "@/lib/supabase/content";
 import type { ContentType, ContentListItem } from "@/types/content";
+import type { FormStyle } from "@/types/design-system";
 
-export type LayoutColumnContentType = "blank" | "image" | "gallery" | "content";
+export type LayoutColumnContentType = "blank" | "image" | "gallery" | "content" | "form";
 
 export interface LayoutColumnContent {
   type: LayoutColumnContentType;
@@ -106,6 +107,11 @@ export function LayoutWizardModal({ open, onClose, onSelect, excludeContentId }:
   const [contentList, setContentList] = useState<ContentListItem[]>([]);
   const [contentPickerStep, setContentPickerStep] = useState<"type" | "item">("type");
   const [contentPickerTypeSlug, setContentPickerTypeSlug] = useState<string | null>(null);
+  const [formPickerForColumn, setFormPickerForColumn] = useState<number | null>(null);
+  const [formList, setFormList] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [formStyles, setFormStyles] = useState<FormStyle[]>([]);
+  const [formPickerFormId, setFormPickerFormId] = useState<string | null>(null);
+  const [formPickerStyleSlug, setFormPickerStyleSlug] = useState<string>("");
 
   const widths = parseWidths(widthsStr);
   const columnCount = widths.length;
@@ -123,6 +129,9 @@ export function LayoutWizardModal({ open, onClose, onSelect, excludeContentId }:
       setContentPickerForColumn(null);
       setContentPickerStep("type");
       setContentPickerTypeSlug(null);
+      setFormPickerForColumn(null);
+      setFormPickerFormId(null);
+      setFormPickerStyleSlug("");
     }
   }, [open]);
 
@@ -166,9 +175,20 @@ export function LayoutWizardModal({ open, onClose, onSelect, excludeContentId }:
       setContentPickerStep("type");
       setContentPickerTypeSlug(null);
       getContentTypes().then((types) => {
-        setContentTypes(types.filter((t) => t.slug !== "page"));
+        setContentTypes(types);
       }).catch(() => setContentTypes([]));
       getContentListWithTypes().then(setContentList).catch(() => setContentList([]));
+    } else if (type === "form") {
+      setFormPickerForColumn(index);
+      setFormPickerFormId(null);
+      setFormPickerStyleSlug("");
+      Promise.all([
+        fetch("/api/crm/forms").then((r) => (r.ok ? r.json() : [])),
+        fetch("/api/settings/form-styles").then((r) => (r.ok ? r.json() : [])),
+      ]).then(([forms, styles]) => {
+        setFormList(Array.isArray(forms) ? forms : []);
+        setFormStyles(Array.isArray(styles) ? styles : []);
+      });
     }
   };
 
@@ -214,10 +234,22 @@ export function LayoutWizardModal({ open, onClose, onSelect, excludeContentId }:
     setContentPickerTypeSlug(null);
   };
 
-  /** Only core content types (system has parse/render routines). Exclude page. */
-  const contentTypesForLibrary = contentTypes.filter(
-    (t) => t.is_core && t.slug !== "page"
-  );
+  const handleFormSelect = () => {
+    if (formPickerForColumn === null || !formPickerFormId) return;
+    const stylePart = formPickerStyleSlug.trim() ? `|style=${formPickerStyleSlug.trim()}` : "";
+    const shortcode = `[[form:${formPickerFormId}${stylePart}]]`;
+    setColumnContents((prev) => {
+      const next = [...prev];
+      next[formPickerForColumn] = { type: "form", shortcode };
+      return next;
+    });
+    setFormPickerForColumn(null);
+    setFormPickerFormId(null);
+    setFormPickerStyleSlug("");
+  };
+
+  /** Core content types (system has parse/render routines for Content shortcode). */
+  const contentTypesForLibrary = contentTypes.filter((t) => t.is_core);
   const contentItemsForType =
     contentPickerTypeSlug == null
       ? []
@@ -338,6 +370,7 @@ export function LayoutWizardModal({ open, onClose, onSelect, excludeContentId }:
                       <option value="image">Image</option>
                       <option value="gallery">Gallery</option>
                       <option value="content">Content</option>
+                      <option value="form">Form</option>
                     </select>
                     {columnContents[i]?.type === "image" && !columnContents[i]?.shortcode && (
                       <Button
@@ -369,12 +402,33 @@ export function LayoutWizardModal({ open, onClose, onSelect, excludeContentId }:
                           setContentPickerStep("type");
                           setContentPickerTypeSlug(null);
                           getContentTypes().then((types) => {
-                            setContentTypes(types.filter((t) => t.slug !== "page"));
+                            setContentTypes(types);
                           }).catch(() => setContentTypes([]));
                           getContentListWithTypes().then(setContentList).catch(() => setContentList([]));
                         }}
                       >
                         Select content
+                      </Button>
+                    )}
+                    {columnContents[i]?.type === "form" && !columnContents[i]?.shortcode && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormPickerForColumn(i);
+                          setFormPickerFormId(null);
+                          setFormPickerStyleSlug("");
+                          Promise.all([
+                            fetch("/api/crm/forms").then((r) => (r.ok ? r.json() : [])),
+                            fetch("/api/settings/form-styles").then((r) => (r.ok ? r.json() : [])),
+                          ]).then(([forms, styles]) => {
+                            setFormList(Array.isArray(forms) ? forms : []);
+                            setFormStyles(Array.isArray(styles) ? styles : []);
+                          });
+                        }}
+                      >
+                        Select form
                       </Button>
                     )}
                     {columnContents[i]?.shortcode && (
@@ -407,6 +461,62 @@ export function LayoutWizardModal({ open, onClose, onSelect, excludeContentId }:
         onClose={() => setGalleryPickerForColumn(null)}
         onSelect={handleGallerySelect}
       />
+
+      <Dialog
+        open={formPickerForColumn !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFormPickerForColumn(null);
+            setFormPickerFormId(null);
+            setFormPickerStyleSlug("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Select form</DialogTitle>
+            <DialogDescription>
+              Choose a form to embed in this column. Optionally pick a form style.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Form</Label>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm mt-1"
+                value={formPickerFormId ?? ""}
+                onChange={(e) => setFormPickerFormId(e.target.value || null)}
+              >
+                <option value="">Select a form…</option>
+                {formList.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({f.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Form style (optional)</Label>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm mt-1"
+                value={formPickerStyleSlug}
+                onChange={(e) => setFormPickerStyleSlug(e.target.value)}
+              >
+                <option value="">Default</option>
+                {formStyles.map((s) => (
+                  <option key={s.slug} value={s.slug}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setFormPickerForColumn(null)}>Cancel</Button>
+              <Button onClick={handleFormSelect} disabled={!formPickerFormId}>Insert form</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={contentPickerForColumn !== null}

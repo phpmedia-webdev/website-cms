@@ -8,12 +8,12 @@ import { getPublishedContentByTypeAndSlug } from "@/lib/supabase/content";
 
 export async function GET() {
   try {
-    const page = await getPublishedContentByTypeAndSlug("page", "/");
+    const page = await getPublishedContentByTypeAndSlug("article", "home");
 
     if (!page) {
       return NextResponse.json({
         found: false,
-        message: "No homepage (slug=/) found",
+        message: "No homepage article (slug=home) found",
       });
     }
 

@@ -9,8 +9,9 @@ import TextAlign from "@tiptap/extension-text-align";
 import { findAllShortcodes, type ShortcodePart, type TextAlignValue } from "@/lib/shortcodes/parse";
 import { GalleryEmbed } from "@/components/public/media/GalleryEmbed";
 import { MediaShortcodeRender } from "./MediaShortcodeRender";
+import { FormEmbed } from "./FormEmbed";
 import { buttonStyleHasVisual, buttonStyleToInlineStyle } from "@/components/settings/ButtonStylesPreview";
-import type { ButtonStyle, ColorPalette } from "@/types/design-system";
+import type { ButtonStyle, ColorPalette, FormStyle } from "@/types/design-system";
 import { cn } from "@/lib/utils";
 
 const EXTENSIONS = [
@@ -33,6 +34,8 @@ export interface ContentWithGalleriesProps {
   buttonStyles?: ButtonStyle[] | null;
   /** Theme colors to resolve theme refs in button styles (e.g. backgroundColorTheme -> hex). */
   themeColors?: ColorPalette | null;
+  /** Form styles for form shortcode (optional style= slug). */
+  formStyles?: FormStyle[] | null;
 }
 
 /**
@@ -43,6 +46,7 @@ export function ContentWithGalleries({
   className,
   buttonStyles,
   themeColors,
+  formStyles,
 }: ContentWithGalleriesProps) {
   const parts = useMemo(() => {
     let parsed = content;
@@ -146,9 +150,12 @@ export function ContentWithGalleries({
       return wrapAlignment(
         part,
         <div className="not-prose my-4" data-shortcode="form" data-form-id={part.formId}>
-          <a href={`/forms/${part.formId}`} className="text-primary underline">
-            View form
-          </a>
+          <FormEmbed
+            formId={part.formId}
+            styleSlug={part.styleSlug ?? null}
+            formStyles={formStyles}
+            themeColors={themeColors}
+          />
         </div>,
         key
       );

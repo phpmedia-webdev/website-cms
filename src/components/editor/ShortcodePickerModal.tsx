@@ -22,6 +22,7 @@ import {
   MousePointer,
   FileText,
   FileCode,
+  FileInput,
   Loader2,
 } from "lucide-react";
 import type { ShortcodeType } from "@/lib/shortcodes/types";
@@ -31,12 +32,13 @@ import { LayoutWizardModal } from "./LayoutWizardModal";
 import { MEDIA_SIZE_OPTIONS } from "./MediaShortcodeRender";
 import { getContentTypes, getContentListWithTypes } from "@/lib/supabase/content";
 import type { ContentType, ContentListItem } from "@/types/content";
-import type { ButtonStyle } from "@/types/design-system";
+import type { ButtonStyle, FormStyle } from "@/types/design-system";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   ImagePlus,
   Image,
   FileText,
+  FileInput,
   LayoutGrid,
   Minus,
   Layout,
@@ -85,6 +87,11 @@ export function ShortcodePickerModal({
   const [contentList, setContentList] = useState<ContentListItem[]>([]);
   const [contentPickerStep, setContentPickerStep] = useState<"type" | "item">("type");
   const [contentPickerTypeSlug, setContentPickerTypeSlug] = useState<string | null>(null);
+  const [formPickerOpen, setFormPickerOpen] = useState(false);
+  const [formList, setFormList] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [formStyles, setFormStyles] = useState<FormStyle[]>([]);
+  const [formPickerFormId, setFormPickerFormId] = useState<string | null>(null);
+  const [formPickerStyleSlug, setFormPickerStyleSlug] = useState<string>("");
 
   useEffect(() => {
     if (!open) return;
@@ -119,7 +126,7 @@ export function ShortcodePickerModal({
         setContentPickerStep("type");
         setContentPickerTypeSlug(null);
         getContentTypes()
-          .then((list) => setContentTypes(list.filter((x) => x.is_core && x.slug !== "page")))
+          .then((list) => setContentTypes(list.filter((x) => x.is_core)))
           .catch(() => setContentTypes([]));
         getContentListWithTypes()
           .then(setContentList)
@@ -131,6 +138,21 @@ export function ShortcodePickerModal({
           .then((r) => (r.ok ? r.json() : []))
           .then((list) => setButtonStyles(Array.isArray(list) ? list : []))
           .catch(() => setButtonStyles([]));
+        break;
+      case "form":
+        setFormPickerOpen(true);
+        setFormPickerFormId(null);
+        setFormPickerStyleSlug("");
+        Promise.all([
+          fetch("/api/crm/forms").then((r) => (r.ok ? r.json() : [])),
+          fetch("/api/settings/form-styles").then((r) => (r.ok ? r.json() : [])),
+        ]).then(([forms, styles]) => {
+          setFormList(Array.isArray(forms) ? forms : []);
+          setFormStyles(Array.isArray(styles) ? styles : []);
+        }).catch(() => {
+          setFormList([]);
+          setFormStyles([]);
+        });
         break;
       case "layout":
         setLayoutWizardOpen(true);
@@ -167,6 +189,16 @@ export function ShortcodePickerModal({
   const handleLayoutSelect = (shortcode: string) => {
     setLayoutWizardOpen(false);
     onSelect(shortcode);
+    onClose();
+  };
+
+  const insertFormShortcode = () => {
+    if (!formPickerFormId) return;
+    const stylePart = formPickerStyleSlug.trim() ? `|style=${formPickerStyleSlug.trim()}` : "";
+    onSelect(`[[form:${formPickerFormId}${stylePart}]]`);
+    setFormPickerOpen(false);
+    setFormPickerFormId(null);
+    setFormPickerStyleSlug("");
     onClose();
   };
 
@@ -249,6 +281,53 @@ export function ShortcodePickerModal({
         onClose={() => setMediaPickerOpen(false)}
         onSelect={handleMediaSelect}
       />
+
+      <Dialog open={formPickerOpen} onOpenChange={(o) => !o && setFormPickerOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Insert form</DialogTitle>
+            <DialogDescription>
+              Choose a form to embed. Optionally pick a form style from Settings → Style → Forms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Form</Label>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm mt-1"
+                value={formPickerFormId ?? ""}
+                onChange={(e) => setFormPickerFormId(e.target.value || null)}
+              >
+                <option value="">Select a form…</option>
+                {formList.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({f.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Form style (optional)</Label>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm mt-1"
+                value={formPickerStyleSlug}
+                onChange={(e) => setFormPickerStyleSlug(e.target.value)}
+              >
+                <option value="">Default</option>
+                {formStyles.map((s) => (
+                  <option key={s.slug} value={s.slug}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setFormPickerOpen(false)}>Cancel</Button>
+              <Button onClick={insertFormShortcode} disabled={!formPickerFormId}>Insert shortcode</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!pendingMediaId} onOpenChange={(o) => !o && setPendingMediaId(null)}>
         <DialogContent className="max-w-sm">

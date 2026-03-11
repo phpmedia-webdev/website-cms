@@ -3,7 +3,7 @@
  */
 
 export type TaxonomyType = "category" | "tag";
-export type ContentType = "post" | "page" | "media" | "gallery";
+export type ContentType = "post" | "article" | "media" | "gallery";
 
 export interface TaxonomyTerm {
   id: string;

@@ -71,6 +71,7 @@ export async function GET(
       const rows = (codes ?? []).map((r: Record<string, unknown>) => {
         const cid = r.redeemed_by_member_id ? midToCid.get(r.redeemed_by_member_id as string) : null;
         return {
+          code_id: r.id,
           code: r.code_plain ?? "—",
           status: r.status === "redeemed" ? "Redeemed" : "Open",
           redeemed_at: r.redeemed_at ?? null,

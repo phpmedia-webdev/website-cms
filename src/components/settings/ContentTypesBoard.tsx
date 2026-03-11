@@ -14,24 +14,62 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Layers, Edit, Trash2, Loader2, Plus } from "lucide-react";
+import { Layers, Edit, Trash2, Loader2, Plus, ArrowUpDown, ArrowUp, ArrowDown, ChevronUp, ChevronDown, Save } from "lucide-react";
+
+const SORT_STORAGE_KEY = "contentTypesBoard_sort";
+
+type SortBy = "label" | "display_order";
+type SortDir = "asc" | "desc";
+
+function loadSortPreference(): { sortBy: SortBy; sortDir: SortDir } {
+  if (typeof window === "undefined") return { sortBy: "display_order", sortDir: "asc" };
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { sortBy?: string; sortDir?: string };
+      if (parsed.sortBy === "label" || parsed.sortBy === "display_order") {
+        const dir = parsed.sortDir === "desc" ? "desc" : "asc";
+        return { sortBy: parsed.sortBy, sortDir: dir };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { sortBy: "display_order", sortDir: "asc" };
+}
+
+function saveSortPreference(sortBy: SortBy, sortDir: SortDir) {
+  try {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ sortBy, sortDir }));
+  } catch {
+    // ignore
+  }
+}
 
 export function ContentTypesBoard() {
   const [types, setTypes] = useState<ContentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ContentType | null>(null);
-  const [form, setForm] = useState({ slug: "", label: "", description: "" });
+  const [form, setForm] = useState({ slug: "", label: "", description: "", display_order: 0 });
+  const [sortBy, setSortBy] = useState<SortBy>(() => loadSortPreference().sortBy);
+  const [sortDir, setSortDir] = useState<SortDir>(() => loadSortPreference().sortDir);
+  /** When sorted by display_order, this is the reorderable id list. Save Sort Order writes these as display_order 0,1,2,... */
+  const [orderIds, setOrderIds] = useState<string[]>([]);
 
   const fetchTypes = useCallback(async () => {
     setLoading(true);
     try {
       const t = await getContentTypes();
       setTypes(t);
+      const byOrder = [...t].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || (a.slug ?? "").localeCompare(b.slug ?? ""));
+      setOrderIds(byOrder.map((x) => x.id));
     } catch (e) {
       console.error("Failed to fetch content types:", e);
       setTypes([]);
+      setOrderIds([]);
     } finally {
       setLoading(false);
     }
@@ -41,13 +79,56 @@ export function ContentTypesBoard() {
     fetchTypes();
   }, [fetchTypes]);
 
-  // Exclude Page: structure is built in code, not as a content library type (per product decision).
-  const typesForDisplay = types.filter((t) => t.slug !== "page");
-  const sorted = [...typesForDisplay].sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "", undefined, { sensitivity: "base" }));
+  const typesForDisplay = types;
+
+  const sorted =
+    sortBy === "display_order"
+      ? (sortDir === "asc"
+          ? orderIds.map((id) => typesForDisplay.find((t) => t.id === id)).filter(Boolean)
+          : [...orderIds].reverse().map((id) => typesForDisplay.find((t) => t.id === id)).filter(Boolean)) as ContentType[]
+      : [...typesForDisplay].sort((a, b) => {
+          const mult = sortDir === "asc" ? 1 : -1;
+          return mult * (a.label ?? "").localeCompare(b.label ?? "", undefined, { sensitivity: "base" });
+        });
+
+  const toggleSort = (column: SortBy) => {
+    const nextBy = column;
+    const nextDir = sortBy === column ? (sortDir === "asc" ? "desc" : "asc") : "asc";
+    setSortBy(nextBy);
+    setSortDir(nextDir);
+    saveSortPreference(nextBy, nextDir);
+  };
+
+  const moveOrder = (tableIndex: number, direction: -1 | 1) => {
+    const orderIndex = sortDir === "asc" ? tableIndex : orderIds.length - 1 - tableIndex;
+    const next = orderIndex + direction;
+    if (next < 0 || next >= orderIds.length) return;
+    setOrderIds((prev) => {
+      const arr = [...prev];
+      [arr[orderIndex], arr[next]] = [arr[next], arr[orderIndex]];
+      return arr;
+    });
+  };
+
+  /** Saves the current visible order (Label or Display Order) as display_order 0, 1, 2, ... */
+  const handleSaveSortOrder = async () => {
+    setSavingOrder(true);
+    try {
+      for (let i = 0; i < sorted.length; i++) {
+        await updateContentType(sorted[i].id, { display_order: i });
+      }
+      await fetchTypes();
+    } catch (e) {
+      console.error("Save sort order failed:", e);
+      alert("Failed to save order. Try again.");
+    } finally {
+      setSavingOrder(false);
+    }
+  };
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ slug: "", label: "", description: "" });
+    setForm({ slug: "", label: "", description: "", display_order: 0 });
     setModalOpen(true);
   };
 
@@ -57,6 +138,7 @@ export function ContentTypesBoard() {
       slug: t.slug,
       label: t.label,
       description: t.description ?? "",
+      display_order: t.display_order ?? 0,
     });
     setModalOpen(true);
   };
@@ -76,11 +158,13 @@ export function ContentTypesBoard() {
     setSaving(true);
     try {
       if (editing) {
-        const ok = await updateContentType(editing.id, {
-          slug: form.slug.trim(),
+        const payload: Parameters<typeof updateContentType>[1] = {
           label: form.label.trim(),
           description: form.description?.trim() || null,
-        });
+          display_order: Number(form.display_order) ?? 0,
+        };
+        if (!editing.is_core) payload.slug = form.slug.trim();
+        const ok = await updateContentType(editing.id, payload);
         if (!ok) throw new Error("Update failed");
       } else {
         const inserted = await insertContentType({
@@ -127,14 +211,21 @@ export function ContentTypesBoard() {
                 <Layers className="h-5 w-5" />
                 Content Types
               </CardTitle>
-              <CardDescription>
-                Core types (post, snippet, quote, article, FAQ) cannot be deleted. Page is not shown—structure is built in code. Sorted alphabetically by label.
+              <CardDescription className="space-y-1">
+                <span className="block">The sort order you set here (by display order or label) is how types appear in the <strong>New Content</strong> picker on the Content page.</span>
+                <span className="block">Core types (post, article, snippet, quote, FAQ, etc.) can be edited (label, description, display order) but not deleted; slug is fixed for core types.</span>
               </CardDescription>
             </div>
-            <Button onClick={openAdd}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add New
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={handleSaveSortOrder} disabled={savingOrder || sorted.length === 0} title="Save the current order (by label or order) as the display order used in the New Content picker">
+                {savingOrder ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Save Sort Order
+              </Button>
+              <Button onClick={openAdd}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add New
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -152,27 +243,72 @@ export function ContentTypesBoard() {
               <table className="w-full">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Label</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto py-1 -ml-2 font-medium text-muted-foreground hover:text-foreground"
+                        onClick={() => toggleSort("label")}
+                      >
+                        Label {sortBy === "label" ? (sortDir === "asc" ? <ArrowUp className="inline h-3 w-3 ml-1" /> : <ArrowDown className="inline h-3 w-3 ml-1" />) : <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-50" />}
+                      </Button>
+                    </th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Slug</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Description</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto py-1 -ml-2 font-medium text-muted-foreground hover:text-foreground"
+                        onClick={() => toggleSort("display_order")}
+                      >
+                        Order {sortBy === "display_order" ? (sortDir === "asc" ? <ArrowUp className="inline h-3 w-3 ml-1" /> : <ArrowDown className="inline h-3 w-3 ml-1" />) : <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-50" />}
+                      </Button>
+                    </th>
                     <th className="w-20" />
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((t) => (
+                  {sorted.map((t, index) => (
                     <tr key={t.id} className="border-t">
                       <td className="px-3 py-2 text-sm font-medium">{t.label}</td>
                       <td className="px-3 py-2 text-sm font-mono">{t.slug}</td>
                       <td className="px-3 py-2 text-sm text-muted-foreground">{t.description ?? "—"}</td>
+                      <td className="px-3 py-2 text-sm font-mono text-muted-foreground">{t.display_order ?? 0}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
+                          {sortBy === "display_order" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => moveOrder(index, -1)}
+                                disabled={sortDir === "asc" ? index === 0 : index === sorted.length - 1}
+                                aria-label="Move up"
+                                title="Move up"
+                              >
+                                <ChevronUp className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => moveOrder(index, 1)}
+                                disabled={sortDir === "asc" ? index === sorted.length - 1 : index === 0}
+                                aria-label="Move down"
+                                title="Move down"
+                              >
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => openEdit(t)}
                             aria-label="Edit"
-                            disabled={t.is_core}
-                            title={t.is_core ? "Core types cannot be edited" : "Edit"}
+                            title="Edit (label, description, order)"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -235,6 +371,19 @@ export function ContentTypesBoard() {
                 placeholder="Optional"
               />
             </div>
+            {editing !== null && (
+              <div className="space-y-2">
+                <Label htmlFor="ct-display-order">Display order</Label>
+                <Input
+                  id="ct-display-order"
+                  type="number"
+                  min={0}
+                  value={form.display_order}
+                  onChange={(e) => setForm((prev) => ({ ...prev, display_order: parseInt(e.target.value, 10) || 0 }))}
+                />
+                <p className="text-xs text-muted-foreground">Lower numbers appear first in the New Content picker.</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeModal} disabled={saving}>

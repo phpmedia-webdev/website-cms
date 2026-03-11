@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,17 @@ interface Batch {
   mags?: { id: string; name: string; uid: string } | null;
 }
 
+interface UnifiedCodeRow {
+  code: string;
+  batch_id: string;
+  batch_name: string;
+  use_type: "single_use" | "multi_use";
+  status: "open" | "used";
+  redeemed_at: string | null;
+  contact_id: string | null;
+  contact_display: string;
+}
+
 export function CodeGeneratorClient() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [mags, setMags] = useState<Mag[]>([]);
@@ -61,6 +72,13 @@ export function CodeGeneratorClient() {
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
 
+  const [codesList, setCodesList] = useState<UnifiedCodeRow[]>([]);
+  const [codesTotal, setCodesTotal] = useState(0);
+  const [codesLoading, setCodesLoading] = useState(false);
+  const [codesBatchFilter, setCodesBatchFilter] = useState<string>("all");
+  const [codesStatusFilter, setCodesStatusFilter] = useState<"all" | "open" | "used">("all");
+  const [codesSearch, setCodesSearch] = useState("");
+
   const fetchBatches = async () => {
     const res = await fetch("/api/admin/membership-codes/batches");
     if (res.ok) {
@@ -81,6 +99,62 @@ export function CodeGeneratorClient() {
     setLoading(true);
     Promise.all([fetchBatches(), fetchMags()]).finally(() => setLoading(false));
   }, []);
+
+  const fetchCodes = async () => {
+    setCodesLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (codesBatchFilter !== "all") params.set("batchId", codesBatchFilter);
+      params.set("status", codesStatusFilter);
+      params.set("limit", "500");
+      const res = await fetch(`/api/admin/membership-codes/codes?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCodesList(data.codes ?? []);
+        setCodesTotal(data.total ?? 0);
+      } else {
+        setCodesList([]);
+        setCodesTotal(0);
+      }
+    } catch {
+      setCodesList([]);
+      setCodesTotal(0);
+    } finally {
+      setCodesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCodes();
+  }, [codesBatchFilter, codesStatusFilter]);
+
+  const codesFiltered = useMemo(() => {
+    const q = codesSearch.trim();
+    if (!q) return codesList;
+    const lower = q.toLowerCase();
+    return codesList.filter((r) => r.code.toLowerCase().includes(lower));
+  }, [codesList, codesSearch]);
+
+  const exportCodesCsv = () => {
+    if (codesFiltered.length === 0) return;
+    const header = "code,batch_id,batch_name,use_type,status,redeemed_at,contact_id,contact_display";
+    const escape = (v: string | null) => {
+      const s = v ?? "";
+      return /[",\n\r]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : s;
+    };
+    const rows = codesFiltered.map(
+      (r) =>
+        [r.code, r.batch_id, r.batch_name, r.use_type, r.status, r.redeemed_at ?? "", r.contact_id ?? "", r.contact_display].map(escape).join(",")
+    );
+    const csv = [header, ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `membership-codes-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const resetForm = () => {
     setUseType("single_use");
@@ -146,6 +220,7 @@ export function CodeGeneratorClient() {
         throw new Error(err.error || "Failed to create");
       }
       await fetchBatches();
+      fetchCodes();
       const { id } = await res.json();
       setModalOpen(false);
       resetForm();
@@ -176,6 +251,7 @@ export function CodeGeneratorClient() {
       const { codes } = await res.json();
       setGeneratedCodes(codes);
       await fetchBatches();
+      fetchCodes();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to generate codes");
     } finally {
@@ -252,68 +328,192 @@ export function CodeGeneratorClient() {
               No batches yet. Create one to get started.
             </p>
           ) : (
-            <div className="space-y-2">
-              {batches.map((b) => (
-                <div
-                  key={b.id}
-                  className="flex items-center justify-between py-3 px-4 rounded-lg border bg-card"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <KeyRound className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-4">
-                        <p className="font-medium truncate">{b.name}</p>
+            <div className="rounded-lg border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left py-2 px-3 font-medium">Name</th>
+                    <th className="text-left py-2 px-3 font-medium">MAG</th>
+                    <th className="text-left py-2 px-3 font-medium">Type</th>
+                    <th className="text-left py-2 px-3 font-medium">Codes / Usage</th>
+                    <th className="text-left py-2 px-3 font-medium">Expires</th>
+                    <th className="text-right py-2 px-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batches.map((b) => (
+                    <tr key={b.id} className="border-b last:border-0">
+                      <td className="py-2 px-3">
+                        <span className="font-medium">{b.name}</span>
                         {b.use_type === "multi_use" && b.code_plain && (
-                          <code className="text-sm font-mono shrink-0 text-right">{b.code_plain}</code>
+                          <code className="ml-2 text-xs font-mono text-muted-foreground">{b.code_plain}</code>
                         )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {magName(b)} · {b.use_type === "single_use" ? "Single-use" : "Multi-use"}
-                        {b.use_type === "single_use" && typeof b.total_codes === "number" && (
-                          <> · {b.redeemed_count ?? 0}/{b.total_codes} redeemed</>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">{magName(b)}</td>
+                      <td className="py-2 px-3">
+                        {b.use_type === "single_use" ? "Single-use" : "Multi-use"}
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {b.use_type === "single_use" && typeof b.total_codes === "number"
+                          ? `${b.redeemed_count ?? 0} / ${b.total_codes} redeemed`
+                          : b.use_type === "multi_use" && typeof b.use_count === "number"
+                            ? `${b.use_count}${b.max_uses ? ` / ${b.max_uses}` : ""} uses`
+                            : "—"}
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">{formatExpires(b.expires_at)}</td>
+                      <td className="py-2 px-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/admin/crm/memberships/code-generator/batches/${b.id}`} className="inline-flex items-center">
+                              <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                              Explore
+                            </Link>
+                          </Button>
+                          {b.use_type === "single_use" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setGeneratingBatchId(b.id);
+                                setGeneratedCodes([]);
+                                setGenerateCount("50");
+                                setGenerateModalOpen(true);
+                              }}
+                            >
+                              Generate codes
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Codes</CardTitle>
+          <CardDescription>
+            All codes and redemptions. Filter by batch or status; export as CSV for event participation and reporting.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <Label className="text-sm text-muted-foreground">Batch</Label>
+              <select
+                value={codesBatchFilter}
+                onChange={(e) => setCodesBatchFilter(e.target.value)}
+                className="flex h-9 w-[220px] mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">All batches</option>
+                {batches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-sm text-muted-foreground">Status</Label>
+              <select
+                value={codesStatusFilter}
+                onChange={(e) => setCodesStatusFilter(e.target.value as "all" | "open" | "used")}
+                className="flex h-9 w-[120px] mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">All</option>
+                <option value="open">Open</option>
+                <option value="used">Used</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-sm text-muted-foreground">Search</Label>
+              <Input
+                type="text"
+                placeholder="Find code…"
+                maxLength={20}
+                value={codesSearch}
+                onChange={(e) => setCodesSearch(e.target.value)}
+                className="h-9 w-[140px] mt-1"
+              />
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" className="h-9" onClick={fetchCodes} disabled={codesLoading}>
+                {codesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
+              </Button>
+              <Button variant="outline" size="sm" className="h-9" onClick={exportCodesCsv} disabled={codesFiltered.length === 0}>
+                <Download className="h-4 w-4 mr-1" />
+                Export CSV
+              </Button>
+            </div>
+            <span className="text-sm text-muted-foreground ml-auto pb-0.5">
+              {codesSearch.trim() ? `${codesFiltered.length} of ${codesTotal}` : codesTotal} record{(codesSearch.trim() ? codesFiltered.length : codesTotal) !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {codesLoading ? (
+            <div className="py-12 flex items-center justify-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading…
+            </div>
+          ) : codesList.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center text-sm">
+              No codes match the current filters.
+            </p>
+          ) : codesFiltered.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center text-sm">
+              No codes match the search.
+            </p>
+          ) : (
+            <div className="rounded-lg border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left py-2 px-3 font-medium">Code</th>
+                    <th className="text-left py-2 px-3 font-medium">Batch</th>
+                    <th className="text-left py-2 px-3 font-medium">Type</th>
+                    <th className="text-left py-2 px-3 font-medium">Status</th>
+                    <th className="text-left py-2 px-3 font-medium">Used</th>
+                    <th className="text-left py-2 px-3 font-medium">Contact</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {codesFiltered.map((row, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="py-2 px-3 font-mono">{row.code}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{row.batch_name}</td>
+                      <td className="py-2 px-3">{row.use_type === "single_use" ? "Single" : "Multi"}</td>
+                      <td className="py-2 px-3">{row.status === "used" ? "Used" : "Open"}</td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {row.redeemed_at ? new Date(row.redeemed_at).toLocaleString() : "—"}
+                      </td>
+                      <td className="py-2 px-3">
+                        {row.contact_id ? (
+                          <Link href={`/admin/crm/contacts/${row.contact_id}`} className="text-primary hover:underline">
+                            {row.contact_display}
+                          </Link>
+                        ) : (
+                          row.contact_display || "—"
                         )}
-                        {b.use_type === "multi_use" && typeof b.use_count === "number" && (
-                          <> · {b.use_count}{b.max_uses ? `/${b.max_uses}` : ""} uses</>
-                        )}
-                        <> · Expires {formatExpires(b.expires_at)}</>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/admin/crm/memberships/code-generator/batches/${b.id}`} className="inline-flex items-center">
-                        <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                        Explore
-                      </Link>
-                    </Button>
-                    {b.use_type === "single_use" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setGeneratingBatchId(b.id);
-                          setGeneratedCodes([]);
-                          setGenerateCount("50");
-                          setGenerateModalOpen(true);
-                        }}
-                      >
-                        Generate codes
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Create code batch</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-y-auto min-h-0 max-h-[60vh] pr-1">
             <div>
               <Label>Membership (MAG)</Label>
               <select
@@ -424,7 +624,7 @@ export function CodeGeneratorClient() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t pt-4">
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>

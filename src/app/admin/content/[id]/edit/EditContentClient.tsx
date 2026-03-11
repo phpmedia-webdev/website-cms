@@ -31,7 +31,7 @@ export function EditContentClient() {
     Promise.all([getContentById(id), getContentTypes()])
       .then(([row, typeList]) => {
         setItem(row ?? null);
-        setTypes(typeList.filter((t) => t.slug !== "page"));
+        setTypes(typeList);
         if (row) setUseForAgentTraining(row.use_for_agent_training ?? false);
         if (!row) setError("Content not found");
       })
@@ -87,20 +87,55 @@ export function EditContentClient() {
           <span className="font-bold text-2xl">Edit Content</span>
         </div>
         <div className="flex justify-end gap-2">
-          {types.find((t) => t.id === item.content_type_id)?.slug === "post" && item.slug && (
-            <Button
-              type="button"
-              variant="outline"
-              title="Open post in a new tab (draft visible to you only)"
-              onClick={() => {
-                const url = `${window.location.origin}/blog/${encodeURIComponent(item.slug)}`;
-                window.open(url, "_blank", "noopener,noreferrer");
-              }}
-            >
-              <ExternalLink className="h-4 w-4 mr-1.5" />
-              Preview
-            </Button>
-          )}
+          {(() => {
+            const typeSlug = types.find((t) => t.id === item.content_type_id)?.slug;
+            if (typeSlug === "post" && item.slug) {
+              return (
+                <Button
+                  type="button"
+                  variant="outline"
+                  title="Open post in a new tab (draft visible to you only)"
+                  onClick={() => {
+                    window.open(`${window.location.origin}/blog/${encodeURIComponent(item.slug)}`, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-1.5" />
+                  Preview
+                </Button>
+              );
+            }
+            if (typeSlug === "article" && item.slug) {
+              return (
+                <Button
+                  type="button"
+                  variant="outline"
+                  title="Open article in a new tab (draft visible to you only)"
+                  onClick={() => {
+                    window.open(`${window.location.origin}/${encodeURIComponent(item.slug)}`, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-1.5" />
+                  Preview
+                </Button>
+              );
+            }
+            if (typeSlug) {
+              return (
+                <Button
+                  type="button"
+                  variant="outline"
+                  title="Preview how this content body will look (galleries, forms, etc.)"
+                  onClick={() => {
+                    window.open(`${window.location.origin}/admin/content/preview/${encodeURIComponent(item.id)}`, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-1.5" />
+                  Preview
+                </Button>
+              );
+            }
+            return null;
+          })()}
           <Button variant="outline" onClick={handleCancel} disabled={saving}>
             Cancel
           </Button>

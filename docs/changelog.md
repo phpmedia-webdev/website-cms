@@ -11,6 +11,31 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ---
 
+### 2026-03-11 CT — Session wrap-up: Code Generator module complete, form submissions export, codes search
+
+**Context for Next Session:** Code Generator module is complete (CG.0–CG.8). Batches list is a table; create-batch modal has scrollable body. Unified codes table (single-use + multi-use redemption rows) with batch and status filters, simple search bar (max 20 chars, client-side filter on code), Export CSV (filtered view), and record count. Manual "Mark used" for single-use codes on batch detail page (POST `/api/admin/membership-codes/codes/[id]/mark-used`). Redeem API and `redeemCode()` return `batch_id` for workflows (CG.1). Generator uses per-run duplicate prevention only (no DB pre-load). Form submissions list has date-range presets (including "All dates"), pagination, and CSV export with field picker. Codes block button row aligned (items-end, h-9). **Deferred:** MAG/membership column in codes table (user opted to hold off). **Next up:** See sessionlog — core content types rendering, App Version Number, Banners, or other backlog. Planlog Phase 9A updated with Code Generator module summary.
+
+**Changes:**
+- **Code Generator:** Batches table (Name, MAG, Type, Codes/Usage, Expires, Actions). Create modal scrollable. Unified codes API `GET /api/admin/membership-codes/codes?batchId=&status=&limit=`, Codes card with batch/status filters, search (max 20 chars), Export CSV, `codesFiltered` useMemo. Mark-used API and "Mark used" button on batch Explore page. `RedeemResult.batchId` and redeem API response `batch_id`. Duplicate prevention in generator: per-run only, comment in code.
+- **Form submissions:** Date presets (All dates, 24h, 7d, 30d, custom), pagination (25/50/100), URL sync. Export CSV: GET export-fields, POST export with form + date range + selected fields; Export button and modal with form and field picker. "X records in range" moved to footer center.
+- **Docs:** Sessionlog Code Generator Module marked complete; planlog Phase 9A updated.
+
+**Key files:** `src/app/admin/crm/memberships/code-generator/CodeGeneratorClient.tsx`, `src/app/api/admin/membership-codes/codes/route.ts`, `src/app/api/admin/membership-codes/codes/[id]/mark-used/route.ts`, `src/lib/mags/code-generator.ts`, `src/app/api/members/redeem-code/route.ts`, `src/app/admin/crm/forms/submissions/SubmissionsListClient.tsx`, `docs/sessionlog.md`, `docs/planlog.md`, `docs/changelog.md`.
+
+---
+
+### 2026-03-10 18:30 CT — Session cleanup: Phase 2 Layout complete, step 15 dropped, sessionlog thinned; rules updated
+
+**Context for Next Session:** Shortcode Phase 1, 1a, and Phase 2 (Layout wizard) are complete. Phase 2 uses the composite shortcode `[[layout|widths|height|col1{{COL}}col2...]]`; paired columns/col approach was superseded and removed from sessionlog. Step 15 (prompt/description per picker item) was dropped as not needed. Sessionlog was cleaned: completed Phase 1, 1a, and Phase 2 items were moved to this changelog entry and removed from sessionlog so the log stays thin. Cursor rules: `sessions.mdc` and `coding.mdc` updated so session end workflow is explicit (review chat, mark off sessionlog, add dated changelog entry with Context for Next Session, remove completed items from sessionlog, sync planlog). **Next up:** Phase 2b (form display routine, embed code, Form in picker and Layout wizard), then Phase 3 (Quote, FAQ, Accordion). See sessionlog.
+
+**Changes:**
+- **Sessionlog:** Phase 2 step 15 (prompt/description per item) removed — not needed. Phase 2 marked complete (14, 16, 17, 18, 19). Completed Phase 1, Phase 1a, and Phase 2 blocks removed from sessionlog; only Phase 2b, Phase 3, Other/Backlog, Paused remain. Design note updated to composite layout shortcode (no paired columns/col).
+- **Cursor rules:** `sessions.mdc` — Ending a work session steps clarified (review chat, mark off sessionlog, add changelog entry with current date/time, move completed work into entry, Context for Next Session, remove completed from sessionlog). `coding.mdc` — Checklist explicitly requires reading `sessions.mdc` for session start/end workflow.
+
+**Key files:** `docs/sessionlog.md`, `docs/changelog.md`, `.cursor/rules/sessions.mdc`, `.cursor/rules/coding.mdc`.
+
+---
+
 ### 2026-03-04 16:30 CT — Session wrap-up: Author display from profile, Phase 2b form steps in sessionlog
 
 **Context for Next Session:** Author display now uses the profile "Display name" (Settings → My Profile) when available: (1) Authors API appends current superadmin with `getProfileByUserId` so their profile display name appears in the author dropdown; (2) `getContentAuthorDisplayName` and `getCommentAuthorDisplayName` resolve auth users via new `getAuthUserDisplayName()` helper that checks profile first, then user_metadata (full_name, name, display_name), then email. So updating Display name in My Profile is reflected in the author picker and in post/comment author display. **Sessionlog:** Phase 2b steps added (no coding): 2b.1 Form display routine (inline render for `[[form:id]]`), 2b.2 Embed code in form manager, 2b.3 Form in main shortcode picker, 2b.4 Form in Layout wizard column options; form manager styling deferred. **Next up:** Continue shortcode Phase 2 (Layout wizard) or start Phase 2b (form display + embed + form in picker and Layout). See sessionlog.

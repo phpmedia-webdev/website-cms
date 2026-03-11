@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import type { DesignSystemConfig, ColorPalette, ColorLabels, ButtonStyle } from "@/types/design-system";
+import type { DesignSystemConfig, ColorPalette, ColorLabels, ButtonStyle, FormStyle } from "@/types/design-system";
 import { Palette, Eye, Save, X } from "lucide-react";
 import { PaletteLibrary } from "./PaletteLibrary";
 import { ButtonStylesPreview } from "./ButtonStylesPreview";
+import { FormStylesPreview } from "./FormStylesPreview";
 
 interface ColorsSettingsProps {
   config: DesignSystemConfig;
@@ -18,6 +19,8 @@ interface ColorsSettingsProps {
   saved: boolean;
   /** Button styles for preview section (from Style page). */
   buttonStyles?: ButtonStyle[] | null;
+  /** Form styles for preview section (from Style page). */
+  formStyles?: FormStyle[] | null;
 }
 
 /**
@@ -73,6 +76,7 @@ export function ColorsSettings({
   saving,
   saved,
   buttonStyles,
+  formStyles,
 }: ColorsSettingsProps) {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [selectedColorKey, setSelectedColorKey] = useState<keyof ColorPalette | null>(null);
@@ -605,6 +609,23 @@ export function ColorsSettings({
                 fontFamily={`"${config.fonts.primary.family}", sans-serif`}
                 className="flex flex-wrap gap-3"
                 styles={buttonStyles}
+                themeColors={config.colors}
+              />
+            </div>
+
+            {/* Form styles */}
+            <div className="space-y-2">
+              <h4
+                style={{
+                  fontFamily: `"${config.fonts.primary.family}", sans-serif`,
+                  color: config.colors.color06,
+                }}
+                className="text-base font-semibold"
+              >
+                Form styles
+              </h4>
+              <FormStylesPreview
+                styles={formStyles}
                 themeColors={config.colors}
               />
             </div>
