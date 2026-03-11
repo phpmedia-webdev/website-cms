@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmContact } from "@/lib/supabase/crm";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
+import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,11 @@ export function ContactEditForm({
     state: contact.state ?? "",
     postal_code: contact.postal_code ?? "",
     country: contact.country ?? "",
+    shipping_address: contact.shipping_address ?? "",
+    shipping_city: contact.shipping_city ?? "",
+    shipping_state: contact.shipping_state ?? "",
+    shipping_postal_code: contact.shipping_postal_code ?? "",
+    shipping_country: contact.shipping_country ?? "",
     message: contact.message ?? "",
     status: contact.status ?? (contactStatuses[0]?.slug ?? "new"),
     dnd_status: contact.dnd_status ?? "none",
@@ -51,6 +57,11 @@ export function ContactEditForm({
       state: contact.state ?? "",
       postal_code: contact.postal_code ?? "",
       country: contact.country ?? "",
+      shipping_address: contact.shipping_address ?? "",
+      shipping_city: contact.shipping_city ?? "",
+      shipping_state: contact.shipping_state ?? "",
+      shipping_postal_code: contact.shipping_postal_code ?? "",
+      shipping_country: contact.shipping_country ?? "",
       message: contact.message ?? "",
       status: contact.status ?? (contactStatuses[0]?.slug ?? "new"),
       dnd_status: contact.dnd_status ?? "none",
@@ -77,6 +88,11 @@ export function ContactEditForm({
           state: form.state || null,
           postal_code: form.postal_code || null,
           country: form.country || null,
+          shipping_address: form.shipping_address || null,
+          shipping_city: form.shipping_city || null,
+          shipping_state: form.shipping_state || null,
+          shipping_postal_code: form.shipping_postal_code || null,
+          shipping_country: form.shipping_country || null,
           message: form.message.trim() ? form.message.trim() : null,
           status: form.status || "new",
           dnd_status: form.dnd_status === "none" ? null : form.dnd_status,
@@ -154,6 +170,7 @@ export function ContactEditForm({
               onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
             />
           </div>
+          <p className="text-xs font-medium text-foreground mt-2">Billing address</p>
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>
             <Input
@@ -196,6 +213,70 @@ export function ContactEditForm({
               onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
             />
           </div>
+          <div className="flex items-center gap-2 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() =>
+                setForm((f) => ({
+                  ...f,
+                  shipping_address: f.address,
+                  shipping_city: f.city,
+                  shipping_state: f.state,
+                  shipping_postal_code: f.postal_code,
+                  shipping_country: f.country,
+                }))
+              }
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy to shipping
+            </Button>
+          </div>
+          <p className="text-xs font-medium text-foreground mt-3">Shipping address (if different)</p>
+          <div className="space-y-2">
+            <Label htmlFor="shipping_address">Address</Label>
+            <Input
+              id="shipping_address"
+              value={form.shipping_address}
+              onChange={(e) => setForm((f) => ({ ...f, shipping_address: e.target.value }))}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="shipping_city">City</Label>
+              <Input
+                id="shipping_city"
+                value={form.shipping_city}
+                onChange={(e) => setForm((f) => ({ ...f, shipping_city: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="shipping_state">State</Label>
+              <Input
+                id="shipping_state"
+                value={form.shipping_state}
+                onChange={(e) => setForm((f) => ({ ...f, shipping_state: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="shipping_postal_code">Postal code</Label>
+              <Input
+                id="shipping_postal_code"
+                value={form.shipping_postal_code}
+                onChange={(e) => setForm((f) => ({ ...f, shipping_postal_code: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="shipping_country">Country</Label>
+            <Input
+              id="shipping_country"
+              value={form.shipping_country}
+              onChange={(e) => setForm((f) => ({ ...f, shipping_country: e.target.value }))}
+            />
+          </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="message">Message</Label>
@@ -203,7 +284,7 @@ export function ContactEditForm({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs text-muted-foreground"
+                className="h-7 text-xs text-foreground/80"
                 onClick={() => setForm((f) => ({ ...f, message: "" }))}
               >
                 Clear all
@@ -211,7 +292,7 @@ export function ContactEditForm({
             </div>
             <textarea
               id="message"
-              className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="flex min-h-[120px] w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               value={form.message}
               onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
               placeholder="Form submission or quick notes…"
@@ -222,7 +303,7 @@ export function ContactEditForm({
               <Label htmlFor="status">Status</Label>
               <select
                 id="status"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={form.status}
                 onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
               >
@@ -235,7 +316,7 @@ export function ContactEditForm({
               <Label htmlFor="dnd_status">Do not contact</Label>
               <select
                 id="dnd_status"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={form.dnd_status}
                 onChange={(e) => setForm((f) => ({ ...f, dnd_status: e.target.value }))}
               >

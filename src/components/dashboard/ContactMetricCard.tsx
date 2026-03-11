@@ -21,15 +21,15 @@ export function ContactMetricCard({
 }: ContactMetricCardProps) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
         <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
         <Users className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{total.toLocaleString()}</div>
-        <p className="text-xs text-muted-foreground mt-1">CRM contacts</p>
+      <CardContent className="p-4 pt-0">
+        <div className="text-xl font-bold">{total.toLocaleString()}</div>
+        <p className="text-xs text-muted-foreground mt-0.5">CRM contacts</p>
         {byStatus.length > 0 && (
-          <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
             {byStatus.map(({ status, count }) => (
               <li key={status || "(none)"} className="flex justify-between gap-2">
                 <span className="truncate">{labelFor(status, statusLabels)}</span>

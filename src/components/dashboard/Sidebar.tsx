@@ -21,6 +21,7 @@ import {
   LifeBuoy,
   MessageCircle,
   Calendar,
+  ShoppingBag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canAccessFeature } from "@/lib/admin/route-features";
@@ -33,10 +34,12 @@ import {
   SIDEBAR_CALENDAR_OPEN,
   SIDEBAR_SUPPORT_OPEN,
   SIDEBAR_SUPER_OPEN,
+  SIDEBAR_ECOM_OPEN,
   mediaSubNav,
   crmSubNav,
   marketingSubNav,
   calendarSubNav,
+  ecommerceSubNav,
   settingsSubNav,
   supportSubNav,
   superadminSubNav,
@@ -88,6 +91,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const isEvents = pathname === "/admin/events" || pathname?.startsWith("/admin/events/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
   const isContent = pathname === "/admin/content" || pathname?.startsWith("/admin/content/");
+  const isEcommerce = pathname === "/admin/ecommerce" || pathname?.startsWith("/admin/ecommerce/");
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
 
   const showDashboard =
@@ -118,6 +122,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const showMedia = (showMediaEffective || (isDisplayOnlyGhost && showMediaByRole)) && (roleFeatureSlugs === "all" || showMediaByRole);
   const showContent =
     canAccessFeature(displayEffectiveSlugs, "content") && (roleFeatureSlugs === "all" || hasRoleAccess("content"));
+  const showEcommerce = showContent;
   const showMarketingByRole = hasRoleAccess("marketing") || hasRoleAccess("lists");
   const showMarketingEffective = canAccessFeature(displayEffectiveSlugs, "marketing");
   const showMarketing = (showMarketingEffective || (isDisplayOnlyGhost && showMarketingByRole)) && (roleFeatureSlugs === "all" || showMarketingByRole);
@@ -154,6 +159,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const [marketingOpen, setMarketingOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [ecomOpen, setEcomOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
 
@@ -202,6 +208,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(false);
         setCalendarOpen(false);
         setMediaOpen(false);
+        setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -209,6 +216,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -220,6 +228,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(false);
         setCalendarOpen(false);
         setMediaOpen(false);
+        setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -227,6 +236,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -238,6 +248,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(true);
         setCalendarOpen(false);
         setMediaOpen(false);
+        setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -245,6 +256,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "true");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -256,6 +268,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(false);
         setCalendarOpen(true);
         setMediaOpen(false);
+        setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -263,6 +276,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "true");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -274,6 +288,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(false);
         setCalendarOpen(false);
         setMediaOpen(true);
+        setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -281,6 +296,27 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "true");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+        return;
+      }
+      if (isEcommerce) {
+        setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
+        setMediaOpen(false);
+        setEcomOpen(true);
+        setSettingsOpen(false);
+        setSupportOpen(false);
+        setSuperOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "true");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -292,6 +328,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(false);
         setCalendarOpen(false);
         setMediaOpen(false);
+        setEcomOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         setSettingsOpen(true);
@@ -299,6 +336,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -310,6 +348,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(false);
         setCalendarOpen(false);
         setMediaOpen(false);
+        setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(true);
         setSuperOpen(false);
@@ -317,6 +356,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "true");
@@ -328,6 +368,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setMarketingOpen(false);
         setCalendarOpen(false);
         setMediaOpen(false);
+        setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(true);
@@ -335,6 +376,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -346,6 +388,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setMarketingOpen(false);
       setCalendarOpen(false);
       setMediaOpen(false);
+      setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
@@ -353,6 +396,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
       localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
       localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+      localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
       localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
       localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -362,11 +406,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       if (isMarketing) setMarketingOpen(true);
       if (isEvents) setCalendarOpen(true);
       if (isMedia) setMediaOpen(true);
+      if (isEcommerce) setEcomOpen(true);
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMarketing, isEvents, isMedia, isSettings, isSupport, isSuper]);
+  }, [pathname, isCrm, isMarketing, isEvents, isMedia, isEcommerce, isSettings, isSupport, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -376,16 +421,18 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     if (next) {
       setMarketingOpen(false);
       setCalendarOpen(false);
-      setMediaOpen(false);
-      setSettingsOpen(false);
-      setSupportOpen(false);
-      try {
-        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
-        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
-        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
-        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
-      } catch { /* ignore */ }
+        setMediaOpen(false);
+        setEcomOpen(false);
+        setSettingsOpen(false);
+        setSupportOpen(false);
+        try {
+          localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+          localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+          localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+          localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+          localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+          localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        } catch { /* ignore */ }
     }
     try {
       localStorage.setItem(SIDEBAR_CRM_OPEN, next ? "true" : "false");
@@ -401,6 +448,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setCalendarOpen(false);
       setMediaOpen(false);
+      setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
@@ -408,6 +456,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -428,6 +477,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setMarketingOpen(false);
       setMediaOpen(false);
+      setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
@@ -435,6 +485,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -455,18 +506,49 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setMarketingOpen(false);
       setCalendarOpen(false);
+      setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
       } catch { /* ignore */ }
     }
     try {
       localStorage.setItem(SIDEBAR_MEDIA_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
+  const toggleEcom = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !ecomOpen;
+    setEcomOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMarketingOpen(false);
+      setCalendarOpen(false);
+      setMediaOpen(false);
+      setSettingsOpen(false);
+      setSupportOpen(false);
+      setSuperOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_ECOM_OPEN, next ? "true" : "false");
     } catch { /* ignore */ }
   };
 
@@ -480,6 +562,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setMarketingOpen(false);
       setCalendarOpen(false);
       setMediaOpen(false);
+      setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -487,6 +570,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -507,6 +591,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setMarketingOpen(false);
       setCalendarOpen(false);
       setMediaOpen(false);
+      setEcomOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
       try {
@@ -514,6 +599,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -534,6 +620,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setMarketingOpen(false);
       setCalendarOpen(false);
       setMediaOpen(false);
+      setEcomOpen(false);
       setSettingsOpen(false);
       setSuperOpen(false);
       try {
@@ -541,6 +628,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -1026,6 +1114,62 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
               Content
             </button>
           ))}
+        {/* Ecommerce twirldown: Products, Orders (Phase 09). Gated by content access. */}
+        <div className="pt-1">
+          {showEcommerce && (
+          <>
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+                isEcommerce && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
+              )}
+            >
+              <Link
+                href="/admin/ecommerce/products"
+                className={cn(
+                  "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                  isEcommerce ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <ShoppingBag className="h-5 w-5 flex-shrink-0" />
+                Ecommerce
+              </Link>
+              <button
+                type="button"
+                onClick={toggleEcom}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  isEcommerce ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+                aria-expanded={ecomOpen}
+              >
+                {ecomOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {ecomOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {ecommerceSubNav.map((sub) => {
+                  const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                  const SubIcon = sub.icon;
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </>
+          )}
+        </div>
         {/* Settings twirldown: Phase F — hide when no role; ghost when in role but not effective */}
         <div className="pt-1">
           {showSettings ? (

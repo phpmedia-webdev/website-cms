@@ -27,6 +27,9 @@ import { format } from "date-fns";
 type SortColumn = "type" | "title" | "status" | "membership" | "updated";
 type SortDir = "asc" | "desc";
 
+/** Content types hidden from main Content list (e.g. Product managed under Ecommerce > Products). */
+const CONTENT_LIST_EXCLUDED_TYPE_SLUGS = ["product"];
+
 export function ContentPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -89,8 +92,8 @@ export function ContentPageClient() {
     .filter((t) => t.type === "tag")
     .map((t) => ({ id: t.id, name: t.name }));
 
-  const contentTypesForLibrary = types;
-  const contentItemsForLibrary = items;
+  const contentTypesForLibrary = types.filter((t) => !CONTENT_LIST_EXCLUDED_TYPE_SLUGS.includes(t.slug ?? ""));
+  const contentItemsForLibrary = items.filter((c) => !CONTENT_LIST_EXCLUDED_TYPE_SLUGS.includes(c.type_slug ?? ""));
 
   const termFilterIds = [...selectedCategoryIds, ...selectedTagIds];
   const contentIdsWithTerms =

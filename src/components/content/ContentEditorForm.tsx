@@ -23,7 +23,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Clock, X } from "lucide-react";
+import { MediaPickerModal } from "@/components/editor/MediaPickerModal";
+import { AutoSuggestMulti } from "@/components/ui/auto-suggest-multi";
+import { Loader2, Clock, X, ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 
 /** Convert ISO date to datetime-local input value (local time). */
@@ -40,7 +42,8 @@ function toDatetimeLocal(iso: string): string {
 export interface ContentEditorFormProps {
   item: ContentRow | null;
   types: ContentType[];
-  onSaved: () => void;
+  /** Called after save. When creating, contentId is the new content id; when updating, contentId is item.id. */
+  onSaved: (contentId?: string) => void;
   onCancel: () => void;
   /** When creating, preselect this content type by slug (e.g. from ?type=post). */
   initialContentTypeSlug?: string;
@@ -49,6 +52,9 @@ export interface ContentEditorFormProps {
   onUseForAgentTrainingChange?: (value: boolean) => void;
   /** Called when saving state changes (e.g. for header buttons to show loading). */
   onSavingChange?: (saving: boolean) => void;
+  /** For product: which MAG(s) can see this product on the shop (when access_level is mag). Independent of grant-on-purchase. */
+  productVisibilityMagIds?: string[];
+  onProductVisibilityMagIdsChange?: (ids: string[]) => void;
 }
 
 export interface ContentEditorFormHandle {
@@ -123,6 +129,8 @@ const ContentEditorFormComponent = ({
   useForAgentTraining: controlledUseForAgentTraining,
   onUseForAgentTrainingChange,
   onSavingChange,
+  productVisibilityMagIds = [],
+  onProductVisibilityMagIdsChange,
 }: ContentEditorFormProps,
 ref: React.Ref<ContentEditorFormHandle>) => {
   const [contentTypeId, setContentTypeId] = useState("");
@@ -176,6 +184,9 @@ ref: React.Ref<ContentEditorFormHandle>) => {
   const [seoTitle, setSeoTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
   const [ogImageId, setOgImageId] = useState("");
+  const [featuredImageId, setFeaturedImageId] = useState<string | null>(item?.featured_image_id ?? null);
+  const [featuredImageThumbnailUrl, setFeaturedImageThumbnailUrl] = useState<string | null>(null);
+  const [featuredImagePickerOpen, setFeaturedImagePickerOpen] = useState(false);
   const handleSaveRef = useRef<() => void>(() => {});
   const useForAgentTraining =
     controlledUseForAgentTraining !== undefined ? controlledUseForAgentTraining : internalUseForAgentTraining;
@@ -214,6 +225,7 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setSeoTitle(item.seo_title ?? "");
       setMetaDescription(item.meta_description ?? "");
       setOgImageId(item.og_image_id ?? "");
+      setFeaturedImageId(item.featured_image_id ?? null);
       setPublishAt(item.published_at ? toDatetimeLocal(item.published_at) : "");
       setExpiresAt(item.expires_at ? toDatetimeLocal(item.expires_at) : "");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(item.use_for_agent_training ?? false);
@@ -247,12 +259,32 @@ ref: React.Ref<ContentEditorFormHandle>) => {
       setSeoTitle("");
       setMetaDescription("");
       setOgImageId("");
+      setFeaturedImageId(null);
+      setFeaturedImageThumbnailUrl(null);
       setPublishAt("");
       setExpiresAt("");
       if (onUseForAgentTrainingChange) onUseForAgentTrainingChange(false);
       else setInternalUseForAgentTraining(false);
     }
   }, [item, defaultTypeId, onUseForAgentTrainingChange]);
+
+  // Load thumbnail URL when featured image id is set
+  useEffect(() => {
+    if (!featuredImageId) {
+      setFeaturedImageThumbnailUrl(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/media/${featuredImageId}/thumbnail`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.thumbnailUrl) setFeaturedImageThumbnailUrl(data.thumbnailUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [featuredImageId]);
 
   useEffect(() => {
     fetch("/api/crm/mags")
@@ -317,7 +349,7 @@ ref: React.Ref<ContentEditorFormHandle>) => {
           status === "published" && expiresAt.trim()
             ? new Date(expiresAt.trim()).toISOString()
             : null,
-        featured_image_id: item?.featured_image_id ?? null,
+        featured_image_id: featuredImageId ?? null,
         author_id: authorId?.trim() || null,
         custom_fields: customFields,
         access_level: accessLevel,
@@ -337,11 +369,12 @@ ref: React.Ref<ContentEditorFormHandle>) => {
           const allIds = [...selectedCategoryIds, ...selectedTagIds];
           await setTaxonomyForContent(item.id, currentType.slug, allIds);
         }
+        onSaved(item.id);
       } else {
         const insertPayload = {
           ...payload,
           content_type_id: contentTypeId,
-          featured_image_id: null,
+          featured_image_id: featuredImageId ?? null,
           custom_fields: customFields,
         };
         const insertResult = await insertContent(insertPayload);
@@ -350,8 +383,8 @@ ref: React.Ref<ContentEditorFormHandle>) => {
           const allIds = [...selectedCategoryIds, ...selectedTagIds];
           await setTaxonomyForContent(insertResult.id, currentType.slug, allIds);
         }
+        onSaved(insertResult.id);
       }
-      onSaved();
     } catch (e) {
       console.error("Content save failed:", e);
       alert("Failed to save. Please try again.");
@@ -477,15 +510,55 @@ ref: React.Ref<ContentEditorFormHandle>) => {
                 className="h-9"
               />
             </div>
-            <div className="flex items-center gap-2 pt-0.5">
-              <Checkbox
-                id="content-use-for-agent-training"
-                checked={useForAgentTraining}
-                onCheckedChange={(v) => setUseForAgentTraining(!!v)}
-              />
-              <Label htmlFor="content-use-for-agent-training" className="font-normal cursor-pointer text-sm">
-                Use for AI Agent Training
-              </Label>
+            <div className="space-y-1">
+              <Label>Featured image</Label>
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-full sm:w-auto"
+                    onClick={() => setFeaturedImagePickerOpen(true)}
+                  >
+                    <ImageIcon className="h-4 w-4 mr-1" />
+                    Choose image
+                  </Button>
+                  {featuredImageId && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 text-muted-foreground w-full sm:w-auto"
+                      onClick={() => {
+                        setFeaturedImageId(null);
+                        setFeaturedImageThumbnailUrl(null);
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+                {featuredImageThumbnailUrl ? (
+                  <a
+                    href={featuredImageThumbnailUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block rounded-md border overflow-hidden hover:opacity-90 transition-opacity justify-self-start"
+                    title="Click for larger view"
+                  >
+                    <img
+                      src={featuredImageThumbnailUrl}
+                      alt="Featured"
+                      className="w-[125px] h-[125px] object-cover"
+                    />
+                  </a>
+                ) : (
+                  <div className="w-[125px] h-[125px] rounded-md border border-dashed bg-muted/30 flex items-center justify-center">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -564,7 +637,7 @@ ref: React.Ref<ContentEditorFormHandle>) => {
                 ))}
               </select>
             </div>
-            {currentType?.slug === "post" && item && (
+            {(currentType?.slug === "post" || currentType?.slug === "product") && item && (
               <div className="space-y-0.5 rounded-md border border-border/50 bg-muted/30 px-3 py-1.5 text-sm">
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Created</span>
@@ -574,15 +647,36 @@ ref: React.Ref<ContentEditorFormHandle>) => {
                   <span className="text-muted-foreground">Updated</span>
                   <span>{item.updated_at ? format(new Date(item.updated_at), "MMM d, yyyy h:mm a") : "—"}</span>
                 </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Published</span>
-                  <span>{item.published_at ? format(new Date(item.published_at), "MMM d, yyyy h:mm a") : "—"}</span>
-                </div>
+                {currentType?.slug === "post" && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Published</span>
+                    <span>{item.published_at ? format(new Date(item.published_at), "MMM d, yyyy h:mm a") : "—"}</span>
+                  </div>
+                )}
               </div>
             )}
+            <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+              <Checkbox
+                id="content-use-for-agent-training"
+                checked={useForAgentTraining}
+                onCheckedChange={(v) => setUseForAgentTraining(!!v)}
+              />
+              <Label htmlFor="content-use-for-agent-training" className="font-normal cursor-pointer text-sm">
+                Use for AI Agent Training
+              </Label>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      <MediaPickerModal
+        open={featuredImagePickerOpen}
+        onClose={() => setFeaturedImagePickerOpen(false)}
+        onSelect={(id) => {
+          setFeaturedImageId(id);
+          setFeaturedImagePickerOpen(false);
+        }}
+      />
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -623,54 +717,119 @@ ref: React.Ref<ContentEditorFormHandle>) => {
         <TabsContent value="membership" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Membership Protection</CardTitle>
+              <CardTitle>
+                {currentType?.slug === "product" ? "Assign membership to product" : "Membership Protection"}
+              </CardTitle>
               <CardDescription>
-                Control who can view this content on the public site.
+                {currentType?.slug === "product"
+                  ? "When a customer purchases this product, they will be granted access to the selected membership (payment-to-MAG). Leave unset for physical or non-membership digital products. You can also restrict who can view this product page below."
+                  : "Control who can view this content on the public site."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Access Level</label>
-                <select
-                  value={accessLevel}
-                  onChange={(e) => setAccessLevel(e.target.value as "public" | "members" | "mag")}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="public">Public</option>
-                  <option value="members">Members only</option>
-                  <option value="mag">Specific membership(s)</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">When restricted (visibility)</label>
-                <select
-                  value={visibilityMode}
-                  onChange={(e) => setVisibilityMode(e.target.value as "hidden" | "message")}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  disabled={accessLevel === "public"}
-                >
-                  <option value="hidden">Hide content</option>
-                  <option value="message">Show message</option>
-                </select>
-              </div>
-              {accessLevel === "mag" && (
+              {currentType?.slug === "product" && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Required Membership</label>
+                  <label className="text-sm font-medium mb-2 block">Membership to grant on purchase</label>
                   <select
                     value={requiredMagId}
                     onChange={(e) => setRequiredMagId(e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">Select membership…</option>
+                    <option value="">None (not a membership product)</option>
                     {availableMags.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name} ({m.uid})
                       </option>
                     ))}
                   </select>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Selecting a membership makes this a membership product; after payment the customer is added to that membership.
+                  </p>
                 </div>
               )}
-              {accessLevel !== "public" && visibilityMode === "message" && (
+              {currentType?.slug !== "product" && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Access Level</label>
+                    <select
+                      value={accessLevel}
+                      onChange={(e) => setAccessLevel(e.target.value as "public" | "members" | "mag")}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="public">Public</option>
+                      <option value="members">Members only</option>
+                      <option value="mag">Specific membership(s)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">When restricted (visibility)</label>
+                    <select
+                      value={visibilityMode}
+                      onChange={(e) => setVisibilityMode(e.target.value as "hidden" | "message")}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      disabled={accessLevel === "public"}
+                    >
+                      <option value="hidden">Hide content</option>
+                      <option value="message">Show message</option>
+                    </select>
+                  </div>
+                  {accessLevel === "mag" && (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Required Membership</label>
+                      <select
+                        value={requiredMagId}
+                        onChange={(e) => setRequiredMagId(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">Select membership…</option>
+                        {availableMags.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.uid})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
+              {currentType?.slug === "product" && (
+                <div className="border-t pt-4">
+                  <label className="text-sm font-medium mb-2 block">Who can view this product</label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Controls visibility of this product on the shop: who can see it (everyone, logged-in members only, or a specific membership).
+                  </p>
+                  <select
+                    value={accessLevel}
+                    onChange={(e) => setAccessLevel(e.target.value as "public" | "members" | "mag")}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="public">Public — visible to all</option>
+                    <option value="members">Members only — visible when logged in</option>
+                    <option value="mag">Specific membership(s) only</option>
+                  </select>
+                  {accessLevel === "mag" && onProductVisibilityMagIdsChange && (
+                    <div className="mt-3 space-y-2">
+                      <label className="text-sm font-medium">Which membership(s) can see this product</label>
+                      <p className="text-xs text-muted-foreground">
+                        Search and add memberships; only those members can see and purchase this product on the shop. Independent of the membership granted on purchase above.
+                      </p>
+                      <AutoSuggestMulti
+                        options={availableMags.map((m) => ({ id: m.id, label: `${m.name} (${m.uid})` }))}
+                        selectedIds={new Set(productVisibilityMagIds)}
+                        onSelectionChange={(ids) => onProductVisibilityMagIdsChange(Array.from(ids))}
+                        placeholder="Search memberships..."
+                        label={undefined}
+                        className="pt-1"
+                        dropdownClassName="max-h-48"
+                      />
+                      {availableMags.length === 0 && (
+                        <p className="text-xs text-muted-foreground pt-1">No memberships defined.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {accessLevel !== "public" && visibilityMode === "message" && currentType?.slug !== "product" && (
                 <div>
                   <label className="text-sm font-medium mb-2 block">Restricted Message</label>
                   <Input

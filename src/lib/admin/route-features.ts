@@ -15,6 +15,7 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (pathname === "/admin/upgrade" || pathname.startsWith("/admin/upgrade/")) return null;
 
   if (pathname === "/admin/content" || pathname.startsWith("/admin/content/")) return "content";
+  if (pathname === "/admin/ecommerce" || pathname.startsWith("/admin/ecommerce/")) return "content";
   if (pathname === "/admin/media" || pathname.startsWith("/admin/media/")) return "library";
   if (pathname === "/admin/galleries" || pathname.startsWith("/admin/galleries/")) return "galleries";
   // CRM sub-routes: more specific first

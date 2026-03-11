@@ -23,6 +23,8 @@ import {
   Activity,
   Bell,
   Workflow,
+  ShoppingBag,
+  Package,
 } from "lucide-react";
 
 /** Session storage keys for sidebar accordion open state. */
@@ -34,6 +36,7 @@ export const SIDEBAR_MARKETING_OPEN = "sidebar-marketing-open";
 export const SIDEBAR_CALENDAR_OPEN = "sidebar-calendar-open";
 export const SIDEBAR_SUPPORT_OPEN = "sidebar-support-open";
 export const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
+export const SIDEBAR_ECOM_OPEN = "sidebar-ecom-open";
 
 export interface SubNavItem {
   name: string;
@@ -63,6 +66,11 @@ export const marketingSubNav: SubNavItem[] = [
 export const calendarSubNav: SubNavItem[] = [
   { name: "Events", href: "/admin/events", icon: Calendar, featureSlug: "events" },
   { name: "Resources", href: "/admin/events/resources", icon: Box, featureSlug: "resources" },
+];
+
+export const ecommerceSubNav: SubNavItem[] = [
+  { name: "Products", href: "/admin/ecommerce/products", icon: Package, featureSlug: "content" },
+  { name: "Orders", href: "/admin/ecommerce/orders", icon: ShoppingBag, featureSlug: "content" },
 ];
 
 export const settingsSubNav: SubNavItem[] = [

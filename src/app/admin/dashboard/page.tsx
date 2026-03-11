@@ -3,6 +3,7 @@ import { EventsMetricCard } from "@/components/dashboard/EventsMetricCard";
 import { MediaMetricCard } from "@/components/dashboard/MediaMetricCard";
 import { ContentMetricCard } from "@/components/dashboard/ContentMetricCard";
 import { ContactMetricCard } from "@/components/dashboard/ContactMetricCard";
+import { OrdersMetricCard } from "@/components/dashboard/OrdersMetricCard";
 import { DashboardTabsClient } from "./DashboardTabsClient";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
@@ -150,8 +151,8 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Metric blocks at top */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {/* Metric cards: 2 rows of 3 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <ContactMetricCard
           total={contactsByStatus.total}
           byStatus={contactsByStatus.byStatus}
@@ -163,8 +164,6 @@ export default async function DashboardPage() {
           count30d={formSubs30d}
           countAll={formSubsAll}
         />
-        <ContentMetricCard count={contentCount} totalChars={contentTotalChars} />
-        <MediaMetricCard count={mediaCount} totalSizeBytes={mediaTotalBytes} />
         <EventsMetricCard
           total={eventsCount}
           byType={eventsByType.byType}
@@ -172,6 +171,9 @@ export default async function DashboardPage() {
           publicCount={eventsByType.publicCount}
           privateCount={eventsByType.privateCount}
         />
+        <OrdersMetricCard />
+        <ContentMetricCard count={contentCount} totalChars={contentTotalChars} />
+        <MediaMetricCard count={mediaCount} totalSizeBytes={mediaTotalBytes} />
       </div>
 
       {/* Tabs: default Activity, then RAG */}

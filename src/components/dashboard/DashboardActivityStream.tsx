@@ -8,14 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import type { DashboardActivityItem } from "@/lib/supabase/crm";
-
-const TYPE_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "note", label: "Notes" },
-  { value: "blog_comment", label: "Comments" },
-  { value: "form_submission", label: "Form submissions" },
-  { value: "contact_added", label: "Contact added" },
-] as const;
+import { ACTIVITY_TYPE_FILTER_OPTIONS } from "@/lib/supabase/crm";
 
 interface DashboardActivityStreamProps {
   initialItems: DashboardActivityItem[];
@@ -31,6 +24,10 @@ function formatItem(item: DashboardActivityItem): string {
       return `Submitted ${item.formName ?? "form"}`;
     case "contact_added":
       return "Contact added";
+    case "mag_assignment":
+      return `Added ${item.contactName} to ${item.magName ?? "MAG"}`;
+    case "marketing_list":
+      return `Added ${item.contactName} to list ${item.listName ?? "List"}`;
     default:
       return "";
   }
@@ -69,7 +66,13 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
   const filtered = useMemo(() => {
     let list = initialItems;
     if (typeFilter !== "all") {
-      list = list.filter((i) => i.type === typeFilter);
+      if (typeFilter === "note") {
+        list = list.filter((i) => i.type === "note" && i.noteType !== "email_sent");
+      } else if (typeFilter === "email_sent") {
+        list = list.filter((i) => i.type === "note" && i.noteType === "email_sent");
+      } else {
+        list = list.filter((i) => i.type === typeFilter);
+      }
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -77,7 +80,9 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
         (i) =>
           i.contactName.toLowerCase().includes(q) ||
           (i.body?.toLowerCase().includes(q)) ||
-          (i.formName?.toLowerCase().includes(q))
+          (i.formName?.toLowerCase().includes(q)) ||
+          (i.magName?.toLowerCase().includes(q)) ||
+          (i.listName?.toLowerCase().includes(q))
       );
     }
     return list;
@@ -87,7 +92,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Activity</CardTitle>
-        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, and new contacts</p>
+        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, new contacts, MAG and list assignments. Click a row to open the contact or post.</p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
@@ -105,7 +110,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
             onChange={(e) => setTypeFilter(e.target.value)}
             className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
           >
-            {TYPE_OPTIONS.map(({ value, label }) => (
+            {ACTIVITY_TYPE_FILTER_OPTIONS.map(({ value, label }) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -126,7 +131,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
               const isPendingComment = item.type === "blog_comment" && item.status === "pending" && item.id;
               return (
               <div
-                key={`${item.type}-${item.at}-${item.contactId}-${item.contentId ?? ""}-${item.id ?? ""}`}
+                key={`${item.type}-${item.at}-${item.contactId}-${item.contentId ?? ""}-${item.id ?? ""}-${item.magName ?? ""}-${item.listName ?? ""}`}
                 className="flex items-start justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50 group"
               >
                 <Link href={href} className="flex-1 min-w-0 text-sm transition-colors">

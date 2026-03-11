@@ -61,11 +61,21 @@ export function hashCode(code: string): string {
   return createHash("sha256").update(normalized).digest("hex");
 }
 
+export type BatchPurpose = "membership" | "discount" | "other";
+
+export interface DiscountOptions {
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  minPurchase?: number | null;
+  scope?: string | null;
+}
+
 /**
  * Create a single-use code batch (no codes yet; call generateSingleUseCodes to populate).
+ * When purpose is 'discount', magId can be null; pass discountOptions instead.
  */
 export async function createSingleUseBatch(
-  magId: string,
+  magId: string | null,
   name: string,
   options: {
     numCodes: number;
@@ -75,24 +85,35 @@ export async function createSingleUseBatch(
     randomLength?: number;
     excludeChars?: string;
     createdBy?: string;
+    purpose?: BatchPurpose;
+    discountOptions?: DiscountOptions | null;
   }
 ): Promise<{ batchId: string; error: Error | null }> {
   const supabase = createServerSupabaseClient();
+  const purpose = options.purpose ?? "membership";
+  const row: Record<string, unknown> = {
+    mag_id: magId ?? null,
+    name,
+    use_type: "single_use",
+    purpose,
+    num_codes: options.numCodes,
+    expires_at: options.expiresAt?.toISOString() ?? null,
+    code_prefix: options.codePrefix ?? null,
+    code_suffix: options.codeSuffix ?? null,
+    random_length: options.randomLength ?? 8,
+    exclude_chars: options.excludeChars ?? NO_AMBIGUOUS,
+    created_by: options.createdBy ?? null,
+  };
+  if (purpose === "discount" && options.discountOptions) {
+    row.discount_type = options.discountOptions.discountType;
+    row.discount_value = options.discountOptions.discountValue;
+    row.min_purchase = options.discountOptions.minPurchase ?? null;
+    row.scope = options.discountOptions.scope ?? null;
+  }
   const { data, error } = await supabase
     .schema(SCHEMA)
     .from("membership_code_batches")
-    .insert({
-      mag_id: magId,
-      name,
-      use_type: "single_use",
-      num_codes: options.numCodes,
-      expires_at: options.expiresAt?.toISOString() ?? null,
-      code_prefix: options.codePrefix ?? null,
-      code_suffix: options.codeSuffix ?? null,
-      random_length: options.randomLength ?? 8,
-      exclude_chars: options.excludeChars ?? NO_AMBIGUOUS,
-      created_by: options.createdBy ?? null,
-    })
+    .insert(row)
     .select("id")
     .single();
 
@@ -102,28 +123,43 @@ export async function createSingleUseBatch(
 
 /**
  * Create a multi-use code batch (one shared code, finite or unlimited uses).
+ * When purpose is 'discount', magId can be null; pass discountOptions instead.
  */
 export async function createMultiUseCode(
-  magId: string,
+  magId: string | null,
   code: string,
-  options: { name?: string; maxUses?: number; expiresAt?: Date | null }
+  options: {
+    name?: string;
+    maxUses?: number;
+    expiresAt?: Date | null;
+    purpose?: BatchPurpose;
+    discountOptions?: DiscountOptions | null;
+  }
 ): Promise<{ batchId: string; error: Error | null }> {
   const supabase = createServerSupabaseClient();
   const codeHash = hashCode(code);
-
+  const purpose = options.purpose ?? "membership";
+  const row: Record<string, unknown> = {
+    mag_id: magId ?? null,
+    name: options.name ?? `Multi-use ${code.slice(0, 4)}...`,
+    use_type: "multi_use",
+    purpose,
+    code_hash: codeHash,
+    code_plain: code.trim(),
+    max_uses: options.maxUses ?? null,
+    use_count: 0,
+    expires_at: options.expiresAt?.toISOString() ?? null,
+  };
+  if (purpose === "discount" && options.discountOptions) {
+    row.discount_type = options.discountOptions.discountType;
+    row.discount_value = options.discountOptions.discountValue;
+    row.min_purchase = options.discountOptions.minPurchase ?? null;
+    row.scope = options.discountOptions.scope ?? null;
+  }
   const { data, error } = await supabase
     .schema(SCHEMA)
     .from("membership_code_batches")
-    .insert({
-      mag_id: magId,
-      name: options.name ?? `Multi-use ${code.slice(0, 4)}...`,
-      use_type: "multi_use",
-      code_hash: codeHash,
-      code_plain: code.trim(),
-      max_uses: options.maxUses ?? null,
-      use_count: 0,
-      expires_at: options.expiresAt?.toISOString() ?? null,
-    })
+    .insert(row)
     .select("id")
     .single();
 
@@ -241,12 +277,15 @@ export async function redeemCode(
     const batch = await supabase
       .schema(SCHEMA)
       .from("membership_code_batches")
-      .select("mag_id, expires_at")
+      .select("mag_id, purpose, expires_at")
       .eq("id", row.batch_id)
       .single();
 
     if (batch.error || !batch.data) return { success: false, error: "Invalid batch" };
-    const b = batch.data as { mag_id: string; expires_at: string | null };
+    const b = batch.data as { mag_id: string | null; purpose?: string; expires_at: string | null };
+    if (b.purpose !== "membership" || !b.mag_id) {
+      return { success: false, error: "This code is not a membership code. Use it at checkout for discounts." };
+    }
     if (b.expires_at && b.expires_at < now) return { success: false, error: "Code expired" };
 
     const existing = await getContactMags(contactId);
@@ -282,7 +321,7 @@ export async function redeemCode(
   const multi = await supabase
     .schema(SCHEMA)
     .from("membership_code_batches")
-    .select("id, mag_id, max_uses, use_count, expires_at")
+    .select("id, mag_id, purpose, max_uses, use_count, expires_at")
     .eq("use_type", "multi_use")
     .eq("code_hash", codeHash)
     .maybeSingle();
@@ -290,11 +329,15 @@ export async function redeemCode(
   if (multi.data) {
     const b = multi.data as {
       id: string;
-      mag_id: string;
+      mag_id: string | null;
+      purpose?: string;
       max_uses: number | null;
       use_count: number;
       expires_at: string | null;
     };
+    if (b.purpose !== "membership" || !b.mag_id) {
+      return { success: false, error: "This code is not a membership code. Use it at checkout for discounts." };
+    }
     if (b.expires_at && b.expires_at < now) return { success: false, error: "Code expired" };
     if (b.max_uses != null && b.use_count >= b.max_uses) {
       return { success: false, error: "Code has reached maximum uses" };

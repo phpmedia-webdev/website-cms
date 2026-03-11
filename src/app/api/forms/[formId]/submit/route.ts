@@ -27,6 +27,11 @@ const CORE_KEYS = [
   "state",
   "postal_code",
   "country",
+  "shipping_address",
+  "shipping_city",
+  "shipping_state",
+  "shipping_postal_code",
+  "shipping_country",
   "message",
 ] as const;
 

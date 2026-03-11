@@ -35,6 +35,12 @@ export interface CrmContact {
   state: string | null;
   postal_code: string | null;
   country: string | null;
+  /** Shipping address (optional). When set, use for delivery; otherwise use billing (address/city/state/postal_code/country). */
+  shipping_address: string | null;
+  shipping_city: string | null;
+  shipping_state: string | null;
+  shipping_postal_code: string | null;
+  shipping_country: string | null;
   status: string;
   dnd_status: string | null;
   source: string | null;
@@ -108,6 +114,11 @@ export const CORE_FORM_FIELDS: { key: string; label: string }[] = [
   { key: "state", label: "State" },
   { key: "postal_code", label: "Postal code" },
   { key: "country", label: "Country" },
+  { key: "shipping_address", label: "Shipping address" },
+  { key: "shipping_city", label: "Shipping city" },
+  { key: "shipping_state", label: "Shipping state" },
+  { key: "shipping_postal_code", label: "Shipping postal code" },
+  { key: "shipping_country", label: "Shipping country" },
   { key: "message", label: "Message" },
 ];
 
@@ -1113,7 +1124,9 @@ export async function restoreContactsBulk(
 /** Core contact fields that are merged (primary wins non-empty; secondary fills blanks, or use fieldChoices). */
 export const MERGEABLE_CORE_KEYS: (keyof CrmContact)[] = [
   "email", "phone", "first_name", "last_name", "full_name", "company",
-  "address", "city", "state", "postal_code", "country", "status", "dnd_status", "source", "message",
+  "address", "city", "state", "postal_code", "country",
+  "shipping_address", "shipping_city", "shipping_state", "shipping_postal_code", "shipping_country",
+  "status", "dnd_status", "source", "message",
 ];
 
 /**
@@ -1767,9 +1780,21 @@ export async function getFormSubmissionsByContactId(contactId: string): Promise<
   return rows.map(normalizeSubmissionRow);
 }
 
-/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments). */
+/** Activity stream type filter options. Shared by dashboard and CRM contact activity so both dropdowns match. */
+export const ACTIVITY_TYPE_FILTER_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "note", label: "Notes" },
+  { value: "blog_comment", label: "Comments" },
+  { value: "email_sent", label: "Outbound email" },
+  { value: "form_submission", label: "Form submissions" },
+  { value: "contact_added", label: "Contact added" },
+  { value: "mag_assignment", label: "MAG assignment" },
+  { value: "marketing_list", label: "Marketing list" },
+] as const;
+
+/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments, MAG assignments, marketing list). */
 export interface DashboardActivityItem {
-  type: "note" | "form_submission" | "contact_added" | "blog_comment";
+  type: "note" | "form_submission" | "contact_added" | "blog_comment" | "mag_assignment" | "marketing_list";
   at: string;
   contactId: string;
   contactName: string;
@@ -1782,12 +1807,17 @@ export interface DashboardActivityItem {
   status?: string | null;
   /** Note id (for blog_comment moderation). */
   id?: string;
+  /** Set when type = 'mag_assignment'. */
+  magName?: string;
+  /** Set when type = 'marketing_list'. */
+  listName?: string;
 }
 
-/** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. Includes blog comments. */
+/** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. Includes blog comments, MAG assignments, marketing list. */
 export async function getDashboardActivity(limit = 50): Promise<DashboardActivityItem[]> {
   const supabase = createServerSupabaseClient();
-  const [notesData, subsData, contactsData] = await Promise.all([
+  const perType = Math.max(15, Math.floor(limit / 4));
+  const [notesData, subsData, contactsData, magsData, listsData] = await Promise.all([
     supabase
       .schema(CRM_SCHEMA)
       .from("crm_notes")
@@ -1807,16 +1837,32 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_mags")
+      .select("contact_id, mag_id, assigned_at")
+      .order("assigned_at", { ascending: false })
+      .limit(perType),
+    supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_marketing_lists")
+      .select("contact_id, list_id, added_at")
+      .order("added_at", { ascending: false })
+      .limit(perType),
   ]);
 
   const notes = (notesData.data as { id: string; contact_id: string | null; body: string; created_at: string; note_type: string | null; author_id: string | null; content_id: string | null; status: string | null }[] | null) ?? [];
   const subs = (subsData.data as { id: string; contact_id: string | null; form_id: string; submitted_at: string }[] | null) ?? [];
   const contacts = (contactsData.data as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; email: string | null; created_at: string }[] | null) ?? [];
+  const magAssignments = (magsData.data as { contact_id: string; mag_id: string; assigned_at: string }[] | null) ?? [];
+  const listAdditions = (listsData.data as { contact_id: string; list_id: string; added_at: string }[] | null) ?? [];
 
   const contactIds = new Set<string>();
   notes.forEach((n) => { if (n.contact_id) contactIds.add(n.contact_id); });
   subs.forEach((s) => { if (s.contact_id) contactIds.add(s.contact_id); });
   contacts.forEach((c) => contactIds.add(c.id));
+  magAssignments.forEach((m) => contactIds.add(m.contact_id));
+  listAdditions.forEach((l) => contactIds.add(l.contact_id));
 
   let contactNames: Record<string, string> = {};
   if (contactIds.size > 0) {
@@ -1888,6 +1934,41 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       contactName: contactNames[c.id] ?? "Contact",
     });
   }
+
+  const magIds = [...new Set(magAssignments.map((m) => m.mag_id))];
+  const listIds = [...new Set(listAdditions.map((l) => l.list_id))];
+  let magNames: Record<string, string> = {};
+  let listNames: Record<string, string> = {};
+  if (magIds.length > 0) {
+    const { data: magRows } = await supabase.schema(CRM_SCHEMA).from("mags").select("id, name").in("id", magIds);
+    const magList = (magRows as { id: string; name: string | null }[] | null) ?? [];
+    magList.forEach((m) => { magNames[m.id] = m.name ?? "MAG"; });
+  }
+  if (listIds.length > 0) {
+    const { data: listRows } = await supabase.schema(CRM_SCHEMA).from("marketing_lists").select("id, name").in("id", listIds);
+    const listList = (listRows as { id: string; name: string | null }[] | null) ?? [];
+    listList.forEach((l) => { listNames[l.id] = l.name ?? "List"; });
+  }
+
+  for (const m of magAssignments) {
+    items.push({
+      type: "mag_assignment",
+      at: m.assigned_at,
+      contactId: m.contact_id,
+      contactName: contactNames[m.contact_id] ?? "Contact",
+      magName: magNames[m.mag_id] ?? "MAG",
+    });
+  }
+  for (const l of listAdditions) {
+    items.push({
+      type: "marketing_list",
+      at: l.added_at,
+      contactId: l.contact_id,
+      contactName: contactNames[l.contact_id] ?? "Contact",
+      listName: listNames[l.list_id] ?? "List",
+    });
+  }
+
   items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   return items.slice(0, limit);
 }

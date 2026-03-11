@@ -6,19 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Trash2 } from "lucide-react";
 import type { CrmNote } from "@/lib/supabase/crm";
+import { ACTIVITY_TYPE_FILTER_OPTIONS } from "@/lib/supabase/crm";
 
 /** Display row: either a real note or a system line (e.g. "Contact added"). */
 type ActivityRow = CrmNote | { id: string; body: string; created_at: string; note_type: string | null; isSystem: true };
-
-const TYPE_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "note", label: "Notes" },
-  { value: "email_sent", label: "Outbound email" },
-  { value: "form_submission", label: "Form submissions" },
-  { value: "contact_added", label: "Contact added" },
-  { value: "mag_assignment", label: "MAG assignment" },
-  { value: "marketing_list", label: "Marketing list" },
-] as const;
 
 interface ContactNotesSectionProps {
   contactId: string;
@@ -111,7 +102,7 @@ export function ContactNotesSection({
     if (typeFilter !== "all") {
       list = list.filter((n) => {
         const isSystem = "isSystem" in n && n.isSystem;
-        if (typeFilter === "note") return !isSystem && n.note_type !== "email_sent";
+        if (typeFilter === "note") return !isSystem && n.note_type !== "email_sent" && n.note_type !== "blog_comment";
         return n.note_type === typeFilter;
       });
     }
@@ -221,7 +212,7 @@ export function ContactNotesSection({
               className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
               aria-label="Filter activity by type"
             >
-              {TYPE_OPTIONS.map(({ value, label }) => (
+              {ACTIVITY_TYPE_FILTER_OPTIONS.map(({ value, label }) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

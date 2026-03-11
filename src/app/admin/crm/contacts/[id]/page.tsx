@@ -141,7 +141,7 @@ export default async function ContactDetailPage({
             </div>
             <div>
               <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Address
+                Billing address
               </h2>
               <div className="space-y-1.5 text-sm">
                 {(contact.address || contact.city || contact.state || contact.postal_code || contact.country) ? (
@@ -163,6 +163,27 @@ export default async function ContactDetailPage({
                   <span className="text-muted-foreground">—</span>
                 )}
               </div>
+              {(contact.shipping_address || contact.shipping_city || contact.shipping_state || contact.shipping_postal_code || contact.shipping_country) && (
+                <>
+                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 mt-4">
+                    Shipping address
+                  </h2>
+                  <div className="space-y-1.5 text-sm">
+                    {contact.shipping_address && (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
+                        <span>{contact.shipping_address}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      {contact.shipping_city && <span>{contact.shipping_city}</span>}
+                      {contact.shipping_state && <span>{contact.shipping_state}</span>}
+                      {contact.shipping_postal_code && <span>{contact.shipping_postal_code}</span>}
+                      {contact.shipping_country && <span>{contact.shipping_country}</span>}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

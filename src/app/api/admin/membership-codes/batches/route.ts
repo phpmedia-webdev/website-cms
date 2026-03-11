@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import {
   createSingleUseBatch,
   createMultiUseCode,
+  type BatchPurpose,
+  type DiscountOptions,
 } from "@/lib/mags/code-generator";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 
@@ -25,6 +27,11 @@ export async function GET() {
         mag_id,
         name,
         use_type,
+        purpose,
+        discount_type,
+        discount_value,
+        min_purchase,
+        scope,
         code_hash,
         code_plain,
         max_uses,
@@ -87,20 +94,50 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const useType = body.use_type as "single_use" | "multi_use";
+    const purpose = (body.purpose as BatchPurpose) ?? "membership";
+    const isDiscount = purpose === "discount";
+
+    const discountOptions: DiscountOptions | null =
+      isDiscount && body.discount_type && body.discount_value != null
+        ? {
+            discountType: body.discount_type as "percent" | "fixed",
+            discountValue: Number(body.discount_value),
+            minPurchase: body.min_purchase != null ? Number(body.min_purchase) : null,
+            scope: body.scope ?? null,
+          }
+        : null;
 
     if (useType === "multi_use") {
       const { mag_id, code, name, max_uses, expires_at } = body;
-      if (!mag_id || !code) {
+      if (!code) {
         return NextResponse.json(
-          { error: "mag_id and code required for multi-use" },
+          { error: "code required for multi-use" },
+          { status: 400 }
+        );
+      }
+      if (!isDiscount && !mag_id) {
+        return NextResponse.json(
+          { error: "mag_id required for membership multi-use" },
+          { status: 400 }
+        );
+      }
+      if (isDiscount && !discountOptions) {
+        return NextResponse.json(
+          { error: "discount_type and discount_value required for discount batches" },
           { status: 400 }
         );
       }
       const exp = expires_at ? new Date(expires_at) : null;
       const { batchId, error: err } = await createMultiUseCode(
-        mag_id,
+        mag_id ?? null,
         code.trim(),
-        { name: name || null, maxUses: max_uses ?? null, expiresAt: exp }
+        {
+          name: name || null,
+          maxUses: max_uses ?? null,
+          expiresAt: exp,
+          purpose,
+          discountOptions: isDiscount ? discountOptions : undefined,
+        }
       );
       if (err) {
         return NextResponse.json({ error: err.message }, { status: 500 });
@@ -110,14 +147,26 @@ export async function POST(request: Request) {
 
     if (useType === "single_use") {
       const { mag_id, name, num_codes, expires_at, code_prefix, code_suffix, random_length, exclude_chars } = body;
-      if (!mag_id || !name || !num_codes) {
+      if (!name || !num_codes) {
         return NextResponse.json(
-          { error: "mag_id, name, and num_codes required for single-use" },
+          { error: "name and num_codes required for single-use" },
+          { status: 400 }
+        );
+      }
+      if (!isDiscount && !mag_id) {
+        return NextResponse.json(
+          { error: "mag_id required for membership single-use" },
+          { status: 400 }
+        );
+      }
+      if (isDiscount && !discountOptions) {
+        return NextResponse.json(
+          { error: "discount_type and discount_value required for discount batches" },
           { status: 400 }
         );
       }
       const exp = expires_at ? new Date(expires_at) : null;
-      const { batchId, error: err } = await createSingleUseBatch(mag_id, name, {
+      const { batchId, error: err } = await createSingleUseBatch(mag_id ?? null, name, {
         numCodes: Math.min(Math.max(1, Number(num_codes) || 1), 1000),
         expiresAt: exp,
         codePrefix: code_prefix || undefined,
@@ -125,6 +174,8 @@ export async function POST(request: Request) {
         randomLength: random_length ?? 8,
         excludeChars: (exclude_chars !== undefined && exclude_chars !== null) ? String(exclude_chars) : undefined,
         createdBy: user.id,
+        purpose,
+        discountOptions: isDiscount ? discountOptions : undefined,
       });
       if (err) {
         return NextResponse.json({ error: err.message }, { status: 500 });

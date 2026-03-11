@@ -23,9 +23,14 @@ interface Mag {
 
 interface Batch {
   id: string;
-  mag_id: string;
+  mag_id: string | null;
   name: string;
   use_type: string;
+  purpose?: string;
+  discount_type?: string | null;
+  discount_value?: number | null;
+  min_purchase?: number | null;
+  scope?: string | null;
   code_hash?: string;
   code_plain?: string | null;
   max_uses?: number | null;
@@ -56,6 +61,7 @@ export function CodeGeneratorClient() {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [useType, setUseType] = useState<"single_use" | "multi_use">("single_use");
+  const [purpose, setPurpose] = useState<"membership" | "discount" | "other">("membership");
   const [magId, setMagId] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -66,6 +72,10 @@ export function CodeGeneratorClient() {
   const [codeSuffix, setCodeSuffix] = useState("");
   const [randomLength, setRandomLength] = useState("8");
   const [excludeCharsInput, setExcludeCharsInput] = useState("0, O, 1, l, I");
+  const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
+  const [discountValue, setDiscountValue] = useState("");
+  const [minPurchase, setMinPurchase] = useState("");
+  const [scope, setScope] = useState("");
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [generatingBatchId, setGeneratingBatchId] = useState<string | null>(null);
   const [generateCount, setGenerateCount] = useState("50");
@@ -158,6 +168,7 @@ export function CodeGeneratorClient() {
 
   const resetForm = () => {
     setUseType("single_use");
+    setPurpose("membership");
     setMagId("");
     setName("");
     setCode("");
@@ -168,6 +179,10 @@ export function CodeGeneratorClient() {
     setCodeSuffix("");
     setRandomLength("8");
     setExcludeCharsInput("0, O, 1, l, I");
+    setDiscountType("percent");
+    setDiscountValue("");
+    setMinPurchase("");
+    setScope("");
   };
 
   /** Parse comma-separated exclude characters into a single string (deduped) for the API. */
@@ -179,8 +194,13 @@ export function CodeGeneratorClient() {
   };
 
   const handleCreate = async () => {
-    if (!magId) {
-      alert("Select a membership");
+    const isDiscount = purpose === "discount";
+    if (!isDiscount && !magId) {
+      alert("Select a membership for membership codes");
+      return;
+    }
+    if (isDiscount && (!discountValue.trim() || Number(discountValue) <= 0)) {
+      alert("Enter a valid discount value for discount codes");
       return;
     }
     if (useType === "multi_use" && !code.trim()) {
@@ -195,9 +215,16 @@ export function CodeGeneratorClient() {
     try {
       const body: Record<string, unknown> = {
         use_type: useType,
-        mag_id: magId,
+        purpose,
+        mag_id: magId || null,
         expires_at: expiresAt || null,
       };
+      if (isDiscount) {
+        body.discount_type = discountType;
+        body.discount_value = Number(discountValue);
+        body.min_purchase = minPurchase.trim() ? Number(minPurchase) : null;
+        body.scope = scope.trim() || null;
+      }
       if (useType === "multi_use") {
         body.code = code.trim();
         body.name = name.trim() || null;
@@ -287,8 +314,22 @@ export function CodeGeneratorClient() {
   };
 
   const magName = (b: Batch) => {
+    if (!b.mag_id) return "—";
     const m = b.mags;
     return m ? `${m.name} (${m.uid})` : b.mag_id;
+  };
+
+  const purposeLabel = (p: string | undefined) => {
+    if (p === "discount") return "Discount";
+    if (p === "other") return "Other";
+    return "Membership";
+  };
+
+  const discountSummary = (b: Batch) => {
+    if (b.purpose !== "discount" || b.discount_type == null || b.discount_value == null) return null;
+    const val = b.discount_type === "percent" ? `${b.discount_value}%` : `$${Number(b.discount_value).toFixed(2)}`;
+    const min = b.min_purchase != null && b.min_purchase > 0 ? ` min $${Number(b.min_purchase).toFixed(2)}` : "";
+    return `${val} off${min}`;
   };
 
   if (loading) {
@@ -333,6 +374,7 @@ export function CodeGeneratorClient() {
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="text-left py-2 px-3 font-medium">Name</th>
+                    <th className="text-left py-2 px-3 font-medium">Purpose</th>
                     <th className="text-left py-2 px-3 font-medium">MAG</th>
                     <th className="text-left py-2 px-3 font-medium">Type</th>
                     <th className="text-left py-2 px-3 font-medium">Codes / Usage</th>
@@ -348,7 +390,11 @@ export function CodeGeneratorClient() {
                         {b.use_type === "multi_use" && b.code_plain && (
                           <code className="ml-2 text-xs font-mono text-muted-foreground">{b.code_plain}</code>
                         )}
+                        {discountSummary(b) && (
+                          <span className="block text-xs text-muted-foreground mt-0.5">{discountSummary(b)}</span>
+                        )}
                       </td>
+                      <td className="py-2 px-3 text-muted-foreground">{purposeLabel(b.purpose)}</td>
                       <td className="py-2 px-3 text-muted-foreground">{magName(b)}</td>
                       <td className="py-2 px-3">
                         {b.use_type === "single_use" ? "Single-use" : "Multi-use"}
@@ -515,20 +561,80 @@ export function CodeGeneratorClient() {
           </DialogHeader>
           <div className="space-y-4 py-2 overflow-y-auto min-h-0 max-h-[60vh] pr-1">
             <div>
-              <Label>Membership (MAG)</Label>
+              <Label>Purpose</Label>
               <select
-                value={magId}
-                onChange={(e) => setMagId(e.target.value)}
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value as "membership" | "discount" | "other")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="">Select…</option>
-                {mags.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.uid})
-                  </option>
-                ))}
+                <option value="membership">Membership (MAG redemption)</option>
+                <option value="discount">Discount (ecommerce coupon)</option>
+                <option value="other">Other</option>
               </select>
             </div>
+            {purpose === "membership" && (
+              <div>
+                <Label>Membership (MAG)</Label>
+                <select
+                  value={magId}
+                  onChange={(e) => setMagId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Select…</option>
+                  {mags.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.uid})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {purpose === "discount" && (
+              <>
+                <div>
+                  <Label>Discount type</Label>
+                  <select
+                    value={discountType}
+                    onChange={(e) => setDiscountType(e.target.value as "percent" | "fixed")}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="percent">Percent off</option>
+                    <option value="fixed">Fixed amount off</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Discount value {discountType === "percent" ? "(%)" : "($)"}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={discountType === "percent" ? 1 : 0.01}
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    placeholder={discountType === "percent" ? "e.g. 10" : "e.g. 5.00"}
+                  />
+                </div>
+                <div>
+                  <Label>Minimum purchase (optional, $)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={minPurchase}
+                    onChange={(e) => setMinPurchase(e.target.value)}
+                    placeholder="No minimum"
+                  />
+                </div>
+                <div>
+                  <Label>Scope (optional)</Label>
+                  <Input
+                    value={scope}
+                    onChange={(e) => setScope(e.target.value)}
+                    placeholder="e.g. entire_order"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Reserved for future use (e.g. entire order vs specific products).</p>
+                </div>
+              </>
+            )}
             <div>
               <Label>Type</Label>
               <select
