@@ -89,7 +89,7 @@ export default async function AllFormSubmissionsPage({ searchParams }: Props) {
         <CardHeader>
           <CardTitle>Submissions</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Filter by form and date range (presets or custom). Use the Inbox icon on a form (CRM → Forms) to see only that form's submissions.
+            Filter by form and date range (presets or custom). Use the Inbox icon on a form (CRM → Forms) to see only that form{"'"}s submissions.
           </p>
         </CardHeader>
         <CardContent>
