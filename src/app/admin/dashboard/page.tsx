@@ -17,6 +17,7 @@ import { getContentCount, getContentTotalChars } from "@/lib/supabase/content";
 import { getEventsCount, getEventsCountByType } from "@/lib/supabase/events";
 import { getMediaStats } from "@/lib/supabase/media";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getMvtVersionInfo } from "@/lib/mvt";
 
 function sinceIso(days: number): string {
   const d = new Date();
@@ -38,6 +39,7 @@ export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
   const currentUser = await getCurrentUser();
   const username = currentUser?.display_name ?? currentUser?.email ?? "User";
+  const mvtVersion = await getMvtVersionInfo();
 
   let contactsByStatus = { total: 0, byStatus: [] as { status: string; count: number }[] };
   let contactStatusLabels: Record<string, string> = {};
@@ -130,6 +132,14 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-2">
             Your CMS Administration Panel
+            {(mvtVersion.appVersion ?? mvtVersion.lastUpdated) && (
+              <>
+                {" · "}
+                {[mvtVersion.appVersion && `App ${mvtVersion.appVersion}`, mvtVersion.lastUpdated && `Updated ${mvtVersion.lastUpdated}`]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </>
+            )}
           </p>
         </div>
         <div className="text-right shrink-0">

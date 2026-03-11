@@ -7,82 +7,84 @@
 **Performance (speed):** See [prd.md](./prd.md) and [planlog.md](./planlog.md) — Performance (Speed).
 
 ---
-
-## Where we are
-
-- **Done:** Notifications, SMTP/PWA, tenant setup checklist. Blog: pagination, categories/tags, archives, author, RSS, SEO metadata, Social Share, comments (member-only + staff fallback, approve_reject, content edit comments block). GPUM: dashboard, profile, account. Signup pipeline (processSignup, code→action table, workflows settings UI). Workflows and blog template items complete.
-- **Next:** Shortcode Phase 2b complete. Phase 3 (Quote, FAQ, Accordion) eliminated — Content shortcode + content types cover embedding; use content types for quote/FAQ-style blocks. See Other/Backlog below.
-
----
-
 ## Next up
 
-### Shortcode implementation (MVP)
+### Phase 09Ecom: Ecommerce (Lightweight)
 
-**Done (see changelog):** Phase 1 (library table, universal picker, Gallery, Media, separator/section/spacer/clear, Button, Form placeholder, Snippet, alignment). Phase 1a (media size, picker size step, post preview). Phase 2 (Layout wizard: composite `[[layout|...]]`, presets, Blank | Image | Gallery | Content per column).
+**Status:** Planned. No on-site payment processing: build cart/order in-app, redirect to Stripe for payment; webhook/return URL confirms and updates order. Lightweight relative to WooCommerce; reuse CRM where possible. **Currency:** USD only (US developer). **Security:** No PCI on local app — no card data stored; Stripe handles all payment data.
 
----
+**Phase 09 scope (complete ecommerce):** (1) **Data:** CRM addresses, product content type + product table, cart, orders + order_items, coupons (code batches + discount fields). (2) **Admin:** Ecommerce nav, Products list/UI, Orders list/detail + fulfillment, order metrics (dashboard + PWA), email templates, RLS. (3) **Checkout:** Cart → collect address → apply coupon app-side → create order → Stripe Checkout (price_data) → webhook + return. (4) **Customer/public:** Shop, product, cart, checkout, success; **order history** (logged-in: e.g. /members/orders; guest: lookup by email + order number or link); **digital delivery** (access links on order detail and in email). (5) **Stripe:** Product-only sync, no Price; app-side discounts; webhook. (6) **Safety:** No PCI; abandoned/failed visibility; stock optional.
 
-#### Phase 2b — Form display, embed code, shortcode integration, and form styles (CRM) — **Done**
+**Tables (tenant schema):** Product = content (type Product) + related `product` table; cart_sessions (or cart + cart_items); orders; order_items (reference content_id). Reuse and extend `membership_code_batches` / `membership_codes` for coupons (use_type, discount fields or `coupon_discounts`). Order history = list/detail from orders.
 
-**Goal:** CRM form manager builds full-use form objects (form ID, embed script). Forms can be embedded in posts via shortcode (inline display) and in Layout wizard column cells. Form styling is managed via a Form Styles tab (like Button Styles); shortcode can reference a style by name. Theme preset colors keep forms consistent with the site.
+**Customer pages:** Shop/catalog, product page, cart page, checkout (collect info → redirect to Stripe), return/success, order history (and optional account/order hub). See **Public routes and customer account pages** below.
 
-- [x] **2b.0 Form Styles (Settings → Style tab)** — Forms tab; form_styles in settings; `/api/settings/form-styles`; default styles (default, minimal, bordered).
-- [x] **2b.1 Form display routine** — `FormEmbed` component; GET `/api/forms/[idOrSlug]/config`; `ContentWithGalleries` + public pages pass `formStyles`/`themeColors`; `[[form:id]]` / `[[form:id|style=slug]]` render inline.
-- [x] **2b.2 Embed code in form manager** — CRM → Forms: Embed (Code2) button opens dialog with form URL and copyable iframe; `siteUrl` from getSiteUrl().
-- [x] **2b.3 Form in main shortcode picker** — Form type in shortcode types; form picker modal (form + optional style) → insert shortcode.
-- [x] **2b.4 Form in Layout wizard** — Form column option; Select form opens form picker (form + optional style); shortcode stored in column.
+**Product = content + related table (mapping):**
 
----
+| From content (reuse) | From related `product` table (new) |
+|----------------------|-------------------------------------|
+| id (content_id), title, slug, body, excerpt, featured_image_id, status, published_at, created_at, updated_at, seo_title, meta_description, og_image_id; taxonomy for categories/tags | content_id (FK, UNIQUE), **price** (in CMS; not pushed to Stripe), currency, stripe_product_id (Stripe Product only; no Price created), sku, stock_quantity (optional), gallery_id (optional FK → galleries), **taxable**, **shippable**, **available_for_purchase** |
 
-**Phase 3 (Quote, FAQ, Accordion) — eliminated.** Content shortcode pulls from default content types; Quote/FAQ/Accordion can be content types and embedded via `[[content:id]]` or Layout → Content. No dedicated quote/faq_sets tables or specialized shortcodes needed.
+**Product types (driven by taxable + shippable):** Physical (taxable, shippable); Digital (taxable, not shippable); Service (not taxable, not shippable); Virtual e.g. SaaS (taxable = true or false per product, not shippable). Checkout collects shipping address only when cart contains at least one shippable product; otherwise billing address only.
 
----
+- [ ] **CRM addresses (billing + shipping):** Treat existing `crm_contacts` address fields as **billing**. Add shipping columns: `shipping_address`, `shipping_city`, `shipping_state`, `shipping_postal_code`, `shipping_country`. Use shipping for delivery when any shipping field is set; otherwise use billing for both. Migration; update `CrmContact` type and RPCs; contact detail/edit UI: Billing address (existing) + Shipping address (optional, "if different").
+- [ ] **Product content type:** Add "Product" to `content_types` (slug e.g. `product`) as a **core default** (can't delete). Show it in **Settings → Customizer → Content types** and in **Settings → Taxonomy** so taxonomy can be applied to products. Hide it only from the main **Content list** view (products managed under Ecommerce → Products). Products are content rows with this type; use taxonomy for product categories/tags.
+- [ ] **Core taxonomy sections not deletable:** In Settings → Taxonomy, core sections (for core content types) must not be deletable. Identify core/system sections (e.g. by content_type or flag) and disable or hide Delete for them in the taxonomy UI.
+- [ ] **Related `product` table:** Migration (tenant schema). Columns: `content_id` (UUID FK → content.id, UNIQUE, NOT NULL), `price` (numeric/decimal; used at checkout, not pushed to Stripe), `currency` (text, default USD), `stripe_product_id` (text nullable; Stripe Product ID only; no Stripe Price), `sku` (text nullable), `stock_quantity` (integer nullable; null = no stock tracking; off by default), `gallery_id` (UUID nullable FK → galleries), `taxable` (boolean, default true), `shippable` (boolean, default false), `available_for_purchase` (boolean, default true). RLS; one row per product content. Product image gallery = featured_image_id (content) + gallery_id (product) → gallery_items for extra images.
+- [ ] **Product lib + RPC/API:** Helper to get product by content_id or by content slug (join content + product table, optional gallery). List products = content by type Product with join to product; public API for shop/catalog and product detail. Shop visibility: content **published** + product has **stripe_product_id** set + **available_for_purchase** = true. Optional: if stock_quantity is set, enforce at add-to-cart or checkout and decrement on payment (simple stock manager).
+- [ ] **Content list excludes products:** In the main admin Content list (and "New content" picker if desired), filter out content type `product` so editorial users only see posts, articles, snippets, etc. Products are managed only under Ecommerce.
+- [ ] **Ecommerce nav + Products list:** Add **Ecommerce** top-level sidebar nav; under it, **Products** (and later Orders, etc.). Products list shows only content where type = Product (join to `product` table). Single place for product management. Reuse existing components (content table, shortcodes, galleries, media); the product UI is a dedicated mini-UI that uses the same building blocks.
+- [ ] **Admin product UI (under Ecommerce):** Under Ecommerce → Products: list (content type Product only), create/edit product with full product form: content fields (title, slug, body, excerpt, featured_image_id, status, SEO) plus product section (price, currency, stripe_product_id [read-only after sync], sku, stock_quantity, gallery_id with gallery picker, taxable, shippable, **available_for_purchase**). "Create Stripe Product from CMS Product" button syncs Product only to Stripe (no Price). Create/update content row (type Product) and related `product` row.
+- [ ] **Order address snapshot and CRM update:** Store billing (and shipping when collected) on the order at checkout — e.g. `billing_*` / `shipping_*` columns or JSON snapshot on `orders`. When customer is or becomes a known contact (email/contact_id), update CRM contact with new shipping (and billing if changed) from checkout so contact record stays current.
+- [ ] **Cart session:** Table or server-side session storing items (content_id as product ref, qty, price snapshot). API: add to cart, update, get cart. Optional: link cart to contact/user when logged in.
+- [ ] **Orders + order_items:** Orders table (customer_email, contact_id/user_id nullable, **status**, total, currency, stripe_checkout_session_id, created_at; **billing/shipping snapshot** per above; optional coupon_code/coupon_batch_id, discount_amount). Order items table (order_id, content_id for product, name snapshot, quantity, unit_price, line_total; optionally store product shippable flag per line for fulfillment logic). Create order (pending) from cart at checkout.
+- [ ] **Order status and fulfillment (lightweight):** Order **status** values: e.g. `pending` (unpaid), `paid` (payment confirmed), `processing` (paid + has shippable items; awaiting fulfillment), `completed` (done). **Digital/virtual only:** Once payment is confirmed and customer receives access (join link, download instructions, etc.), treat order as **completed** — no staff intervention. **Physical (or mixed):** When order contains any shippable product, set status to **processing** after payment (like WooCommerce) so staff know to fulfill; provide a simple way in admin to mark as **completed** (or **shipped**) when done. No full warehouse/shipping module — status-driven list of "orders to fulfill" and a button to mark complete.
+- [ ] **Payment-to-MAG flow (membership products):** When a customer pays for an order that includes a **membership product** (product linked to a MAG), grant them access to that membership. Optionally link product to MAG (e.g. `membership_id` or MAG UID on product); on Stripe webhook `checkout.session.completed`, after marking order paid, for each order item that is a membership product: ensure customer has a member record (create/link from contact or email), assign the corresponding MAG to that member so they receive access. Send access instructions (email/link) as part of digital delivery. Purchasing memberships and providing access is a core feature of the payment system.
+- [ ] **Checkout flow:** Collect customer email and billing address (from CRM contact or guest). If cart contains any **shippable** product, also collect shipping address (or "same as billing"); otherwise billing only. Create order + order_items from cart; create Stripe Checkout Session with line_items (per-line tax_behavior from product.taxable); redirect to Stripe. Success/cancel return URLs.
+- [ ] **Stripe webhook + return:** On `checkout.session.completed`, mark order paid (set status to `paid`). If order has **no shippable** items, set status to `completed` and send access instructions (email/link); if order has **any shippable** item, set status to `processing`. Optional stock decrement when stock_quantity is set. Return URL: show thank-you / order confirmation; clear cart.
+- [ ] **Transactional email and template manager (breakout module):** Build an **Email Template Storage Manager** for all transactional email. Store templates (e.g. order confirmation, digital delivery, password reset) with placeholders; use existing SMTP mailer to send. Order confirmation email required for all orders; digital delivery email (or thank-you page with link) for digital/virtual orders. Template area in admin (e.g. Settings or Ecommerce) to edit these templates.
+- [ ] **Abandoned / failed payment visibility:** Provide a fallback so operators can see abandoned or failed transactions: e.g. prominent note in **customer activity stream**, status or tag on **CRM contact** (e.g. "Abandoned checkout" or "Payment incomplete"), so staff can review and follow up. Pending orders remain in order list with status `pending`; optionally highlight or filter "needs attention."
+- [ ] **Order history:** My orders page (list by user or email); order detail page. Admin: orders list and detail; filter by status; for orders in `processing`, allow staff to mark as `completed` (or `shipped`) when fulfilled.
+- [ ] **Public routes and customer account pages:** Define public shop routes (e.g. `/shop` catalog, `/shop/[slug]` product, `/shop/cart`, `/shop/checkout`, `/shop/success` or `/order/success`). **Order history:** For logged-in members, provide "My orders" under existing member area (e.g. `/members/orders` or `/account/orders`) — list orders for current user/contact; order detail with items, status, totals, and for digital items **access/download links**. For **guests**, provide order lookup (e.g. by email + order number or secure link from confirmation email) so they can view order status and digital access without an account. Optional: small account hub (under `/members` or `/account`) linking to Orders, Profile, and saved addresses (from CRM contact) for checkout prefill.
+- [ ] **Digital delivery (customer-facing):** On order detail page and in order confirmation/digital-delivery email, show **access links** for digital/virtual items (e.g. join link, download URL, course access). Optional: dedicated "My downloads" or "Access your purchases" page that lists digital purchases and links; can be part of order detail when order contains digital items.
+- [ ] **Order metrics (admin dashboard and PWA):** Add order metrics to the admin dashboard (e.g. orders today, count in processing, recent orders or revenue). Add order metrics to the PWA helper app so staff can see key order counts and processing queue at a glance. API or RPC for order counts by status (and optional date range); consume in dashboard and PWA.
+- [ ] **Ecommerce nav and RLS:** Ecommerce sidebar nav and routes follow the existing **role and gate system** (e.g. admin; optionally a dedicated "order manager" role). RLS on all new tables (product, orders, order_items, cart, coupon_discounts); tenant isolation; no card data stored in app (Stripe only; no PCI on local app).
+- [ ] **Stock (optional, simple):** When product has `stock_quantity` set, optionally validate at add-to-cart or checkout and block if out of stock; decrement on successful payment. Leave stock tracking off by default for new products (null = no tracking).
+- [ ] **Public pages:** Shop/catalog (list products), product page (single product, add to cart), cart page, checkout page (pre-redirect), success/confirmation, order history (and guest order lookup). All customer-facing pages and routes covered by "Public routes and customer account pages" and "Digital delivery" above.
+
+**Coupons / code-based discounts (reuse existing code generator):**
+
+- **Discount stored with the code (batch), not on product.** One code can apply a discount universally (e.g. 10% off cart or $20 off) without attaching discount rules to products. Products stay product-focused; the code is the trigger and the batch (or linked coupon row) holds the rule.
+- **Use type on batch.** Add `use_type` (or `batch_type`) to `membership_code_batches`: e.g. `membership` | `discount` | `other`. Drives behavior when code is applied: membership redemption vs apply discount at checkout. Same code system supports both; filter/report by type.
+- **Discount fields (for use_type = discount).** Either extend batch table with nullable discount columns or add `coupon_discounts` table (batch_id FK). Fields: `discount_type` ('percent' | 'fixed'), `discount_value`, optional `min_purchase`, `scope` ('cart' | 'product_ids' | 'category'). At checkout: validate code in CMS and apply discount to cart totals app-side.
+- **App-side discounts only (no Stripe Coupons).** All discount logic stays in the app. Validate coupon code in CMS; apply discount (percent or fixed) to cart; compute final line or cart amounts. Send the **calculated (discounted when applicable) amounts** to Stripe at checkout via `price_data` (see Stripe integration below). No Stripe Coupon creation or sync — avoids extra manual work in Stripe and keeps one source of truth (CMS) for codes and pricing. Store applied coupon_code and discount_amount on order for display and audit.
+- [ ] **Code/batch schema for ecommerce:** Migration: add `use_type` to `membership_code_batches` (e.g. text: 'membership' | 'discount' | 'other', default 'membership'). Add discount columns to batch table OR create `coupon_discounts` (batch_id FK UNIQUE, discount_type, discount_value, min_purchase nullable, scope). No Stripe coupon fields. Update batch create/edit UI and code generator to support use_type and discount fields when use_type = discount.
+- [ ] **Checkout coupon flow:** Checkout UI: optional "Apply code" field. API: validate code (membership → redemption; discount → look up batch/coupon_discounts). Apply discount to cart app-side (percent or fixed per scope); compute final amounts per line or cart. Store applied coupon_code and discount_amount on order. Build Stripe Checkout with these calculated amounts (price_data), not Stripe Coupons.
+- [ ] **Orders record discount:** Orders table: optional `coupon_code` or `coupon_batch_id` and `discount_amount` so order history shows which code was used and how much was discounted (ensure columns on orders).
+
+**Stripe integration (design and steps) — CMS → Stripe → QuickBooks:**
+
+- **1:1 CMS product → Stripe Product only (price not pushed to Stripe).** Each sellable product in the CMS has a **price in the CMS** and a corresponding **Stripe Product** (name, description, images) for invoice display and reporting. We do **not** create or store a Stripe Price for checkout — the amount is sent from the app at checkout time. Store `stripe_product_id` on the related `product` table; `stripe_price_id` optional or unused for checkout. Create Stripe Product via "Create Stripe Product from CMS" (Product only, no Price).
+- **Create Stripe Product from CMS (automated).** "Create Stripe Product from CMS Product" button: reads content (title, body/excerpt, featured_image_id, gallery_id → images); creates **Stripe Product only** (name, description, images[]) via Stripe API; stores `stripe_product_id` on the product row. No Price created in Stripe; product price lives in CMS only.
+- **Eligible for sale.** Shop/catalog and add-to-cart only show products that are **published**, have **stripe_product_id** set (Stripe Product synced), and **available_for_purchase** = true. Manual flag allows hiding from sale without removing Stripe sync.
+- **Checkout: push calculated price from app (price_data).** One line item per cart row. For each line use **price_data** (not a pre-created Price): `product: stripe_product_id`, `unit_amount` (in cents — from our order/cart, **after app-side discount**), `currency`, `tax_behavior` from product.taxable. So we send the final amount we want to charge; discounts are already applied in our totals. Stripe invoice shows the product name/description and the amount we sent. No Stripe Coupons; no manual Stripe coupon setup.
+- **Taxable vs non-taxable.** Per product, store taxable flag; at checkout pass `tax_behavior` in price_data per line so Stripe Tax can calculate when applicable.
+- **Stripe → QuickBooks (many-to-few).** Many Stripe Products can map to fewer QuickBooks items. Sync logic (or integration) should map by category or mapping table (e.g. all "event video" Stripe Products → one QB item "Event video sales") so QB stays clean. Document this so CMS → Stripe → QB mapping is correct.
+- [ ] **Stripe config:** Store Stripe secret key and publishable key (env or tenant settings); webhook secret for verifying `checkout.session.completed`. Document Stripe dashboard setup and webhook endpoint.
+- [ ] **Create Stripe Product from CMS routine:** API or server action: given content_id (product), load content + product + featured_image + gallery; resolve image URLs; call Stripe **Products.create** only (name, description, images[]); save `stripe_product_id` to product row. No Prices.create. Expose as "Create Stripe Product from CMS Product" (or "Sync to Stripe") button in product edit UI.
+- [ ] **Eligibility check:** Shop/catalog and add-to-cart only include products where content is published, product.stripe_product_id is set, and product.available_for_purchase is true. Product detail shows "Not yet available for purchase" or hides add-to-cart when not eligible.
+- [ ] **Checkout Session:** Build `line_items` from cart with **price_data** per line: `product: stripe_product_id`, `unit_amount` (calculated from order/cart in cents, after app-side discount), `currency`, `tax_behavior`. Create Stripe Checkout Session; redirect to session.url. No pre-created Price IDs; no Stripe Coupons.
+- [ ] **Webhook:** Handle `checkout.session.completed`; match session to order (e.g. metadata order_id); mark order paid; optional stock decrement. Idempotent handling.
+- [ ] **Return URL:** Success URL shows order confirmation and clears cart. Optionally fetch session/order for display.
 
 ### Other / Backlog
 
-- [x] **Media: "Copy Shortcode"** — On media library items, add action that copies shortcode (e.g. `[[media:id]]`) to clipboard for pasting into editor. (Can be done with Phase 1 Media shortcode.)
-- [x] **Share-intent (“Share this post”)** — ShareIntentLinks: Twitter (title + optional description), Facebook, LinkedIn, Email, Pinterest (when imageUrl). Button-style links; used on every blog post and on generic pages ("Share this page"). Optional later: platform toggles in settings, shortcode.
-- [x] **Terms and Policys manager** — Link to external app (custom per tenant).
-- [x] **CRM Sorting** — Sort contact list by Last name, First name, Full name, Status, Updated; default sort = last activity at top (Updated). Click column headers to sort; default = Updated desc.
-- [x] **Form Submission List** — Pagination; filter by date range (stack with form type).
-- [x] **Form Data Export** - Ability to export form submission data as CSV by type and date range
-- [x] **Code Generator Module** — See “Code Generator Workflow” and implementation steps below.
-- [ ] **Proper rendering for core content types** - Like FAQ, Accordion, Quotes. Some CSS styling may be required. Is this a front end Dev feature and not needed for basic content entry?
-- [ ] **App Version Number** — Add app version to the admin dashboard; derive from mvt.md document.
-- [ ] **Banners**  - A programmable display block that can show html5 content on a sschedule. Usually at top of home page.
-
----
-
-## Code Generator Workflow (scenarios & implementation)
-
-### Workflow scenarios
-
-- **Workflow trigger:** Codes are used to trigger a workflow when used during signup/login. We need a way to identify a single code or a group of codes by ID so that ID can be used by the workflow.
-- **Usage logging:** Whenever a GPUM (member) uses a code — at signup, login, or anywhere a code field is used — that usage is logged in the code table: date, time, and contact. The living table is the source of truth for “who used which code when.”
-- **Single vs multiple codes:** Single codes are typically multi-use for the same workflow. Multiple codes for a single project are typically used to limit sales or to track individual use for sales calculation.
-- **Batch as identifier:** Batches are the grouping concept; we reference a batch by ID (batch_id) for workflows and reporting. On redemption, the API returns `batch_id` so signup/workflows can key off it (CG.1).
-- **Uniqueness:** Prefix and postfix fields allow unique codes year over year. Unique, non-duplicate codes are essential. Design should prevent duplicates; we need explicit checks so the generator never creates duplicate codes.
-- **Living table:** All generated codes are stored in a living table. The table must be listable, searchable, and filterable (e.g. by batch ID). CSV export is required (codes are used with clients to track event participation; data export is essential).
-- **Review and status:** Support reviewing and manually marking a code as used; ability to search by used/open. Track date and time of use. A field (e.g. checkbox or status) must indicate open vs used.
-- **Multi-use in table:** Multi-use codes are also represented in the table so they can be searched and reported (e.g. uses, date ranges).
-- **No table-level duplicate prevention:** The table itself does not prevent entering a duplicate code/record; only the generator logic prevents creating duplicates when generating. (Manual/imported rows or multi-use redemption rows may repeat the same code for different uses.)
-- **Link to contact:** Code use must link to a contact record (e.g. by contact UID or contact_id) so we can see who used the code.
-
-### Code Generator Module — implementation steps
-
-- [x] **CG.0 Modal & layout** — Create-batch modal: scrollable body so all controls visible; batches list on main page as table (Name, MAG, Type, Codes/Usage, Expires, Actions).
-- [x] **CG.1 Batch ID as workflow reference** — Document or expose batch_id (and batch identifier in workflows/signup) so workflows can key off batch ID when a code is redeemed.
-- [x] **CG.2 Generator duplicate prevention** — Per-run dedupe only (no DB pre-load). Prefix/postfix define batch; 5-digit center can repeat across batches. DB unique(batch_id, code_hash) rejects any duplicate insert.
-- [x] **CG.3 Living table: list, search, filter** — Codes table UI: list all codes (single-use rows + multi-use redemption rows where applicable). Support search and filter by batch ID (and optionally status, date range). Table columns: code (or masked), batch ID/name, status (open/used), used date/time, contact (link by contact UID or ID).
-- [x] **CG.4 Open/used and manual mark** — Status field (open/used) visible in table; allow manual marking of a code as used (admin). Search/filter by “used” vs “open”; show date/time of use.
-- [x] **CG.5 Code use → contact link and usage log** — When a GPUM uses a code (signup, login, or any code field), log that usage in the code table: date, time, contact. Ensure each redemption links to contact (contact_id or resolve via member → contact). Display “who used it” in table/detail with link to contact record (by UID or ID).
-- [x] **CG.6 Export CSV** — Export codes table (or filtered view) as CSV: code, batch_id, status, used_at, contact_id/UID, and other needed fields for event participation and reporting.
-- [x] **CG.7 Multi-use in table** — Multi-use codes appear in the table (e.g. one row per redemption) so they can be searched and filtered for metrics (use count, date range).
-- [x] **CG.8 Expiration** — Expiration date for batches remains optional; ensure it is applied at redemption time and visible in batch/code list.
-
+- [x] **Proper rendering for core content types** - Like FAQ, Accordion, Quotes. Some CSS styling may be required. Is this a front end Dev feature and not needed for basic content entry?
+- [x]**App Version Number** — Add app version to the admin dashboard; derive from mvt.md document.
 ---
 
 ## Paused / Later
 
 - [ ] Anychat, VBout, PHP-Auth audit logging, superadmin add/delete user (see planlog).
+- [ ] **Banners** - A programmable display block that can show html5 content on a schedule. Usually at top of home page.
+- [ ] **Carousel shortcode item** Build a shortcofe that generates a carousel (pan slider) from objects like images or content

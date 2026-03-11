@@ -9,6 +9,20 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-03-11 CT - Manual steps added
+- [x] **Proper rendering for core content types** - Like FAQ, Accordion, Quotes. Some CSS styling may be required. Is this a front end Dev feature and not needed for basic content entry?
+- [x]**App Version Number** — Add app version to the admin dashboard; derive from mvt.md document.
+
+
+---
+
+### 2026-03-11 CT — Sessionlog cleanup: completed items removed, backlog lean
+
+**Context for Next Session:** (See previous entry for full session context.) Sessionlog cleaned per workflow: completed Phase 2b block, all completed Other/Backlog items (Media Copy Shortcode, Share-intent, Terms and Policys, CRM Sorting, Form Submission List, Form Data Export, Code Generator Module), and the Code Generator Workflow section (scenarios + CG.0–CG.8 steps) removed. Backlog now lists only: Proper rendering for core content types, App Version Number, Banners. "Where we are" and "Next up" updated to reflect current state.
+
+**Changes:**
+- **Sessionlog:** Removed completed Phase 2b checklist; removed seven completed backlog lines and entire Code Generator Workflow section; kept only three unchecked backlog items. Shortcode "Done" summary updated to include Phase 2b.
+
 ---
 
 ### 2026-03-11 CT — Session wrap-up: Code Generator module complete, form submissions export, codes search

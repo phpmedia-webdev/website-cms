@@ -4,7 +4,9 @@
 
 **Travels with:** This file lives in the repo; every fork has its own copy. Update when you add, rename, or significantly change a module.
 
+**Dashboard version (parsed for admin dashboard):**
 **Last updated:** 2026-02-11
+**App Version:** 1.0 Stable
 
 ---
 
