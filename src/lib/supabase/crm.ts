@@ -1886,7 +1886,7 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       .select("id, customer_email, contact_id, status, created_at")
       .order("created_at", { ascending: false })
       .limit(20)
-      .then((r) => (r.error ? { data: null } : r)),
+      .then((r: { data: unknown; error: unknown }) => (r.error ? { data: null } : r)),
   ]);
 
   const notes = (notesData.data as { id: string; contact_id: string | null; body: string; created_at: string; note_type: string | null; author_id: string | null; content_id: string | null; status: string | null }[] | null) ?? [];

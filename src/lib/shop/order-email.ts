@@ -15,6 +15,7 @@ import {
 import { getOrderDownloadLinks } from "./order-download-links";
 import type { OrderRow, OrderItemRow } from "./orders";
 import type { AddressSnapshot } from "./orders";
+import { getClientSchema } from "@/lib/supabase/schema";
 
 /** Order total and line totals are stored in main currency units (e.g. dollars). */
 function formatCurrency(amount: number, currency: string = "USD"): string {
@@ -56,6 +57,13 @@ export async function buildOrderTemplateContext(
         )
         .join("\n")
     : "";
+
+  const schema = getClientSchema();
+  const downloadLinksRaw = await getOrderDownloadLinks(order.id, schema ?? undefined);
+  const download_links =
+    downloadLinksRaw.length > 0
+      ? downloadLinksRaw.map((l) => `${l.label}: ${l.url}`).join("\n")
+      : "";
 
   return {
     customer_name: customerName,

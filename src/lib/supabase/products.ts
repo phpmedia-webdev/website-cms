@@ -528,11 +528,14 @@ export async function insertProductRow(row: {
   gallery_id?: string | null;
   taxable?: boolean;
   shippable?: boolean;
+  downloadable?: boolean;
+  digital_delivery_links?: { label: string; url: string }[];
   available_for_purchase?: boolean;
   visibility_mag_ids?: string[];
   grant_mag_id?: string | null;
 }): Promise<{ id: string } | null> {
   const supabase = createClientSupabaseClient();
+  const links = (row.digital_delivery_links ?? []).filter((l) => (l.url ?? "").trim().length > 0);
   const { data, error } = await supabase
     .schema(CONTENT_SCHEMA)
     .from("product")
@@ -545,6 +548,8 @@ export async function insertProductRow(row: {
       gallery_id: row.gallery_id ?? null,
       taxable: row.taxable ?? true,
       shippable: row.shippable ?? false,
+      downloadable: row.downloadable ?? false,
+      digital_delivery_links: links,
       available_for_purchase: row.available_for_purchase ?? true,
       visibility_mag_ids: row.visibility_mag_ids ?? [],
       grant_mag_id: row.grant_mag_id ?? null,

@@ -310,11 +310,12 @@ export async function listOrders(
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (params.status && params.status !== "") {
-    if (params.status === "needs_attention") {
+  const statusFilter = params.status;
+  if (statusFilter) {
+    if (statusFilter === "needs_attention") {
       q = q.in("status", ["pending", "processing"]);
     } else {
-      q = q.eq("status", params.status);
+      q = q.eq("status", statusFilter);
     }
   }
   if (params.search && params.search.trim()) {
