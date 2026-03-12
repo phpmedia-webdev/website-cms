@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, CloudUpload } from "lucide-react";
 import { getContentTypes } from "@/lib/supabase/content";
 import { insertProductRow, updateProductRow } from "@/lib/supabase/products";
 import type { ProductRow } from "@/lib/supabase/products";
@@ -31,6 +31,7 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncingStripe, setSyncingStripe] = useState(false);
   const formRef = useRef<ContentEditorFormHandle>(null);
 
   useEffect(() => {
@@ -182,6 +183,31 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
         stripeProductId={product?.stripe_product_id ?? null}
         disabled={saving}
       />
+
+      {product && !product.stripe_product_id && (
+        <div className="rounded-md border bg-muted/30 p-4">
+          <p className="text-sm text-muted-foreground mb-2">
+            Create a Stripe Product from this CMS product to enable checkout. Price is not sent to Stripe; checkout uses app-side pricing.
+          </p>
+          <Button
+            variant="outline"
+            onClick={handleSyncToStripe}
+            disabled={saving || syncingStripe}
+          >
+            {syncingStripe ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Syncing…
+              </>
+            ) : (
+              <>
+                <CloudUpload className="h-4 w-4 mr-2" />
+                Create Stripe Product from CMS Product
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

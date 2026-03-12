@@ -114,6 +114,9 @@ export default async function PublicLayout({
               <Link href="/blog" className="text-sm hover:underline">
                 Blog
               </Link>
+              <Link href="/shop" className="text-sm hover:underline">
+                Shop
+              </Link>
               <Link href="/forms/contact" className="text-sm hover:underline">
                 Contact
               </Link>

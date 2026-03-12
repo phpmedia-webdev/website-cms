@@ -39,7 +39,7 @@ export function ProductsListClient({ initialProducts }: ProductsListClientProps)
       <div>
         <h1 className="text-3xl font-bold">Products</h1>
         <p className="text-muted-foreground mt-2">
-          Manage sellable products. Edit content and product details. Full product form (price, Stripe sync) in a later step.
+          Manage sellable products. Edit content and product details; sync to Stripe to enable checkout.
         </p>
       </div>
 

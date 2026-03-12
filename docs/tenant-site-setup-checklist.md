@@ -164,6 +164,13 @@ SMTP_ENCRYPTION_KEY=your_32_char_or_longer_secret
 VAPID_PUBLIC_KEY=your_public_key
 VAPID_PRIVATE_KEY=your_private_key
 VAPID_MAILTO=mailto:support@yoursite.com
+
+# Ecommerce / Stripe (only if tenant needs ecommerce). Get keys from https://dashboard.stripe.com/apikeys
+# Copy-paste template: docs/env-templates/stripe.env
+STRIPE_SECRET_KEY=sk_test_... or sk_live_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_... or pk_live_...
+# Webhook signing secret: create endpoint in Stripe Workbench (dashboard.stripe.com/webhooks); subscribe to checkout.session.completed
+STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
 Checklist for Vercel:
@@ -174,6 +181,7 @@ Checklist for Vercel:
 - [ ] PHP-Auth variables set if using central auth (`AUTH_BASE_URL`, `AUTH_ORG_ID`, `AUTH_APPLICATION_ID`, `AUTH_API_KEY`, `AUTH_ROLES_SCOPE`).
 - [ ] `SMTP_ENCRYPTION_KEY` set if the tenant will use SMTP/email notifications.
 - [ ] `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` set if using admin Status PWA push.
+- [ ] Stripe keys set if tenant needs ecommerce (`STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`); webhook endpoint configured in Stripe Dashboard (see **Ecommerce / Stripe** below).
 - [ ] Redeploy after adding or changing env vars.
 
 **SMTP key generation** (value for `SMTP_ENCRYPTION_KEY`): Use a 32+ character secret. The app also accepts `CREDENTIALS_ENCRYPTION_KEY`. Generate a random key (recommended):
@@ -191,6 +199,15 @@ npx web-push generate-vapid-keys
 ```
 
 Copy the full **Public Key** and **Private Key** into Vercel (or `.env.local`). Use the **same** key pair for the life of the app; changing keys invalidates existing push subscriptions.
+
+**Ecommerce / Stripe (if tenant needs ecommerce):**
+
+1. **API keys:** In [Stripe Dashboard](https://dashboard.stripe.com/apikeys), copy **Secret key** and **Publishable key** (use Test keys for development). Set `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in Vercel (and `.env.local`). Never commit or expose the secret key.
+2. **Webhook endpoint (Stripe Workbench):** Use [Stripe Workbench](https://dashboard.stripe.com/webhooks) to manage webhooks. Click **Create destination**:
+   - **Endpoint URL:** `https://your-domain.com/api/webhooks/stripe` (replace with the tenant’s production or preview URL).
+   - Choose **Webhook** (HTTPS endpoint).
+   - **Events:** Select `checkout.session.completed` (and any other events the app uses), then continue and create the destination.
+   - In the **Webhooks** tab, open the new destination and reveal **Signing secret** (`whsec_...`). Set `STRIPE_WEBHOOK_SECRET` in Vercel (and `.env.local`). The app uses this to verify that webhook payloads are from Stripe before updating orders.
 
 ---
 

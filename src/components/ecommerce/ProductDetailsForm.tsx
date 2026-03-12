@@ -84,7 +84,7 @@ export function ProductDetailsForm({
       <CardHeader>
         <CardTitle>Product details</CardTitle>
         <CardDescription>
-          Price, SKU, gallery, and availability. Sync to Stripe to get a Stripe Product ID (later step).
+          Price, SKU, gallery, and availability. Use &quot;Create Stripe Product from CMS Product&quot; below to sync and get a Stripe Product ID.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

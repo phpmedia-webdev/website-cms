@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { getContentTypes } from "@/lib/supabase/content";
+import { getContentTypes, CONTENT_LIST_EXCLUDED_TYPE_SLUGS } from "@/lib/supabase/content";
 import { ContentEditorForm, type ContentEditorFormHandle } from "@/components/content/ContentEditorForm";
 import { Button } from "@/components/ui/button";
 import type { ContentType } from "@/types/content";
@@ -21,7 +21,7 @@ export function ContentNewClient() {
 
   useEffect(() => {
     getContentTypes().then((t) => {
-      setTypes(t);
+      setTypes(t.filter((type) => !CONTENT_LIST_EXCLUDED_TYPE_SLUGS.includes(type.slug ?? "")));
     }).finally(() => setLoading(false));
   }, []);
 

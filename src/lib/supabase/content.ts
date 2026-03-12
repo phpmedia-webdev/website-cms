@@ -11,6 +11,9 @@ import type { ContentType, ContentListItem, ContentRow, ContentTypeField } from 
 const CONTENT_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
 
+/** Content type slugs hidden from main Content list and New content picker (e.g. Product managed under Ecommerce → Products). */
+export const CONTENT_LIST_EXCLUDED_TYPE_SLUGS = ["product"];
+
 /** Server-only: count content items (for dashboard). */
 export async function getContentCount(schema?: string): Promise<number> {
   const supabase = createServerSupabaseClient();

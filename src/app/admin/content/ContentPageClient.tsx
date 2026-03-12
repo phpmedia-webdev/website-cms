@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getContentTypes, getContentListWithTypes, deleteContent } from "@/lib/supabase/content";
+import { getContentTypes, getContentListWithTypes, deleteContent, CONTENT_LIST_EXCLUDED_TYPE_SLUGS } from "@/lib/supabase/content";
 import {
   getTaxonomyTermsClient,
   getContentTaxonomyRelationships,
@@ -26,9 +26,6 @@ import { format } from "date-fns";
 
 type SortColumn = "type" | "title" | "status" | "membership" | "updated";
 type SortDir = "asc" | "desc";
-
-/** Content types hidden from main Content list (e.g. Product managed under Ecommerce > Products). */
-const CONTENT_LIST_EXCLUDED_TYPE_SLUGS = ["product"];
 
 export function ContentPageClient() {
   const router = useRouter();
