@@ -1,22 +1,15 @@
 /**
  * Schema-aware Supabase client for Next.js App Router.
  * Uses @supabase/ssr for proper cookie handling and SSR support.
- * Automatically uses the client's schema for all queries.
+ * For server-only service-role use (e.g. public forms, CRM), use server-service.ts instead
+ * so those routes never load auth-js.
  */
 
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
 import { getClientSchema } from "./schema";
+import { getSupabaseEnv } from "./supabase-env";
 
-const SUPABASE_ENV_ERROR =
-  "Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required";
-
-/** Used by API routes that need env without creating the full SSR client (e.g. MFA verify cookie carrier). */
-export function getSupabaseEnv(): { url: string; anonKey: string } {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) throw new Error(SUPABASE_ENV_ERROR);
-  return { url, anonKey };
-}
+export { getSupabaseEnv };
 
 /**
  * Create a Supabase client for client-side usage (browser).
@@ -49,34 +42,8 @@ export function createClientSupabaseClient() {
   }
 }
 
-/**
- * Create a Supabase client for server-side usage with service role (admin operations).
- * This bypasses RLS and should only be used in API routes and server components
- * that require elevated permissions.
- * 
- * Note: This maintains backward compatibility with existing code that uses service role.
- * For SSR with user authentication, use createServerSupabaseClientSSR() instead.
- * 
- * @returns Supabase client with service role permissions
- */
-export function createServerSupabaseClient() {
-  const { createClient } = require("@supabase/supabase-js");
-  const { url } = getSupabaseEnv();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!serviceRoleKey) {
-    throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY environment variable is required for server-side operations"
-    );
-  }
-
-  return createClient(url, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
+/** Re-export for callers that still import from client. Prefer importing from server-service for public routes (e.g. forms). */
+export { createServerSupabaseClient } from "./server-service";
 
 /**
  * Create a Supabase client for server-side usage with SSR support (Server Components, API Routes).

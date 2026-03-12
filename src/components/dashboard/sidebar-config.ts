@@ -25,6 +25,7 @@ import {
   Workflow,
   ShoppingBag,
   Package,
+  FileText,
 } from "lucide-react";
 
 /** Session storage keys for sidebar accordion open state. */
@@ -61,6 +62,7 @@ export const crmSubNav: SubNavItem[] = [
 
 export const marketingSubNav: SubNavItem[] = [
   { name: "Lists", href: "/admin/crm/lists", icon: ListChecks, featureSlug: "lists" },
+  { name: "Templates", href: "/admin/crm/templates", icon: FileText, featureSlug: "marketing" },
 ];
 
 export const calendarSubNav: SubNavItem[] = [

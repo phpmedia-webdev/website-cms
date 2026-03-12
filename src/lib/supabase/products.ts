@@ -328,9 +328,15 @@ export interface ProductRow {
   gallery_id: string | null;
   taxable: boolean;
   shippable: boolean;
+  /** Step 25a: Product can be downloadable (digital delivery), or both shippable and downloadable. */
+  downloadable: boolean;
+  /** Step 25b: Real download URLs (never sent to customer as-is). Array of { label, url }. */
+  digital_delivery_links: { label: string; url: string }[];
   available_for_purchase: boolean;
   /** MAG ids that can see this product on the shop (when access_level is mag). Independent of grant-on-purchase. */
   visibility_mag_ids: string[];
+  /** Step 17: MAG granted when customer purchases this product (membership product). Null = not a membership product. */
+  grant_mag_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -479,6 +485,8 @@ export async function getProductByContentId(
   const visibility_mag_ids = Array.isArray(rawVisibility)
     ? (rawVisibility as unknown[]).map((x) => String(x))
     : [];
+  const rawLinks = r.digital_delivery_links;
+  const digital_delivery_links = parseDigitalDeliveryLinks(rawLinks);
   return {
     id: r.id as string,
     content_id: r.content_id as string,
@@ -490,11 +498,22 @@ export async function getProductByContentId(
     gallery_id: (r.gallery_id as string | null) ?? null,
     taxable: Boolean(r.taxable),
     shippable: Boolean(r.shippable),
+    downloadable: Boolean(r.downloadable),
+    digital_delivery_links,
     available_for_purchase: Boolean(r.available_for_purchase),
     visibility_mag_ids,
+    grant_mag_id: (r.grant_mag_id as string | null) ?? null,
     created_at: r.created_at as string,
     updated_at: r.updated_at as string,
   };
+}
+
+function parseDigitalDeliveryLinks(raw: unknown): { label: string; url: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x): x is Record<string, unknown> => x != null && typeof x === "object")
+    .map((x) => ({ label: String(x.label ?? "").trim(), url: String(x.url ?? "").trim() }))
+    .filter((x) => x.url.length > 0);
 }
 
 /**
@@ -511,6 +530,7 @@ export async function insertProductRow(row: {
   shippable?: boolean;
   available_for_purchase?: boolean;
   visibility_mag_ids?: string[];
+  grant_mag_id?: string | null;
 }): Promise<{ id: string } | null> {
   const supabase = createClientSupabaseClient();
   const { data, error } = await supabase
@@ -527,6 +547,7 @@ export async function insertProductRow(row: {
       shippable: row.shippable ?? false,
       available_for_purchase: row.available_for_purchase ?? true,
       visibility_mag_ids: row.visibility_mag_ids ?? [],
+      grant_mag_id: row.grant_mag_id ?? null,
     })
     .select("id")
     .single();
@@ -551,9 +572,12 @@ export async function updateProductRow(
     gallery_id: string | null;
     taxable: boolean;
     shippable: boolean;
+    downloadable: boolean;
+    digital_delivery_links: { label: string; url: string }[];
     available_for_purchase: boolean;
     visibility_mag_ids: string[];
     stripe_product_id: string | null;
+    grant_mag_id: string | null;
   }>
 ): Promise<boolean> {
   const supabase = createClientSupabaseClient();

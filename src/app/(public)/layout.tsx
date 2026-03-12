@@ -4,6 +4,7 @@ import { getIntegrations } from "@/lib/supabase/integrations";
 import { PublicPageTracker } from "@/components/public/PublicPageTracker";
 import { PublicHeaderAuth } from "@/components/public/PublicHeaderAuth";
 import { PublicHeaderMembersNav } from "@/components/public/PublicHeaderMembersNav";
+import { PublicHeaderCartIcon } from "@/components/public/PublicHeaderCartIcon";
 import { getCurrentSessionUser } from "@/lib/auth/session";
 
 // Force dynamic: public pages use session (cookies) and Supabase; avoid static generation at build time.
@@ -31,7 +32,15 @@ export default async function PublicLayout({
   const vtActive = visitorTracking?.enabled && visitorTracking?.config?.websiteId;
   const scActive = simpleCommenter?.enabled && simpleCommenter?.config?.domain;
 
-  const user = await getCurrentSessionUser();
+  let user = null;
+  try {
+    user = await getCurrentSessionUser();
+  } catch (err) {
+    // Session/auth load can fail (e.g. chunk/module load). Treat as unauthenticated so the page still renders.
+    if (process.env.NODE_ENV === "development" && err instanceof Error) {
+      console.warn("Public layout: getCurrentSessionUser failed", err.message);
+    }
+  }
   const displayLabel = user?.display_name?.trim() || user?.email || "Member";
 
   // Membership/CRM sync runs only in the members layout (/members/*), not here, to keep public pages fast. See PRD/planlog.
@@ -117,6 +126,7 @@ export default async function PublicLayout({
               <Link href="/shop" className="text-sm hover:underline">
                 Shop
               </Link>
+              <PublicHeaderCartIcon />
               <Link href="/forms/contact" className="text-sm hover:underline">
                 Contact
               </Link>

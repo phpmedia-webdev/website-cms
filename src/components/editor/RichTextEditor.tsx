@@ -47,6 +47,8 @@ interface RichTextEditorProps {
   placeholder?: string;
   /** Exclude this content id from shortcode Content picker to prevent self-reference. */
   excludeContentId?: string | null;
+  /** Optional extra toolbar content (e.g. placeholder picker for template editor). Receives insertAtCursor(text). */
+  toolbarExtra?: (insertAtCursor: (text: string) => void) => React.ReactNode;
 }
 
 const BLOCK_OPTIONS = [
@@ -65,6 +67,7 @@ export function RichTextEditor({
   onCharCountChange,
   placeholder = "Start writing...",
   excludeContentId,
+  toolbarExtra,
 }: RichTextEditorProps) {
   const [, setTick] = useState(0);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -380,6 +383,14 @@ export function RichTextEditor({
             >
               <Code2 className="h-4 w-4" />
             </Button>
+            {toolbarExtra &&
+              (() => {
+                const insertAtCursor = (text: string) => {
+                  if (editor) editor.chain().focus().insertContent(text).run();
+                };
+                return toolbarExtra(insertAtCursor);
+              })()}
+            {toolbarExtra && <div className="w-px h-6 bg-border mx-1" />}
             <div className="w-px h-6 bg-border mx-1" />
             <Button
               type="button"

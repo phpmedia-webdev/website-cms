@@ -28,6 +28,8 @@ function formatItem(item: DashboardActivityItem): string {
       return `Added ${item.contactName} to ${item.magName ?? "MAG"}`;
     case "marketing_list":
       return `Added ${item.contactName} to list ${item.listName ?? "List"}`;
+    case "order":
+      return item.body ?? "Order";
     default:
       return "";
   }
@@ -92,7 +94,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Activity</CardTitle>
-        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, new contacts, MAG and list assignments. Click a row to open the contact or post.</p>
+        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, new contacts, MAG and list assignments, orders (pending = abandoned checkout). Click a row to open the contact, post, or order.</p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
@@ -123,15 +125,17 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
           ) : (
             filtered.map((item) => {
               const href =
-                item.type === "blog_comment" && item.contentId
-                  ? `/admin/content/${item.contentId}/edit`
-                  : item.contactId
-                    ? `/admin/crm/contacts/${item.contactId}`
-                    : "#";
+                item.type === "order" && item.orderId
+                  ? `/admin/ecommerce/orders/${item.orderId}`
+                  : item.type === "blog_comment" && item.contentId
+                    ? `/admin/content/${item.contentId}/edit`
+                    : item.contactId
+                      ? `/admin/crm/contacts/${item.contactId}`
+                      : "#";
               const isPendingComment = item.type === "blog_comment" && item.status === "pending" && item.id;
               return (
               <div
-                key={`${item.type}-${item.at}-${item.contactId}-${item.contentId ?? ""}-${item.id ?? ""}-${item.magName ?? ""}-${item.listName ?? ""}`}
+                key={`${item.type}-${item.at}-${item.contactId}-${item.contentId ?? ""}-${item.id ?? ""}-${item.orderId ?? ""}-${item.magName ?? ""}-${item.listName ?? ""}`}
                 className="flex items-start justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50 group"
               >
                 <Link href={href} className="flex-1 min-w-0 text-sm transition-colors">

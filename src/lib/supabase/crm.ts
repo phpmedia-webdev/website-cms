@@ -5,7 +5,7 @@
  * each fork sets this to its own tenant schema (e.g. template dev uses website_cms_template_dev).
  */
 
-import { createServerSupabaseClient } from "./client";
+import { createServerSupabaseClient } from "./server-service";
 import { CRM_STATUS_SLUG_NEW } from "./settings";
 
 const CRM_SCHEMA =
@@ -316,6 +316,32 @@ export async function getContactByEmail(email: string | null | undefined): Promi
   }
   const rows = (data as CrmContact[] | null) ?? [];
   return rows[0] ?? null;
+}
+
+/**
+ * Get contact IDs whose first_name, last_name, or full_name matches the search term (ilike).
+ * Used by admin order search to find orders by customer name.
+ */
+export async function getContactIdsByNameSearch(
+  searchTerm: string,
+  schema?: string
+): Promise<string[]> {
+  if (!searchTerm || typeof searchTerm !== "string" || !searchTerm.trim()) return [];
+  const schemaName = schema ?? CRM_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  const pattern = `%${searchTerm.trim()}%`;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("crm_contacts")
+    .select("id")
+    .is("deleted_at", null)
+    .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},full_name.ilike.${pattern}`);
+  if (error) {
+    console.error("getContactIdsByNameSearch:", formatSupabaseError(error));
+    return [];
+  }
+  const rows = (data as { id: string }[] | null) ?? [];
+  return rows.map((r) => r.id);
 }
 
 /** Count all contacts. Excludes trashed. */
@@ -1790,11 +1816,12 @@ export const ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "contact_added", label: "Contact added" },
   { value: "mag_assignment", label: "MAG assignment" },
   { value: "marketing_list", label: "Marketing list" },
+  { value: "order", label: "Orders / Abandoned checkout" },
 ] as const;
 
-/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments, MAG assignments, marketing list). */
+/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments, MAG assignments, marketing list, orders). */
 export interface DashboardActivityItem {
-  type: "note" | "form_submission" | "contact_added" | "blog_comment" | "mag_assignment" | "marketing_list";
+  type: "note" | "form_submission" | "contact_added" | "blog_comment" | "mag_assignment" | "marketing_list" | "order";
   at: string;
   contactId: string;
   contactName: string;
@@ -1811,13 +1838,17 @@ export interface DashboardActivityItem {
   magName?: string;
   /** Set when type = 'marketing_list'. */
   listName?: string;
+  /** Set when type = 'order': order id (link to admin order detail). */
+  orderId?: string;
+  /** Set when type = 'order': pending, paid, processing, completed. */
+  orderStatus?: string;
 }
 
 /** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. Includes blog comments, MAG assignments, marketing list. */
 export async function getDashboardActivity(limit = 50): Promise<DashboardActivityItem[]> {
   const supabase = createServerSupabaseClient();
   const perType = Math.max(15, Math.floor(limit / 4));
-  const [notesData, subsData, contactsData, magsData, listsData] = await Promise.all([
+  const [notesData, subsData, contactsData, magsData, listsData, ordersResult] = await Promise.all([
     supabase
       .schema(CRM_SCHEMA)
       .from("crm_notes")
@@ -1849,6 +1880,13 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       .select("contact_id, list_id, added_at")
       .order("added_at", { ascending: false })
       .limit(perType),
+    supabase
+      .schema(CRM_SCHEMA)
+      .from("orders")
+      .select("id, customer_email, contact_id, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .then((r) => (r.error ? { data: null } : r)),
   ]);
 
   const notes = (notesData.data as { id: string; contact_id: string | null; body: string; created_at: string; note_type: string | null; author_id: string | null; content_id: string | null; status: string | null }[] | null) ?? [];
@@ -1856,6 +1894,7 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
   const contacts = (contactsData.data as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; email: string | null; created_at: string }[] | null) ?? [];
   const magAssignments = (magsData.data as { contact_id: string; mag_id: string; assigned_at: string }[] | null) ?? [];
   const listAdditions = (listsData.data as { contact_id: string; list_id: string; added_at: string }[] | null) ?? [];
+  const orders = (ordersResult.data as { id: string; customer_email: string; contact_id: string | null; status: string; created_at: string }[] | null) ?? [];
 
   const contactIds = new Set<string>();
   notes.forEach((n) => { if (n.contact_id) contactIds.add(n.contact_id); });
@@ -1863,6 +1902,7 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
   contacts.forEach((c) => contactIds.add(c.id));
   magAssignments.forEach((m) => contactIds.add(m.contact_id));
   listAdditions.forEach((l) => contactIds.add(l.contact_id));
+  orders.forEach((o) => { if (o.contact_id) contactIds.add(o.contact_id); });
 
   let contactNames: Record<string, string> = {};
   if (contactIds.size > 0) {
@@ -1966,6 +2006,22 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       contactId: l.contact_id,
       contactName: contactNames[l.contact_id] ?? "Contact",
       listName: listNames[l.list_id] ?? "List",
+    });
+  }
+
+  for (const o of orders) {
+    const contactName = o.contact_id ? (contactNames[o.contact_id] ?? "Contact") : (o.customer_email || "Guest");
+    const body = o.status === "pending"
+      ? "Abandoned checkout / Payment incomplete"
+      : `Order #${o.id.slice(0, 8)}… — ${o.status}`;
+    items.push({
+      type: "order",
+      at: o.created_at,
+      contactId: o.contact_id ?? "",
+      contactName,
+      body,
+      orderId: o.id,
+      orderStatus: o.status,
     });
   }
 

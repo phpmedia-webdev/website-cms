@@ -17,6 +17,7 @@ import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { getContentCount, getContentTotalChars } from "@/lib/supabase/content";
 import { getEventsCount, getEventsCountByType } from "@/lib/supabase/events";
 import { getMediaStats } from "@/lib/supabase/media";
+import { getOrderMetrics, type OrderMetrics } from "@/lib/shop/orders";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getMvtVersionInfo } from "@/lib/mvt";
 
@@ -63,6 +64,16 @@ export default async function DashboardPage() {
   let activityItems: Awaited<ReturnType<typeof getDashboardActivity>> = [];
   let ragStats = { totalTokens: 0, partCount: 0, totalChars: 0 };
   let ragUrls: string[] = [];
+  const defaultOrderMetrics: OrderMetrics = {
+    pending: 0,
+    paid: 0,
+    processing: 0,
+    completed: 0,
+    todayCount: 0,
+    processingCount: 0,
+    revenueCompleted: 0,
+  };
+  let orderMetrics = defaultOrderMetrics;
 
   try {
     const [
@@ -79,6 +90,7 @@ export default async function DashboardPage() {
       eventsRes,
       eventsByTypeRes,
       activityRes,
+      orderMetricsRes,
     ] = await Promise.all([
       getContactsCountByStatus(),
       getCrmContactStatuses(),
@@ -93,6 +105,7 @@ export default async function DashboardPage() {
       getEventsCount(schema),
       getEventsCountByType(schema),
       getDashboardActivity(50),
+      getOrderMetrics(schema).catch(() => defaultOrderMetrics),
     ]);
     contactsByStatus = contactsByStatusRes;
     contactStatusLabels = Object.fromEntries(
@@ -109,6 +122,7 @@ export default async function DashboardPage() {
     eventsCount = eventsRes;
     eventsByType = eventsByTypeRes;
     activityItems = activityRes;
+    orderMetrics = orderMetricsRes;
   } catch (e) {
     // Metrics optional; leave at 0
   }
@@ -171,7 +185,7 @@ export default async function DashboardPage() {
           publicCount={eventsByType.publicCount}
           privateCount={eventsByType.privateCount}
         />
-        <OrdersMetricCard />
+        <OrdersMetricCard metrics={orderMetrics} />
         <ContentMetricCard count={contentCount} totalChars={contentTotalChars} />
         <MediaMetricCard count={mediaCount} totalSizeBytes={mediaTotalBytes} />
       </div>

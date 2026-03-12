@@ -14,8 +14,15 @@ export const metadata = {
 };
 
 export default async function ShopPage() {
-  const { viewer, membershipEnabled } = await getShopViewer();
-  const products = await getShopProductList(viewer, membershipEnabled);
+  let products: Awaited<ReturnType<typeof getShopProductList>> = [];
+  try {
+    const { viewer, membershipEnabled } = await getShopViewer();
+    products = await getShopProductList(viewer, membershipEnabled);
+  } catch (err) {
+    if (process.env.NODE_ENV === "development" && err instanceof Error) {
+      console.warn("Shop page: getShopViewer/getShopProductList failed", err.message);
+    }
+  }
 
   return (
     <main className="container mx-auto px-4 py-8">

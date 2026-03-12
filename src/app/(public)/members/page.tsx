@@ -15,6 +15,11 @@ export default function MembersDashboardPage() {
         </p>
         <ul className="space-y-2">
           <li>
+            <Link href="/members/orders" className="text-primary hover:underline">
+              Order history
+            </Link>
+          </li>
+          <li>
             <Link href="/members/profile" className="text-primary hover:underline">
               My profile
             </Link>

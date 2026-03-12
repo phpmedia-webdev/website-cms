@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MediaPickerModal } from "@/components/editor/MediaPickerModal";
+import { TemplatePlaceholderPicker } from "@/components/editor/TemplatePlaceholderPicker";
 import { AutoSuggestMulti } from "@/components/ui/auto-suggest-multi";
 import { Loader2, Clock, X, ImageIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -55,6 +56,8 @@ export interface ContentEditorFormProps {
   /** For product: which MAG(s) can see this product on the shop (when access_level is mag). Independent of grant-on-purchase. */
   productVisibilityMagIds?: string[];
   onProductVisibilityMagIdsChange?: (ids: string[]) => void;
+  /** When true, show "Insert placeholder" picker in body editor (for template content type). */
+  showPlaceholderPicker?: boolean;
 }
 
 export interface ContentEditorFormHandle {
@@ -116,6 +119,18 @@ function getPortfolioTemplateBody(): Record<string, unknown> {
   };
 }
 
+/** Tiptap JSON body for new Template content (email etc.). Includes example placeholders. */
+function getTemplateTemplateBody(): Record<string, unknown> {
+  return {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "Hi {{customer_name}}," }] },
+      { type: "paragraph", content: [{ type: "text", text: "Use the Insert placeholder control above to add tokens like {{customer_email}}, {{order_id}}, {{order_total}}, {{items_summary}}, {{site_name}}, {{access_link}}." }] },
+      { type: "paragraph", content: [{ type: "text", text: "This template title is used as the email subject when sending." }] },
+    ],
+  };
+}
+
 /**
  * Shared add/edit content form (no dialog). Use in full-page editor or inside a modal.
  * Pass a ref to trigger save() from outside (e.g. header buttons).
@@ -131,6 +146,7 @@ const ContentEditorFormComponent = ({
   onSavingChange,
   productVisibilityMagIds = [],
   onProductVisibilityMagIdsChange,
+  showPlaceholderPicker = false,
 }: ContentEditorFormProps,
 ref: React.Ref<ContentEditorFormHandle>) => {
   const [contentTypeId, setContentTypeId] = useState("");
@@ -148,7 +164,9 @@ ref: React.Ref<ContentEditorFormHandle>) => {
             ? getAccordionTemplateBody()
             : initialContentTypeSlug === "portfolio"
               ? getPortfolioTemplateBody()
-              : null)
+              : initialContentTypeSlug === "template"
+                ? getTemplateTemplateBody()
+                : null)
   );
   const [excerpt, setExcerpt] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
@@ -690,6 +708,11 @@ ref: React.Ref<ContentEditorFormHandle>) => {
           onCharCountChange={setBodyCharCount}
           placeholder="Body content…"
           excludeContentId={item?.id ?? null}
+          toolbarExtra={
+            showPlaceholderPicker
+              ? (insertAtCursor) => <TemplatePlaceholderPicker insertAtCursor={insertAtCursor} />
+              : undefined
+          }
         />
       </div>
 

@@ -115,6 +115,14 @@ NOTIFY pgrst, 'reload schema';
 
 Set variables in **Vercel** (and in `.env.local` for local dev). Use the full list below as the source of truth.
 
+#### Review .env.local and create a deployment ENV template
+
+Before deploying, review the variables in **`.env.local`** (project root) and create a template for the deployment platform so nothing is missed:
+
+1. **Review** — Open `.env.local` and note every variable used for this tenant (Supabase, auth, SMTP, Stripe, PWA, download tokens, etc.). Do not copy secret values into docs or the template; use placeholders.
+2. **Create a template** — In your deployment ENV location (e.g. Vercel → Settings → Environment Variables, or a secure internal doc), create a checklist or template that lists each variable name and a short note (e.g. “From Supabase Dashboard”, “Stripe webhook signing secret”). This ensures production/preview have every variable the app expects and makes handoff or new tenants easier.
+3. **Fill values** — Set the actual values in the deployment platform (Vercel, etc.) for Production and/or Preview/Development as needed. Never commit real secrets to the repo.
+
 #### Setting env variables in Vercel
 
 1. Open your project in the [Vercel Dashboard](https://vercel.com/dashboard).
@@ -171,6 +179,9 @@ STRIPE_SECRET_KEY=sk_test_... or sk_live_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_... or pk_live_...
 # Webhook signing secret: create endpoint in Stripe Workbench (dashboard.stripe.com/webhooks); subscribe to checkout.session.completed
 STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Download links (Step 25). Time-limited download tokens; use SHOP_DOWNLOAD_TOKEN_SECRET or CREDENTIALS_ENCRYPTION_KEY
+SHOP_DOWNLOAD_TOKEN_SECRET=your_secret_or_leave_unset_to_use_CREDENTIALS_ENCRYPTION_KEY
 ```
 
 Checklist for Vercel:
@@ -182,6 +193,8 @@ Checklist for Vercel:
 - [ ] `SMTP_ENCRYPTION_KEY` set if the tenant will use SMTP/email notifications.
 - [ ] `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` set if using admin Status PWA push.
 - [ ] Stripe keys set if tenant needs ecommerce (`STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`); webhook endpoint configured in Stripe Dashboard (see **Ecommerce / Stripe** below).
+- [ ] `SHOP_DOWNLOAD_TOKEN_SECRET` (or `CREDENTIALS_ENCRYPTION_KEY`) set if tenant has downloadable products and time-limited download links.
+- [ ] Reviewed `.env.local` and created a deployment ENV template (variable names + notes) in the deployment platform or internal doc so all required vars are set.
 - [ ] Redeploy after adding or changing env vars.
 
 **SMTP key generation** (value for `SMTP_ENCRYPTION_KEY`): Use a 32+ character secret. The app also accepts `CREDENTIALS_ENCRYPTION_KEY`. Generate a random key (recommended):
@@ -208,6 +221,10 @@ Copy the full **Public Key** and **Private Key** into Vercel (or `.env.local`). 
    - Choose **Webhook** (HTTPS endpoint).
    - **Events:** Select `checkout.session.completed` (and any other events the app uses), then continue and create the destination.
    - In the **Webhooks** tab, open the new destination and reveal **Signing secret** (`whsec_...`). Set `STRIPE_WEBHOOK_SECRET` in Vercel (and `.env.local`). The app uses this to verify that webhook payloads are from Stripe before updating orders.
+
+**Transactional email templates (ecommerce / order emails):**
+
+- Run migration **135_seed_default_email_templates.sql** (see **Additional migrations** above) to pre-populate the **Order confirmation** and **Digital delivery** templates in the tenant schema. After running, **Admin → Marketing → Templates** will list these two templates; the tenant can edit subject (title) and body (placeholders like `{{customer_name}}`, `{{order_id}}`, `{{business_name}}`). If the templates are missing, the app sends a minimal fallback email so the customer still receives a confirmation.
 
 ---
 
@@ -253,6 +270,11 @@ Run in **Supabase SQL Editor**. Replace `website_cms_template_dev` with your ten
 - Creates table `push_subscriptions` (user_id, endpoint, p256dh, auth) and enables RLS.
 
 - [ ] **Blog list pagination** — **File:** `supabase/migrations/117_get_published_posts_pagination.sql`. Adds offset and count RPCs for `/blog` pagination. Replace schema name if different; run in SQL Editor.
+
+- [ ] **Default email templates** (if using ecommerce or transactional email) — **File:** `supabase/migrations/135_seed_default_email_templates.sql`
+- **Action:** Copy the full contents into SQL Editor. Replace `website_cms_template_dev` with your schema name in `SET search_path` and in all `website_cms_template_dev` table references.
+- **Run:** Execute the script after migration 134 (template content type) has been run.
+- **What it does:** Inserts two template content rows: **Order confirmation** (slug `order-confirmation`) and **Digital delivery** (slug `digital-delivery`). These are used when an order is paid or completed; tenants can edit them in **Admin → Marketing → Templates**. Placeholders like `{{customer_name}}`, `{{order_id}}`, `{{order_total}}`, `{{access_link}}`, `{{business_name}}`, `{{business_email}}` are replaced at send time.
 
 Add other migrations here as they become required (e.g. run all files in `supabase/migrations/` in numeric order for a new tenant).
 

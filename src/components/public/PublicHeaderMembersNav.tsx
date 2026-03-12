@@ -5,12 +5,15 @@ import { useState, useRef, useEffect } from "react";
 
 const MEMBERS_LINKS = [
   { href: "/members", label: "Dashboard" },
+  { href: "/shop", label: "Shop" },
+  { href: "/shop/cart", label: "Cart" },
+  { href: "/members/orders", label: "Orders" },
   { href: "/members/profile", label: "Profile" },
   { href: "/members/account", label: "Account" },
 ] as const;
 
 /**
- * Members Area nav for public header: dropdown with sub-links (Dashboard, Profile, Account).
+ * Members Area nav for public header: dropdown with sub-links (Dashboard, Shop, Cart, Profile, Account).
  * Shown only when user is logged in; layout conditionally renders this.
  */
 export function PublicHeaderMembersNav() {

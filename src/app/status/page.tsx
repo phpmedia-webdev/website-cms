@@ -5,6 +5,7 @@ import {
   getDashboardActivity,
 } from "@/lib/supabase/crm";
 import { getEvents } from "@/lib/supabase/events";
+import { getOrderMetrics } from "@/lib/shop/orders";
 import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
@@ -19,6 +20,7 @@ import {
   Activity,
   ExternalLink,
   Bell,
+  ShoppingCart,
 } from "lucide-react";
 import { StatusPushSubscribe } from "@/components/pwa/StatusPushSubscribe";
 
@@ -57,6 +59,7 @@ export default async function StatusPage() {
   let upcomingEvents: Event[] = [];
   let activity: DashboardActivityItem[] = [];
   let statusLabels: Record<string, string> = {};
+  let orderMetrics: Awaited<ReturnType<typeof getOrderMetrics>> | null = null;
 
   try {
     const schema = getClientSchema();
@@ -73,6 +76,7 @@ export default async function StatusPage() {
       subsAll,
       events,
       activityRes,
+      orderMetricsRes,
     ] = await Promise.all([
       getContactsCountByStatus(),
       getCrmContactStatuses(),
@@ -80,6 +84,7 @@ export default async function StatusPage() {
       getFormSubmissionsCount(),
       getEvents(now, end, schema).catch(() => [] as Event[]),
       getDashboardActivity(15),
+      getOrderMetrics(schema).catch(() => null),
     ]);
 
     contactsTotal = contactsRes.total;
@@ -89,6 +94,7 @@ export default async function StatusPage() {
     statusLabels = Object.fromEntries(
       statusesRes.map((s) => [s.slug.toLowerCase(), s.label])
     );
+    orderMetrics = orderMetricsRes;
 
     upcomingEvents = events
       .sort(
@@ -183,6 +189,23 @@ export default async function StatusPage() {
               Last 7 days: {formSubs7d}
             </p>
           </div>
+
+          {orderMetrics && (
+            <Link href="/admin/ecommerce/orders" className="rounded-lg border bg-card p-4 block hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <ShoppingCart className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wide">
+                  Orders
+                </span>
+              </div>
+              <p className="mt-1 text-2xl font-bold">{orderMetrics.todayCount} today</p>
+              <p className="text-xs text-muted-foreground">
+                {orderMetrics.pending + orderMetrics.processing > 0 && `${orderMetrics.pending + orderMetrics.processing} need attention`}
+                {orderMetrics.pending + orderMetrics.processing > 0 && orderMetrics.completed > 0 && " · "}
+                {orderMetrics.completed > 0 && `${orderMetrics.completed} completed`}
+              </p>
+            </Link>
+          )}
 
           <div className="rounded-lg border bg-card p-4 sm:col-span-2">
             <div className="flex items-center gap-2 text-muted-foreground">

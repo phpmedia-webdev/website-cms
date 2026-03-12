@@ -61,8 +61,11 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
           gallery_id: productState.gallery_id || null,
           taxable: productState.taxable,
           shippable: productState.shippable,
+          downloadable: productState.downloadable,
+          digital_delivery_links: productState.digitalDeliveryLinks.filter((l) => l.url.trim().length > 0),
           available_for_purchase: productState.available_for_purchase,
           visibility_mag_ids: productState.visibilityMagIds,
+          grant_mag_id: productState.grantMagId || null,
         });
         if (!ok) throw new Error("Failed to update product row");
       } else {
@@ -75,8 +78,11 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
           gallery_id: productState.gallery_id || null,
           taxable: productState.taxable,
           shippable: productState.shippable,
+          downloadable: productState.downloadable,
+          digital_delivery_links: productState.digitalDeliveryLinks.filter((l) => l.url.trim().length > 0),
           available_for_purchase: productState.available_for_purchase,
           visibility_mag_ids: productState.visibilityMagIds,
+          grant_mag_id: productState.grantMagId || null,
         });
         if (!result) throw new Error("Failed to create product row");
       }

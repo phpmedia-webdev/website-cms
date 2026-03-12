@@ -5,3 +5,11 @@ export {
   type SmtpConfigPublic,
   type SmtpConfigStored,
 } from "./smtp-config";
+export {
+  getPublishedTemplateBySlug,
+  renderTemplate,
+  sendTemplateEmail,
+  substitutePlaceholders,
+  tiptapBodyToHtml,
+  type TemplateContext,
+} from "./templates";

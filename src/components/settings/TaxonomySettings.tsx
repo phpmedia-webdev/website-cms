@@ -675,7 +675,7 @@ export function TaxonomySettings() {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="sections" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Sections
+            Content Type Sections
           </TabsTrigger>
           <TabsTrigger value="categories" className="flex items-center gap-2">
             <FolderTree className="h-4 w-4" />
@@ -693,8 +693,8 @@ export function TaxonomySettings() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Sections</CardTitle>
-                  <CardDescription>Configure which categories and tags each section uses</CardDescription>
+                  <CardTitle>Content Type Sections</CardTitle>
+                  <CardDescription>Configure which categories and tags each content type section uses</CardDescription>
                 </div>
                 <Button onClick={handleNewSection}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -711,7 +711,7 @@ export function TaxonomySettings() {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        placeholder="Search sections by name or slug..."
+                        placeholder="Search content type sections by name or slug..."
                         value={sectionSearch}
                         onChange={(e) => setSectionSearch(e.target.value)}
                         className="pl-10"
@@ -808,10 +808,10 @@ export function TaxonomySettings() {
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {editingSection ? "Edit Section" : "Add New Section"}
+                  {editingSection ? "Edit Content Type Section" : "Add New Content Type Section"}
                 </DialogTitle>
                 <DialogDescription>
-                  Configure which categories and tags this section uses
+                  Configure which categories and tags this content type section uses
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -917,7 +917,7 @@ export function TaxonomySettings() {
                     </>
                   ) : (
                     editingSection ? "Update" : "Create"
-                  )} Section
+                  )} Content Type Section
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -978,7 +978,7 @@ export function TaxonomySettings() {
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Name</th>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Slug</th>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Parent</th>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Sections</th>
+                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Content Type Sections</th>
                               <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">Actions</th>
                             </tr>
                           </thead>
@@ -1115,7 +1115,7 @@ export function TaxonomySettings() {
                             <tr>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Name</th>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Slug</th>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Sections</th>
+                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Content Type Sections</th>
                               <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">Actions</th>
                             </tr>
                           </thead>
@@ -1271,15 +1271,15 @@ export function TaxonomySettings() {
               />
             </div>
             <div>
-              <Label>Apply to these Sections</Label>
+              <Label>Apply to these Content Type Sections</Label>
               <p className="text-xs text-muted-foreground mb-2">
                 {formData.type === "category"
-                  ? "Add this category to the selected sections. It will be assigned to those sections."
-                  : "Add this tag to the selected sections. It will be assigned to those sections."}
+                  ? "Add this category to the selected content type sections. It will be assigned to those sections."
+                  : "Add this tag to the selected content type sections. It will be assigned to those sections."}
               </p>
               <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
                 {sections.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No sections configured.</p>
+                  <p className="text-sm text-muted-foreground">No content type sections configured.</p>
                 ) : (
                   sections.map((section) => (
                     <label key={section.id} className="flex items-center gap-2 cursor-pointer">

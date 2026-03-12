@@ -87,7 +87,9 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const isMarketing =
     pathname === "/admin/crm/marketing" ||
     pathname === "/admin/crm/lists" ||
-    pathname?.startsWith("/admin/crm/lists/");
+    pathname?.startsWith("/admin/crm/lists/") ||
+    pathname === "/admin/crm/templates" ||
+    pathname?.startsWith("/admin/crm/templates/");
   const isEvents = pathname === "/admin/events" || pathname?.startsWith("/admin/events/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
   const isContent = pathname === "/admin/content" || pathname?.startsWith("/admin/content/");

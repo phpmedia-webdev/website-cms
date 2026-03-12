@@ -10,6 +10,7 @@ import { getShopProductBySlugForDisplay } from "@/lib/supabase/products";
 import { getMediaById } from "@/lib/supabase/media";
 import { getSiteUrl } from "@/lib/supabase/settings";
 import { PublicContentRenderer } from "@/components/public/content/PublicContentRenderer";
+import { AddToCartButton } from "@/components/shop/AddToCartButton";
 import { getButtonStyles, getFormStyles, getDesignSystemConfig } from "@/lib/supabase/settings";
 interface Props {
   params: Promise<{ slug: string }>;
@@ -99,7 +100,7 @@ export default async function ShopProductPage({ params }: Props) {
 
         {eligible ? (
           <div className="pt-4">
-            <AddToCartPlaceholder />
+            <AddToCartButton contentId={product.id} />
           </div>
         ) : (
           <div className="rounded-md border bg-muted/50 p-4 text-muted-foreground">
@@ -125,16 +126,3 @@ export default async function ShopProductPage({ params }: Props) {
   );
 }
 
-/** Placeholder until cart is implemented (Step 13). */
-function AddToCartPlaceholder() {
-  return (
-    <button
-      type="button"
-      className="rounded-md bg-primary px-4 py-2 text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
-      disabled
-      aria-disabled
-    >
-      Add to cart (coming soon)
-    </button>
-  );
-}
