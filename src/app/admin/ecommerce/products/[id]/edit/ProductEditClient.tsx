@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, CloudUpload } from "lucide-react";
+import { ArrowLeft, Loader2, UploadCloud } from "lucide-react";
 import { getContentTypes } from "@/lib/supabase/content";
 import { insertProductRow, updateProductRow } from "@/lib/supabase/products";
 import type { ProductRow } from "@/lib/supabase/products";
@@ -91,6 +91,27 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
 
   const handleCancel = () => {
     router.push("/admin/ecommerce/products");
+  };
+
+  const handleSyncToStripe = async () => {
+    if (!content?.id || product?.stripe_product_id) return;
+    setSyncingStripe(true);
+    try {
+      const res = await fetch(`/api/ecommerce/products/${content.id}/sync-stripe`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? "Sync to Stripe failed.");
+        return;
+      }
+      router.refresh();
+    } catch (e) {
+      console.error("Sync to Stripe error:", e);
+      alert("Sync to Stripe failed.");
+    } finally {
+      setSyncingStripe(false);
+    }
   };
 
   if (loading) {
@@ -201,7 +222,7 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
               </>
             ) : (
               <>
-                <CloudUpload className="h-4 w-4 mr-2" />
+                <UploadCloud className="h-4 w-4 mr-2" />
                 Create Stripe Product from CMS Product
               </>
             )}

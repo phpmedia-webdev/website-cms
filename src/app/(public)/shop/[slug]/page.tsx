@@ -115,7 +115,7 @@ export default async function ShopProductPage({ params }: Props) {
             <PublicContentRenderer
               content={product.body as Record<string, unknown>}
               buttonStyles={buttonStyles}
-              themeColors={config?.theme?.colorPalette ?? null}
+              themeColors={config?.colors ?? null}
               formStyles={formStyles}
             />
           </div>
