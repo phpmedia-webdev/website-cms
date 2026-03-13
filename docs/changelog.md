@@ -9,6 +9,38 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-03-12 18:00 CT — Session wrap-up: Ecommerce MVT documentation
+
+- **Context for Next Session:** This session added full **Ecommerce** documentation to `docs/mvt.md`: Ecommerce row in at-a-glance table (1.0 Stable), code sitemap updated (admin ecommerce, public shop/members orders-subscriptions, api/ecommerce, api/shop, api/members, api/webhooks/stripe, components/ecommerce, lib/shop), and new per-module section with version, folder structure, data/schema (tables, migrations 131–140), and prerequisites. MVT last updated set to 2026-03-12. **Next up:** See sessionlog — Other/Backlog (gate system hide vs ghost, forms captcha/rate limiting). No code or schema changes this session.
+
+### 2026-03-12 CT — Session summary: Phase 09 Ecommerce complete (30–50); sessionlog trimmed to Other/Backlog
+
+- **Context for Next Session:** Phase 09 Ecommerce through Step 50 is complete. **Done this period:** Subscriptions (30–35: product model, Stripe recurring Price, subscription checkout, subscription/invoice webhooks, admin Subscriptions list, member Subscriptions tab + Stripe Portal, emails). Activity stream messaging (36–41: message schema, type filter, member dashboard stream, client send message, admin see/reply, threading). Stripe & platform sync (43–50): Stripe product drift + bulk import + link to existing (43–44); Stripe → CRM customers (45); Stripe → order history (46); WooCommerce import API + CSV (47); raw/CSV import with field mapping for orders (48); accounting CSV export (49) and format stubs (50). Sessionlog has been cleaned: **Next up** is **Other / Backlog** only (Ecommerce MVT docs, gate system hide vs ghost, forms captcha/rate limiting). See sessionlog for backlog items; planlog for full phase checklist.
+
+### 2026-03-12 CT — Step 49–50: Accounting export (CSV + stubs)
+
+- **Step 49 (export orders for accounting):** Real CSV export. `listOrdersForExport(params, schema)` in `src/lib/shop/orders.ts` (date range `from`/`to`, status, limit). `src/lib/shop/export-orders.ts`: `exportOrdersAsCsv(params, schema)` builds CSV with columns: date, order_id, customer_email, customer_name, line_items, subtotal, discount, total, currency, stripe_checkout_session_id, stripe_invoice_id; resolves contact name via `getContactById`. GET `/api/ecommerce/export/orders?format=csv&from=&to=&status=&limit=` (admin-only) returns CSV with `Content-Disposition: attachment`. Orders page: "Export for accounting (CSV)" button (default params).
+- **Step 50 (other formats / automation):** Stub. GET `/api/ecommerce/export/orders?format=iif|qbo` (or any non-csv) returns 501 with JSON `{ error, format, message }`. GET `/api/ecommerce/export/formats` (admin-only) returns `{ available: ["csv"], planned: ["iif", "qbo"], description }`. Full IIF/QBO or scheduled export deferred.
+
+### 2026-03-12 CT — Step 48: Raw/CSV import with field mapping (orders)
+
+- **Step 48 (generic CSV order import):** New lib `src/lib/shop/import-orders-csv.ts`: `importOrdersFromCsvRows(rows, mapping, schema)` — map CSV columns by index to order fields (customer_email, total required; currency, order_date, status, order_number, line_description, line_amount optional). Creates placeholder product "Imported (CSV)" for line items; idempotency by `order_number` (stored in `woocommerce_order_id`). POST `/api/ecommerce/import-orders` (admin-only) accepts `rows` and `mapping`. New page `/admin/ecommerce/orders/import`: CSV paste/upload, column mapping to order fields, preview, import; link from Orders page ("Import orders (CSV)") and from CRM contacts import page. CRM import page: added paste-CSV and link to orders import; contacts mapping unchanged.
+
+### 2026-03-12 CT — Step 47: WooCommerce → customers / order history
+
+- **Step 47 (WooCommerce import):** Migration `140_orders_woocommerce_order_id.sql` adds `woocommerce_order_id` to orders (idempotency). `src/lib/shop/woo-commerce-sync.ts`: WooCommerce REST API client (site URL + consumer key/secret, Basic auth); `syncWooCommerceCustomersToCrm()` fetches customers, finds or creates CRM contacts by `external_ecommerce_id` or email, maps name/address; `syncWooCommerceOrdersToApp()` fetches orders, creates orders + order_items using placeholder content "Imported (WooCommerce)" for line items, idempotent by `woocommerce_order_id`. POST `/api/ecommerce/woo-sync` (admin-only) body: `site_url`, `consumer_key`, `consumer_secret`, optional `sync`: "all" | "customers" | "orders". Orders page: "Import from WooCommerce" card with Store URL, Consumer key/secret, Sync mode, and result summary. OrderRow type extended with `woocommerce_order_id`.
+
+### 2026-03-04 CT — Step 46: Stripe → order history sync
+
+- **Step 46 (Stripe → order history):** Added `src/lib/shop/stripe-orders-sync.ts`: `ensureContactForStripeCustomer(stripeCustomerId, email)` finds or creates CRM contact and sets `external_stripe_id`; `syncStripeInvoiceOrdersToApp(options?, schema?)` lists Stripe paid invoices (optional `createdGte`/`createdLte` unix timestamps and `customerId`), for each ensures customer synced then calls existing `createOrderFromStripeInvoice` (idempotent by `stripe_invoice_id`). POST `/api/ecommerce/stripe-sync-orders` (admin-only) accepts optional body `created_gte`, `created_lte`, `customer_id`. Orders page: "Sync order history from Stripe" card with optional From/To date and Stripe customer ID, and result summary (created/skipped/errors).
+
+### 2026-03-12 CT — Step 45: Stripe → CRM customers sync
+
+- **Step 45 (Stripe → CRM customers):** Added `src/lib/shop/stripe-customers-sync.ts`: `syncStripeCustomersToCrm()` lists all Stripe customers (paginated), for each finds contact by `external_stripe_id` or email; if found updates with `external_stripe_id` and name/address from Stripe; if not found creates contact with email, name, address, `external_stripe_id`, status `new`, source `stripe_sync`. Idempotent by Stripe customer ID. POST `/api/ecommerce/stripe-sync-customers` (admin-only) runs sync and returns `{ created, updated, errors }`. Products page: new card "Sync customers from Stripe" with button and result summary (created/updated counts and errors).
+
+### 2026-03-12 CT — Step 44: Stripe → products bulk import and link to existing
+
+- **Step 44 (Stripe → products bulk import / link):** Added shared `importStripeProductIntoApp` and `bulkImportStripeProductsNotInApp` in `src/lib/shop/stripe-drift.ts`. Single-import API refactored to use shared helper. New POST `/api/ecommerce/stripe-drift/bulk-import` imports all "in Stripe not in app" products in one go. Products page Reconcile card: "Import all" button and inline result (imported count + errors). New POST `/api/ecommerce/products/[id]/link-stripe`: link existing app product to existing Stripe product (and optional Price ID for subscriptions); validates product/price exist in Stripe and price belongs to product. Product edit page: "Link to existing Stripe product" section (Stripe Product ID, optional Price ID when recurring), "Update link" when already linked.
 
 ### 2026-03-12 CT — Phase 09 Ecommerce steps 13–29 complete; subscription design (30–35) documented
 

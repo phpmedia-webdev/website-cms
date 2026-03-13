@@ -5,7 +5,7 @@
 **Travels with:** This file lives in the repo; every fork has its own copy. Update when you add, rename, or significantly change a module.
 
 **Dashboard version (parsed for admin dashboard):**
-**Last updated:** 2026-02-11
+**Last updated:** 2026-03-12
 **App Version:** 1.0 Stable
 
 ---
@@ -16,6 +16,7 @@
 |-------------|---------|----------|
 | Content     | 1.0     | Stable   |
 | CRM         | 1.0     | Stable   |
+| Ecommerce   | 1.0     | Stable   |
 | Media       | 1.0     | Stable   |
 | Galleries   | 1.0     | Stable   |
 | Events      | 1.0     | Stable   |
@@ -42,11 +43,13 @@ src/
 │   │   ├── forms/[slug]/      # Public form submit
 │   │   ├── gallery/[slug]/    # Gallery page
 │   │   ├── login/
-│   │   ├── members/           # Member dashboard, profile, account, Apply code
+│   │   ├── members/           # Member dashboard, profile, account, Apply code, orders, subscriptions
+│   │   ├── shop/              # Catalog, [slug] product, cart, checkout, success, order-lookup
 │   │   └── page.tsx           # Homepage
 │   ├── admin/                 # Admin UI
 │   │   ├── content/           # Content (unified list, new, [id]/edit)
 │   │   ├── crm/               # Contacts, forms, lists, marketing, memberships, code-generator, omnichat
+│   │   ├── ecommerce/         # Products (list, new, [id]/edit), Orders (list, [id], import), Subscriptions
 │   │   ├── dashboard/
 │   │   ├── events/            # Calendar, [id]/edit, resources
 │   │   ├── forms/             # Form list, [id], submissions
@@ -64,17 +67,20 @@ src/
 │       ├── crm/               # contacts, custom-fields, forms, lists, mags, memberships, export, bulk-*, taxonomy/bulk
 │       ├── events/             # route, [id], participants, resources, public, ics, check-conflicts
 │       ├── forms/[formId]/submit/
+│       ├── ecommerce/         # products ([id]/sync-stripe, [id]/link-stripe), orders, orders/[id], orders/metrics, subscriptions, stripe-drift, stripe-drift/import, stripe-drift/bulk-import, stripe-drift/update, stripe-sync-customers, stripe-sync-orders, woo-sync, woo-sync/csv, import-orders, export/orders, export/formats
 │       ├── galleries/         # route, [id], items, mags, public, styles
 │       ├── media/             # [id], mags, membership-ids
-│       ├── members/redeem-code/
+│       ├── members/           # orders, orders/[id], subscriptions, subscriptions/portal, redeem-code
+│       ├── shop/              # cart, cart/count, cart/items, products, products/[slug], checkout, checkout/validate-code, order-lookup, download
 │       ├── posts/
 │       ├── settings/           # team, site-mode, snippets, crm (contact-statuses, note-types), calendar, site-metadata
-│       └── webhooks/
+│       └── webhooks/          # stripe (checkout, subscription, invoice)
 ├── components/
 │   ├── admin/                 # AdminLayoutWrapper, FeatureGuard
 │   ├── auth/                  # MFAChallenge, MFAEnroll, MFAManagement
 │   ├── content/                # ContentEditModal, ContentEditorForm
 │   ├── crm/                    # SetCrmFieldsDialog, ContactsListClient, dialogs, AddToList, RemoveFromList, TaxonomyBulk, ConfirmTrash, Export, etc.
+│   ├── ecommerce/              # ProductDetailsForm (admin product form)
 │   ├── dashboard/             # Sidebar, StatsCard
 │   ├── design-system/         # DesignSystemProvider
 │   ├── editor/                 # RichTextEditor, RichTextDisplay, GalleryPickerModal, ContentWithGalleries
@@ -95,6 +101,7 @@ src/
 │   ├── automations/            # on-member-signup
 │   ├── mags/                   # code-generator, content-protection
 │   ├── media/                  # image-optimizer, storage
+│   ├── shop/                   # cart, cart-cookie, orders, order-address, order-download-links, order-email, coupon, payment-to-mag, viewer (products), stripe-drift, stripe-customers-sync, stripe-orders-sync, woo-commerce-sync, import-orders-csv, export-orders, subscriptions, subscription-email, download-token
 │   ├── shortcodes/             # gallery.ts
 │   ├── supabase/               # client, content, crm, crm-taxonomy, events, galleries, galleries-server, media, settings, color-palettes, taxonomy, code-snippets, tenant-sites, tenant-users, feature-registry, profiles, members, licenses, migrations, schema, users, integrations
 │   ├── design-system.ts
@@ -152,10 +159,35 @@ When you drop a new version of a module, replace the listed code paths and run t
   src/lib/crm-export.ts
   ```
 - **Data / schema:**
-  - **Tables (client schema):** crm_contacts, crm_contact_custom_fields, crm_custom_fields, crm_notes, crm_contact_mags, crm_marketing_lists, crm_contact_marketing_lists, forms, form_fields, form_submissions; taxonomy_relationships for content_type crm_contact.
-  - **Migrations (key):** 102 (crm_contacts.deleted_at, get_contacts_dynamic/get_contact_by_id_dynamic). Plus archive migrations for CRM/forms schema.
+  - **Tables (client schema):** crm_contacts, crm_contact_custom_fields, crm_custom_fields, crm_notes, crm_contact_mags, crm_marketing_lists, crm_contact_marketing_lists, forms, form_fields, form_submissions; taxonomy_relationships for content_type crm_contact. crm_notes supports note_type = 'message' with recipient_contact_id (null = support), parent_note_id (threading).
+  - **Migrations (key):** 102 (crm_contacts.deleted_at, get_contacts_dynamic/get_contact_by_id_dynamic); 139 (crm_notes recipient_contact_id, parent_note_id; get_contact_notes_dynamic return cols). Plus archive migrations for CRM/forms schema.
   - **RPCs (public):** get_contacts_dynamic(schema_name), get_contact_by_id_dynamic(schema_name, contact_id); get_crm_custom_fields_dynamic (or equivalent).
 - **Prerequisites:** Auth; Settings (CRM contact statuses, note types); Taxonomy; optional Membership (MAGs for contact assignment).
+
+---
+
+### Ecommerce
+
+- **Version:** 1.0
+- **Folder structure (where to find / replace code):**
+  ```
+  src/app/admin/ecommerce/           # Products (list, new, [id]/edit), Orders (list, [id], import), Subscriptions
+  src/app/(public)/shop/              # Catalog, [slug] product, cart, checkout, success, order-lookup
+  src/app/(public)/members/orders/   # Member order list, [id] detail
+  src/app/(public)/members/subscriptions/  # Member subscriptions list + Stripe Portal link
+  src/app/api/ecommerce/             # products ([id]/sync-stripe, [id]/link-stripe), orders, orders/[id], orders/metrics, subscriptions, stripe-drift (import, bulk-import, update), stripe-sync-customers, stripe-sync-orders, woo-sync, woo-sync/csv, import-orders, export/orders, export/formats
+  src/app/api/shop/                  # cart, cart/count, cart/items, products, products/[slug], checkout, checkout/validate-code, order-lookup, download
+  src/app/api/members/orders/         # GET list, GET [id] (member orders)
+  src/app/api/members/subscriptions/ # GET list, POST portal (Stripe Customer Portal)
+  src/app/api/webhooks/stripe/       # checkout.session.completed, subscription.*, invoice.paid / invoice.payment_failed
+  src/components/ecommerce/         # ProductDetailsForm
+  src/lib/shop/                      # cart, cart-cookie, orders, order-address, order-download-links, order-email, coupon, payment-to-mag, viewer (products), stripe-drift, stripe-customers-sync, stripe-orders-sync, woo-commerce-sync, import-orders-csv, export-orders, subscriptions, subscription-email, download-token
+  ```
+- **Data / schema:**
+  - **Tables (client schema):** Product = content (type product) + `product` table (content_id, price, currency, stripe_product_id, stripe_price_id, taxable, shippable, downloadable, digital_delivery_links, grant_mag_id, is_recurring, billing_interval, etc.). `cart_sessions`, `cart_items`; `orders` (customer_email, contact_id, user_id, status, total, currency, stripe_checkout_session_id, stripe_invoice_id, woocommerce_order_id, billing_snapshot, shipping_snapshot, coupon_code, coupon_batch_id, discount_amount); `order_items` (order_id, content_id, name_snapshot, quantity, unit_price, line_total, shippable, downloadable); `subscriptions` (stripe_subscription_id, stripe_customer_id, contact_id, user_id, product/content_id, status, current_period_end). Coupons reuse `membership_code_batches` (purpose discount) and `membership_codes`.
+  - **Migrations (key):** 131 (cart_sessions, cart_items), 132 (orders, order_items), 133 (product grant_mag_id), 136 (product downloadable, digital_delivery_links; order_items downloadable), 137 (product is_recurring, billing_interval, stripe_price_id), 138 (subscriptions table, orders.stripe_invoice_id), 140 (orders.woocommerce_order_id). Content type “product” and product table in earlier migrations (see archive/126, 128 if applicable).
+  - **RPCs:** No Ecommerce-specific public RPCs; app uses Supabase client with schema (getClientSchema()) for orders, order_items, product, cart, subscriptions.
+- **Prerequisites:** Content (product content type); Auth (checkout requires sign-in; admin routes gated); CRM (contact_id on orders; getContactByEmail, getContactById for address/export); Settings (Stripe env keys, webhook secret). Optional: Membership (MAGs for product visibility, grant_mag_id for membership products); coupon batches with purpose discount.
 
 ---
 
