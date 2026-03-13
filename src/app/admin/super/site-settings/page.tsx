@@ -5,7 +5,7 @@ import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-
 import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getSiteMetadata } from "@/lib/supabase/settings";
-import { getTenantEnabledFeatureSlugs } from "@/lib/supabase/feature-registry";
+import { getTenantEnabledFeatureSlugs, listTenantHiddenFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { getFeaturesForGatingTable } from "@/lib/admin/gating-features";
 import { SiteSettingsTabsClient } from "./SiteSettingsTabsClient";
 
@@ -27,7 +27,10 @@ export default async function SiteSettingsPage() {
   ]);
 
   if (!site) notFound();
-  const enabledSlugs = await getTenantEnabledFeatureSlugs(site.id);
+  const [enabledSlugs, hiddenSlugs] = await Promise.all([
+    getTenantEnabledFeatureSlugs(site.id),
+    listTenantHiddenFeatureSlugs(site.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -49,6 +52,7 @@ export default async function SiteSettingsPage() {
         initialMetadata={{ name: metadata.name, description: metadata.description, url: metadata.url }}
         featuresForGating={featuresForUI}
         initialEnabledSlugs={enabledSlugs}
+        initialHiddenSlugs={hiddenSlugs}
       />
     </div>
   );

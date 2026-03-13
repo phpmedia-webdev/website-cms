@@ -226,18 +226,39 @@ export function isDevModeBypassEnabled(): boolean {
   return devBypass === "true" || devBypass === "1";
 }
 
+/** Paths that expose PII (e.g. CRM contacts, form submissions). Staff with access to these must have MFA (TOTP). */
+const PII_PATH_PREFIXES = [
+  "/admin/super",
+  "/admin/crm",
+  "/admin/settings/users",
+] as const;
+
+function isPIIPath(path: string): boolean {
+  return PII_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+export interface RequiresAAL2Options {
+  /** True if user is superadmin (platform admin). */
+  isSuperadmin?: boolean;
+  /** True if user is tenant admin (client_admin / full site admin). Both superadmin and tenant admin must have MFA for admin access. */
+  isTenantAdmin?: boolean;
+}
+
 /**
- * Check if a route requires aal2 (2FA verified).
- * All protected admin routes (dashboard, super, etc.) require AAL2 so users see the MFA challenge after login.
+ * Check if a route requires aal2 (2FA verified) for this user.
+ * Policy: MFA (TOTP) required when the user has access to PII — i.e. superadmin, tenant admin, or any staff visiting PII routes (CRM, super, settings/users).
+ * Editor/Creator/Viewer without PII access can use admin with password only (AAL1).
  * Dev bypass: set NEXT_PUBLIC_DEV_BYPASS_2FA=true to skip.
  *
  * @param user - Authenticated user
- * @param route - Optional route path to check
+ * @param route - Current path (e.g. pathname)
+ * @param options - Optional { isSuperadmin, isTenantAdmin } from middleware (role-based)
  * @returns true if aal2 is required, false otherwise
  */
 export async function requiresAAL2(
   user: AuthUser | null,
-  route?: string
+  route?: string,
+  options?: RequiresAAL2Options
 ): Promise<boolean> {
   if (!user) {
     return false;
@@ -247,8 +268,19 @@ export async function requiresAAL2(
     return false;
   }
 
-  // All protected admin routes require AAL2 (challenge/enroll/success are excluded by middleware)
-  if (route?.startsWith("/admin") && !route.startsWith("/admin/login")) {
+  if (!route?.startsWith("/admin") || route.startsWith("/admin/login")) {
+    return false;
+  }
+
+  const { isSuperadmin = false, isTenantAdmin = false } = options ?? {};
+
+  // Superadmin and tenant admin always require MFA for any admin access (they have or can have PII access).
+  if (isSuperadmin || isTenantAdmin) {
+    return true;
+  }
+
+  // Any staff visiting a PII route (CRM, super, settings/users) must have MFA.
+  if (isPIIPath(route)) {
     return true;
   }
 

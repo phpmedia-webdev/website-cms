@@ -27,6 +27,8 @@ import {
   Package,
   FileText,
   Repeat,
+  Star,
+  LayoutDashboard,
 } from "lucide-react";
 
 /** Session storage keys for sidebar accordion open state. */
@@ -58,12 +60,14 @@ export const crmSubNav: SubNavItem[] = [
   { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList, featureSlug: "forms" },
   { name: "Form Submissions", href: "/admin/crm/forms/submissions", icon: Inbox, featureSlug: "form_submissions" },
   { name: "Memberships", href: "/admin/crm/memberships", icon: Folder, featureSlug: "memberships" },
-  { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
 ];
 
 export const marketingSubNav: SubNavItem[] = [
+  { name: "Marketing", href: "/admin/crm/marketing", icon: LayoutDashboard, featureSlug: "marketing" },
   { name: "Lists", href: "/admin/crm/lists", icon: ListChecks, featureSlug: "lists" },
-  { name: "Templates", href: "/admin/crm/templates", icon: FileText, featureSlug: "marketing" },
+  { name: "Templates", href: "/admin/crm/templates", icon: FileText, featureSlug: "templates" },
+  { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
+  { name: "Reviews", href: "/admin/crm/reviews", icon: Star, featureSlug: "reviews" },
 ];
 
 export const calendarSubNav: SubNavItem[] = [

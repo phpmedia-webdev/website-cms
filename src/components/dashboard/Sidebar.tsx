@@ -57,9 +57,11 @@ interface SidebarProps {
   sidebarDisplayFeatureSlugs?: string[] | null;
   /** If true, show Settings → Users link. Only admins (tenant admin or superadmin) can manage team. */
   canManageTeam?: boolean;
+  /** Slugs hidden from sidebar (Display OFF). Sections with these slugs are omitted entirely. */
+  hiddenFeatureSlugs?: string[] | null;
 }
 
-export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", roleFeatureSlugs = "all", sidebarDisplayFeatureSlugs = null, canManageTeam = false }: SidebarProps) {
+export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", roleFeatureSlugs = "all", sidebarDisplayFeatureSlugs = null, canManageTeam = false, hiddenFeatureSlugs = null }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = getSupabaseClient();
@@ -73,9 +75,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   /** Phase F: in role = allowed by role (ignore tenant). When roleFeatureSlugs === "all", always true. */
   const hasRoleAccess = (slug: string) =>
     roleFeatureSlugs === "all" || canAccessFeature(roleFeatureSlugs, slug);
-  /** In effective = allowed by tenant ∩ role. Uses display list for superadmin when provided (gate-only visual). */
+  /** In display list (tenant gate when view-as/superadmin, else effective). Drives what appears in nav. */
   const hasEffectiveAccess = (slug: string) =>
     displayEffectiveSlugs === "all" || canAccessFeature(displayEffectiveSlugs, slug);
+  /** Real effective = tenant ∩ role (guard). Used so sub-items show ghosted when in display but not in effective. */
+  const hasRealEffectiveAccess = (slug: string) =>
+    effectiveFeatureSlugs === "all" || canAccessFeature(effectiveFeatureSlugs, slug);
+  /** Hidden slugs (Display OFF): omit these sections from sidebar entirely. */
+  const hiddenSet = new Set(hiddenFeatureSlugs ?? []);
   const isSettings = pathname === "/admin/settings" || pathname?.startsWith("/admin/settings/");
   const isSupport = pathname === "/admin/support" || pathname?.startsWith("/admin/support/");
   const isCrm =
@@ -89,7 +96,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     pathname === "/admin/crm/lists" ||
     pathname?.startsWith("/admin/crm/lists/") ||
     pathname === "/admin/crm/templates" ||
-    pathname?.startsWith("/admin/crm/templates/");
+    pathname?.startsWith("/admin/crm/templates/") ||
+    pathname === "/admin/crm/memberships/code-generator" ||
+    pathname?.startsWith("/admin/crm/memberships/code-generator/") ||
+    pathname === "/admin/crm/reviews" ||
+    pathname?.startsWith("/admin/crm/reviews/");
   const isEvents = pathname === "/admin/events" || pathname?.startsWith("/admin/events/");
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
   const isContent = pathname === "/admin/content" || pathname?.startsWith("/admin/content/");
@@ -97,6 +108,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
 
   const showDashboard =
+    !hiddenSet.has("dashboard") &&
     (displayEffectiveSlugs === "all" ||
       (Array.isArray(displayEffectiveSlugs) &&
         (displayEffectiveSlugs.length === 0 || displayEffectiveSlugs.includes("dashboard")))) &&
@@ -106,27 +118,26 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     hasRoleAccess("contacts") ||
     hasRoleAccess("forms") ||
     hasRoleAccess("marketing") ||
-    hasRoleAccess("memberships") ||
-    hasRoleAccess("code_generator");
+    hasRoleAccess("memberships");
   const showCrmEffective =
     canAccessFeature(displayEffectiveSlugs, "crm") ||
     canAccessFeature(displayEffectiveSlugs, "contacts") ||
     canAccessFeature(displayEffectiveSlugs, "forms") ||
     canAccessFeature(displayEffectiveSlugs, "marketing") ||
-    canAccessFeature(displayEffectiveSlugs, "memberships") ||
-    canAccessFeature(displayEffectiveSlugs, "code_generator");
+    canAccessFeature(displayEffectiveSlugs, "memberships");
   const showCrm = (showCrmEffective || (isDisplayOnlyGhost && showCrmByRole)) && (roleFeatureSlugs === "all" || showCrmByRole);
   const showMediaByRole = hasRoleAccess("media") || hasRoleAccess("library") || hasRoleAccess("galleries");
   const showMediaEffective =
     canAccessFeature(displayEffectiveSlugs, "media") ||
     canAccessFeature(displayEffectiveSlugs, "library") ||
     canAccessFeature(displayEffectiveSlugs, "galleries");
-  const showMedia = (showMediaEffective || (isDisplayOnlyGhost && showMediaByRole)) && (roleFeatureSlugs === "all" || showMediaByRole);
+  const showMedia = !hiddenSet.has("media") && (showMediaEffective || (isDisplayOnlyGhost && showMediaByRole)) && (roleFeatureSlugs === "all" || showMediaByRole);
   const showContent =
+    !hiddenSet.has("content") &&
     canAccessFeature(displayEffectiveSlugs, "content") && (roleFeatureSlugs === "all" || hasRoleAccess("content"));
   const showEcommerce = showContent;
-  const showMarketingByRole = hasRoleAccess("marketing") || hasRoleAccess("lists");
-  const showMarketingEffective = canAccessFeature(displayEffectiveSlugs, "marketing");
+  const showMarketingByRole = hasRoleAccess("marketing") || hasRoleAccess("lists") || hasRoleAccess("templates") || hasRoleAccess("code_generator") || hasRoleAccess("reviews");
+  const showMarketingEffective = canAccessFeature(displayEffectiveSlugs, "marketing") || canAccessFeature(displayEffectiveSlugs, "templates") || canAccessFeature(displayEffectiveSlugs, "code_generator") || canAccessFeature(displayEffectiveSlugs, "reviews");
   const showMarketing = (showMarketingEffective || (isDisplayOnlyGhost && showMarketingByRole)) && (roleFeatureSlugs === "all" || showMarketingByRole);
   const showCalendarByRole =
     hasRoleAccess("content") ||
@@ -138,8 +149,9 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     canAccessFeature(displayEffectiveSlugs, "calendar") ||
     canAccessFeature(displayEffectiveSlugs, "events") ||
     canAccessFeature(displayEffectiveSlugs, "resources");
-  const showCalendar = (showCalendarEffective || (isDisplayOnlyGhost && showCalendarByRole)) && (roleFeatureSlugs === "all" || showCalendarByRole);
+  const showCalendar = !hiddenSet.has("calendar") && (showCalendarEffective || (isDisplayOnlyGhost && showCalendarByRole)) && (roleFeatureSlugs === "all" || showCalendarByRole);
   const showSettings =
+    !hiddenSet.has("settings") &&
     canAccessFeature(effectiveFeatureSlugs, "settings") && (roleFeatureSlugs === "all" || hasRoleAccess("settings"));
   const showSupportByRole =
     hasRoleAccess("support") ||
@@ -151,7 +163,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     canAccessFeature(displayEffectiveSlugs, "quick_support") ||
     canAccessFeature(displayEffectiveSlugs, "knowledge_base") ||
     canAccessFeature(displayEffectiveSlugs, "workhub");
-  const showSupport = (showSupportEffective || (isDisplayOnlyGhost && showSupportByRole)) && (roleFeatureSlugs === "all" || showSupportByRole);
+  const showSupport = !hiddenSet.has("support") && (showSupportEffective || (isDisplayOnlyGhost && showSupportByRole)) && (roleFeatureSlugs === "all" || showSupportByRole);
   const showOmniChat =
     canAccessFeature(displayEffectiveSlugs, "omnichat") && (roleFeatureSlugs === "all" || hasRoleAccess("crm") || hasRoleAccess("omnichat"));
 
@@ -807,10 +819,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             {crmOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {crmSubNav
-                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "crm"))
+                  .filter((sub) => {
+                    const subSlug = sub.featureSlug ?? "crm";
+                    return !hiddenSet.has(subSlug) && hasRoleAccess(subSlug);
+                  })
                   .map((sub) => {
                     const subSlug = sub.featureSlug ?? "crm";
-                    const hasSubEffective = hasEffectiveAccess("crm") || hasEffectiveAccess(subSlug);
+                    const hasSubEffective = hasRealEffectiveAccess(subSlug);
+                    const hasSubInDisplay = hasEffectiveAccess(subSlug);
                     const isSubActive =
                       sub.href === "/admin/crm/forms"
                         ? (pathname === "/admin/crm/forms" || (pathname?.startsWith("/admin/crm/forms/") ?? false)) &&
@@ -829,8 +845,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
-                    ) : isDisplayOnlyGhost ? (
-                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                    ) : hasSubInDisplay ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
@@ -880,7 +896,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                 isMarketing && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
               )}
             >
-              {hasEffectiveAccess("marketing") || hasEffectiveAccess("lists") ? (
+              {hasEffectiveAccess("marketing") || hasEffectiveAccess("lists") || hasEffectiveAccess("templates") || hasEffectiveAccess("code_generator") || hasEffectiveAccess("reviews") ? (
                 <Link
                   href="/admin/crm/marketing"
                   className={cn(
@@ -909,10 +925,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             {marketingOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {marketingSubNav
-                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "marketing"))
+                  .filter((sub) => {
+                    const subSlug = sub.featureSlug ?? "marketing";
+                    return !hiddenSet.has(subSlug) && hasRoleAccess(subSlug);
+                  })
                   .map((sub) => {
                     const subSlug = sub.featureSlug ?? "marketing";
-                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const hasSubEffective = hasRealEffectiveAccess(subSlug);
+                    const hasSubInDisplay = hasEffectiveAccess(subSlug);
                     const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                     const SubIcon = sub.icon;
                     return hasSubEffective ? (
@@ -920,8 +940,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
-                    ) : isDisplayOnlyGhost ? (
-                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                    ) : hasSubInDisplay ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
@@ -977,10 +997,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             {calendarOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {calendarSubNav
-                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "calendar"))
+                  .filter((sub) => {
+                    const subSlug = sub.featureSlug ?? "calendar";
+                    return !hiddenSet.has(subSlug) && hasRoleAccess(subSlug);
+                  })
                   .map((sub) => {
                     const subSlug = sub.featureSlug ?? "calendar";
-                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const hasSubEffective = hasRealEffectiveAccess(subSlug);
+                    const hasSubInDisplay = hasEffectiveAccess(subSlug);
                     const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                     const SubIcon = sub.icon;
                     return hasSubEffective ? (
@@ -988,8 +1012,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
-                    ) : isDisplayOnlyGhost ? (
-                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                    ) : hasSubInDisplay ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
@@ -1045,10 +1069,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             {mediaOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {mediaSubNav
-                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "media"))
+                  .filter((sub) => {
+                    const subSlug = sub.featureSlug ?? "media";
+                    return !hiddenSet.has(subSlug) && hasRoleAccess(subSlug);
+                  })
                   .map((sub) => {
                     const subSlug = sub.featureSlug ?? "media";
-                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const hasSubEffective = hasRealEffectiveAccess(subSlug);
+                    const hasSubInDisplay = hasEffectiveAccess(subSlug);
                     const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                     const SubIcon = sub.icon;
                     return hasSubEffective ? (
@@ -1056,8 +1084,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
-                    ) : isDisplayOnlyGhost ? (
-                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                    ) : hasSubInDisplay ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
@@ -1201,13 +1229,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {settingsSubNav
                   .filter((sub) => !("adminOnly" in sub && sub.adminOnly) || canManageTeam)
+                  .filter((sub) => !hiddenSet.has(sub.featureSlug ?? "settings"))
                   .filter((sub) => !("featureSlug" in sub && sub.featureSlug) || hasRoleAccess("settings") || (sub.featureSlug && hasRoleAccess(sub.featureSlug)))
                   .map((sub) => {
                     const isSubActive = pathname === sub.href;
                     const SubIcon = sub.icon;
                     const alwaysVisible = !("featureSlug" in sub && sub.featureSlug);
                     const subSlug = sub.featureSlug ?? "settings";
-                    const hasSubEffective = alwaysVisible || hasEffectiveAccess(subSlug);
                     if (alwaysVisible) {
                       return (
                         <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
@@ -1216,13 +1244,15 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                         </Link>
                       );
                     }
+                    const hasSubEffective = hasRealEffectiveAccess(subSlug);
+                    const hasSubInDisplay = hasEffectiveAccess(subSlug);
                     return hasSubEffective ? (
                       <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
-                    ) : isDisplayOnlyGhost ? (
-                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                    ) : hasSubInDisplay ? (
+                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
@@ -1303,10 +1333,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
             {supportOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
                 {supportSubNav
-                  .filter((sub) => hasRoleAccess(sub.featureSlug ?? "support"))
+                  .filter((sub) => {
+                    const subSlug = sub.featureSlug ?? "support";
+                    return !hiddenSet.has(subSlug) && hasRoleAccess(subSlug);
+                  })
                   .map((sub) => {
                     const subSlug = sub.featureSlug ?? "support";
-                    const hasSubEffective = hasEffectiveAccess(subSlug);
+                    const hasSubEffective = hasRealEffectiveAccess(subSlug);
+                    const hasSubInDisplay = hasEffectiveAccess(subSlug);
                     const isSubActive = !sub.href.startsWith("http") && pathname === sub.href;
                     const SubIcon = sub.icon;
                     const isExternal = sub.href.startsWith("http");
@@ -1315,17 +1349,17 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                       isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     );
                     if (!hasSubEffective) {
-                      if (isDisplayOnlyGhost) {
+                      if (hasSubInDisplay) {
                         if (isExternal) {
                           return (
-                            <a key={sub.href} href={sub.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                            <a key={sub.href} href={sub.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
                               <SubIcon className="h-4 w-4" />
                               {sub.name}
                             </a>
                           );
                         }
                         return (
-                          <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                          <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
                             <SubIcon className="h-4 w-4" />
                             {sub.name}
                           </Link>
@@ -1389,7 +1423,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         </div>
         </div>
         {/* Superadmin twirldown: Dashboard, Code snippets, Roles, Clients */}
-        {isSuperadmin && (
+        {isSuperadmin && !hiddenSet.has("superadmin") && (
           <div className="pt-1 mt-2 border-t border-border" style={{ borderColor: 'hsl(220, 13%, 80%)' }}>
             <div
               className={cn(

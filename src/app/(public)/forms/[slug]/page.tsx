@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getFormByIdOrSlug, getFormFields, getCrmCustomFields } from "@/lib/supabase/crm";
 import { CORE_FORM_FIELDS } from "@/lib/supabase/crm";
+import { getFormProtectionSettingsPublic } from "@/lib/forms/form-protection-settings";
 import { PublicFormClient } from "./PublicFormClient";
 
 export interface PublicFormFieldConfig {
@@ -75,6 +76,12 @@ export default async function PublicFormPage({
     (form.settings as { success_message?: string })?.success_message ??
     "Thank you for your submission!";
 
+  const formProtection = await getFormProtectionSettingsPublic();
+  const recaptchaSiteKey =
+    formProtection.recaptchaEnabled && formProtection.recaptchaSiteKey
+      ? formProtection.recaptchaSiteKey
+      : undefined;
+
   return (
     <main className="container mx-auto px-4 py-12 max-w-lg">
       <h1 className="text-2xl font-bold mb-2">{form.name}</h1>
@@ -86,6 +93,7 @@ export default async function PublicFormPage({
         formName={form.name}
         successMessage={successMessage}
         fields={fields}
+        recaptchaSiteKey={recaptchaSiteKey}
       />
     </main>
   );

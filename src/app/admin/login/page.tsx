@@ -102,12 +102,13 @@ function AdminLoginContent() {
 
       const redirect = searchParams.get("redirect") || "/admin/dashboard";
 
-      // Only superadmin must have 2FA; tenant admins have optional 2FA
+      // Superadmin and tenant admin (client_admin) must have MFA for PII access; force enroll at login if no factors
       const isSuperadmin = metadata.type === "superadmin" && metadata.role === "superadmin";
+      const isTenantAdmin = metadata.type === "admin" && metadata.role === "admin";
       const { data: factorsData } = await supabase.auth.mfa.listFactors();
       const hasFactors = factorsData?.all && factorsData.all.length > 0;
 
-      if (isSuperadmin && !hasFactors) {
+      if ((isSuperadmin || isTenantAdmin) && !hasFactors) {
         router.push("/admin/mfa/enroll");
         return;
       }

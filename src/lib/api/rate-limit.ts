@@ -87,3 +87,56 @@ export function getClientIdentifier(request: Request): string {
   const ip = forwarded ? forwarded.split(",")[0] : request.headers.get("x-real-ip") || "unknown";
   return `ip:${ip}`;
 }
+
+/** Separate store for form-submit rate limit (stricter than general API). */
+const formSubmitStore: RateLimitStore = {};
+
+/** Form submit: 10 requests per 10 minutes per IP per form. In production, use Redis. */
+const FORM_SUBMIT_RATE_LIMIT = {
+  windowMs: 10 * 60 * 1000,
+  maxRequests: 10,
+};
+
+/**
+ * Check form-submit rate limit. Use in POST /api/forms/[formId]/submit.
+ * Keys: form_submit:{identifier}:{formId}
+ */
+export function checkFormSubmitRateLimit(
+  identifier: string,
+  formId: string
+): { allowed: boolean; remaining: number; resetTime: number } | null {
+  const now = Date.now();
+  const key = `form_submit:${identifier}:${formId}`;
+
+  if (Object.keys(formSubmitStore).length > 20000) {
+    Object.keys(formSubmitStore).forEach((k) => {
+      if (formSubmitStore[k].resetTime < now) delete formSubmitStore[k];
+    });
+  }
+
+  const record = formSubmitStore[key];
+  if (!record || record.resetTime < now) {
+    formSubmitStore[key] = {
+      count: 1,
+      resetTime: now + FORM_SUBMIT_RATE_LIMIT.windowMs,
+    };
+    return {
+      allowed: true,
+      remaining: FORM_SUBMIT_RATE_LIMIT.maxRequests - 1,
+      resetTime: now + FORM_SUBMIT_RATE_LIMIT.windowMs,
+    };
+  }
+  if (record.count >= FORM_SUBMIT_RATE_LIMIT.maxRequests) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetTime: record.resetTime,
+    };
+  }
+  record.count++;
+  return {
+    allowed: true,
+    remaining: FORM_SUBMIT_RATE_LIMIT.maxRequests - record.count,
+    resetTime: record.resetTime,
+  };
+}

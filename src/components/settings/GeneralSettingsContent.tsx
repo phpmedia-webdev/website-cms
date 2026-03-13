@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Copy, Check, ExternalLink, Smartphone, Loader2, ChevronUp, ChevronDown, Share2, Plus, Trash2, FileText } from "lucide-react";
 import type { SocialLinkItem } from "@/lib/share-to-social/settings";
 import { SOCIAL_LINK_ICONS } from "@/lib/share-to-social/settings";
+import { FormProtectionSettingsContent } from "@/components/settings/FormProtectionSettingsContent";
 
 export function GeneralSettingsContent() {
   const [name, setName] = useState("");
@@ -298,11 +299,12 @@ export function GeneralSettingsContent() {
       </div>
 
       <Tabs defaultValue="site" className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="grid w-full max-w-2xl grid-cols-5">
           <TabsTrigger value="site">Site</TabsTrigger>
           <TabsTrigger value="pwa">PWA</TabsTrigger>
           <TabsTrigger value="share">Social Share</TabsTrigger>
           <TabsTrigger value="terms">Terms and Policies</TabsTrigger>
+          <TabsTrigger value="captcha">Captcha</TabsTrigger>
         </TabsList>
 
         <TabsContent value="site" className="space-y-6 mt-6">
@@ -853,6 +855,10 @@ export function GeneralSettingsContent() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="captcha" className="mt-6">
+          <FormProtectionSettingsContent embedded />
         </TabsContent>
 
         <TabsContent value="terms" className="mt-6">

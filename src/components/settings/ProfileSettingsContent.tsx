@@ -32,6 +32,8 @@ interface ProfileData {
 interface ProfileSettingsContentProps {
   /** When true, Security section (2FA/OTP) is hidden; superadmin uses Superadmin → Security. */
   isSuperadmin?: boolean;
+  /** When true, user is tenant admin (client_admin); MFA required, cannot remove last factor. */
+  isTenantAdmin?: boolean;
   /** User has access to CRM/contacts/data; show 2FA recommendation when no factors enrolled. */
   hasCrmAccess?: boolean;
   /** User has at least one enrolled TOTP factor. */
@@ -40,6 +42,7 @@ interface ProfileSettingsContentProps {
 
 export function ProfileSettingsContent({
   isSuperadmin = false,
+  isTenantAdmin = false,
   hasCrmAccess = false,
   hasEnrolledFactors = false,
 }: ProfileSettingsContentProps) {
@@ -412,11 +415,13 @@ export function ProfileSettingsContent({
                 Security
               </CardTitle>
               <CardDescription>
-                Two-factor authentication (authenticator app) adds an extra sign-in step. Optional for you; recommended if you have access to contact data.
+                {isTenantAdmin
+                  ? "Two-factor authentication (authenticator app) is required for your role (tenant admin). You must keep at least one authenticator enrolled."
+                  : "Two-factor authentication (authenticator app) adds an extra sign-in step. Optional for you; recommended if you have access to contact data."}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <MFAManagement allowRemoveLastFactor={true} />
+              <MFAManagement allowRemoveLastFactor={!isTenantAdmin} />
             </CardContent>
           </Card>
         </>

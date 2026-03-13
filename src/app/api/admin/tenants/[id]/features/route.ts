@@ -4,6 +4,8 @@ import { isSuperadminAsync } from "@/lib/auth/resolve-role";
 import {
   getTenantEnabledFeatureSlugs,
   setTenantFeatureSlugs,
+  setTenantHiddenFeatureSlugs,
+  listTenantHiddenFeatureSlugs,
   SUPERADMIN_FEATURE_SLUG,
 } from "@/lib/supabase/feature-registry";
 import { getFeaturesForGatingTable } from "@/lib/admin/gating-features";
@@ -31,11 +33,12 @@ export async function GET(
     if (!tenantId) {
       return NextResponse.json({ error: "Missing tenant id" }, { status: 400 });
     }
-    const [features, enabledSlugs] = await Promise.all([
+    const [features, enabledSlugs, hiddenSlugs] = await Promise.all([
       getFeaturesForGatingTable(),
       getTenantEnabledFeatureSlugs(tenantId),
+      listTenantHiddenFeatureSlugs(tenantId),
     ]);
-    return NextResponse.json({ features, enabledSlugs });
+    return NextResponse.json({ features, enabledSlugs, hiddenSlugs });
   } catch (error) {
     console.error("GET /api/admin/tenants/[id]/features:", error);
     return NextResponse.json(
@@ -47,7 +50,8 @@ export async function GET(
 
 /**
  * PATCH /api/admin/tenants/[id]/features
- * Body: { featureSlugs: string[] }. Superadmin only. Saves to tenant_feature_slugs.
+ * Body: { featureSlugs?: string[], hiddenFeatureSlugs?: string[] }. Superadmin only.
+ * When hiddenFeatureSlugs is provided, slugs in it are also removed from featureSlugs (Display OFF syncs Gate OFF).
  */
 export async function PATCH(
   request: Request,
@@ -72,13 +76,32 @@ export async function PATCH(
           (s) => typeof s === "string" && s.trim().length > 0
         )
       : [];
+    const hasHiddenInBody = Array.isArray(body?.hiddenFeatureSlugs);
+    const hiddenSlugs = hasHiddenInBody
+      ? (body.hiddenFeatureSlugs as string[]).filter(
+          (s) => typeof s === "string" && s.trim().length > 0
+        )
+      : [];
     featureSlugs = featureSlugs.filter((s) => s !== SUPERADMIN_FEATURE_SLUG);
-    const ok = await setTenantFeatureSlugs(tenantId, featureSlugs);
-    if (!ok) {
+    if (hiddenSlugs.length > 0) {
+      const hiddenSet = new Set(hiddenSlugs);
+      featureSlugs = featureSlugs.filter((s) => !hiddenSet.has(s));
+    }
+    const okFeatures = await setTenantFeatureSlugs(tenantId, featureSlugs);
+    if (!okFeatures) {
       return NextResponse.json(
         { error: "Failed to update tenant features" },
         { status: 500 }
       );
+    }
+    if (hasHiddenInBody) {
+      const okHidden = await setTenantHiddenFeatureSlugs(tenantId, hiddenSlugs);
+      if (!okHidden) {
+        return NextResponse.json(
+          { error: "Failed to update hidden features" },
+          { status: 500 }
+        );
+      }
     }
     return NextResponse.json({ success: true });
   } catch (error) {

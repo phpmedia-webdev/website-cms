@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withRateLimit } from "@/lib/api/middleware";
+import { getClientIdentifier, checkFormSubmitRateLimit } from "@/lib/api/rate-limit";
 import {
   getFormByIdOrSlug,
   getFormFields,
@@ -14,6 +15,13 @@ import {
 } from "@/lib/supabase/crm";
 import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { notifyOnFormSubmitted } from "@/lib/notifications";
+import { getFormProtectionSettings } from "@/lib/forms/form-protection-settings";
+import { verifyRecaptchaToken } from "@/lib/forms/recaptcha";
+
+/** Honeypot field name: if filled, treat as bot and do not persist. */
+const HONEYPOT_FIELD = "website";
+/** Minimum time on page before submit (ms). Reject if submit is faster. */
+const MIN_FORM_TIME_MS = 5000;
 
 const CORE_KEYS = [
   "email",
@@ -60,6 +68,23 @@ async function handler(
 ) {
   try {
     const { formId } = await params;
+    const identifier = getClientIdentifier(request);
+    const formSubmitLimit = checkFormSubmitRateLimit(identifier, formId);
+    if (formSubmitLimit && !formSubmitLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: "Too many submissions. Please try again later.",
+          message: "Too many submissions. Please try again later.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((formSubmitLimit.resetTime - Date.now()) / 1000)),
+          },
+        }
+      );
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
 
     if (!body || typeof body !== "object") {
@@ -74,10 +99,64 @@ async function handler(
       return NextResponse.json({ error: "Form not found" }, { status: 404 });
     }
 
+    // Honeypot: if filled, pretend success and do not persist
+    const honeypotValue = body[HONEYPOT_FIELD];
+    if (honeypotValue != null && String(honeypotValue).trim() !== "") {
+      const msg =
+        (form.settings as { success_message?: string })?.success_message ??
+        "Thank you for your submission!";
+      return NextResponse.json({ success: true, message: msg });
+    }
+
+    // Time-on-page: reject if submitted too fast
+    const loadedAt = body._form_loaded_at;
+    if (loadedAt != null && typeof loadedAt === "string") {
+      const loadedTime = new Date(loadedAt).getTime();
+      if (!Number.isNaN(loadedTime) && Date.now() - loadedTime < MIN_FORM_TIME_MS) {
+        return NextResponse.json(
+          { error: "Please wait a moment before submitting." },
+          { status: 400 }
+        );
+      }
+    }
+
+    const formProtection = await getFormProtectionSettings();
+    if (formProtection.recaptchaEnabled && formProtection.recaptchaSecretKey) {
+      const token =
+        body.captcha_token ?? body["g-recaptcha-response"];
+      const tokenStr = token != null ? String(token).trim() : "";
+      if (!tokenStr) {
+        return NextResponse.json(
+          { error: "Captcha verification required. Please complete the challenge." },
+          { status: 400 }
+        );
+      }
+      const forwarded = request.headers.get("x-forwarded-for");
+      const remoteip = forwarded ? forwarded.split(",")[0]?.trim() : undefined;
+      const verify = await verifyRecaptchaToken(
+        formProtection.recaptchaSecretKey,
+        tokenStr,
+        remoteip
+      );
+      if (!verify.success) {
+        return NextResponse.json(
+          { error: "Captcha verification failed. Please try again." },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Strip protection-only fields so they are not stored in submission payload
+    const { [HONEYPOT_FIELD]: _h, _form_loaded_at: _t, captcha_token: _c, ...cleanBody } = body;
+    const bodyForSubmission = cleanBody as Record<string, unknown>;
+    if ("g-recaptcha-response" in bodyForSubmission) {
+      delete (bodyForSubmission as Record<string, unknown>)["g-recaptcha-response"];
+    }
+
     const formFields = await getFormFields(form.id);
     for (const field of formFields) {
       if (!field.required) continue;
-      const val = getPayloadValue(body, field);
+      const val = getPayloadValue(bodyForSubmission, field);
       if (val === null) {
         const label =
           field.field_source === "core"
@@ -90,8 +169,8 @@ async function handler(
       }
     }
 
-    const email = (body.email != null && body.email !== "")
-      ? String(body.email)
+    const email = (bodyForSubmission.email != null && bodyForSubmission.email !== "")
+      ? String(bodyForSubmission.email)
       : null;
     const existingContact = await getContactByEmail(email);
 
@@ -107,7 +186,7 @@ async function handler(
         form_id: form.id,
       };
       for (const key of CORE_KEYS) {
-        const v = body[key];
+        const v = bodyForSubmission[key];
         if (v != null && v !== "") corePayload[key] = String(v);
       }
       // Ensure message is set when form has message field (defensive for casing or client quirks)
@@ -116,11 +195,11 @@ async function handler(
       );
       if (hasMessageField) {
         const msg =
-          body.message != null && body.message !== ""
-            ? String(body.message)
-            : (body as Record<string, unknown>).Message != null &&
-                (body as Record<string, unknown>).Message !== ""
-              ? String((body as Record<string, unknown>).Message)
+          bodyForSubmission.message != null && bodyForSubmission.message !== ""
+            ? String(bodyForSubmission.message)
+            : (bodyForSubmission as Record<string, unknown>).Message != null &&
+                (bodyForSubmission as Record<string, unknown>).Message !== ""
+              ? String((bodyForSubmission as Record<string, unknown>).Message)
               : null;
         if (msg !== null) corePayload.message = msg;
       }
@@ -154,8 +233,8 @@ async function handler(
       const updatePayload: Record<string, unknown> = {};
       const messageField = formFields.find((f) => f.core_field_key === "message");
       const messageVal =
-        messageField && body.message != null && body.message !== ""
-          ? String(body.message)
+        messageField && bodyForSubmission.message != null && bodyForSubmission.message !== ""
+          ? String(bodyForSubmission.message)
           : null;
       if (messageVal !== null) {
         const existingMessage = existingContact.message?.trim() ?? "";
@@ -166,7 +245,7 @@ async function handler(
 
       for (const key of CORE_KEYS) {
         if (key === "message") continue;
-        const bodyVal = body[key];
+        const bodyVal = bodyForSubmission[key];
         if (bodyVal == null || bodyVal === "") continue;
         const existingVal = (existingContact as unknown as Record<string, unknown>)[key];
         const isEmpty =
@@ -193,7 +272,7 @@ async function handler(
       );
       for (const field of formFields) {
         if (field.field_source !== "custom" || !field.custom_field_id) continue;
-        const bodyVal = getPayloadValue(body, field);
+        const bodyVal = getPayloadValue(bodyForSubmission, field);
         if (bodyVal === null) continue;
         const current = customByFieldId.get(field.custom_field_id);
         const isEmpty = current == null || String(current).trim() === "";
@@ -209,7 +288,7 @@ async function handler(
 
     const { submission, error: subErr } = await insertFormSubmission(
       form.id,
-      body,
+      bodyForSubmission,
       contactId
     );
     if (subErr || !submission) {

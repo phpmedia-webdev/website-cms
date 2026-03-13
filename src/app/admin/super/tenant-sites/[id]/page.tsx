@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getTenantSiteById } from "@/lib/supabase/tenant-sites";
-import { getTenantEnabledFeatureSlugs } from "@/lib/supabase/feature-registry";
+import { getTenantEnabledFeatureSlugs, listTenantHiddenFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { getFeaturesForGatingTable } from "@/lib/admin/gating-features";
 import { TenantFeaturesManager } from "@/components/superadmin/TenantFeaturesManager";
 import { TenantSiteModeCard } from "@/components/superadmin/TenantSiteModeCard";
@@ -24,10 +24,11 @@ export default async function SuperadminTenantSiteDetailPage({
   if (!isSuperadminFromRole(role)) redirect("/admin/dashboard");
 
   const { id } = await params;
-  const [site, featuresForUI, enabledSlugs] = await Promise.all([
+  const [site, featuresForUI, enabledSlugs, hiddenSlugs] = await Promise.all([
     getTenantSiteById(id),
     getFeaturesForGatingTable(),
     getTenantEnabledFeatureSlugs(id),
+    listTenantHiddenFeatureSlugs(id),
   ]);
   if (!site) notFound();
 
@@ -73,6 +74,7 @@ export default async function SuperadminTenantSiteDetailPage({
         tenantId={id}
         features={featuresForUI}
         initialEnabledSlugs={enabledSlugs}
+        initialHiddenSlugs={hiddenSlugs}
       />
 
       <RelatedTenantUsersClient siteId={id} siteName={site.name} />

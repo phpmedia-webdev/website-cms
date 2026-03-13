@@ -11,14 +11,33 @@
 ---
 ## Next up
 
-### Other / Backlog
+_(Clean slate — add focus items here as needed.)_
 
-- [ ] **Gate system: hide vs ghost:** Extend the gating system to support **hiding** features and nav links (in addition to current ghosting). Goal: clean admin UI for tenants with limited features, and avoid loading module code when the feature is not enabled. Allow per-tenant configuration so some tenants see a minimal nav (hide unused modules) while others can keep ghosted entries for upsell. Design: e.g. hide mode vs ghost mode per feature or per tenant; ensure sidebar/nav and route guards respect hide so hidden modules are not loaded.
-- [ ] **Forms: captcha, rate limiting, and other protections:** Review and add protections for public forms (e.g. Contact). Options to evaluate: captcha (reCAPTCHA, hCaptcha, Turnstile, or similar) to reduce bots; rate limiting per IP or per session on form submit API; optional honeypot fields; and any other anti-spam/abuse measures. Document choices and implement per-form or global form settings where appropriate.
+---
+## MVP scan (to address)
+
+**Summary:** PRD, planlog, and codebase were scanned to assess MVP status. The app has broad feature coverage (content, media, galleries, CRM, forms, membership, ecommerce, events, superadmin, gate/display, form protection). Several documentation and deployment items remain; no single critical missing feature blocks “basic business website” MVP if ecommerce is in scope.
+
+**Findings — check off as addressed:**
+
+- [ ] **5. Security review / polish:** Planlog lists Security review, Error handling (404/500, membership denied), and Performance (cache site mode, cache integrations, ISR). Before calling MVP "released," do a minimal security pass (auth, RLS, input validation) and decide which performance items are in-scope for v1. **Next session.**
+
+
+- [ ] **6. Backlog items:** Anychat/VBout/PHP-Auth audit logging, Banners, Carousel shortcode remain in planlog Backlog. Confirm these are post-MVP; no change needed for MVP assessment.
 
 ---
 ## Paused / Later
 
-- [ ] Anychat, VBout, PHP-Auth audit logging, superadmin add/delete user (see planlog).
-- [ ] **Banners** - A programmable display block that can show html5 content on a schedule. Usually at top of home page.
-- [ ] **Carousel shortcode item** Build a shortcode that generates a carousel (pan slider) from objects like images or content.
+_(Optional — move items to planlog when they become backlog.)_
+
+---
+## Fork deployment (Phase 00 — last)
+
+**Purpose:** Process to perfect for launching a fork site. We will go through this when developing the first fork (**phpbme**, domain **phpbme.com**) and finalize the checklist steps for a fork deployment.
+
+**Scope (to be refined during first-fork launch):**
+- Test Automated Client Setup Script (`pnpm setup-client <schema-name>`)
+- Template (root) domain deployment: Vercel, env vars, superadmin user, test auth
+- Integrations: test script injection, enable/disable, superadmin-only access
+- Document and lock down the fork deployment checklist for future client launches
+

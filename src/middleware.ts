@@ -127,6 +127,9 @@ export async function middleware(request: NextRequest) {
   // Get current user and session from Supabase Auth (writes refresh cookies to cookieCarrier; session.aal for 2FA)
   const { user, session } = await getCurrentUserWithTimeout(request, cookieCarrier);
 
+  // Role slug for MFA policy (superadmin / tenant admin / editor etc.). Set in both PHP-Auth and legacy branches.
+  let roleSlug: string | null = null;
+
   // If accessing protected route, validate authentication and tenant access
   if (isProtectedRoute) {
     if (!user) {
@@ -151,6 +154,7 @@ export async function middleware(request: NextRequest) {
           // validate-user failed
         }
       }
+      roleSlug = role;
       if (role === null) {
         const loginUrl = new URL("/admin/login", request.url);
         loginUrl.searchParams.set("redirect", pathname);
@@ -206,6 +210,8 @@ export async function middleware(request: NextRequest) {
           return res;
         }
       }
+      // Legacy: no PHP-Auth; use metadata for MFA policy
+      roleSlug = (user.metadata?.role ?? user.metadata?.type) as string ?? null;
     }
 
     // Don't redirect to MFA challenge when on challenge, enroll, or success (avoids redirect loop)
@@ -226,7 +232,14 @@ export async function middleware(request: NextRequest) {
     }
 
     if (!devBypass && !isMfaChallengeOrEnroll) {
-      const needsAAL2 = await requiresAAL2(user, pathname);
+      const isSuperadmin =
+        roleSlug === PHP_AUTH_ROLE_SLUG.SUPERADMIN || roleSlug === "superadmin";
+      const isTenantAdmin =
+        roleSlug === PHP_AUTH_ROLE_SLUG.ADMIN || roleSlug === "admin";
+      const needsAAL2 = await requiresAAL2(user, pathname, {
+        isSuperadmin,
+        isTenantAdmin,
+      });
       if (needsAAL2 && currentAAL !== "aal2") {
         const challengeUrl = new URL("/admin/mfa/challenge", request.url);
         challengeUrl.searchParams.set("redirect", pathname);

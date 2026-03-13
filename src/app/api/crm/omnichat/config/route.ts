@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { getClientSchema } from "@/lib/supabase/schema";
+import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
+import { getTenantEnabledFeatureSlugs } from "@/lib/supabase/feature-registry";
 
 /** Defaults from Anychat admin embed snippet; override with env for production. */
 const DEFAULT_WIDGET_ID = "7bdc8416-3423-3321-89bf-f3bc63c969c7";
@@ -9,6 +12,7 @@ const DEFAULT_MODULE_CONFIG_URL = "https://chat.phpmedia.com/app";
 /**
  * GET /api/crm/omnichat/config
  * Returns Anychat admin widget config for the OmniChat page. Admin auth required.
+ * Also requires Omnichat to be enabled for the current tenant (gate); otherwise 403.
  * Keeps apiKey server-side; client receives it only when authenticated.
  *
  * Env vars (optional): ANYCHAT_OMNICHAT_WIDGET_ID, ANYCHAT_OMNICHAT_API_KEY, ANYCHAT_OMNICHAT_MODULE_CONFIG_URL
@@ -18,6 +22,19 @@ export async function GET() {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const schema = getClientSchema();
+    const site = await getTenantSiteBySchema(schema);
+    if (!site) {
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    }
+    const enabledSlugs = await getTenantEnabledFeatureSlugs(site.id);
+    if (!enabledSlugs.includes("omnichat")) {
+      return NextResponse.json(
+        { error: "OmniChat is not enabled for this site" },
+        { status: 403 }
+      );
     }
 
     const widgetId =

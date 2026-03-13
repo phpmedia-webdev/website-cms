@@ -28,6 +28,7 @@ interface SiteSettingsTabsClientProps {
   initialMetadata: { name?: string; description?: string; url?: string };
   featuresForGating: TenantFeatureItem[];
   initialEnabledSlugs: string[];
+  initialHiddenSlugs?: string[];
 }
 
 export function SiteSettingsTabsClient({
@@ -35,6 +36,7 @@ export function SiteSettingsTabsClient({
   initialMetadata,
   featuresForGating,
   initialEnabledSlugs,
+  initialHiddenSlugs = [],
 }: SiteSettingsTabsClientProps) {
   const [name, setName] = useState(initialMetadata.name ?? site.name ?? "");
   const [description, setDescription] = useState(
@@ -164,6 +166,7 @@ export function SiteSettingsTabsClient({
           tenantId={site.id}
           features={featuresForGating}
           initialEnabledSlugs={initialEnabledSlugs}
+          initialHiddenSlugs={initialHiddenSlugs}
         />
       </TabsContent>
 

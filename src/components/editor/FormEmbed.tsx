@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { FormStyle, ColorPalette } from "@/types/design-system";
+
+/** Honeypot field name: hidden from users; bots often fill it. Server rejects if non-empty. */
+const HONEYPOT_FIELD = "website";
 
 export interface FormEmbedFieldConfig {
   submitKey: string;
@@ -87,12 +90,16 @@ export function FormEmbed({
     name: string;
     successMessage: string;
     fields: FormEmbedFieldConfig[];
+    recaptchaSiteKey?: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const formLoadedAtRef = useRef<string | null>(null);
+  const recaptchaWidgetIdRef = useRef<number | null>(null);
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +113,7 @@ export function FormEmbed({
       .then((data) => {
         if (!cancelled) {
           setConfig(data);
+          formLoadedAtRef.current = new Date().toISOString();
         }
       })
       .catch((e) => {
@@ -118,6 +126,44 @@ export function FormEmbed({
       cancelled = true;
     };
   }, [formId]);
+
+  // Load reCAPTCHA script and render widget when site key is present
+  useEffect(() => {
+    const siteKey = config?.recaptchaSiteKey;
+    if (!siteKey || !recaptchaContainerRef.current) return;
+    const w = window as unknown as {
+      grecaptcha?: { render: (el: HTMLElement, opts: { sitekey: string }) => number };
+      onRecaptchaFormEmbedLoad?: () => void;
+    };
+    if (w.grecaptcha?.render) {
+      try {
+        if (recaptchaWidgetIdRef.current != null) return;
+        const id = w.grecaptcha.render(recaptchaContainerRef.current, { sitekey: siteKey });
+        recaptchaWidgetIdRef.current = id;
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    w.onRecaptchaFormEmbedLoad = () => {
+      if (w.grecaptcha?.render && recaptchaContainerRef.current && recaptchaWidgetIdRef.current == null) {
+        try {
+          const id = w.grecaptcha.render(recaptchaContainerRef.current, { sitekey: siteKey });
+          recaptchaWidgetIdRef.current = id;
+        } catch {
+          // ignore
+        }
+      }
+    };
+    const script = document.createElement("script");
+    script.src = "https://www.google.com/recaptcha/api.js?onload=onRecaptchaFormEmbedLoad&render=explicit";
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+    return () => {
+      delete w.onRecaptchaFormEmbedLoad;
+    };
+  }, [config?.recaptchaSiteKey]);
 
   const resolvedFormStyle: FormStyle | undefined = styleSlug && formStyles
     ? formStyles.find((s) => s.slug === styleSlug)
@@ -136,15 +182,28 @@ export function FormEmbed({
     setSubmitting(true);
     setResult(null);
     try {
+      const body: Record<string, unknown> = { ...payload };
+      body[HONEYPOT_FIELD] = ""; // Honeypot: leave empty
+      if (formLoadedAtRef.current) {
+        body._form_loaded_at = formLoadedAtRef.current;
+      }
+      const siteKey = config.recaptchaSiteKey;
+      if (siteKey && typeof (window as unknown as { grecaptcha?: { getResponse: () => string } }).grecaptcha !== "undefined") {
+        const token = (window as unknown as { grecaptcha: { getResponse: (id?: number) => string } }).grecaptcha.getResponse(recaptchaWidgetIdRef.current ?? undefined);
+        if (token) body.captcha_token = token;
+      }
       const res = await fetch(`/api/forms/${config.slug}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (res.ok) {
         setResult({ success: true, message: data.message ?? config.successMessage });
         setPayload({});
+        if (siteKey && recaptchaWidgetIdRef.current != null && (window as unknown as { grecaptcha?: { reset: (id?: number) => void } }).grecaptcha?.reset) {
+          (window as unknown as { grecaptcha: { reset: (id?: number) => void } }).grecaptcha.reset(recaptchaWidgetIdRef.current);
+        }
       } else {
         setResult({ success: false, message: data.error ?? "Something went wrong." });
       }
@@ -213,6 +272,23 @@ export function FormEmbed({
             )}
           </div>
         ))}
+
+        {/* Honeypot: hidden from users; server rejects if filled */}
+        <div className="absolute -left-[9999px] opacity-0 pointer-events-none" aria-hidden="true">
+          <label htmlFor={`${formId}-${HONEYPOT_FIELD}`}>Leave blank</label>
+          <input
+            id={`${formId}-${HONEYPOT_FIELD}`}
+            type="text"
+            name={HONEYPOT_FIELD}
+            tabIndex={-1}
+            autoComplete="off"
+            defaultValue=""
+          />
+        </div>
+
+        {config.recaptchaSiteKey && (
+          <div ref={recaptchaContainerRef} className="min-h-[78px]" data-sitekey={config.recaptchaSiteKey} />
+        )}
 
         {result && (
           <div

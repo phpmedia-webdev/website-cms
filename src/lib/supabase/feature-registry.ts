@@ -246,6 +246,42 @@ export async function setTenantFeatureSlugs(tenantId: string, slugs: string[]): 
   return true;
 }
 
+/** Gate hide vs ghost: slugs hidden from sidebar (Display OFF). When in this list, feature is not shown in nav. */
+export async function listTenantHiddenFeatureSlugs(tenantId: string): Promise<string[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("tenant_feature_hidden_slugs")
+    .select("feature_slug")
+    .eq("tenant_id", tenantId);
+  if (error) {
+    console.error("listTenantHiddenFeatureSlugs:", error);
+    return [];
+  }
+  return (data ?? []).map((row: { feature_slug: string }) => row.feature_slug);
+}
+
+/** Gate hide vs ghost: set hidden slugs for this tenant. Replaces existing rows. */
+export async function setTenantHiddenFeatureSlugs(tenantId: string, slugs: string[]): Promise<boolean> {
+  const supabase = createServerSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from("tenant_feature_hidden_slugs")
+    .delete()
+    .eq("tenant_id", tenantId);
+  if (deleteError) {
+    console.error("setTenantHiddenFeatureSlugs:delete", deleteError);
+    return false;
+  }
+  const trimmed = [...new Set(slugs.map((s) => s.trim()).filter(Boolean))];
+  if (trimmed.length === 0) return true;
+  const payload = trimmed.map((feature_slug) => ({ tenant_id: tenantId, feature_slug }));
+  const { error: insertError } = await supabase.from("tenant_feature_hidden_slugs").insert(payload);
+  if (insertError) {
+    console.error("setTenantHiddenFeatureSlugs:insert", insertError);
+    return false;
+  }
+  return true;
+}
+
 /** Role feature slugs (from role_features + feature_registry). Used when PHP-Auth is not configured. */
 export async function listRoleFeatureSlugs(roleSlug: string): Promise<string[]> {
   const ids = await listRoleFeatureIds(roleSlug);

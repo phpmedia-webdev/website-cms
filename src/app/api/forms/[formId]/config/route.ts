@@ -1,6 +1,6 @@
 /**
  * GET /api/forms/[formId]/config — public form config for embedding (shortcode, iframe).
- * Returns { slug, name, successMessage, fields }.
+ * Returns { slug, name, successMessage, fields, recaptchaSiteKey? }.
  * No auth required; form is public.
  */
 
@@ -11,6 +11,7 @@ import {
   getCrmCustomFields,
   CORE_FORM_FIELDS,
 } from "@/lib/supabase/crm";
+import { getFormProtectionSettingsPublic } from "@/lib/forms/form-protection-settings";
 
 export interface PublicFormFieldConfig {
   submitKey: string;
@@ -87,11 +88,18 @@ export async function GET(
       (form.settings as { success_message?: string })?.success_message ??
       "Thank you for your submission!";
 
+    const formProtection = await getFormProtectionSettingsPublic();
+    const recaptchaSiteKey =
+      formProtection.recaptchaEnabled && formProtection.recaptchaSiteKey
+        ? formProtection.recaptchaSiteKey
+        : undefined;
+
     return NextResponse.json({
       slug: form.slug,
       name: form.name,
       successMessage,
       fields,
+      ...(recaptchaSiteKey && { recaptchaSiteKey }),
     });
   } catch (e) {
     console.error("GET /api/forms/[formId]/config:", e);

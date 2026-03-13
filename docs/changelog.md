@@ -9,6 +9,22 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-03-04 17:00 CT — Session wrap: MVP scan steps 1–4 complete; MFA policy; build fixes
+
+- **Context for Next Session:** MVP scan findings 1–4 are done (planlog Phase 09 aligned, PRD routes updated, 2FA on Vercel confirmed, protected media via membership at page level). MFA policy enforced: AAL2 required for superadmin, tenant admin, and any staff on PII paths (`/admin/super`, `/admin/crm`, `/admin/settings/users`); optional for other roles. **Next up:** Security review / polish (planlog: Security review, Error handling, Performance). Sessionlog completed steps moved here; remaining: MVP scan step 5 (security), step 6 (backlog confirmation), Fork deployment (Phase 00). Build fixed: tenant-sites detail page now fetches `hiddenSlugs`; ProfileSettingsContent destructures `isTenantAdmin`.
+- **MVP scan (completed):** Planlog Phase 09 Ecommerce checked off; PRD route names vs implementation aligned (tenant-sites, route mapping note); 2FA on Vercel working; protected media handled at public page level with membership (MAG).
+- **MFA policy:** `requiresAAL2` in `src/lib/auth/mfa.ts` uses role + PII path; middleware passes `isSuperadmin`/`isTenantAdmin`; login redirects superadmin/tenant admin to enroll if no factors; profile Security card shows required vs optional copy; tenant admin cannot remove last factor.
+- **Fixes:** `src/app/admin/super/tenant-sites/[id]/page.tsx` — fetch `hiddenSlugs` via `listTenantHiddenFeatureSlugs(id)` and pass to TenantFeaturesManager. `src/components/settings/ProfileSettingsContent.tsx` — add `isTenantAdmin` to props destructuring.
+
+### 2026-03-13 16:59 CT — Form protection MVP complete; sessionlog clean slate
+
+- **Context for Next Session:** Form protection (steps 1–4) complete. **Done:** Stricter rate limit for form submit (10/10min per IP per form); honeypot field `website` (hidden in FormEmbed + PublicFormClient, server returns 200 without persisting if filled); reCAPTCHA (Google, per-tenant) via Settings → General → Captcha tab, GET/PATCH `/api/settings/form-protection`, form config returns siteKey, client widget + server verify; time-on-page reject if submit &lt; 5s; reserved name `website` with validation in FormEditor and hint; warning on Captcha tab that settings were set by super administrator. Step 5 (AI + BYOK spam scoring) remains in planlog Phase 08 as future. Gate system (hide vs ghost) was completed earlier. **Sessionlog:** Clean slate; completed items moved here; remaining backlog items moved to planlog.
+- **Form protection (steps 1–4):** Rate limit (form-submit-specific), honeypot, reCAPTCHA per tenant (Captcha tab under General), time-on-page, reserved field name check + UI hint.
+
+### 2026-03-12 CT — Gate step complete; next: Forms captcha
+
+- **Context for Next Session:** Gate system (hide vs ghost) marked complete in sessionlog: Gate + Display toggles, per-tenant hidden slugs, sidebar/route guards, parent-on sync, Omnichat script gating, Marketing landing + Reviews sub-item; principle that gate = admin control and turning off later preserves existing front resources. **Next up:** Forms captcha, rate limiting, and other protections for public forms (see sessionlog — Current focus).
+
 ### 2026-03-12 18:00 CT — Session wrap-up: Ecommerce MVT documentation
 
 - **Context for Next Session:** This session added full **Ecommerce** documentation to `docs/mvt.md`: Ecommerce row in at-a-glance table (1.0 Stable), code sitemap updated (admin ecommerce, public shop/members orders-subscriptions, api/ecommerce, api/shop, api/members, api/webhooks/stripe, components/ecommerce, lib/shop), and new per-module section with version, folder structure, data/schema (tables, migrations 131–140), and prerequisites. MVT last updated set to 2026-03-12. **Next up:** See sessionlog — Other/Backlog (gate system hide vs ghost, forms captcha/rate limiting). No code or schema changes this session.

@@ -1,6 +1,9 @@
 import Link from "next/link";
 import Script from "next/script";
 import { getIntegrations } from "@/lib/supabase/integrations";
+import { getClientSchema } from "@/lib/supabase/schema";
+import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
+import { getTenantEnabledFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { PublicPageTracker } from "@/components/public/PublicPageTracker";
 import { PublicHeaderAuth } from "@/components/public/PublicHeaderAuth";
 import { PublicHeaderMembersNav } from "@/components/public/PublicHeaderMembersNav";
@@ -10,12 +13,18 @@ import { getCurrentSessionUser } from "@/lib/auth/session";
 // Force dynamic: public pages use session (cookies) and Supabase; avoid static generation at build time.
 export const dynamic = "force-dynamic";
 
+/** Integration name for Omnichat (per-tenant config: widget_id, optional script_url). */
+const OMNICHAT_INTEGRATION_NAME = "omnichat";
+
+/** Default public script URL template when only widget_id is set. Env override: ANYCHAT_PUBLIC_WIDGET_SCRIPT_URL. */
+const DEFAULT_OMNICHAT_SCRIPT_URL_TEMPLATE = "https://api.anychat.one/widget/{widget_id}/widget.js";
+
 export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Load integration settings for script injection
+  // Load integration settings for script injection (per-tenant via client schema)
   let integrations: Awaited<ReturnType<typeof getIntegrations>> = [];
   try {
     integrations = await getIntegrations();
@@ -31,6 +40,38 @@ export default async function PublicLayout({
   const gaActive = googleAnalytics?.enabled && googleAnalytics?.config?.measurement_id;
   const vtActive = visitorTracking?.enabled && visitorTracking?.config?.websiteId;
   const scActive = simpleCommenter?.enabled && simpleCommenter?.config?.domain;
+
+  // Omnichat: generic gate — only allow the script block when the feature is enabled for the current tenant.
+  // No user id or tenant id in the block; tenant is resolved from request (schema). Script URL/widget comes from per-tenant integration config.
+  let showOmnichatScriptBlock = false;
+  let omnichatScriptUrl: string | null = null;
+  try {
+    const schema = getClientSchema();
+    const site = await getTenantSiteBySchema(schema);
+    if (site) {
+      const enabledSlugs = await getTenantEnabledFeatureSlugs(site.id);
+      if (enabledSlugs.includes("omnichat")) {
+        showOmnichatScriptBlock = true;
+        const omnichatIntegration = integrations.find((i) => i.name === OMNICHAT_INTEGRATION_NAME);
+        const explicitUrl = process.env.ANYCHAT_PUBLIC_WIDGET_SCRIPT_URL?.trim();
+        if (explicitUrl) {
+          omnichatScriptUrl = explicitUrl;
+        } else if (omnichatIntegration?.enabled && omnichatIntegration?.config) {
+          const cfg = omnichatIntegration.config as { script_url?: string; widget_id?: string };
+          if (typeof cfg.script_url === "string" && cfg.script_url.trim()) {
+            omnichatScriptUrl = cfg.script_url.trim();
+          } else if (typeof cfg.widget_id === "string" && cfg.widget_id.trim()) {
+            const template = process.env.ANYCHAT_PUBLIC_SCRIPT_URL_TEMPLATE ?? DEFAULT_OMNICHAT_SCRIPT_URL_TEMPLATE;
+            omnichatScriptUrl = template.replace("{widget_id}", cfg.widget_id.trim());
+          }
+        }
+        if (!omnichatScriptUrl) showOmnichatScriptBlock = false;
+      }
+    }
+  } catch {
+    showOmnichatScriptBlock = false;
+    omnichatScriptUrl = null;
+  }
 
   let user = null;
   try {
@@ -99,6 +140,14 @@ export default async function PublicLayout({
           src={`https://simplecommenter.com/js/comments.min.js?domain=${simpleCommenter.config.domain}`}
           strategy="lazyOnload"
           defer
+        />
+      )}
+
+      {/* Omnichat: generic gate — script block only when feature enabled for current tenant; script URL from per-tenant integration (widget_id/script_url). */}
+      {showOmnichatScriptBlock && omnichatScriptUrl && (
+        <Script
+          src={omnichatScriptUrl}
+          strategy="lazyOnload"
         />
       )}
 

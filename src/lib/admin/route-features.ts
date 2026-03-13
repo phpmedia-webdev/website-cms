@@ -24,6 +24,8 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (pathname.startsWith("/admin/crm/forms")) return "forms";
   if (pathname.startsWith("/admin/crm/marketing")) return "marketing";
   if (pathname.startsWith("/admin/crm/lists")) return "lists";
+  if (pathname.startsWith("/admin/crm/templates")) return "templates";
+  if (pathname.startsWith("/admin/crm/reviews")) return "reviews";
   if (pathname.startsWith("/admin/crm/memberships/code-generator")) return "code_generator";
   if (pathname.startsWith("/admin/crm/memberships")) return "memberships";
   if (pathname.startsWith("/admin/crm/omnichat")) return "omnichat";
@@ -62,6 +64,8 @@ export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
   form_submissions: "form_submissions",
   marketing: "marketing",
   lists: "lists",
+  templates: "templates",
+  reviews: "reviews",
   memberships: "memberships",
   code_generator: "code_generator",
   calendar: "calendar",

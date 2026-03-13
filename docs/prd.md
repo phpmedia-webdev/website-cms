@@ -84,17 +84,18 @@ This WordPress-style approach provides:
 - `/admin/settings/archive` - Archive/restore project management
 - `/admin/settings/reset` - Reset content to template state
 
-**Superadmin Routes (Protected, Superadmin + 2FA Required):**
+**Superadmin Routes (Protected, Superadmin + 2FA Required):**  
+*Route mapping: "client" and "tenant site" are used interchangeably; the app uses the path prefix `/admin/super/tenant-sites` (not `/admin/super/clients`).*
+
 - `/admin/super` - Superadmin dashboard/utilities
 - `/admin/super/integrations` - Third-party integrations management (Google Analytics, VisitorTracking.com, SimpleCommenter.com)
-- `/admin/super/components` - Component library reference (searchable component catalog with screenshots/wireframes)
-- `/admin/super/clients` - Client/tenant management
-- `/admin/super/clients/new` - Create new client tenant
-- `/admin/super/clients/[id]` - Client detail view
-- `/admin/super/clients/[id]/admins` - Manage client admins
-- `/admin/super/clients/[id]/admins/new` - Create new admin for client
-- `/admin/super/admins` - Global admin list (view all admins across all sites)
-- `/admin/super/clients/[id]/sidebar` - Sidebar feature gating and custom links for tenant (see Admin Sidebar Feature Gating below)
+- `/admin/super/code-library` - Component/code library reference (searchable catalog with screenshots/wireframes)
+- `/admin/super/tenant-sites` - Client/tenant (site) management list
+- `/admin/super/tenant-sites/new` - Create new client tenant
+- `/admin/super/tenant-sites/[id]` - Client detail view (includes sidebar feature gating and custom links for that tenant; see Admin Sidebar Feature Gating below)
+- `/admin/super/tenant-sites/[id]/settings` - Tenant site settings
+- `/admin/super/tenant-users` - Global admin/list view (admins across sites)
+- `/admin/super/site-settings` - Site Settings for the current tenant (by schema): General, feature gating, API (when superadmin is in tenant context)
 
 **Standby / Coming Soon Route (Optional):**
 - `/coming-soon` - Standby landing page used when the site is in "coming soon" mode (see Developer Workflow)
@@ -109,7 +110,7 @@ The admin sidebar displays links to CMS features (Content, Galleries, Media, CRM
 - Optional: Ghosted links can route to a **preview/upsell page** instead of being non-clickable, encouraging upgrade
 
 **Superadmin Configuration:**
-- Superadmin configures sidebar feature set at `/admin/super/clients/[id]/sidebar` (or within client detail)
+- Superadmin configures sidebar feature set at `/admin/super/tenant-sites/[id]` (tenant detail page) or via **Site Settings** at `/admin/super/site-settings` when in tenant context
 - Toggle each template feature on/off per tenant
 - Optionally set a custom upsell URL per feature (when disabled, link goes to preview offer page)
 

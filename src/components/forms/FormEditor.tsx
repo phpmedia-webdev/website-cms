@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { FormField } from "@/types/content";
 import { Save, Plus, Trash2, GripVertical } from "lucide-react";
 import { useSlug } from "@/hooks/useSlug";
+import { RESERVED_FORM_FIELD_NAMES } from "@/lib/forms/form-protection-settings";
 
 interface FormEditorProps {
   form?: any;
@@ -76,6 +77,11 @@ export function FormEditor({ form }: FormEditorProps) {
     for (const field of fields) {
       if (!field.label || !field.name) {
         alert("All fields must have a label and name");
+        return;
+      }
+      const nameNorm = field.name.trim().toLowerCase();
+      if (RESERVED_FORM_FIELD_NAMES.some((reserved) => nameNorm === reserved.toLowerCase())) {
+        alert(`The field name "${field.name.trim()}" is reserved for form protection. Please use a different name (e.g. "website_url" or "company_website").`);
         return;
       }
     }
@@ -212,6 +218,9 @@ export function FormEditor({ form }: FormEditorProps) {
                                 }
                                 placeholder="field_name"
                               />
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Do not use &quot;website&quot; — reserved for form protection.
+                              </p>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">

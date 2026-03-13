@@ -24,6 +24,8 @@ interface AdminLayoutWrapperProps {
   viewAsRole?: string | null;
   /** Show Settings → Users link; only true for tenant admin or superadmin. */
   canManageTeam?: boolean;
+  /** Slugs hidden from sidebar (Display OFF). Omit these sections entirely. */
+  hiddenFeatureSlugs?: string[];
 }
 
 /**
@@ -42,6 +44,7 @@ export function AdminLayoutWrapper({
   viewAsSiteName = null,
   viewAsRole = null,
   canManageTeam = false,
+  hiddenFeatureSlugs = [],
 }: AdminLayoutWrapperProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -100,6 +103,7 @@ export function AdminLayoutWrapper({
         roleFeatureSlugs={roleSlugsForSidebar}
         sidebarDisplayFeatureSlugs={sidebarDisplayFeatureSlugs}
         canManageTeam={canManageTeam}
+        hiddenFeatureSlugs={hiddenFeatureSlugs}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {viewAsActive && (

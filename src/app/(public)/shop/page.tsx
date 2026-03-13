@@ -28,7 +28,16 @@ export default async function ShopPage() {
     <main className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Shop</h1>
       {products.length === 0 ? (
-        <p className="text-muted-foreground">No products available at the moment.</p>
+        <div className="text-muted-foreground space-y-2">
+          <p>No products available at the moment.</p>
+          {process.env.NODE_ENV === "development" && (
+            <p className="text-sm">
+              To show here, each product must be: <strong>published</strong>,{" "}
+              <strong>synced to Stripe</strong> (Create Stripe Product / Sync in admin), and{" "}
+              <strong>Available for purchase</strong> checked.
+            </p>
+          )}
+        </div>
       ) : (
         <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((p) => (

@@ -4,7 +4,7 @@ import { AdminLayoutWrapper } from "@/components/admin/AdminLayoutWrapper";
 import { getRoleForCurrentUser, getEffectiveFeatureSlugsForCurrentUser, getRoleFeatureSlugsForCurrentUser, isSuperadminFromRole } from "@/lib/auth/resolve-role";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getTenantSiteBySchema, getTenantSiteById } from "@/lib/supabase/tenant-sites";
-import { getEffectiveFeatureSlugs, getTenantEnabledFeatureSlugs, getRoleFeatureSlugsForGating } from "@/lib/supabase/feature-registry";
+import { getEffectiveFeatureSlugs, getTenantEnabledFeatureSlugs, getRoleFeatureSlugsForGating, listTenantHiddenFeatureSlugs } from "@/lib/supabase/feature-registry";
 import { getViewAsFromCookies } from "@/lib/admin/view-as";
 import { isPhpAuthConfigured } from "@/lib/php-auth/config";
 import { getRoleFeatureSlugsFromPhpAuth } from "@/lib/php-auth/fetch-roles";
@@ -47,6 +47,8 @@ export default async function AdminLayout({
   let roleFeatureSlugs: string[] | "all" = [];
   /** When set, sidebar uses this for display only (ghost state) so superadmin sees gate state; guards still use effectiveFeatureSlugs. */
   let sidebarDisplayFeatureSlugs: string[] | null = null;
+  /** Slugs hidden from sidebar (Display OFF). Sidebar omits these sections entirely. */
+  let hiddenFeatureSlugs: string[] = [];
   let viewAsActive = false;
   let viewAsSiteName: string | null = null;
   let viewAsRole: string | null = null;
@@ -63,6 +65,10 @@ export default async function AdminLayout({
         viewAsRole = viewAs.roleSlug;
         siteName = viewAsSite.name;
         role = viewAs.roleSlug;
+        [hiddenFeatureSlugs, sidebarDisplayFeatureSlugs] = await Promise.all([
+          listTenantHiddenFeatureSlugs(viewAs.siteId),
+          getTenantEnabledFeatureSlugs(viewAs.siteId),
+        ]);
         try {
           if (isPhpAuthConfigured()) {
             if (isSuperadminFromRole(viewAs.roleSlug)) {
@@ -102,8 +108,11 @@ export default async function AdminLayout({
           getEffectiveFeatureSlugsForCurrentUser(),
           getRoleFeatureSlugsForCurrentUser(),
         ]);
-        if (userIsSuperadmin && site) {
-          sidebarDisplayFeatureSlugs = await getTenantEnabledFeatureSlugs(site.id);
+        if (site) {
+          hiddenFeatureSlugs = await listTenantHiddenFeatureSlugs(site.id);
+          if (userIsSuperadmin) {
+            sidebarDisplayFeatureSlugs = await getTenantEnabledFeatureSlugs(site.id);
+          }
         }
       } catch {
         if (userIsSuperadmin) {
@@ -138,6 +147,7 @@ export default async function AdminLayout({
       viewAsSiteName={viewAsSiteName}
       viewAsRole={viewAsRole}
       canManageTeam={canManageTeam}
+      hiddenFeatureSlugs={hiddenFeatureSlugs}
     >
       {children}
     </AdminLayoutWrapper>
