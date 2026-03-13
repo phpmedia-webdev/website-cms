@@ -47,7 +47,8 @@ export interface ListOrdersForExportParams {
   from?: string;
   /** ISO date string, end of range (inclusive). */
   to?: string;
-  status?: OrderStatus | "";
+  /** Use "needs_attention" to include pending/processing (filter applied in export UI). */
+  status?: OrderStatus | "" | "needs_attention";
   limit?: number;
 }
 

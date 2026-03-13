@@ -312,7 +312,7 @@ export function WooSyncCard() {
                   ...(result.customers?.errors ?? []),
                   ...(result.orders?.errors ?? []),
                 ]
-                  .map((e: { error?: string }) => e?.error ?? String(e))
+                  .map((e) => (e as { error?: string }).error ?? String(e))
                   .slice(0, 3)
                   .join("; ")}
               </p>

@@ -246,7 +246,7 @@ export function ImportContactsClient() {
             <CardHeader>
               <CardTitle>2. Import as</CardTitle>
             <CardDescription>
-              Choose whether this CSV is contacts or orders, then map columns. Leave “Don't map” to skip a field.
+              Choose whether this CSV is contacts or orders, then map columns. Leave “Don&apos;t map” to skip a field.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -260,7 +260,7 @@ export function ImportContactsClient() {
                     setMappingField(key, e.target.value === "" ? -1 : Number(e.target.value))
                   }
                 >
-                  <option value="">Don't map</option>
+                  <option value="">Don&apos;t map</option>
                   {headers.map((h, i) => (
                     <option key={i} value={i}>
                       Column: {h || `(column ${i + 1})`}
@@ -271,6 +271,7 @@ export function ImportContactsClient() {
             ))}
           </CardContent>
         </Card>
+        </>
       )}
 
       {dataRows.length > 0 && (

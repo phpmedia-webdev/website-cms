@@ -134,9 +134,9 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
   };
 
   const handleLinkToStripe = async () => {
-    const productId = (linkStripeProductId || product?.stripe_product_id ?? "").trim();
+    const productId = ((linkStripeProductId || product?.stripe_product_id) ?? "").trim();
     if (!content?.id || !productId) return;
-    const priceId = (linkStripePriceId || product?.stripe_price_id ?? "").trim();
+    const priceId = ((linkStripePriceId || product?.stripe_price_id) ?? "").trim();
     setLinkLoading(true);
     try {
       const res = await fetch(`/api/ecommerce/products/${content.id}/link-stripe`, {
@@ -322,7 +322,7 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
             disabled={
               saving ||
               linkLoading ||
-              !(linkStripeProductId || product?.stripe_product_id ?? "").trim()
+              !((linkStripeProductId || product?.stripe_product_id) ?? "").trim()
             }
           >
             {linkLoading ? (
