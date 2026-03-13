@@ -30,6 +30,8 @@ interface CartData {
   item_count: number;
   subtotal: number;
   has_shippable?: boolean;
+  has_recurring?: boolean;
+  has_onetime?: boolean;
 }
 
 const emptyCart: CartData = {
@@ -96,6 +98,8 @@ export function CheckoutPageClient() {
           item_count: data.item_count ?? 0,
           subtotal: data.subtotal ?? 0,
           has_shippable: data.has_shippable ?? false,
+          has_recurring: data.has_recurring ?? false,
+          has_onetime: data.has_onetime ?? false,
         });
       })
       .catch(() => setCart(emptyCart))
@@ -197,6 +201,10 @@ export function CheckoutPageClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 401) {
+          setError("Sign in required to checkout. Use the link below to sign in and try again.");
+          return;
+        }
         setError(data.error ?? "Checkout failed.");
         return;
       }
@@ -233,6 +241,20 @@ export function CheckoutPageClient() {
             <Link href="/shop">Continue shopping</Link>
           </Button>
         </div>
+      </main>
+    );
+  }
+
+  if (cart.has_recurring && cart.has_onetime) {
+    return (
+      <main className="container mx-auto px-4 py-16 max-w-xl text-center">
+        <h1 className="text-2xl font-bold mb-4">Checkout</h1>
+        <p className="text-muted-foreground mb-6">
+          One-time purchases cannot be mixed with subscriptions. Please complete one type of purchase first, then start a new transaction for the other.
+        </p>
+        <Button asChild variant="outline">
+          <Link href="/shop/cart">Back to cart</Link>
+        </Button>
       </main>
     );
   }
@@ -477,8 +499,15 @@ export function CheckoutPageClient() {
         </Card>
 
         {error && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive space-y-2">
+            <p>{error}</p>
+            {error.includes("Sign in required") && (
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href={`/login?redirect=${encodeURIComponent("/shop/checkout")}`}>
+                  Sign in to checkout
+                </Link>
+              </Button>
+            )}
           </div>
         )}
 

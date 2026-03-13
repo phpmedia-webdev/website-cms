@@ -28,6 +28,10 @@ export interface ProductFormState {
   /** Step 25b/25c: Real download URLs per product (Label + URL rows). */
   digitalDeliveryLinks: DigitalDeliveryLink[];
   available_for_purchase: boolean;
+  /** Step 30: Subscription (recurring) product. */
+  is_recurring: boolean;
+  /** Step 30: month | year when is_recurring. */
+  billing_interval: "month" | "year" | null;
   /** MAG ids that can see this product on the shop (when access_level is mag). */
   visibilityMagIds: string[];
   /** Step 17: MAG granted on purchase (membership product). Empty string = none. */
@@ -45,6 +49,8 @@ const defaultProductState: ProductFormState = {
   downloadable: false,
   digitalDeliveryLinks: [],
   available_for_purchase: true,
+  is_recurring: false,
+  billing_interval: null,
   visibilityMagIds: [],
   grantMagId: "",
 };
@@ -60,6 +66,8 @@ export function productFormStateFromRow(row: {
   downloadable?: boolean;
   digital_delivery_links?: { label: string; url: string }[];
   available_for_purchase: boolean;
+  is_recurring?: boolean;
+  billing_interval?: "month" | "year" | null;
   visibility_mag_ids?: string[];
   grant_mag_id?: string | null;
 }): ProductFormState {
@@ -67,6 +75,9 @@ export function productFormStateFromRow(row: {
   const digitalDeliveryLinks = Array.isArray(rawLinks)
     ? rawLinks.map((x) => ({ label: String(x?.label ?? "").trim(), url: String(x?.url ?? "").trim() })).filter((x) => x.url.length > 0)
     : [];
+  const bi = row.billing_interval;
+  const billing_interval =
+    bi === "month" || bi === "year" ? bi : null;
   return {
     price: Number(row.price),
     currency: row.currency ?? "USD",
@@ -78,6 +89,8 @@ export function productFormStateFromRow(row: {
     downloadable: row.downloadable ?? false,
     digitalDeliveryLinks,
     available_for_purchase: row.available_for_purchase ?? true,
+    is_recurring: row.is_recurring ?? false,
+    billing_interval: billing_interval ?? null,
     visibilityMagIds: Array.isArray(row.visibility_mag_ids) ? row.visibility_mag_ids : [],
     grantMagId: row.grant_mag_id ?? "",
   };
@@ -87,6 +100,8 @@ interface ProductDetailsFormProps {
   value: ProductFormState;
   onChange: (state: ProductFormState) => void;
   stripeProductId: string | null;
+  /** Step 31: Recurring Price ID (subscription products). */
+  stripePriceId?: string | null;
   disabled?: boolean;
 }
 
@@ -94,6 +109,7 @@ export function ProductDetailsForm({
   value,
   onChange,
   stripeProductId,
+  stripePriceId = null,
   disabled = false,
 }: ProductDetailsFormProps) {
   const [galleries, setGalleries] = useState<{ id: string; name: string; slug: string }[]>([]);
@@ -124,9 +140,17 @@ export function ProductDetailsForm({
       </CardHeader>
       <CardContent className="space-y-4">
         {stripeProductId ? (
-          <div className="rounded-md border bg-muted/50 p-3 text-sm">
-            <Label className="text-muted-foreground">Stripe Product ID</Label>
-            <p className="font-mono text-xs mt-1 break-all">{stripeProductId}</p>
+          <div className="rounded-md border bg-muted/50 p-3 text-sm space-y-2">
+            <div>
+              <Label className="text-muted-foreground">Stripe Product ID</Label>
+              <p className="font-mono text-xs mt-1 break-all">{stripeProductId}</p>
+            </div>
+            {stripePriceId ? (
+              <div>
+                <Label className="text-muted-foreground">Stripe Price ID (recurring)</Label>
+                <p className="font-mono text-xs mt-1 break-all">{stripePriceId}</p>
+              </div>
+            ) : null}
           </div>
         ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -216,6 +240,42 @@ export function ProductDetailsForm({
           <p className="text-xs text-muted-foreground">
             When a customer pays for this product, they will be granted this membership (MAG).
           </p>
+        </div>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Checkbox
+              checked={value.is_recurring}
+              onCheckedChange={(c) => {
+                const checked = !!c;
+                update({
+                  is_recurring: checked,
+                  billing_interval: checked && value.billing_interval ? value.billing_interval : null,
+                });
+              }}
+              disabled={disabled}
+            />
+            <span className="text-sm">Recurring (subscription)</span>
+          </label>
+          {value.is_recurring && (
+            <div className="pl-6 space-y-2">
+              <Label className="text-sm">Billing interval</Label>
+              <select
+                value={value.billing_interval ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  update({
+                    billing_interval: v === "month" || v === "year" ? v : null,
+                  });
+                }}
+                disabled={disabled}
+                className="flex h-9 w-full max-w-[200px] rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              >
+                <option value="">Select interval</option>
+                <option value="month">Monthly</option>
+                <option value="year">Yearly</option>
+              </select>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-6">
           <label className="flex items-center gap-2 cursor-pointer">

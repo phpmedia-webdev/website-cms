@@ -2,6 +2,8 @@
  * POST /api/ecommerce/products/[id]/sync-stripe
  * Step 11: Create Stripe Product from CMS product. Loads content + product, resolves image URLs,
  * calls Stripe Products.create (no Price), saves stripe_product_id to product row.
+ * Step 31: If product is subscription (is_recurring), also creates a recurring Price and saves stripe_price_id.
+ * When product already has stripe_product_id but is_recurring and no stripe_price_id, creates only the recurring Price.
  * [id] = content_id.
  */
 
@@ -17,6 +19,11 @@ import { getClientSchema } from "@/lib/supabase/schema";
 
 const CONTENT_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+
+/** Product price in CMS is in dollars; Stripe expects cents. */
+function toCents(amount: number): number {
+  return Math.round(Number(amount) * 100);
+}
 
 /** Extract plain text from Tiptap-style body (max length for Stripe description). */
 function plainTextFromBody(body: unknown, maxLen = 500): string {
@@ -84,7 +91,21 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (product.stripe_product_id) {
+
+    const needsStripeProduct = !product.stripe_product_id;
+    const needsRecurringPrice =
+      product.is_recurring &&
+      product.stripe_product_id &&
+      !product.stripe_price_id &&
+      (product.billing_interval === "month" || product.billing_interval === "year");
+
+    if (!needsStripeProduct && !needsRecurringPrice) {
+      if (product.stripe_product_id && product.is_recurring && product.stripe_price_id) {
+        return NextResponse.json(
+          { error: "Product and recurring Price already synced to Stripe." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
         { error: "Product already synced to Stripe. Stripe Product ID is read-only." },
         { status: 400 }
@@ -122,33 +143,77 @@ export async function POST(
       plainTextFromBody(content.body) ||
       undefined;
 
-    const stripeProduct = await stripe.products.create({
-      name: (content.title as string) || "Untitled Product",
-      description: description || undefined,
-      images: imageUrls.length > 0 ? imageUrls : undefined,
-      metadata: {
-        content_id: contentId,
-        cms_product_id: product.id,
-      },
-    });
+    let stripeProductId = product.stripe_product_id;
 
-    const supabase = createServerSupabaseClient();
-    const { error: updateError } = await supabase
-      .schema(CONTENT_SCHEMA)
-      .from("product")
-      .update({ stripe_product_id: stripeProduct.id })
-      .eq("content_id", contentId);
-    if (updateError) {
-      console.error("Sync Stripe: failed to save stripe_product_id", updateError);
-      return NextResponse.json(
-        { error: "Stripe product created but failed to save ID to database." },
-        { status: 500 }
-      );
+    if (needsStripeProduct) {
+      const stripeProduct = await stripe.products.create({
+        name: (content.title as string) || "Untitled Product",
+        description: description || undefined,
+        images: imageUrls.length > 0 ? imageUrls : undefined,
+        metadata: {
+          content_id: contentId,
+          cms_product_id: product.id,
+        },
+      });
+      stripeProductId = stripeProduct.id;
+
+      const supabase = createServerSupabaseClient();
+      const { error: updateError } = await supabase
+        .schema(CONTENT_SCHEMA)
+        .from("product")
+        .update({ stripe_product_id: stripeProduct.id })
+        .eq("content_id", contentId);
+      if (updateError) {
+        console.error("Sync Stripe: failed to save stripe_product_id", updateError);
+        return NextResponse.json(
+          { error: "Stripe product created but failed to save ID to database." },
+          { status: 500 }
+        );
+      }
+    }
+
+    let stripePriceId: string | null = product.stripe_price_id;
+    const shouldCreateRecurringPrice =
+      product.is_recurring &&
+      stripeProductId &&
+      !stripePriceId &&
+      (product.billing_interval === "month" || product.billing_interval === "year");
+
+    if (shouldCreateRecurringPrice && product.billing_interval && stripeProductId) {
+      const currency = (product.currency || "USD").toLowerCase();
+      const stripePrice = await stripe.prices.create({
+        product: stripeProductId,
+        currency,
+        unit_amount: toCents(product.price),
+        recurring: {
+          interval: product.billing_interval,
+        },
+        metadata: {
+          content_id: contentId,
+          cms_product_id: product.id,
+        },
+      });
+      stripePriceId = stripePrice.id;
+
+      const supabase = createServerSupabaseClient();
+      const { error: priceUpdateError } = await supabase
+        .schema(CONTENT_SCHEMA)
+        .from("product")
+        .update({ stripe_price_id: stripePrice.id })
+        .eq("content_id", contentId);
+      if (priceUpdateError) {
+        console.error("Sync Stripe: failed to save stripe_price_id", priceUpdateError);
+        return NextResponse.json(
+          { error: "Stripe recurring price created but failed to save ID to database." },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({
       success: true,
-      stripe_product_id: stripeProduct.id,
+      stripe_product_id: stripeProductId,
+      stripe_price_id: stripePriceId ?? undefined,
     });
   } catch (err) {
     console.error("Sync to Stripe error:", err);

@@ -3,18 +3,20 @@
  * Each client deployment uses a dedicated schema for data isolation.
  */
 
+/** Default schema when NEXT_PUBLIC_CLIENT_SCHEMA is not set (e.g. local dev / template). */
+export const DEFAULT_CLIENT_SCHEMA = "website_cms_template_dev";
+
 /**
  * Get the client schema name from environment variables.
- * This is set per Vercel deployment.
+ * This is set per Vercel deployment. Returns DEFAULT_CLIENT_SCHEMA when unset so dashboard and app can load.
  */
 export function getClientSchema(): string {
-  const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA;
-  if (!schema) {
-    throw new Error(
-      "NEXT_PUBLIC_CLIENT_SCHEMA environment variable is not set"
-    );
+  const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA?.trim();
+  if (schema) return schema;
+  if (typeof process !== "undefined" && process.env?.NODE_ENV === "development") {
+    console.warn("NEXT_PUBLIC_CLIENT_SCHEMA is not set; using", DEFAULT_CLIENT_SCHEMA);
   }
-  return schema;
+  return DEFAULT_CLIENT_SCHEMA;
 }
 
 /**

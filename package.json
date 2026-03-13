@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "setup-git-hooks": "node scripts/setup-git-hooks.cjs",
     "update-user": "tsx scripts/update-user-metadata.ts",
     "setup-client": "tsx scripts/setup-client-schema.ts",
     "set-admin-all-features": "tsx scripts/set-admin-role-all-features.ts"

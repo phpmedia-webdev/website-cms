@@ -15,7 +15,11 @@ export default function ImportContactsPage() {
         <div>
           <h1 className="text-3xl font-bold">Import contacts</h1>
           <p className="text-muted-foreground mt-1">
-            Upload a CSV and map columns to CRM fields
+            Upload or paste CSV and map columns to contact fields. For orders, use{" "}
+            <Link href="/admin/ecommerce/orders/import" className="text-primary underline">
+              Import orders (CSV)
+            </Link>
+            .
           </p>
         </div>
       </div>

@@ -10,7 +10,7 @@ export default function MembersOrdersPage() {
       <div>
         <h1 className="text-3xl font-bold mb-2">Order history</h1>
         <p className="text-muted-foreground">
-          Review your orders and see their status (pending, paid, processing, completed).
+          All your payments in one place: one-time orders and subscription payments (first payment and renewals). Status: pending, paid, processing, completed.
         </p>
       </div>
       <MembersOrdersListClient />

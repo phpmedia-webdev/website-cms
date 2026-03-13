@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, UploadCloud } from "lucide-react";
+import { ArrowLeft, Loader2, UploadCloud, Link2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { getContentTypes } from "@/lib/supabase/content";
 import { insertProductRow, updateProductRow } from "@/lib/supabase/products";
 import type { ProductRow } from "@/lib/supabase/products";
@@ -32,6 +34,9 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncingStripe, setSyncingStripe] = useState(false);
+  const [linkStripeProductId, setLinkStripeProductId] = useState("");
+  const [linkStripePriceId, setLinkStripePriceId] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
   const formRef = useRef<ContentEditorFormHandle>(null);
 
   useEffect(() => {
@@ -64,6 +69,8 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
           downloadable: productState.downloadable,
           digital_delivery_links: productState.digitalDeliveryLinks.filter((l) => l.url.trim().length > 0),
           available_for_purchase: productState.available_for_purchase,
+          is_recurring: productState.is_recurring,
+          billing_interval: productState.billing_interval,
           visibility_mag_ids: productState.visibilityMagIds,
           grant_mag_id: productState.grantMagId || null,
         });
@@ -81,6 +88,8 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
           downloadable: productState.downloadable,
           digital_delivery_links: productState.digitalDeliveryLinks.filter((l) => l.url.trim().length > 0),
           available_for_purchase: productState.available_for_purchase,
+          is_recurring: productState.is_recurring,
+          billing_interval: productState.billing_interval,
           visibility_mag_ids: productState.visibilityMagIds,
           grant_mag_id: productState.grantMagId || null,
         });
@@ -100,7 +109,11 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
   };
 
   const handleSyncToStripe = async () => {
-    if (!content?.id || product?.stripe_product_id) return;
+    if (!content?.id) return;
+    const needsProduct = !product?.stripe_product_id;
+    const needsRecurringPrice =
+      product?.is_recurring && product?.stripe_product_id && !product?.stripe_price_id;
+    if (!needsProduct && !needsRecurringPrice) return;
     setSyncingStripe(true);
     try {
       const res = await fetch(`/api/ecommerce/products/${content.id}/sync-stripe`, {
@@ -117,6 +130,36 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
       alert("Sync to Stripe failed.");
     } finally {
       setSyncingStripe(false);
+    }
+  };
+
+  const handleLinkToStripe = async () => {
+    const productId = (linkStripeProductId || product?.stripe_product_id ?? "").trim();
+    if (!content?.id || !productId) return;
+    const priceId = (linkStripePriceId || product?.stripe_price_id ?? "").trim();
+    setLinkLoading(true);
+    try {
+      const res = await fetch(`/api/ecommerce/products/${content.id}/link-stripe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stripe_product_id: productId,
+          stripe_price_id: productState.is_recurring && priceId ? priceId : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? "Link to Stripe failed.");
+        return;
+      }
+      setLinkStripeProductId("");
+      setLinkStripePriceId("");
+      router.refresh();
+    } catch (e) {
+      console.error("Link to Stripe error:", e);
+      alert("Link to Stripe failed.");
+    } finally {
+      setLinkLoading(false);
     }
   };
 
@@ -214,7 +257,9 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
       {product && !product.stripe_product_id && (
         <div className="rounded-md border bg-muted/30 p-4">
           <p className="text-sm text-muted-foreground mb-2">
-            Create a Stripe Product from this CMS product to enable checkout. Price is not sent to Stripe; checkout uses app-side pricing.
+            {!product.stripe_product_id
+              ? "Create a Stripe Product from this CMS product to enable checkout. Price is not sent to Stripe; checkout uses app-side pricing."
+              : "Create a recurring Price in Stripe for this subscription product so customers can checkout."}
           </p>
           <Button
             variant="outline"
@@ -229,7 +274,66 @@ export function ProductEditClient({ content, product }: ProductEditClientProps) 
             ) : (
               <>
                 <UploadCloud className="h-4 w-4 mr-2" />
-                Create Stripe Product from CMS Product
+                {product.stripe_product_id && product.is_recurring
+                  ? "Create recurring Price in Stripe"
+                  : "Create Stripe Product from CMS Product"}
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {product && (
+        <div className="rounded-md border bg-muted/30 p-4 space-y-3">
+          <h3 className="text-sm font-medium flex items-center gap-2">
+            <Link2 className="h-4 w-4" />
+            {product.stripe_product_id ? "Change Stripe link" : "Link to existing Stripe product"}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Paste Stripe Product ID (and Price ID for subscriptions) to link this app product to an existing Stripe product. No new objects are created in Stripe.
+          </p>
+          <div className="grid gap-2 max-w-md">
+            <div>
+              <Label htmlFor="link-stripe-product-id">Stripe Product ID</Label>
+              <Input
+                id="link-stripe-product-id"
+                placeholder="prod_…"
+                value={linkStripeProductId || (product.stripe_product_id ?? "")}
+                onChange={(e) => setLinkStripeProductId(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+            {productState.is_recurring && (
+              <div>
+                <Label htmlFor="link-stripe-price-id">Stripe Price ID (optional for subscriptions)</Label>
+                <Input
+                  id="link-stripe-price-id"
+                  placeholder="price_…"
+                  value={linkStripePriceId || (product.stripe_price_id ?? "")}
+                  onChange={(e) => setLinkStripePriceId(e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleLinkToStripe}
+            disabled={
+              saving ||
+              linkLoading ||
+              !(linkStripeProductId || product?.stripe_product_id ?? "").trim()
+            }
+          >
+            {linkLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Linking…
+              </>
+            ) : (
+              <>
+                <Link2 className="h-4 w-4 mr-2" />
+                {product.stripe_product_id ? "Update link" : "Link to Stripe"}
               </>
             )}
           </Button>

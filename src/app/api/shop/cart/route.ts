@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
         subtotal: 0,
         has_shippable: false,
         has_downloadable: false,
+        has_recurring: false,
+        has_onetime: false,
       });
     }
     const cart = await getCartWithDetails(sessionId);
@@ -33,6 +35,8 @@ export async function GET(request: NextRequest) {
         subtotal: 0,
         has_shippable: false,
         has_downloadable: false,
+        has_recurring: false,
+        has_onetime: false,
       });
     }
     return NextResponse.json({
@@ -43,6 +47,8 @@ export async function GET(request: NextRequest) {
       subtotal: cart.subtotal,
       has_shippable: cart.has_shippable ?? false,
       has_downloadable: cart.has_downloadable ?? false,
+      has_recurring: cart.has_recurring ?? false,
+      has_onetime: cart.has_onetime ?? false,
     });
   } catch (e) {
     console.warn("GET /api/shop/cart:", e);

@@ -173,12 +173,27 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Subscriptions (steps 30–35) — design in sessionlog:** Order history = all payments (create order for first subscription payment and each renewal). No mixed cart: block with message "One-time purchases cannot be mixed with subscriptions. Please make 2 separate transactions." Account required for all checkout (no guest). Admin: Ecommerce → Subscriptions (separate tab), mirror Stripe data. Emails: subscription started, renewal, canceled/payment failed. MVP: start and cancel only; trials/plan-change/term (e.g. 6–12 months) out of scope (Stripe supports later). Stripe Customer Portal for manage/cancel; admin UI mirrors Stripe.
 
-- [ ] **30. Product model for subscriptions:** is_recurring, billing_interval, stripe_price_id; same editor as one-time.
-- [ ] **31. Stripe recurring Price:** Sync creates recurring Price; save stripe_price_id.
-- [ ] **32. Checkout subscription mode:** Cart all one-time OR all subscription; require sign-in; subscription session uses stripe_price_id. Enforce account for one-time too.
-- [ ] **33. Subscription and invoice webhooks:** subscriptions table; create order for first payment and renewals; handle subscription + invoice events.
-- [ ] **34. Admin Subscriptions:** Separate tab; list customers and active subscriptions; mirror Stripe.
-- [ ] **35. Customer Subscriptions:** Order history = all payments; Subscriptions tab = manage/cancel via Stripe Portal; three emails.
+- [x] **30. Product model for subscriptions:** is_recurring, billing_interval, stripe_price_id; same editor as one-time.
+- [x] **31. Stripe recurring Price:** Sync creates recurring Price; save stripe_price_id.
+- [x] **32. Checkout subscription mode:** Cart all one-time OR all subscription; require sign-in; subscription session uses stripe_price_id. Enforce account for one-time too.
+- [x] **33. Subscription and invoice webhooks:** subscriptions table; create order for first payment and renewals; handle subscription + invoice events.
+- [x] **34. Admin Subscriptions:** Separate tab; list customers and active subscriptions; mirror Stripe.
+- [x] **35. Customer Subscriptions:** Order history = all payments; Subscriptions tab = manage/cancel via Stripe Portal; three emails.
+
+**Activity stream messaging (steps 36–41) — see sessionlog:** Messages as note_type = 'message' in crm_notes; recipient_contact_id (null = support), parent_note_id for threading. Member dashboard activity stream with search, type filter, "Add new message"; client sends to support; admin sends/replies from contact Activity Stream.
+
+- [x] **36–41. Message schema, filter, member stream, client send, admin reply, threading:** Migration 139 (recipient_contact_id, parent_note_id; RPC); ACTIVITY_TYPE message; getMemberActivity + GET /api/members/activity; POST /api/members/messages; ContactNotesSection "Send message" + Reply with parent_note_id.
+- [ ] **42. (Future) Client-to-client messaging:** Not in MVP. When added: use existing recipient_contact_id; add UI for client to "message another member"; target list = contacts who share at least one MAG with the sender (same-membership filter). Same visibility rule (contact_id OR recipient_contact_id) already supports it.
+
+**Stripe & platform sync (steps 43–48) — see sessionlog:** For tenant onboarding/migration: sync from existing Stripe, WooCommerce, or raw/CSV. Drift sync for products (reconcile Stripe vs app); Stripe → customers and order history; WooCommerce import; raw/CSV import with field mapping. **Order IDs:** Our system has its own order number (generator, human-friendly); Stripe uses random UIDs per object (cs_xxx, in_xxx)—no “order number”; store stripe_checkout_session_id + stripe_invoice_id and woocommerce_order_id (or external_order_id) as cross-reference only. Add order_number column + generator and external id columns (migration) before or as part of sync. **Visibility:** Admins see our order number + Stripe UIDs on order detail (for audits). WooCommerce/external order IDs only in superadmin-only table/view, not on tenant admin order UI.
+
+- [x] **43. Stripe → products (drift sync):** Reconcile Stripe Products/Prices vs app; report drift; optional Import/Update from Stripe. Done: stripe-drift.ts, GET/POST drift API, Reconcile card on Products page.
+- [x] **44. Stripe → products (bulk import / link):** Bulk import from Stripe; per-product "Link to existing Stripe product."
+- [x] **45. Stripe → CRM customers:** Sync Stripe Customers to contacts; external_stripe_id; idempotent.
+- [x] **46. Stripe → order history:** Sync Stripe Invoices to orders + order_items; idempotent by stripe_invoice_id.
+- [x] **47. WooCommerce → customers / order history:** Import via WooCommerce API or CSV; map to contacts and orders.
+- [x] **48. Raw/CSV import with field mapping:** Generic CSV/raw import; map columns to contact and/or order fields; preview and import. Done: orders import page + API + lib; CRM import has paste and link to orders import.
+- **Accounting export:** Stripe’s QuickBooks plugin may suffice for some; others need app transaction data. **[x] 49.** Export orders as CSV (done: GET /api/ecommerce/export/orders?format=csv; lib export-orders.ts; Export button on Orders page). **[x] 50.** Stub: non-CSV formats 501; GET /api/ecommerce/export/formats. Full IIF/QBO when required.
 
 **Coupons / code-based discounts (reuse existing code generator):**
 

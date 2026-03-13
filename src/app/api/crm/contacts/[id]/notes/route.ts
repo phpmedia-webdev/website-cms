@@ -39,7 +39,15 @@ export async function POST(
     }
     const { id } = await params;
     const body = await request.json();
-    const { note, error } = await createNote(id, body.body, user.id, body.note_type ?? null);
+    const parentNoteId = typeof body.parent_note_id === "string" ? body.parent_note_id : undefined;
+    const { note, error } = await createNote(
+      id,
+      body.body,
+      user.id,
+      body.note_type ?? null,
+      undefined,
+      parentNoteId
+    );
     if (error) {
       return NextResponse.json({ error: error.message || "Failed to create note" }, { status: 500 });
     }

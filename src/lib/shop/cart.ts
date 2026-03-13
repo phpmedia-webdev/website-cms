@@ -45,6 +45,10 @@ export interface CartDisplay {
   has_shippable?: boolean;
   /** True if any item is a downloadable product (order detail shows download links). */
   has_downloadable?: boolean;
+  /** Step 32: True if any item is a subscription (recurring) product. */
+  has_recurring?: boolean;
+  /** Step 32: True if any item is a one-time product. If both has_recurring and has_onetime, cart is mixed (block checkout). */
+  has_onetime?: boolean;
 }
 
 /**
@@ -165,7 +169,7 @@ export async function getCartWithDetails(
 
   const [contentResult, productResult] = await Promise.all([
     supabase.schema(schemaName).from("content").select("id, title, slug").in("id", contentIds),
-    supabase.schema(schemaName).from("product").select("content_id, shippable, downloadable").in("content_id", contentIds),
+    supabase.schema(schemaName).from("product").select("content_id, shippable, downloadable, is_recurring, stripe_price_id").in("content_id", contentIds),
   ]);
 
   const byId = new Map<string, { title: string; slug: string }>();
@@ -176,18 +180,26 @@ export async function getCartWithDetails(
 
   const shippableByContentId = new Map<string, boolean>();
   const downloadableByContentId = new Map<string, boolean>();
+  const isRecurringByContentId = new Map<string, boolean>();
+  const stripePriceIdByContentId = new Map<string, string | null>();
   for (const p of productResult.data ?? []) {
-    const row = p as { content_id: string; shippable: boolean; downloadable?: boolean };
+    const row = p as { content_id: string; shippable: boolean; downloadable?: boolean; is_recurring?: boolean; stripe_price_id?: string | null };
     shippableByContentId.set(row.content_id, Boolean(row.shippable));
     downloadableByContentId.set(row.content_id, Boolean(row.downloadable));
+    isRecurringByContentId.set(row.content_id, Boolean(row.is_recurring));
+    stripePriceIdByContentId.set(row.content_id, row.stripe_price_id ?? null);
   }
   const has_shippable = cart.items.some((i) => shippableByContentId.get(i.content_id));
   const has_downloadable = cart.items.some((i) => downloadableByContentId.get(i.content_id));
+  const has_recurring = cart.items.some((i) => isRecurringByContentId.get(i.content_id));
+  const has_onetime = cart.items.some((i) => !isRecurringByContentId.get(i.content_id));
 
   return {
     ...cart,
     has_shippable,
     has_downloadable,
+    has_recurring,
+    has_onetime,
     items: cart.items.map((i) => ({
       ...i,
       title: byId.get(i.content_id)?.title,
@@ -234,9 +246,13 @@ async function getProductPriceForCart(
   };
 }
 
+const MIXED_CART_MESSAGE =
+  "One-time purchases cannot be mixed with subscriptions. Please complete one type of purchase first, then start a new transaction for the other.";
+
 /**
  * Add or update item in cart. Merges quantity if item exists.
  * Step 28: When product has stock_quantity set, validates (cart qty + requested) <= stock.
+ * Step 32: Blocks mixing one-time and subscription products; returns MIXED_CART_MESSAGE if mixed.
  */
 export async function addCartItem(
   sessionId: string,
@@ -247,10 +263,36 @@ export async function addCartItem(
   if (quantity < 1) return { ok: false, error: "Quantity must be at least 1" };
 
   const schemaName = schema ?? CONTENT_SCHEMA;
+  const supabase = createServerSupabaseClient();
+
+  const { data: existingCartItems } = await supabase
+    .schema(schemaName)
+    .from("cart_items")
+    .select("content_id")
+    .eq("cart_session_id", sessionId);
+  const existingContentIds: string[] = (existingCartItems ?? []).map((r: { content_id: string }) => r.content_id);
+  const allContentIds: string[] = [...new Set([...existingContentIds, contentId])];
+
+  if (allContentIds.length > 0) {
+    const { data: productRows } = await supabase
+      .schema(schemaName)
+      .from("product")
+      .select("content_id, is_recurring")
+      .in("content_id", allContentIds);
+    const isRecurringByContentId = new Map<string, boolean>();
+    for (const p of productRows ?? []) {
+      const row = p as { content_id: string; is_recurring?: boolean };
+      isRecurringByContentId.set(row.content_id, Boolean(row.is_recurring));
+    }
+    const recurringCount = allContentIds.filter((id) => isRecurringByContentId.get(id)).length;
+    const onetimeCount = allContentIds.filter((id) => !isRecurringByContentId.get(id)).length;
+    if (recurringCount > 0 && onetimeCount > 0) {
+      return { ok: false, error: MIXED_CART_MESSAGE };
+    }
+  }
+
   const priceInfo = await getProductPriceForCart(contentId, schemaName);
   if (!priceInfo) return { ok: false, error: "Product not available for purchase" };
-
-  const supabase = createServerSupabaseClient();
 
   const { data: existing } = await supabase
     .schema(schemaName)

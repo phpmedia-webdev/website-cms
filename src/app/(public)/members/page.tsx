@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ApplyCodeBlock } from "./ApplyCodeBlock";
+import { MemberActivityStream } from "./MemberActivityStream";
 
 /**
  * Member dashboard — landing for logged-in members.
@@ -20,6 +21,11 @@ export default function MembersDashboardPage() {
             </Link>
           </li>
           <li>
+            <Link href="/members/subscriptions" className="text-primary hover:underline">
+              Subscriptions
+            </Link>
+          </li>
+          <li>
             <Link href="/members/profile" className="text-primary hover:underline">
               My profile
             </Link>
@@ -31,6 +37,7 @@ export default function MembersDashboardPage() {
           </li>
         </ul>
       </div>
+      <MemberActivityStream />
       <ApplyCodeBlock />
     </main>
   );

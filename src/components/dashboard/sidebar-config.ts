@@ -26,6 +26,7 @@ import {
   ShoppingBag,
   Package,
   FileText,
+  Repeat,
 } from "lucide-react";
 
 /** Session storage keys for sidebar accordion open state. */
@@ -73,6 +74,7 @@ export const calendarSubNav: SubNavItem[] = [
 export const ecommerceSubNav: SubNavItem[] = [
   { name: "Products", href: "/admin/ecommerce/products", icon: Package, featureSlug: "content" },
   { name: "Orders", href: "/admin/ecommerce/orders", icon: ShoppingBag, featureSlug: "content" },
+  { name: "Subscriptions", href: "/admin/ecommerce/subscriptions", icon: Repeat, featureSlug: "content" },
 ];
 
 export const settingsSubNav: SubNavItem[] = [

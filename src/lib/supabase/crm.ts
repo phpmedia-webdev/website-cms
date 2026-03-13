@@ -69,6 +69,10 @@ export interface CrmNote {
   content_id?: string | null;
   /** For blog_comment: 'pending' | 'approved' | 'rejected'. Null for other note types. */
   status?: string | null;
+  /** For note_type = 'message': null = to/from support; set for client-to-client (future). */
+  recipient_contact_id?: string | null;
+  /** Links reply to parent message for threading. */
+  parent_note_id?: string | null;
 }
 
 export interface Form {
@@ -791,18 +795,28 @@ export async function deleteContact(id: string): Promise<{ success: boolean; err
 
 // ==================== Notes ====================
 
-/** Create a note for a contact (write). */
+/** Create a note for a contact (write). Optional threading and recipient for messages. */
 export async function createNote(
   contactId: string,
   body: string,
   authorId?: string | null,
-  noteType?: string | null
+  noteType?: string | null,
+  recipientContactId?: string | null,
+  parentNoteId?: string | null
 ): Promise<{ note: CrmNote | null; error: Error | null }> {
   const supabase = createServerSupabaseClient();
+  const payload: Record<string, unknown> = {
+    contact_id: contactId,
+    body,
+    author_id: authorId ?? null,
+    note_type: noteType ?? null,
+  };
+  if (recipientContactId !== undefined) payload.recipient_contact_id = recipientContactId ?? null;
+  if (parentNoteId !== undefined) payload.parent_note_id = parentNoteId ?? null;
   const { data, error } = await supabase
     .schema(CRM_SCHEMA)
     .from("crm_notes")
-    .insert({ contact_id: contactId, body, author_id: authorId ?? null, note_type: noteType ?? null })
+    .insert(payload)
     .select()
     .single();
   if (error) {
@@ -1809,6 +1823,7 @@ export async function getFormSubmissionsByContactId(contactId: string): Promise<
 /** Activity stream type filter options. Shared by dashboard and CRM contact activity so both dropdowns match. */
 export const ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "all", label: "All" },
+  { value: "message", label: "Messages" },
   { value: "note", label: "Notes" },
   { value: "blog_comment", label: "Comments" },
   { value: "email_sent", label: "Outbound email" },
@@ -1819,9 +1834,9 @@ export const ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "order", label: "Orders / Abandoned checkout" },
 ] as const;
 
-/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments, MAG assignments, marketing list, orders). */
+/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments, MAG assignments, marketing list, orders, messages). */
 export interface DashboardActivityItem {
-  type: "note" | "form_submission" | "contact_added" | "blog_comment" | "mag_assignment" | "marketing_list" | "order";
+  type: "note" | "message" | "form_submission" | "contact_added" | "blog_comment" | "mag_assignment" | "marketing_list" | "order";
   at: string;
   contactId: string;
   contactName: string;
@@ -1889,7 +1904,7 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       .then((r: { data: unknown; error: unknown }) => (r.error ? { data: null } : r)),
   ]);
 
-  const notes = (notesData.data as { id: string; contact_id: string | null; body: string; created_at: string; note_type: string | null; author_id: string | null; content_id: string | null; status: string | null }[] | null) ?? [];
+  const notes = (notesData.data as { id: string; contact_id: string | null; body: string; created_at: string; note_type: string | null; author_id: string | null; content_id: string | null; status: string | null; recipient_contact_id?: string | null; parent_note_id?: string | null }[] | null) ?? [];
   const subs = (subsData.data as { id: string; contact_id: string | null; form_id: string; submitted_at: string }[] | null) ?? [];
   const contacts = (contactsData.data as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; email: string | null; created_at: string }[] | null) ?? [];
   const magAssignments = (magsData.data as { contact_id: string; mag_id: string; assigned_at: string }[] | null) ?? [];
@@ -1944,6 +1959,16 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
         noteType: "blog_comment",
         contentId: n.content_id ?? null,
         status: n.status ?? null,
+      });
+    } else if (n.note_type === "message") {
+      items.push({
+        type: "message",
+        id: n.id,
+        at: n.created_at,
+        contactId: n.contact_id ?? "",
+        contactName: contactNames[n.contact_id ?? ""] ?? "Contact",
+        body: n.body,
+        noteType: "message",
       });
     } else {
       items.push({
@@ -2018,6 +2043,133 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       type: "order",
       at: o.created_at,
       contactId: o.contact_id ?? "",
+      contactName,
+      body,
+      orderId: o.id,
+      orderStatus: o.status,
+    });
+  }
+
+  items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return items.slice(0, limit);
+}
+
+/**
+ * Activity stream for a single contact (member dashboard). Same event types as getDashboardActivity but filtered to one contact.
+ */
+export async function getMemberActivity(contactId: string, limit = 80): Promise<DashboardActivityItem[]> {
+  const [notes, formSubmissions, mags, marketingLists, contact, ordersData] = await Promise.all([
+    getContactNotes(contactId),
+    getFormSubmissionsByContactId(contactId),
+    getContactMags(contactId),
+    getContactMarketingLists(contactId),
+    getContactById(contactId),
+    (async () => {
+      const supabase = createServerSupabaseClient();
+      const { data } = await supabase
+        .schema(CRM_SCHEMA)
+        .from("orders")
+        .select("id, customer_email, contact_id, status, created_at")
+        .eq("contact_id", contactId)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      return (data ?? []) as { id: string; customer_email: string; contact_id: string | null; status: string; created_at: string }[];
+    })(),
+  ]);
+
+  const contactName = contact
+    ? (contact.full_name?.trim() || [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email || "Contact")
+    : "Contact";
+
+  const forms = await getForms();
+  const formNameById: Record<string, string> = Object.fromEntries(forms.map((f) => [f.id, f.name]));
+
+  const items: DashboardActivityItem[] = [];
+
+  const noteRows = notes as (CrmNote & { note_type?: string | null })[];
+  for (const n of noteRows) {
+    if (n.note_type === "blog_comment") {
+      const authorName = n.author_id ? await (await import("@/lib/blog-comments/author-name")).getCommentAuthorDisplayName(n.author_id) : "Commenter";
+      items.push({
+        type: "blog_comment",
+        id: n.id,
+        at: n.created_at,
+        contactId: n.contact_id ?? "",
+        contactName: authorName,
+        body: n.body,
+        noteType: "blog_comment",
+        contentId: n.content_id ?? null,
+        status: n.status ?? null,
+      });
+    } else if (n.note_type === "message") {
+      items.push({
+        type: "message",
+        id: n.id,
+        at: n.created_at,
+        contactId: contactId,
+        contactName,
+        body: n.body,
+        noteType: "message",
+      });
+    } else {
+      items.push({
+        type: "note",
+        at: n.created_at,
+        contactId: contactId,
+        contactName,
+        body: n.body,
+        noteType: n.note_type ?? null,
+      });
+    }
+  }
+
+  for (const s of formSubmissions) {
+    items.push({
+      type: "form_submission",
+      at: s.submitted_at,
+      contactId,
+      contactName,
+      formName: formNameById[s.form_id] ?? "Form",
+    });
+  }
+
+  if (contact?.created_at) {
+    items.push({
+      type: "contact_added",
+      at: contact.created_at,
+      contactId,
+      contactName,
+    });
+  }
+
+  for (const m of mags) {
+    items.push({
+      type: "mag_assignment",
+      at: m.assigned_at,
+      contactId,
+      contactName,
+      magName: m.mag_name ?? "MAG",
+    });
+  }
+
+  for (const ml of marketingLists) {
+    items.push({
+      type: "marketing_list",
+      at: ml.added_at,
+      contactId,
+      contactName,
+      listName: ml.list_name ?? "List",
+    });
+  }
+
+  for (const o of ordersData) {
+    const body = o.status === "pending"
+      ? "Abandoned checkout / Payment incomplete"
+      : `Order #${o.id.slice(0, 8)}… — ${o.status}`;
+    items.push({
+      type: "order",
+      at: o.created_at,
+      contactId,
       contactName,
       body,
       orderId: o.id,

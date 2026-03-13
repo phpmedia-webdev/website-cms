@@ -16,6 +16,8 @@ interface DashboardActivityStreamProps {
 
 function formatItem(item: DashboardActivityItem): string {
   switch (item.type) {
+    case "message":
+      return item.body?.trim() ? item.body : "Message";
     case "note":
       return item.body?.trim() ? item.body : "Note";
     case "blog_comment":
@@ -69,7 +71,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
     let list = initialItems;
     if (typeFilter !== "all") {
       if (typeFilter === "note") {
-        list = list.filter((i) => i.type === "note" && i.noteType !== "email_sent");
+        list = list.filter((i) => i.type === "note" && i.noteType !== "email_sent" && i.noteType !== "message");
       } else if (typeFilter === "email_sent") {
         list = list.filter((i) => i.type === "note" && i.noteType === "email_sent");
       } else {

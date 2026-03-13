@@ -21,6 +21,10 @@ export interface OrderRow {
   total: number;
   currency: string;
   stripe_checkout_session_id: string | null;
+  /** Set when order created from Stripe invoice.paid (subscription); idempotency key. */
+  stripe_invoice_id: string | null;
+  /** Step 47: WooCommerce order ID when order imported from WooCommerce; idempotency key. */
+  woocommerce_order_id: string | null;
   billing_snapshot: Record<string, unknown> | null;
   shipping_snapshot: Record<string, unknown> | null;
   coupon_code: string | null;
@@ -34,6 +38,16 @@ export interface ListOrdersParams {
   /** Use "needs_attention" to filter orders with status pending or processing (Step 22). */
   status?: OrderStatus | "" | "needs_attention";
   search?: string;
+  limit?: number;
+}
+
+/** Step 49: Params for accounting export (date range, status). */
+export interface ListOrdersForExportParams {
+  /** ISO date string, start of range (inclusive). */
+  from?: string;
+  /** ISO date string, end of range (inclusive). */
+  to?: string;
+  status?: OrderStatus | "";
   limit?: number;
 }
 
@@ -337,6 +351,34 @@ export async function listOrders(
     }
   }
   const limit = Math.min(Math.max(params.limit ?? 100, 1), 500);
+  q = q.limit(limit);
+
+  const { data } = await q;
+  return (data ?? []) as OrderRow[];
+}
+
+/**
+ * Step 49: List orders for export (date range, status). Used by accounting CSV export.
+ */
+export async function listOrdersForExport(
+  params: ListOrdersForExportParams = {},
+  schema?: string
+): Promise<OrderRow[]> {
+  const schemaName = schema ?? CONTENT_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  let q = supabase
+    .schema(schemaName)
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (params.from) q = q.gte("created_at", params.from);
+  if (params.to) q = q.lte("created_at", params.to);
+  if (params.status && params.status !== "needs_attention") {
+    q = q.eq("status", params.status);
+  }
+
+  const limit = Math.min(Math.max(params.limit ?? 5000, 1), 10000);
   q = q.limit(limit);
 
   const { data } = await q;

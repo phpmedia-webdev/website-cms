@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import type { OrderImportField } from "@/lib/shop/import-orders-csv";
 
 const CRM_FIELDS: { key: string; label: string }[] = [
   { key: "email", label: "Email" },
@@ -22,6 +24,17 @@ const CRM_FIELDS: { key: string; label: string }[] = [
   { key: "country", label: "Country" },
   { key: "message", label: "Message / notes" },
   { key: "source", label: "Source" },
+];
+
+const ORDER_FIELDS: { key: OrderImportField; label: string; required?: boolean }[] = [
+  { key: "customer_email", label: "Customer email", required: true },
+  { key: "total", label: "Total", required: true },
+  { key: "currency", label: "Currency" },
+  { key: "order_date", label: "Order date" },
+  { key: "status", label: "Status" },
+  { key: "order_number", label: "Order number (idempotency)" },
+  { key: "line_description", label: "Line description" },
+  { key: "line_amount", label: "Line amount" },
 ];
 
 /** Parse a single CSV line (handles quoted fields with commas). */
@@ -66,15 +79,21 @@ function parseCSV(text: string): string[][] {
   return lines.map(parseCSVLine);
 }
 
+type ImportType = "contacts" | "orders";
+
 export function ImportContactsClient() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
+  const [csvPaste, setCsvPaste] = useState("");
+  const [importType, setImportType] = useState<ImportType>("contacts");
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Record<string, number>>({});
+  const [orderMapping, setOrderMapping] = useState<Record<string, number>>({});
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{
     created: number;
-    failed: number;
+    failed?: number;
+    skipped?: number;
     total: number;
     errors: { row: number; message: string }[];
   } | null>(null);
@@ -82,23 +101,45 @@ export function ImportContactsClient() {
   const headers = rows.length > 0 ? rows[0] : [];
   const dataRows = rows.length > 1 ? rows.slice(1) : [];
 
+  const applyCsv = useCallback((text: string) => {
+    const parsed = parseCSV(text);
+    setRows(parsed);
+    setMapping({});
+    setOrderMapping({});
+    setResult(null);
+  }, []);
+
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
       if (!f) return;
       setFile(f);
-      setResult(null);
+      setCsvPaste("");
       const reader = new FileReader();
       reader.onload = () => {
-        const text = String(reader.result ?? "");
-        const parsed = parseCSV(text);
-        setRows(parsed);
-        setMapping({});
+        applyCsv(String(reader.result ?? ""));
       };
       reader.readAsText(f, "UTF-8");
     },
-    []
+    [applyCsv]
   );
+
+  const handlePasteApply = () => {
+    if (csvPaste.trim()) {
+      applyCsv(csvPaste);
+      setFile(null);
+    }
+  };
+
+  const setOrderMappingField = (fieldKey: string, columnIndex: number) => {
+    if (columnIndex < 0) {
+      const next = { ...orderMapping };
+      delete next[fieldKey];
+      setOrderMapping(next);
+    } else {
+      setOrderMapping((prev) => ({ ...prev, [fieldKey]: columnIndex }));
+    }
+  };
 
   const setMappingField = (fieldKey: string, columnIndex: number) => {
     if (columnIndex < 0) {
@@ -115,14 +156,35 @@ export function ImportContactsClient() {
     setImporting(true);
     setResult(null);
     try {
-      const res = await fetch("/api/crm/contacts/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: dataRows, mapping }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Import failed");
-      setResult(data);
+      if (importType === "orders") {
+        const res = await fetch("/api/ecommerce/import-orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: dataRows, mapping: orderMapping }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Import failed");
+        setResult({
+          created: data.created,
+          skipped: data.skipped,
+          total: data.total,
+          errors: data.errors ?? [],
+        });
+      } else {
+        const res = await fetch("/api/crm/contacts/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: dataRows, mapping }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Import failed");
+        setResult({
+          created: data.created,
+          failed: data.failed,
+          total: data.total,
+          errors: data.errors ?? [],
+        });
+      }
       router.refresh();
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("crm-data-changed"));
@@ -143,12 +205,12 @@ export function ImportContactsClient() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>1. Upload CSV</CardTitle>
+          <CardTitle>1. CSV source</CardTitle>
           <CardDescription>
-            First row should be column headers. We’ll use them to map to CRM fields.
+            Upload a file or paste CSV. First row = column headers. Works with any source (WooCommerce, Shopify, manual).
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="flex items-center gap-2">
             <input
               type="file"
@@ -162,15 +224,29 @@ export function ImportContactsClient() {
               </span>
             )}
           </div>
+          <div>
+            <Label className="text-sm">Or paste CSV</Label>
+            <Textarea
+              placeholder="Paste CSV content here…"
+              value={csvPaste}
+              onChange={(e) => setCsvPaste(e.target.value)}
+              rows={4}
+              className="mt-1 font-mono text-sm"
+            />
+            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={handlePasteApply}>
+              Use pasted CSV
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
       {headers.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>2. Map columns</CardTitle>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>2. Import as</CardTitle>
             <CardDescription>
-              Choose which file column maps to each CRM field. Leave “Don’t map” to skip a field.
+              Choose whether this CSV is contacts or orders, then map columns. Leave “Don't map” to skip a field.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -184,7 +260,7 @@ export function ImportContactsClient() {
                     setMappingField(key, e.target.value === "" ? -1 : Number(e.target.value))
                   }
                 >
-                  <option value="">Don’t map</option>
+                  <option value="">Don't map</option>
                   {headers.map((h, i) => (
                     <option key={i} value={i}>
                       Column: {h || `(column ${i + 1})`}
@@ -233,7 +309,11 @@ export function ImportContactsClient() {
             <div className="mt-4 flex items-center gap-2">
               <Button
                 onClick={handleImport}
-                disabled={importing}
+                disabled={
+                  importing ||
+                  (importType === "orders" &&
+                    (orderMapping.customer_email == null || orderMapping.total == null))
+                }
               >
                 {importing ? (
                   <>
@@ -243,7 +323,10 @@ export function ImportContactsClient() {
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Import {dataRows.length} contact{dataRows.length !== 1 ? "s" : ""}
+                    Import {dataRows.length}{" "}
+                    {importType === "contacts"
+                      ? `contact${dataRows.length !== 1 ? "s" : ""}`
+                      : `order${dataRows.length !== 1 ? "s" : ""}`}
                   </>
                 )}
               </Button>
@@ -263,9 +346,13 @@ export function ImportContactsClient() {
           <CardContent className="space-y-2">
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <span>{result.created} contact{result.created !== 1 ? "s" : ""} created</span>
+              <span>
+                {result.created} {importType === "contacts" ? "contact" : "order"}
+                {result.created !== 1 ? "s" : ""} created
+                {result.skipped != null && result.skipped > 0 && `, ${result.skipped} skipped`}
+              </span>
             </div>
-            {result.failed > 0 && (
+            {(result.failed ?? 0) > 0 && (
               <>
                 <div className="flex items-center gap-2 text-sm text-amber-600">
                   <AlertCircle className="h-4 w-4" />
@@ -278,9 +365,10 @@ export function ImportContactsClient() {
                         Row {e.row}: {e.message}
                       </li>
                     ))}
-                    {result.errors.length < result.failed && (
-                      <li>… and {result.failed - result.errors.length} more</li>
-                    )}
+                    {result.failed != null &&
+                      result.errors.length < result.failed && (
+                        <li>… and {result.failed - result.errors.length} more</li>
+                      )}
                   </ul>
                 )}
               </>
@@ -294,9 +382,9 @@ export function ImportContactsClient() {
         </Card>
       )}
 
-      {!file && !result && (
+      {!file && !csvPaste && rows.length === 0 && !result && (
         <p className="text-sm text-muted-foreground">
-          Upload a CSV file to get started. The first row should contain column headers.
+          Upload a CSV file or paste CSV content to get started. First row should be column headers. Use Contacts for CRM import or Orders for order history (any source).
         </p>
       )}
     </div>

@@ -115,6 +115,7 @@ A developer typically starts a new chat when context becomes too large, to preve
 4. **Remove** the completed items from `docs/sessionlog.md` so the sessionlog stays thin and is ready for the next work session.
 5. Update `prd.md` if architecture or specs changed.
 6. Pause and allow developer to review update to documents.
-7. **Commit and push** all changes (code + docs) in a single commit and push; e.g. message: `Session wrapup: [brief summary]`.
+7. **Build check before push:** Run `pnpm run build` (or rely on the pre-push hook). If the build fails, fix type/lint errors before pushing to avoid failed Vercel deploys. Optional: run `pnpm run setup-git-hooks` once to install a pre-push hook that runs the build automatically.
+8. **Commit and push** all changes (code + docs) in a single commit and push; e.g. message: `Session wrapup: [brief summary]`.
 
 Do documentation updates **before** the final commit and push so context is captured once and the next session can pick up from changelog and sessionlog.

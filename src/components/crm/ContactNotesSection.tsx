@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, MessageSquare } from "lucide-react";
 import type { CrmNote } from "@/lib/supabase/crm";
 import { ACTIVITY_TYPE_FILTER_OPTIONS } from "@/lib/supabase/crm";
 
@@ -49,6 +49,8 @@ export function ContactNotesSection({
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSearch, setNoteSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [parentNoteId, setParentNoteId] = useState<string | null>(null);
+  const [isMessageMode, setIsMessageMode] = useState(false);
 
   useEffect(() => {
     setNotes(initialNotes);
@@ -102,7 +104,8 @@ export function ContactNotesSection({
     if (typeFilter !== "all") {
       list = list.filter((n) => {
         const isSystem = "isSystem" in n && n.isSystem;
-        if (typeFilter === "note") return !isSystem && n.note_type !== "email_sent" && n.note_type !== "blog_comment";
+        if (typeFilter === "note") return !isSystem && n.note_type !== "email_sent" && n.note_type !== "blog_comment" && n.note_type !== "message";
+        if (typeFilter === "message") return !isSystem && n.note_type === "message";
         return n.note_type === typeFilter;
       });
     }
@@ -121,6 +124,26 @@ export function ContactNotesSection({
     setEditingNote(null);
     setNoteBody("");
     setNoteType("");
+    setParentNoteId(null);
+    setIsMessageMode(false);
+    setNoteModalOpen(true);
+  };
+
+  const openSendMessageModal = () => {
+    setEditingNote(null);
+    setNoteBody("");
+    setNoteType("message");
+    setParentNoteId(null);
+    setIsMessageMode(true);
+    setNoteModalOpen(true);
+  };
+
+  const openReplyToMessage = (note: CrmNote) => {
+    setEditingNote(null);
+    setNoteBody("");
+    setNoteType("message");
+    setParentNoteId(note.id);
+    setIsMessageMode(true);
     setNoteModalOpen(true);
   };
 
@@ -128,6 +151,8 @@ export function ContactNotesSection({
     setEditingNote(note);
     setNoteBody(note.body);
     setNoteType(note.note_type || "");
+    setParentNoteId(null);
+    setIsMessageMode(false);
     setNoteModalOpen(true);
   };
 
@@ -151,15 +176,22 @@ export function ContactNotesSection({
           setNoteModalOpen(false);
         }
       } else {
+        const payload: { body: string; note_type: string | null; parent_note_id?: string } = {
+          body: noteBody.trim(),
+          note_type: isMessageMode ? "message" : (noteType || null),
+        };
+        if (parentNoteId) payload.parent_note_id = parentNoteId;
         const res = await fetch(`/api/crm/contacts/${contactId}/notes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body: noteBody.trim(), note_type: noteType || null }),
+          body: JSON.stringify(payload),
         });
         if (res.ok) {
           const created = await res.json();
           setNotes((prev) => [created, ...prev]);
           setNoteModalOpen(false);
+          setParentNoteId(null);
+          setIsMessageMode(false);
         }
       }
     } finally {
@@ -188,12 +220,18 @@ export function ContactNotesSection({
   return (
     <>
       <div className="rounded-lg border bg-card">
-        <div className="flex items-center justify-between py-2 px-4 border-b">
+        <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 border-b">
           <span className="text-sm font-semibold">Activity Stream</span>
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={openAddNoteModal}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Add Custom Note
-          </Button>
+          <div className="flex gap-1">
+            <Button size="sm" variant="default" className="h-7 text-xs" onClick={openSendMessageModal}>
+              <MessageSquare className="h-3.5 w-3.5 mr-1" />
+              Send message
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={openAddNoteModal}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Custom Note
+            </Button>
+          </div>
         </div>
         <div className="p-3 space-y-2">
           <div className="flex flex-wrap gap-2 items-center">
@@ -241,25 +279,39 @@ export function ContactNotesSection({
                     </p>
                   </div>
                 ) : (
-                  <button
-                    key={n.id}
-                    type="button"
-                    className={className}
-                    onClick={() => openEditNoteModal(n as CrmNote)}
-                  >
-                    <p className="truncate">{n.body}</p>
-                    <p className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1.5">
-                      <span>{new Date(n.created_at).toLocaleString()}</span>
-                      {n.note_type && (
-                        <span className="inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
-                          {n.note_type}
-                        </span>
-                      )}
-                      {"updated_at" in n && n.updated_at && n.updated_at !== n.created_at && (
-                        <span className="italic">(edited)</span>
-                      )}
-                    </p>
-                  </button>
+                  <div key={n.id} className="flex items-start justify-between gap-2 group">
+                    <button
+                      type="button"
+                      className={className + " flex-1 min-w-0 text-left"}
+                      onClick={() => openEditNoteModal(n as CrmNote)}
+                    >
+                      <p className="truncate">{n.body}</p>
+                      <p className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span>{new Date(n.created_at).toLocaleString()}</span>
+                        {n.note_type && (
+                          <span className="inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
+                            {n.note_type}
+                          </span>
+                        )}
+                        {"updated_at" in n && n.updated_at && n.updated_at !== n.created_at && (
+                          <span className="italic">(edited)</span>
+                        )}
+                      </p>
+                    </button>
+                    {(n as CrmNote).note_type === "message" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs shrink-0 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openReplyToMessage(n as CrmNote);
+                        }}
+                      >
+                        Reply
+                      </Button>
+                    )}
+                  </div>
                 );
               })
             )}
@@ -270,34 +322,38 @@ export function ContactNotesSection({
       {noteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6 space-y-4">
-            <h2 className="text-lg font-semibold">{editingNote ? "Edit Note" : "Add Custom Note"}</h2>
+            <h2 className="text-lg font-semibold">
+              {editingNote ? "Edit Note" : isMessageMode ? (parentNoteId ? "Reply to message" : "Send message to contact") : "Add Custom Note"}
+            </h2>
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="noteBody">Note</Label>
+                <Label htmlFor="noteBody">{isMessageMode ? "Message" : "Note"}</Label>
                 <textarea
                   id="noteBody"
                   className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   value={noteBody}
                   onChange={(e) => setNoteBody(e.target.value)}
-                  placeholder="Enter note..."
+                  placeholder={isMessageMode ? "Type your message..." : "Enter note..."}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="noteType">Type (optional)</Label>
-                <select
-                  id="noteType"
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={noteType}
-                  onChange={(e) => setNoteType(e.target.value)}
-                >
-                  <option value="">None</option>
-                  {noteTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!isMessageMode && (
+                <div className="space-y-2">
+                  <Label htmlFor="noteType">Type (optional)</Label>
+                  <select
+                    id="noteType"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={noteType}
+                    onChange={(e) => setNoteType(e.target.value)}
+                  >
+                    <option value="">None</option>
+                    {noteTypes.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="flex justify-between gap-2">
               <div>

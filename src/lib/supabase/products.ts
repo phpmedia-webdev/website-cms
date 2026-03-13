@@ -21,6 +21,9 @@ export interface ShopProductListItem {
   currency: string;
   taxable: boolean;
   shippable: boolean;
+  /** Step 30: Subscription product. */
+  is_recurring: boolean;
+  billing_interval: "month" | "year" | null;
   updated_at: string;
 }
 
@@ -37,11 +40,15 @@ export interface ShopProductDetail {
   price: number;
   currency: string;
   stripe_product_id: string | null;
+  /** Step 30/31: Recurring Price ID for subscription checkout. */
+  stripe_price_id: string | null;
   sku: string | null;
   stock_quantity: number | null;
   gallery_id: string | null;
   taxable: boolean;
   shippable: boolean;
+  is_recurring: boolean;
+  billing_interval: "month" | "year" | null;
   updated_at: string;
 }
 
@@ -110,25 +117,38 @@ export async function getShopProductList(
   const { data: productRows } = await supabase
     .schema(schemaName)
     .from("product")
-    .select("content_id, price, currency, taxable, shippable, visibility_mag_ids")
+    .select("content_id, price, currency, taxable, shippable, visibility_mag_ids, is_recurring, billing_interval")
     .in("content_id", contentIds)
     .not("stripe_product_id", "is", null)
     .eq("available_for_purchase", true);
 
   const productByContentId = new Map<
     string,
-    { price: number; currency: string; taxable: boolean; shippable: boolean; visibility_mag_ids: string[] }
+    {
+      price: number;
+      currency: string;
+      taxable: boolean;
+      shippable: boolean;
+      visibility_mag_ids: string[];
+      is_recurring: boolean;
+      billing_interval: "month" | "year" | null;
+    }
   >();
   for (const p of productRows ?? []) {
     const row = p as Record<string, unknown>;
     const raw = row.visibility_mag_ids;
     const visibility_mag_ids = Array.isArray(raw) ? (raw as unknown[]).map(String) : [];
+    const bi = row.billing_interval as string | null;
+    const billing_interval =
+      bi === "month" || bi === "year" ? (bi as "month" | "year") : null;
     productByContentId.set(row.content_id as string, {
       price: Number(row.price),
       currency: (row.currency as string) ?? "USD",
       taxable: Boolean(row.taxable),
       shippable: Boolean(row.shippable),
       visibility_mag_ids,
+      is_recurring: Boolean(row.is_recurring),
+      billing_interval,
     });
   }
 
@@ -147,6 +167,8 @@ export async function getShopProductList(
       currency: prod.currency,
       taxable: prod.taxable,
       shippable: prod.shippable,
+      is_recurring: prod.is_recurring,
+      billing_interval: prod.billing_interval,
       updated_at: c.updated_at,
     });
   }
@@ -204,6 +226,9 @@ export async function getShopProductBySlug(
   const accessLevel = (c.access_level as string) ?? null;
   if (!canViewProduct(accessLevel, visibility_mag_ids, viewer, membershipEnabled)) return null;
 
+  const bi = r.billing_interval as string | null;
+  const billing_interval =
+    bi === "month" || bi === "year" ? (bi as "month" | "year") : null;
   return {
     id: contentId,
     slug: c.slug as string,
@@ -216,11 +241,14 @@ export async function getShopProductBySlug(
     price: Number(r.price),
     currency: (r.currency as string) ?? "USD",
     stripe_product_id: (r.stripe_product_id as string) ?? null,
+    stripe_price_id: (r.stripe_price_id as string) ?? null,
     sku: (r.sku as string) ?? null,
     stock_quantity: r.stock_quantity != null ? Number(r.stock_quantity) : null,
     gallery_id: (r.gallery_id as string) ?? null,
     taxable: Boolean(r.taxable),
     shippable: Boolean(r.shippable),
+    is_recurring: Boolean(r.is_recurring),
+    billing_interval,
     updated_at: (c.updated_at as string) ?? "",
   };
 }
@@ -287,6 +315,9 @@ export async function getShopProductBySlugForDisplay(
   const accessLevel = (c.access_level as string) ?? null;
   if (!canViewProduct(accessLevel, visibility_mag_ids, viewer, membershipEnabled)) return null;
 
+  const bi = r.billing_interval as string | null;
+  const billing_interval =
+    bi === "month" || bi === "year" ? (bi as "month" | "year") : null;
   const detail: ShopProductDetail = {
     id: contentId,
     slug: c.slug as string,
@@ -299,11 +330,14 @@ export async function getShopProductBySlugForDisplay(
     price: Number(r.price),
     currency: (r.currency as string) ?? "USD",
     stripe_product_id: (r.stripe_product_id as string | null) ?? null,
+    stripe_price_id: (r.stripe_price_id as string | null) ?? null,
     sku: (r.sku as string | null) ?? null,
     stock_quantity: r.stock_quantity != null ? Number(r.stock_quantity) : null,
     gallery_id: (r.gallery_id as string | null) ?? null,
     taxable: Boolean(r.taxable),
     shippable: Boolean(r.shippable),
+    is_recurring: Boolean(r.is_recurring),
+    billing_interval,
     updated_at: (c.updated_at as string) ?? "",
   };
 
@@ -323,6 +357,8 @@ export interface ProductRow {
   price: number;
   currency: string;
   stripe_product_id: string | null;
+  /** Step 30/31: Recurring Stripe Price ID for subscription products. */
+  stripe_price_id: string | null;
   sku: string | null;
   stock_quantity: number | null;
   gallery_id: string | null;
@@ -333,6 +369,10 @@ export interface ProductRow {
   /** Step 25b: Real download URLs (never sent to customer as-is). Array of { label, url }. */
   digital_delivery_links: { label: string; url: string }[];
   available_for_purchase: boolean;
+  /** Step 30: Subscription product (recurring billing). */
+  is_recurring: boolean;
+  /** Step 30: month | year when is_recurring. */
+  billing_interval: "month" | "year" | null;
   /** MAG ids that can see this product on the shop (when access_level is mag). Independent of grant-on-purchase. */
   visibility_mag_ids: string[];
   /** Step 17: MAG granted when customer purchases this product (membership product). Null = not a membership product. */
@@ -487,12 +527,16 @@ export async function getProductByContentId(
     : [];
   const rawLinks = r.digital_delivery_links;
   const digital_delivery_links = parseDigitalDeliveryLinks(rawLinks);
+  const bi = r.billing_interval as string | null;
+  const billing_interval =
+    bi === "month" || bi === "year" ? (bi as "month" | "year") : null;
   return {
     id: r.id as string,
     content_id: r.content_id as string,
     price: Number(r.price),
     currency: (r.currency as string) ?? "USD",
     stripe_product_id: (r.stripe_product_id as string | null) ?? null,
+    stripe_price_id: (r.stripe_price_id as string | null) ?? null,
     sku: (r.sku as string | null) ?? null,
     stock_quantity: r.stock_quantity != null ? Number(r.stock_quantity) : null,
     gallery_id: (r.gallery_id as string | null) ?? null,
@@ -501,6 +545,8 @@ export async function getProductByContentId(
     downloadable: Boolean(r.downloadable),
     digital_delivery_links,
     available_for_purchase: Boolean(r.available_for_purchase),
+    is_recurring: Boolean(r.is_recurring),
+    billing_interval,
     visibility_mag_ids,
     grant_mag_id: (r.grant_mag_id as string | null) ?? null,
     created_at: r.created_at as string,
@@ -531,6 +577,8 @@ export async function insertProductRow(row: {
   downloadable?: boolean;
   digital_delivery_links?: { label: string; url: string }[];
   available_for_purchase?: boolean;
+  is_recurring?: boolean;
+  billing_interval?: "month" | "year" | null;
   visibility_mag_ids?: string[];
   grant_mag_id?: string | null;
 }): Promise<{ id: string } | null> {
@@ -551,6 +599,8 @@ export async function insertProductRow(row: {
       downloadable: row.downloadable ?? false,
       digital_delivery_links: links,
       available_for_purchase: row.available_for_purchase ?? true,
+      is_recurring: row.is_recurring ?? false,
+      billing_interval: row.billing_interval ?? null,
       visibility_mag_ids: row.visibility_mag_ids ?? [],
       grant_mag_id: row.grant_mag_id ?? null,
     })
@@ -580,8 +630,11 @@ export async function updateProductRow(
     downloadable: boolean;
     digital_delivery_links: { label: string; url: string }[];
     available_for_purchase: boolean;
+    is_recurring: boolean;
+    billing_interval: "month" | "year" | null;
     visibility_mag_ids: string[];
     stripe_product_id: string | null;
+    stripe_price_id: string | null;
     grant_mag_id: string | null;
   }>
 ): Promise<boolean> {

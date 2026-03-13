@@ -51,8 +51,19 @@ function parseAddress(obj: unknown): AddressSnapshot | null {
   };
 }
 
+const MIXED_CART_MESSAGE =
+  "One-time purchases cannot be mixed with subscriptions. Please make 2 separate transactions.";
+
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Sign in required to checkout." },
+        { status: 401 }
+      );
+    }
+
     const sessionId = getSessionId(request);
     if (!sessionId) {
       return NextResponse.json({ error: "No cart session" }, { status: 400 });
@@ -64,8 +75,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
     }
 
+    if (cart.has_recurring && cart.has_onetime) {
+      return NextResponse.json({ error: MIXED_CART_MESSAGE }, { status: 400 });
+    }
+
     const body = await request.json().catch(() => ({}));
-    const customer_email = typeof body.customer_email === "string" ? body.customer_email.trim() : "";
+    let customer_email = typeof body.customer_email === "string" ? body.customer_email.trim() : "";
+    if (!customer_email) {
+      const supabaseAuth = await createServerSupabaseClientSSR();
+      const { data: { user } } = await supabaseAuth.auth.getUser();
+      customer_email = user?.email?.trim() ?? "";
+    }
     if (!customer_email) {
       return NextResponse.json({ error: "customer_email is required" }, { status: 400 });
     }
@@ -95,17 +115,29 @@ export async function POST(request: NextRequest) {
     const { data: productRows } = await supabase
       .schema(schema)
       .from("product")
-      .select("content_id, stripe_product_id, taxable, stock_quantity")
+      .select("content_id, stripe_product_id, stripe_price_id, taxable, stock_quantity, is_recurring")
       .in("content_id", contentIds);
 
-    const productByContentId = new Map<string, { stripe_product_id: string; taxable: boolean; stock_quantity: number | null }>();
+    const productByContentId = new Map<
+      string,
+      { stripe_product_id: string; stripe_price_id: string | null; taxable: boolean; stock_quantity: number | null; is_recurring: boolean }
+    >();
     for (const p of productRows ?? []) {
-      const row = p as { content_id: string; stripe_product_id: string | null; taxable: boolean; stock_quantity: number | null };
+      const row = p as {
+        content_id: string;
+        stripe_product_id: string | null;
+        stripe_price_id: string | null;
+        taxable: boolean;
+        stock_quantity: number | null;
+        is_recurring?: boolean;
+      };
       if (row.stripe_product_id) {
         productByContentId.set(row.content_id, {
           stripe_product_id: row.stripe_product_id,
+          stripe_price_id: row.stripe_price_id ?? null,
           taxable: Boolean(row.taxable),
           stock_quantity: row.stock_quantity != null ? Number(row.stock_quantity) : null,
+          is_recurring: Boolean(row.is_recurring),
         });
       }
     }
@@ -126,7 +158,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const userId = await getCurrentUserId();
     let contact_id: string | null = null;
     try {
       const { getContactByEmail } = await import("@/lib/supabase/crm");
@@ -170,34 +201,60 @@ export async function POST(request: NextRequest) {
     const successUrl = `${baseUrl}/shop/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${baseUrl}/shop/cart`;
 
-    const subtotal = cart.subtotal;
-    const discountedSubtotal = Math.max(0, subtotal - discount_amount);
-    const ratio = subtotal > 0 ? discountedSubtotal / subtotal : 1;
+    const isSubscriptionCart = Boolean(cart.has_recurring && !cart.has_onetime);
 
-    const line_items = cart.items.map((item) => {
-      const prod = productByContentId.get(item.content_id)!;
-      const lineTotal = Number(item.unit_price) * item.quantity;
-      const adjustedLineTotal = lineTotal * ratio;
-      const adjustedUnit = adjustedLineTotal / item.quantity;
-      const unit_amount = Math.max(1, Math.round(adjustedUnit * 100));
-      return {
-        price_data: {
-          currency: cart.currency.toLowerCase(),
-          product: prod.stripe_product_id,
-          unit_amount,
-        },
-        quantity: item.quantity,
-      };
-    });
+    if (isSubscriptionCart) {
+      for (const item of cart.items) {
+        const prod = productByContentId.get(item.content_id);
+        if (!prod?.stripe_price_id) {
+          return NextResponse.json(
+            { error: "One or more subscription products are not set up for recurring billing. Sync the product to Stripe (Create recurring Price) and try again." },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    const line_items = isSubscriptionCart
+      ? cart.items.map((item) => {
+          const prod = productByContentId.get(item.content_id)!;
+          return {
+            price: prod.stripe_price_id!,
+            quantity: item.quantity,
+          };
+        })
+      : (() => {
+          const subtotal = cart.subtotal;
+          const discountedSubtotal = Math.max(0, subtotal - discount_amount);
+          const ratio = subtotal > 0 ? discountedSubtotal / subtotal : 1;
+          return cart.items.map((item) => {
+            const prod = productByContentId.get(item.content_id)!;
+            const lineTotal = Number(item.unit_price) * item.quantity;
+            const adjustedLineTotal = lineTotal * ratio;
+            const adjustedUnit = adjustedLineTotal / item.quantity;
+            const unit_amount = Math.max(1, Math.round(adjustedUnit * 100));
+            return {
+              price_data: {
+                currency: cart.currency.toLowerCase(),
+                product: prod.stripe_product_id,
+                unit_amount,
+              },
+              quantity: item.quantity,
+            };
+          });
+        })();
 
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
+      mode: isSubscriptionCart ? "subscription" : "payment",
       customer_email: customer_email || undefined,
       line_items,
       success_url: successUrl,
       cancel_url: cancelUrl,
       client_reference_id: orderResult.orderId,
       metadata: { order_id: orderResult.orderId },
+      ...(isSubscriptionCart && {
+        subscription_data: { metadata: { order_id: orderResult.orderId } },
+      }),
     });
 
     if (!session.url) {
