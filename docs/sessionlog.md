@@ -11,33 +11,21 @@
 ---
 ## Next up
 
-_(Clean slate — add focus items here as needed.)_
+- [ ] **Security review & fork deployment checklist** (see below; carries over to new fork)
 
 ---
-## MVP scan (to address)
+## Pre-fork: Security review & fork deployment checklist
 
-**Summary:** PRD, planlog, and codebase were scanned to assess MVP status. The app has broad feature coverage (content, media, galleries, CRM, forms, membership, ecommerce, events, superadmin, gate/display, form protection). Several documentation and deployment items remain; no single critical missing feature blocks “basic business website” MVP if ecommerce is in scope.
+**Carries over to the new fork.** Two parts:
 
-**Findings — check off as addressed:**
-
-- [ ] **5. Security review / polish:** Planlog lists Security review, Error handling (404/500, membership denied), and Performance (cache site mode, cache integrations, ISR). Before calling MVP "released," do a minimal security pass (auth, RLS, input validation) and decide which performance items are in-scope for v1. **Next session.**
-
-
-- [ ] **6. Backlog items:** Anychat/VBout/PHP-Auth audit logging, Banners, Carousel shortcode remain in planlog Backlog. Confirm these are post-MVP; no change needed for MVP assessment.
+- [ ] **a. Security review** — Review the app for security concerns (auth, RLS, input validation, per-feature pass). See planlog → Code Review, Security & Modular Alignment; Error handling (404/500, membership denied); Performance as needed for v1.
+- [ ] **b. Fork deployment checklist** — Create and document the checklist needed for deploying a fork of the application.
+  - Test Automated Client Setup Script (`pnpm setup-client <schema-name>`)
+  - Template (root) domain deployment: Vercel, env vars, superadmin user, test auth
+  - Integrations: test script injection, enable/disable, superadmin-only access
+  - Document and lock down the fork deployment checklist for future client launches (e.g. first fork: **phpbme**, domain **phpbme.com**)
 
 ---
 ## Paused / Later
 
 _(Optional — move items to planlog when they become backlog.)_
-
----
-## Fork deployment (Phase 00 — last)
-
-**Purpose:** Process to perfect for launching a fork site. We will go through this when developing the first fork (**phpbme**, domain **phpbme.com**) and finalize the checklist steps for a fork deployment.
-
-**Scope (to be refined during first-fork launch):**
-- Test Automated Client Setup Script (`pnpm setup-client <schema-name>`)
-- Template (root) domain deployment: Vercel, env vars, superadmin user, test auth
-- Integrations: test script injection, enable/disable, superadmin-only access
-- Document and lock down the fork deployment checklist for future client launches
-

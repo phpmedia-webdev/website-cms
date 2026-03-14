@@ -312,7 +312,9 @@ Planned steps to reduce sluggishness and improve public-site load times. See PRD
 
 ---
 
-## Backlog (from sessionlog)
+## Backlog (post-MVP)
+
+Sessionlog backlog items; confirmed post-MVP. No change needed for MVP assessment.
 
 - [ ] Anychat, VBout, PHP-Auth audit logging, superadmin add/delete user (see planlog Phase 00 / Phase 12 as applicable)
 - [ ] **Banners** — A programmable display block that can show HTML5 content on a schedule. Usually at top of home page.

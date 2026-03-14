@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+**When adding an entry:** Use the developer’s session-start date if announced in the conversation; otherwise run `powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm CT'"` and use that. Do not use user_info or other context for the date.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -9,7 +11,15 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
-### 2026-03-04 17:00 CT — Session wrap: MVP scan steps 1–4 complete; MFA policy; build fixes
+### 2026-03-13 21:10 CT — 🎉 MVP MILESTONE REACHED 🎉
+
+**We did it.** The Website-CMS has reached its **Minimum Viable Product** goal. Pop the cork — throw confetti! This is the milestone we've been building toward: a WordPress-style CMS for basic business websites, with content, media, galleries, CRM, forms, membership, ecommerce, events, superadmin, feature gating, and form protection. The app is MVP-capable and ready for the next chapter: security review and fork deployment.
+
+- **Context for Next Session:** MVP is **complete**. Celebrate, then carry forward: **(a) Security review** — review the app for security concerns (auth, RLS, input validation, per-feature pass; see planlog → Code Review, Security & Modular Alignment). **(b) Fork deployment checklist** — create and document the checklist for deploying forks (setup script, template domain deployment, integrations test, lock down checklist). Sessionlog has the single focus: "Pre-fork: Security review & fork deployment checklist" (carries over to the new fork, e.g. phpbme / phpbme.com). No critical missing feature blocks "basic business website" MVP.
+- **What MVP includes:** Content (blog, pages, taxonomy, shortcodes), Media & Galleries, CRM (contacts, activity, MAGs, lists, forms, submissions), Forms (protection: rate limit, honeypot, reCAPTCHA, time-on-page), Membership (MAG, code generator, member area), Ecommerce (cart, checkout, orders, Stripe, subscriptions, sync, import/export), Events (calendar, participants, resources), Superadmin (tenant sites, feature gate/display, site mode), MFA (TOTP, PII-based enforcement), and more. Backlog items (Anychat/VBout audit, Banners, Carousel) are post-MVP and live in planlog.
+- **Session wrap this evening:** Sessionlog cleaned up; backlog confirmed in planlog; single pre-fork focus (security + fork checklist) restructured and ready to carry over. Time to celebrate. 🍾
+
+### 2026-03-13 18:30 CT — Session wrap: MVP scan steps 1–4 complete; MFA policy; build fixes
 
 - **Context for Next Session:** MVP scan findings 1–4 are done (planlog Phase 09 aligned, PRD routes updated, 2FA on Vercel confirmed, protected media via membership at page level). MFA policy enforced: AAL2 required for superadmin, tenant admin, and any staff on PII paths (`/admin/super`, `/admin/crm`, `/admin/settings/users`); optional for other roles. **Next up:** Security review / polish (planlog: Security review, Error handling, Performance). Sessionlog completed steps moved here; remaining: MVP scan step 5 (security), step 6 (backlog confirmation), Fork deployment (Phase 00). Build fixed: tenant-sites detail page now fetches `hiddenSlugs`; ProfileSettingsContent destructures `isTenantAdmin`.
 - **MVP scan (completed):** Planlog Phase 09 Ecommerce checked off; PRD route names vs implementation aligned (tenant-sites, route mapping note); 2FA on Vercel working; protected media handled at public page level with membership (MAG).
