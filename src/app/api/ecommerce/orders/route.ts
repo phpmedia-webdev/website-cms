@@ -28,10 +28,20 @@ export async function GET(request: Request) {
     const status = (searchParams.get("status") ?? "") as OrderStatus | "" | "needs_attention";
     const search = searchParams.get("search") ?? "";
     const limit = Number(searchParams.get("limit") ?? 100);
+    const contact_id = searchParams.get("contact_id") ?? undefined;
+    const from = searchParams.get("from") ?? undefined;
+    const to = searchParams.get("to") ?? undefined;
 
     const schema = getClientSchema();
     const orders = await listOrders(
-      { status: status || undefined, search: search || undefined, limit },
+      {
+        status: status || undefined,
+        search: search || undefined,
+        limit,
+        contact_id: contact_id || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      },
       schema ?? undefined
     );
 

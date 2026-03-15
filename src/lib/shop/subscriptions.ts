@@ -6,6 +6,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getContactByExternalId } from "@/lib/supabase/crm";
 import { getMemberByContactId } from "@/lib/supabase/members";
+import { getNextInvoiceOrderNumber } from "@/lib/shop/invoice-number";
 import type Stripe from "stripe";
 
 const CONTENT_SCHEMA =
@@ -199,6 +200,8 @@ export async function createOrderFromStripeInvoice(
     return null;
   }
 
+  const orderNumber = await getNextInvoiceOrderNumber(schemaName);
+
   const { data: orderRow, error: orderError } = await supabase
     .schema(schemaName)
     .from("orders")
@@ -209,6 +212,7 @@ export async function createOrderFromStripeInvoice(
       status: "paid",
       total,
       currency,
+      order_number: orderNumber,
       stripe_checkout_session_id: null,
       stripe_invoice_id: invoiceId,
       billing_snapshot: null,

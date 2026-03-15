@@ -1,14 +1,12 @@
 import { getMags } from "@/lib/supabase/crm";
-import { getClientSchema } from "@/lib/supabase/schema";
-import { getTenantSiteBySchema } from "@/lib/supabase/tenant-sites";
+import { isMembershipEnabledForCurrentTenant } from "@/lib/supabase/tenant-sites";
 import { MembershipsListClient } from "./MembershipsListClient";
 
 export default async function MembershipsPage() {
-  const [mags, site] = await Promise.all([
+  const [mags, membershipEnabled] = await Promise.all([
     getMags(true),
-    getTenantSiteBySchema(getClientSchema()),
+    isMembershipEnabledForCurrentTenant(),
   ]);
-  const membershipEnabled = site?.membership_enabled ?? true;
   return (
     <div className="p-6">
       <MembershipsListClient

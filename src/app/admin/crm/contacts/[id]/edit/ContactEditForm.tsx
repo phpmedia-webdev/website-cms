@@ -1,34 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmContact } from "@/lib/supabase/crm";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
-import { Copy } from "lucide-react";
+import { Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 const DND_OPTIONS = ["none", "email", "phone", "all"] as const;
 
 export function ContactEditForm({
   contact,
   contactStatuses,
+  initialOrganizations = [],
 }: {
   contact: CrmContact;
   contactStatuses: CrmContactStatusOption[];
+  initialOrganizations?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>(initialOrganizations);
+  const [orgSearch, setOrgSearch] = useState("");
+  const [orgSearchResults, setOrgSearchResults] = useState<{ id: string; name: string }[]>([]);
+  const [orgSearchOpen, setOrgSearchOpen] = useState(false);
   const [form, setForm] = useState({
     first_name: contact.first_name ?? "",
     last_name: contact.last_name ?? "",
     full_name: contact.full_name ?? "",
     email: contact.email ?? "",
     phone: contact.phone ?? "",
-    company: contact.company ?? "",
     address: contact.address ?? "",
     city: contact.city ?? "",
     state: contact.state ?? "",
@@ -45,13 +51,16 @@ export function ContactEditForm({
   });
 
   useEffect(() => {
+    setOrganizations(initialOrganizations);
+  }, [initialOrganizations]);
+
+  useEffect(() => {
     setForm({
       first_name: contact.first_name ?? "",
       last_name: contact.last_name ?? "",
       full_name: contact.full_name ?? "",
       email: contact.email ?? "",
       phone: contact.phone ?? "",
-      company: contact.company ?? "",
       address: contact.address ?? "",
       city: contact.city ?? "",
       state: contact.state ?? "",
@@ -68,6 +77,39 @@ export function ContactEditForm({
     });
   }, [contact, contactStatuses]);
 
+  const searchOrgs = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setOrgSearchResults([]);
+      return;
+    }
+    const res = await fetch(`/api/crm/organizations?search=${encodeURIComponent(q.trim())}`);
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.organizations)) {
+      setOrgSearchResults(
+        data.organizations.map((o: { id: string; name: string }) => ({ id: o.id, name: o.name }))
+      );
+    } else {
+      setOrgSearchResults([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => searchOrgs(orgSearch), 200);
+    return () => clearTimeout(t);
+  }, [orgSearch, searchOrgs]);
+
+  const addOrganization = (org: { id: string; name: string }) => {
+    if (organizations.some((o) => o.id === org.id)) return;
+    setOrganizations((prev) => [...prev, org]);
+    setOrgSearch("");
+    setOrgSearchResults([]);
+    setOrgSearchOpen(false);
+  };
+
+  const removeOrganization = (id: string) => {
+    setOrganizations((prev) => prev.filter((o) => o.id !== id));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -82,7 +124,6 @@ export function ContactEditForm({
           full_name: form.full_name || null,
           email: form.email || null,
           phone: form.phone || null,
-          company: form.company || null,
           address: form.address || null,
           city: form.city || null,
           state: form.state || null,
@@ -101,6 +142,16 @@ export function ContactEditForm({
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Failed to update contact");
+        return;
+      }
+      const orgRes = await fetch(`/api/crm/contacts/${contact.id}/organizations`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organization_ids: organizations.map((o) => o.id) }),
+      });
+      if (!orgRes.ok) {
+        const orgData = await orgRes.json();
+        setError(orgData.error ?? "Failed to update organizations");
         return;
       }
       router.push(`/admin/crm/contacts/${contact.id}`);
@@ -163,12 +214,56 @@ export function ContactEditForm({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="company">Company</Label>
-            <Input
-              id="company"
-              value={form.company}
-              onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
-            />
+            <Label>Organization</Label>
+            <p className="text-xs text-muted-foreground">First in list is primary on the contact card.</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {organizations.map((org) => (
+                <Badge key={org.id} variant="secondary" className="gap-1 pr-1">
+                  <span className="truncate max-w-[120px]">{org.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeOrganization(org.id)}
+                    className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                    aria-label={`Remove ${org.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <div className="relative">
+              <Input
+                placeholder="Search organizations..."
+                value={orgSearch}
+                onChange={(e) => {
+                  setOrgSearch(e.target.value);
+                  setOrgSearchOpen(true);
+                }}
+                onFocus={() => orgSearch.trim() && setOrgSearchOpen(true)}
+                onBlur={() => setTimeout(() => setOrgSearchOpen(false), 150)}
+              />
+              {orgSearchOpen && (orgSearchResults.length > 0 || orgSearch.trim()) && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover py-1 shadow-md">
+                  {orgSearchResults.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">No organizations found.</p>
+                  ) : (
+                    orgSearchResults.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          addOrganization(org);
+                        }}
+                      >
+                        {org.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <p className="text-xs font-medium text-foreground mt-2">Billing address</p>
           <div className="space-y-2">

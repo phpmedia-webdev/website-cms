@@ -77,6 +77,9 @@ This WordPress-style approach provides:
     - `/admin/members` - Member user management (member accounts; MAG assignments)
     - `/admin/members/[id]` - View member details and MAG assignments
   - `/admin/crm/marketing` - Email marketing (lists/segments, campaign management; Resend or Vbout API)
+- **Projects** (Project Management)
+  - `/admin/projects` - Project list
+  - `/admin/projects/[id]` - Project detail (tasks, status, assignees)
 - `/admin/events` - Event calendar management
 - `/admin/settings` - Site settings (including theme selection, design system: fonts and color palette)
 - `/admin/settings/taxonomy` - Taxonomy management (categories and tags for posts, pages, media, and CRM)
@@ -102,7 +105,7 @@ This WordPress-style approach provides:
 
 ### Admin Sidebar Feature Gating & Custom Links
 
-The admin sidebar displays links to CMS features (Content, Galleries, Media, CRM, Events, Settings, etc.). Not all clients receive access to all features. Superadmin can configure the feature set per tenant to support tiered offerings and upsell.
+The admin sidebar displays links to CMS features (Content, Galleries, Media, CRM, Projects, Events, Settings, etc.). Not all clients receive access to all features. Superadmin can configure the feature set per tenant to support tiered offerings and upsell.
 
 **Feature Visibility Control (per tenant):**
 - Each sidebar item (template feature) can be enabled or disabled per tenant via Superadmin
@@ -538,6 +541,31 @@ The CRM accepts contact data from public forms, stores standard and custom field
   - **Forms** – form registry.
   - **Memberships** – MAG management; Member user management (Members, Members/[id]) as sub-links.
   - **Marketing** – email lists and campaigns.
+
+---
+
+## Project Management Module
+
+### Overview
+
+The Project Management module provides lightweight project and task tracking within the website-cms platform. It supports tenant-facing workflows (e.g. site owners tracking site improvement requests or internal projects) and developer–client collaboration (e.g. tracking feature requests, bugs, and deliverables per tenant). This module is an enhancement to the core CMS, intended for deployment before or alongside domain launch where project tracking is desired.
+
+**Goal:** Offer a simple, integrated way to manage projects and tasks without leaving the admin, keeping scope lightweight relative to full external tools (e.g. Jira, Asana).
+
+### Scope (high level)
+
+- **Projects:** Named projects with optional description, status, and timeline (e.g. start/target dates).
+- **Tasks:** Tasks (or work items) belonging to projects: title, description, status, optional assignee, due date, **priority** (low / medium / high), and task type (e.g. default work item or support_ticket). Support tickets are tasks of type ticket; submitting a ticket auto-creates or reuses a perpetual Support project for that member.
+- **Visibility and access:** Data is tenant-scoped (per schema). **Project visibility is driven by MAG (required_mag_id):** team admins see projects by role and feature access; **GPUM (members)** see projects for which they have the required MAG. Projects are available to both team admins and GPUM in their respective areas (admin vs member area). The module is subject to the same feature gating as other admin features—Superadmin can enable or disable it per tenant.
+- **Integration:** Optional linkage to orders and events (project_id); optional linkage to content, contact, or form submission may be defined in implementation phases.
+
+Detailed sub-steps, data model, and API design are captured in the planlog and prd-technical as the scope is refined.
+
+### Placement in the app
+
+- **Admin:** A dedicated sidebar entry (e.g. "Projects") with list and detail views under `/admin/projects` (and project detail at `/admin/projects/[id]`). Feature slug **projects**. Subject to the same role and feature-gating rules as other admin features. Roles and feature-registry step at end of phase.
+- **Member area (GPUM):** Two additional items: **(1) Projects** — list and detail of projects the member can see (by MAG); read-only progress. **(2) Support Tickets** — list view of tickets (tasks of type support_ticket) submitted by that member. **(3) Tasks** — task list when the member was assigned tasks to accomplish or follow under a project. GPUM can create a support ticket (creates/reuses a perpetual Support project); team members can assign a GPUM as a follower on a project/task; GPUM cannot self-assign as follower.
+- **Superadmin:** Enable or disable the Project Management feature per tenant via existing feature gating (tenant sites / site settings). No separate superadmin-only project views are required for the initial scope unless added in a later phase.
 
 ---
 

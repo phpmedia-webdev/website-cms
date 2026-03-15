@@ -22,6 +22,7 @@ import {
   MessageCircle,
   Calendar,
   ShoppingBag,
+  FolderKanban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canAccessFeature } from "@/lib/admin/route-features";
@@ -35,11 +36,13 @@ import {
   SIDEBAR_SUPPORT_OPEN,
   SIDEBAR_SUPER_OPEN,
   SIDEBAR_ECOM_OPEN,
+  SIDEBAR_PROJECTS_OPEN,
   mediaSubNav,
   crmSubNav,
   marketingSubNav,
   calendarSubNav,
   ecommerceSubNav,
+  projectsSubNav,
   settingsSubNav,
   supportSubNav,
   superadminSubNav,
@@ -105,6 +108,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
   const isContent = pathname === "/admin/content" || pathname?.startsWith("/admin/content/");
   const isEcommerce = pathname === "/admin/ecommerce" || pathname?.startsWith("/admin/ecommerce/");
+  const isProjects = pathname === "/admin/projects" || pathname?.startsWith("/admin/projects/");
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
 
   const showDashboard =
@@ -136,6 +140,9 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     !hiddenSet.has("content") &&
     canAccessFeature(displayEffectiveSlugs, "content") && (roleFeatureSlugs === "all" || hasRoleAccess("content"));
   const showEcommerce = showContent;
+  const showProjectsByRole = hasRoleAccess("projects");
+  const showProjectsEffective = canAccessFeature(displayEffectiveSlugs, "projects");
+  const showProjects = !hiddenSet.has("projects") && (showProjectsEffective || (isDisplayOnlyGhost && showProjectsByRole)) && (roleFeatureSlugs === "all" || showProjectsByRole);
   const showMarketingByRole = hasRoleAccess("marketing") || hasRoleAccess("lists") || hasRoleAccess("templates") || hasRoleAccess("code_generator") || hasRoleAccess("reviews");
   const showMarketingEffective = canAccessFeature(displayEffectiveSlugs, "marketing") || canAccessFeature(displayEffectiveSlugs, "templates") || canAccessFeature(displayEffectiveSlugs, "code_generator") || canAccessFeature(displayEffectiveSlugs, "reviews");
   const showMarketing = (showMarketingEffective || (isDisplayOnlyGhost && showMarketingByRole)) && (roleFeatureSlugs === "all" || showMarketingByRole);
@@ -174,6 +181,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [ecomOpen, setEcomOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
 
@@ -323,6 +331,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCalendarOpen(false);
         setMediaOpen(false);
         setEcomOpen(true);
+        setProjectsOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
@@ -331,6 +340,29 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "true");
+        localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+        return;
+      }
+      if (isProjects) {
+        setCrmOpen(false);
+        setMarketingOpen(false);
+        setCalendarOpen(false);
+        setMediaOpen(false);
+        setEcomOpen(false);
+        setProjectsOpen(true);
+        setSettingsOpen(false);
+        setSupportOpen(false);
+        setSuperOpen(false);
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "true");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -343,6 +375,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCalendarOpen(false);
         setMediaOpen(false);
         setEcomOpen(false);
+        setProjectsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
         setSettingsOpen(true);
@@ -351,6 +384,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -411,6 +445,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
       localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
       localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+      localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "false");
       localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
       localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
       localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -421,11 +456,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       if (isEvents) setCalendarOpen(true);
       if (isMedia) setMediaOpen(true);
       if (isEcommerce) setEcomOpen(true);
+      if (isProjects) setProjectsOpen(true);
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMarketing, isEvents, isMedia, isEcommerce, isSettings, isSupport, isSuper]);
+  }, [pathname, isCrm, isMarketing, isEvents, isMedia, isEcommerce, isProjects, isSettings, isSupport, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -547,6 +583,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setMarketingOpen(false);
       setCalendarOpen(false);
       setMediaOpen(false);
+      setProjectsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
@@ -555,6 +592,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -563,6 +601,37 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     }
     try {
       localStorage.setItem(SIDEBAR_ECOM_OPEN, next ? "true" : "false");
+    } catch { /* ignore */ }
+  };
+
+  const toggleProjects = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !projectsOpen;
+    setProjectsOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMarketingOpen(false);
+      setCalendarOpen(false);
+      setMediaOpen(false);
+      setEcomOpen(false);
+      setSettingsOpen(false);
+      setSupportOpen(false);
+      setSuperOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+      } catch { /* ignore */ }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_PROJECTS_OPEN, next ? "true" : "false");
     } catch { /* ignore */ }
   };
 
@@ -577,6 +646,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCalendarOpen(false);
       setMediaOpen(false);
       setEcomOpen(false);
+      setProjectsOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
       try {
@@ -585,6 +655,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -606,6 +677,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCalendarOpen(false);
       setMediaOpen(false);
       setEcomOpen(false);
+      setProjectsOpen(false);
       setSupportOpen(false);
       setSuperOpen(false);
       try {
@@ -614,6 +686,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -635,6 +708,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCalendarOpen(false);
       setMediaOpen(false);
       setEcomOpen(false);
+      setProjectsOpen(false);
       setSettingsOpen(false);
       setSuperOpen(false);
       try {
@@ -643,6 +717,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CALENDAR_OPEN, "false");
         localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_PROJECTS_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
@@ -1195,6 +1270,64 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                     </Link>
                   );
                 })}
+              </div>
+            )}
+          </>
+          )}
+        </div>
+        {/* Projects: Phase 19. Gated by feature slug "projects". */}
+        <div className="pt-1">
+          {showProjects && (
+          <>
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+                isProjects && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
+              )}
+            >
+              <Link
+                href="/admin/projects"
+                className={cn(
+                  "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                  isProjects ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <FolderKanban className="h-5 w-5 flex-shrink-0" />
+                Projects
+              </Link>
+              <button
+                type="button"
+                onClick={toggleProjects}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  isProjects ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+                aria-expanded={projectsOpen}
+              >
+                {projectsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {projectsOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                {projectsSubNav
+                  .filter((sub) => !("featureSlug" in sub && sub.featureSlug) || hasRoleAccess("projects") || (sub.featureSlug && hasRoleAccess(sub.featureSlug)))
+                  .map((sub) => {
+                    const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                    const SubIcon = sub.icon;
+                    return (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                          isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        <SubIcon className="h-4 w-4" />
+                        {sub.name}
+                      </Link>
+                    );
+                  })}
               </div>
             )}
           </>

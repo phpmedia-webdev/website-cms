@@ -66,6 +66,7 @@ export async function PUT(
       start_date: body.start_date,
       end_date: body.end_date,
       status: body.status,
+      parent_id: body.parent_id,
     });
 
     if (error) {

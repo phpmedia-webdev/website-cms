@@ -6,6 +6,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getContactIdsByNameSearch } from "@/lib/supabase/crm";
 import { getCartWithDetails } from "./cart";
+import { getNextInvoiceOrderNumber } from "./invoice-number";
 
 const CONTENT_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -20,6 +21,8 @@ export interface OrderRow {
   status: OrderStatus;
   total: number;
   currency: string;
+  /** Display number from shared sequence (e.g. INV-2026-00015); same generator as invoices. */
+  order_number: string | null;
   stripe_checkout_session_id: string | null;
   /** Set when order created from Stripe invoice.paid (subscription); idempotency key. */
   stripe_invoice_id: string | null;
@@ -39,6 +42,12 @@ export interface ListOrdersParams {
   status?: OrderStatus | "" | "needs_attention";
   search?: string;
   limit?: number;
+  /** Filter by CRM contact id (e.g. contact Transactions tab). */
+  contact_id?: string | null;
+  /** ISO date string, start of range (inclusive). */
+  from?: string | null;
+  /** ISO date string, end of range (inclusive). */
+  to?: string | null;
 }
 
 /** Step 49: Params for accounting export (date range, status). */
@@ -120,6 +129,8 @@ export async function createOrderFromCart(
   const discountAmount = Number(params.discount_amount ?? 0);
   const total = Math.max(0, cart.subtotal - discountAmount);
 
+  const orderNumber = await getNextInvoiceOrderNumber(schemaName);
+
   const { data: orderRow, error: orderError } = await supabase
     .schema(schemaName)
     .from("orders")
@@ -130,6 +141,7 @@ export async function createOrderFromCart(
       status: "pending",
       total,
       currency: cart.currency,
+      order_number: orderNumber,
       stripe_checkout_session_id: null,
       billing_snapshot: params.billing_snapshot ?? null,
       shipping_snapshot: params.shipping_snapshot ?? null,
@@ -325,6 +337,15 @@ export async function listOrders(
     .select("*")
     .order("created_at", { ascending: false });
 
+  if (params.contact_id) {
+    q = q.eq("contact_id", params.contact_id);
+  }
+  if (params.from) {
+    q = q.gte("created_at", params.from);
+  }
+  if (params.to) {
+    q = q.lte("created_at", params.to);
+  }
   const statusFilter = params.status;
   if (statusFilter) {
     if (statusFilter === "needs_attention") {

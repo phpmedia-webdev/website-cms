@@ -28,10 +28,11 @@ import type { ContactInMag } from "@/lib/supabase/crm";
 
 interface MAGDetailClientProps {
   mag: Mag;
+  allMags: Mag[];
   initialContacts: ContactInMag[];
 }
 
-export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) {
+export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClientProps) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(mag.name);
@@ -44,6 +45,7 @@ export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) 
     mag.end_date ? mag.end_date.slice(0, 10) : ""
   );
   const [status, setStatus] = useState<"active" | "draft">(mag.status);
+  const [parentId, setParentId] = useState<string | null>(mag.parent_id ?? null);
   const [magTag, setMagTag] = useState(`mag-${mag.uid}`);
   const [contacts, setContacts] = useState(initialContacts);
   const [memberSearch, setMemberSearch] = useState("");
@@ -60,6 +62,7 @@ export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) 
     setStartDate(mag.start_date ? mag.start_date.slice(0, 10) : "");
     setEndDate(mag.end_date ? mag.end_date.slice(0, 10) : "");
     setStatus(mag.status);
+    setParentId(mag.parent_id ?? null);
   }, [mag]);
 
   const handleUidChange = (value: string) => {
@@ -92,6 +95,7 @@ export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) 
           start_date: startDate || null,
           end_date: endDate || null,
           status,
+          parent_id: parentId || null,
         }),
       });
       if (!res.ok) {
@@ -228,6 +232,26 @@ export function MAGDetailClient({ mag, initialContacts }: MAGDetailClientProps) 
                 className="h-8 font-mono w-full text-sm"
               />
               <p className="text-[10px] text-muted-foreground leading-tight">Tag for media restriction (mag- + UID).</p>
+            </div>
+            <div className="space-y-0.5">
+              <Label className="text-xs">Parent (optional)</Label>
+              <Select
+                value={parentId ?? "none"}
+                onValueChange={(v) => setParentId(v === "none" ? null : v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="None — top-level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None — top-level</SelectItem>
+                  {allMags.filter((m) => m.id !== mag.id).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground leading-tight">Child MAG: assigning a contact here also grants all parent MAGs.</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">

@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Inbox,
   Users,
+  Building2,
   KeyRound,
   ListChecks,
   Calendar,
@@ -29,6 +30,8 @@ import {
   Repeat,
   Star,
   LayoutDashboard,
+  Receipt,
+  FolderKanban,
 } from "lucide-react";
 
 /** Session storage keys for sidebar accordion open state. */
@@ -41,6 +44,7 @@ export const SIDEBAR_CALENDAR_OPEN = "sidebar-calendar-open";
 export const SIDEBAR_SUPPORT_OPEN = "sidebar-support-open";
 export const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
 export const SIDEBAR_ECOM_OPEN = "sidebar-ecom-open";
+export const SIDEBAR_PROJECTS_OPEN = "sidebar-projects-open";
 
 export interface SubNavItem {
   name: string;
@@ -57,6 +61,7 @@ export const mediaSubNav: SubNavItem[] = [
 
 export const crmSubNav: SubNavItem[] = [
   { name: "Contacts", href: "/admin/crm/contacts", icon: Users, featureSlug: "contacts" },
+  { name: "Organizations", href: "/admin/crm/organizations", icon: Building2, featureSlug: "contacts" },
   { name: "Forms", href: "/admin/crm/forms", icon: ClipboardList, featureSlug: "forms" },
   { name: "Form Submissions", href: "/admin/crm/forms/submissions", icon: Inbox, featureSlug: "form_submissions" },
   { name: "Memberships", href: "/admin/crm/memberships", icon: Folder, featureSlug: "memberships" },
@@ -76,9 +81,15 @@ export const calendarSubNav: SubNavItem[] = [
 ];
 
 export const ecommerceSubNav: SubNavItem[] = [
+  { name: "Transactions", href: "/admin/ecommerce/transactions", icon: Receipt, featureSlug: "content" },
   { name: "Products", href: "/admin/ecommerce/products", icon: Package, featureSlug: "content" },
-  { name: "Orders", href: "/admin/ecommerce/orders", icon: ShoppingBag, featureSlug: "content" },
+  { name: "Invoices", href: "/admin/ecommerce/invoices", icon: FileText, featureSlug: "content" },
   { name: "Subscriptions", href: "/admin/ecommerce/subscriptions", icon: Repeat, featureSlug: "content" },
+];
+
+export const projectsSubNav: SubNavItem[] = [
+  { name: "Projects", href: "/admin/projects", icon: FolderKanban, featureSlug: "projects" },
+  { name: "Tasks", href: "/admin/projects/tasks", icon: ClipboardList, featureSlug: "projects" },
 ];
 
 export const settingsSubNav: SubNavItem[] = [

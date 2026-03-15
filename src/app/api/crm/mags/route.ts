@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       start_date: body.start_date ?? null,
       end_date: body.end_date ?? null,
       status: body.status ?? "active",
+      parent_id: body.parent_id ?? null,
     });
 
     if (error) {

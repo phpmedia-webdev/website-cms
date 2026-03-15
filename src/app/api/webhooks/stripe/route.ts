@@ -24,6 +24,10 @@ import {
   getContentTitleById,
   getSubscriptionByStripeId,
 } from "@/lib/shop/subscriptions";
+import {
+  getInvoiceByStripeInvoiceId,
+  createOrderFromAppInvoice,
+} from "@/lib/shop/invoices";
 import { getContactById } from "@/lib/supabase/crm";
 import {
   sendSubscriptionStartedEmail,
@@ -197,6 +201,11 @@ export async function POST(request: NextRequest) {
             amount,
           }).catch(() => {});
         }
+      }
+    } else {
+      const ourInvoice = await getInvoiceByStripeInvoiceId(invoice.id, schema);
+      if (ourInvoice) {
+        await createOrderFromAppInvoice(ourInvoice.id, invoice.id, schema);
       }
     }
     return NextResponse.json({ received: true });

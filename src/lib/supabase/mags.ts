@@ -8,6 +8,7 @@ import {
   type ContactInMag,
   getMags,
   getMagById,
+  getMagAncestorIds,
   getContactsByMag,
   addContactToMag,
   removeContactFromMag,
@@ -25,6 +26,7 @@ export const getMAGs = getMags;
 
 export {
   getMagById,
+  getMagAncestorIds,
   getContactsByMag,
   addContactToMag,
   removeContactFromMag,

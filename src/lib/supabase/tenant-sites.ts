@@ -1,10 +1,11 @@
 /**
  * Tenant site registry (public.tenant_sites). Superadmin only for most fields.
- * membership_enabled can be toggled by tenant admin on /admin/crm/memberships.
+ * Membership on/off is now driven by the feature gate (memberships slug); tenant_sites.membership_enabled is deprecated.
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
+import { getTenantEnabledFeatureSlugs } from "@/lib/supabase/feature-registry";
 import type {
   TenantSite,
   TenantSiteInsert,
@@ -107,14 +108,18 @@ export async function updateTenantSite(
 
 /**
  * Whether membership is enabled for the current tenant (schema).
+ * Driven by feature gate: "memberships" slug in tenant-enabled features.
  * When false: no membership sync, no content protection (all content public).
- * Used by members layout and content-access.
+ * If tenant has no feature overrides (empty slug list), defaults to true for backward compatibility.
  */
 export async function isMembershipEnabledForCurrentTenant(): Promise<boolean> {
   try {
     const schema = getClientSchema();
     const site = await getTenantSiteBySchema(schema);
-    return site?.membership_enabled ?? true;
+    if (!site?.id) return true;
+    const slugs = await getTenantEnabledFeatureSlugs(site.id);
+    if (slugs.length === 0) return true;
+    return slugs.includes("memberships");
   } catch {
     return true;
   }

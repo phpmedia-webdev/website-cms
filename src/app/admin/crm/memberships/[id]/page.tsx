@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getMagById, getContactsByMag } from "@/lib/supabase/crm";
+import { getMagById, getContactsByMag, getMags } from "@/lib/supabase/crm";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MAGDetailClient } from "./MAGDetailClient";
@@ -11,9 +11,10 @@ export default async function MAGDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [mag, contacts] = await Promise.all([
+  const [mag, contacts, allMags] = await Promise.all([
     getMagById(id),
     getContactsByMag(id),
+    getMags(true),
   ]);
 
   if (!mag) {
@@ -28,7 +29,7 @@ export default async function MAGDetailPage({
           Memberships
         </Link>
       </Button>
-      <MAGDetailClient mag={mag} initialContacts={contacts} />
+      <MAGDetailClient mag={mag} allMags={allMags} initialContacts={contacts} />
     </div>
   );
 }

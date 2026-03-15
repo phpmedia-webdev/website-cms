@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2, Search } from "lucide-react";
+import { Plus, Loader2, Search, Info, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Mag } from "@/lib/supabase/crm";
 
 /** Slugify for UID: lowercase, hyphens, no leading/trailing hyphens. */
@@ -36,70 +35,52 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/** Build list in tree order (roots first, then children alpha), with depth for indentation. */
+function magsWithDepth(mags: Mag[]): { mag: Mag; depth: number }[] {
+  const byParent = new Map<string | null, Mag[]>();
+  for (const m of mags) {
+    const key = m.parent_id ?? null;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key)!.push(m);
+  }
+  const sorted = (list: Mag[]) => [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const out: { mag: Mag; depth: number }[] = [];
+  function addLevel(parentKey: string | null, depth: number) {
+    const children = sorted(byParent.get(parentKey) ?? []);
+    for (const mag of children) {
+      out.push({ mag, depth });
+      addLevel(mag.id, depth + 1);
+    }
+  }
+  addLevel(null, 0);
+  return out;
+}
+
 interface MembershipsListClientProps {
   mags: Mag[];
   membershipEnabled: boolean;
   magCount: number;
 }
 
-export function MembershipsListClient({ mags, membershipEnabled: initialMembershipEnabled, magCount: initialMagCount }: MembershipsListClientProps) {
+export function MembershipsListClient({ mags, membershipEnabled, magCount: _magCount }: MembershipsListClientProps) {
   const router = useRouter();
-  const [membershipEnabled, setMembershipEnabled] = useState(initialMembershipEnabled);
-  const [magCount, setMagCount] = useState(initialMagCount);
-  const [toggleSaving, setToggleSaving] = useState(false);
-  const [turnOffConfirmOpen, setTurnOffConfirmOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
-
-  useEffect(() => {
-    setMembershipEnabled(initialMembershipEnabled);
-    setMagCount(initialMagCount);
-  }, [initialMembershipEnabled, initialMagCount]);
-
-  const handleToggleChange = async (enabled: boolean) => {
-    if (enabled === false && magCount > 0) {
-      setTurnOffConfirmOpen(true);
-      return;
-    }
-    await patchMembershipEnabled(enabled);
-  };
-
-  const handleTurnOffConfirm = async () => {
-    setTurnOffConfirmOpen(false);
-    await patchMembershipEnabled(false);
-  };
-
-  const patchMembershipEnabled = async (enabled: boolean) => {
-    setToggleSaving(true);
-    try {
-      const res = await fetch("/api/crm/memberships/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ membership_enabled: enabled }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setMembershipEnabled(data.membership_enabled ?? enabled);
-        setMagCount(data.mag_count ?? magCount);
-        router.refresh();
-      } else {
-        alert(data.error ?? "Failed to update");
-      }
-    } finally {
-      setToggleSaving(false);
-    }
-  };
   const [uid, setUid] = useState("");
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState<"active" | "draft">("active");
+  const [parentId, setParentId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState<25 | 50 | 100>(25);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const searchLower = search.trim().toLowerCase();
-  const filteredMags = searchLower
-    ? mags.filter((mag) => {
+  const orderedWithDepth = magsWithDepth(mags);
+  const filteredWithDepth = searchLower
+    ? orderedWithDepth.filter(({ mag }) => {
         const tag = `mag-${mag.uid}`;
         return (
           mag.name.toLowerCase().includes(searchLower) ||
@@ -107,7 +88,17 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
           tag.includes(searchLower)
         );
       })
-    : mags;
+    : orderedWithDepth;
+
+  const totalItems = filteredWithDepth.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const page = Math.min(Math.max(1, currentPage), totalPages);
+  const start = (page - 1) * pageSize;
+  const paginatedRows = filteredWithDepth.slice(start, start + pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchLower]);
 
   const suggestFromName = useCallback((newName: string) => {
     const suggested = slugify(newName);
@@ -129,6 +120,7 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
     setStartDate("");
     setEndDate("");
     setStatus("active");
+    setParentId(null);
   };
 
   const openModal = () => {
@@ -159,6 +151,7 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
           start_date: startDate || null,
           end_date: endDate || null,
           status,
+          parent_id: parentId || null,
         }),
       });
       if (!res.ok) {
@@ -177,30 +170,16 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardContent className="flex flex-row items-center justify-between gap-4 py-4">
-          <div>
-            <p className="font-medium">Membership</p>
-            <p className="text-sm text-muted-foreground">
-              {membershipEnabled
-                ? "Sync and content protection are on. You can create and manage membership groups."
-                : "Turn on Membership before creating any MAGs. While off, no sync runs and all content is public."}
+      {!membershipEnabled && (
+        <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+          <CardContent className="flex items-start gap-2 py-3">
+            <Info className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-500" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Memberships are disabled for this site. Enable the <strong>Memberships</strong> feature in your site settings (or ask your admin) to create and manage MAGs. While disabled, no sync runs and content is not gated by membership.
             </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {toggleSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-            <Switch
-              id="membership-master"
-              checked={membershipEnabled}
-              onCheckedChange={(checked) => handleToggleChange(checked === true)}
-              disabled={toggleSaving}
-            />
-            <Label htmlFor="membership-master" className="text-sm cursor-pointer">
-              {membershipEnabled ? "On" : "Off"}
-            </Label>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Memberships</h1>
@@ -227,11 +206,12 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
             <div className="p-8 text-center text-muted-foreground">
               No memberships yet. Create one to assign contacts to membership groups.
             </div>
-          ) : filteredMags.length === 0 ? (
+          ) : filteredWithDepth.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               No memberships match your search.
             </div>
           ) : (
+            <>
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-muted/50">
@@ -243,12 +223,12 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
                 </tr>
               </thead>
               <tbody>
-                {filteredMags.map((mag) => (
+                {paginatedRows.map(({ mag, depth }) => (
                   <tr
                     key={mag.id}
                     className="border-b last:border-0 hover:bg-muted/30"
                   >
-                    <td className="p-3">
+                    <td className="p-3" style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}>
                       <Link
                         href={`/admin/crm/memberships/${mag.id}`}
                         className="font-medium text-primary hover:underline"
@@ -280,24 +260,61 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
                 ))}
               </tbody>
             </table>
+            {totalItems > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>
+                    Showing {totalItems === 0 ? 0 : start + 1}–{Math.min(start + pageSize, totalItems)} of {totalItems}
+                  </span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(v) => {
+                      setPageSize(Number(v) as 25 | 50 | 100);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[5.5rem]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>per page</span>
+                </div>
+                {totalPages > 1 ? (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="min-w-[6rem] text-center text-sm text-muted-foreground">
+                      Page {page} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={turnOffConfirmOpen} onOpenChange={setTurnOffConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Turn off Membership?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {magCount} membership group{magCount !== 1 ? "s" : ""} exist{magCount === 1 ? "s" : ""}. Gated content may be exposed when Membership is off. Consider making memberships inactive (draft) first. Turn off anyway?
-          </p>
-          <DialogFooter className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setTurnOffConfirmOpen(false)}>Cancel</Button>
-            <Button onClick={handleTurnOffConfirm}>Turn off</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={modalOpen} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent className="max-w-lg">
@@ -344,6 +361,28 @@ export function MembershipsListClient({ mags, membershipEnabled: initialMembersh
                 />
                 <p className="text-xs text-muted-foreground leading-tight">
                   Tag to apply to media to restrict by this membership (mag- + UID).
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Parent (optional)</Label>
+                <Select
+                  value={parentId ?? "none"}
+                  onValueChange={(v) => setParentId(v === "none" ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="None — top-level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None — top-level</SelectItem>
+                    {mags.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground leading-tight">
+                  Child membership: assigning a contact here also grants all parent MAGs.
                 </p>
               </div>
             </div>

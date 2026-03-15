@@ -134,6 +134,8 @@ export interface Mag {
   start_date: string | null;
   end_date: string | null;
   status: "active" | "draft";
+  /** Parent MAG id for hierarchy. Assigning to child auto-assigns ancestors. Present after migration 144. */
+  parent_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -348,6 +350,42 @@ export async function getContactIdsByNameSearch(
   return rows.map((r) => r.id);
 }
 
+/** Contact search result for autocomplete (name or email). */
+export interface ContactSearchHit {
+  id: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+}
+
+/**
+ * Search contacts by name or email (ilike). For invoice/order customer picker.
+ * Returns id, email, first_name, last_name, full_name; limit 20.
+ */
+export async function searchContactsByNameOrEmail(
+  query: string,
+  options?: { limit?: number; schema?: string }
+): Promise<ContactSearchHit[]> {
+  if (!query || typeof query !== "string" || !query.trim()) return [];
+  const schemaName = options?.schema ?? CRM_SCHEMA;
+  const limit = Math.min(Math.max(Number(options?.limit) || 20, 1), 50);
+  const supabase = createServerSupabaseClient();
+  const pattern = `%${query.trim()}%`;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("crm_contacts")
+    .select("id, email, first_name, last_name, full_name")
+    .is("deleted_at", null)
+    .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},full_name.ilike.${pattern},email.ilike.${pattern}`)
+    .limit(limit);
+  if (error) {
+    console.error("searchContactsByNameOrEmail:", formatSupabaseError(error));
+    return [];
+  }
+  return (data as ContactSearchHit[]) ?? [];
+}
+
 /** Count all contacts. Excludes trashed. */
 export async function getContactsCount(): Promise<number> {
   const supabase = createServerSupabaseClient();
@@ -504,6 +542,21 @@ export async function getMagById(magId: string): Promise<Mag | null> {
   return rows[0] ?? null;
 }
 
+/** Get ancestor MAG ids for a MAG (parent, grandparent, … up to root). Used when adding contact to child MAG to auto-assign ancestors. */
+export async function getMagAncestorIds(magId: string): Promise<string[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_mag_ancestor_ids_dynamic", {
+    schema_name: CRM_SCHEMA,
+    mag_id_param: magId,
+  });
+  if (error) {
+    console.error("Error fetching MAG ancestor ids:", { message: error.message, code: error.code });
+    return [];
+  }
+  const arr = data as string[] | null;
+  return Array.isArray(arr) ? arr.filter((id): id is string => id != null) : [];
+}
+
 /** Get contacts in a MAG (RPC). */
 export interface ContactInMag {
   id: string;
@@ -531,7 +584,7 @@ export async function getContactsByMag(magId: string): Promise<ContactInMag[]> {
 
 /** Create a MAG (write). */
 export async function createMag(
-  payload: { name: string; uid: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: "active" | "draft" }
+  payload: { name: string; uid: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: "active" | "draft"; parent_id?: string | null }
 ): Promise<{ mag: Mag | null; error: Error | null }> {
   const supabase = createServerSupabaseClient();
   const row = {
@@ -541,6 +594,7 @@ export async function createMag(
     start_date: payload.start_date ?? null,
     end_date: payload.end_date ?? null,
     status: payload.status ?? "active",
+    parent_id: payload.parent_id ?? null,
   };
   const { data, error } = await supabase
     .schema(CRM_SCHEMA)
@@ -558,7 +612,7 @@ export async function createMag(
 /** Update a MAG (write). */
 export async function updateMag(
   id: string,
-  payload: Partial<{ name: string; uid: string; description: string | null; start_date: string | null; end_date: string | null; status: "active" | "draft" }>
+  payload: Partial<{ name: string; uid: string; description: string | null; start_date: string | null; end_date: string | null; status: "active" | "draft"; parent_id: string | null }>
 ): Promise<{ mag: Mag | null; error: Error | null }> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
@@ -947,20 +1001,30 @@ export async function searchMags(searchTerm: string): Promise<MagSearchResult[]>
   return (data as MagSearchResult[]) || [];
 }
 
-/** Add contact to MAG (write). */
+/** Add contact to MAG (write). When magId is a child MAG, also adds contact to all ancestor MAGs (parent/child hierarchy). */
 export async function addContactToMag(
   contactId: string,
   magId: string,
   assignedVia?: string
 ): Promise<{ success: boolean; error: Error | null }> {
   const supabase = createServerSupabaseClient();
-  const { error } = await supabase
-    .schema(CRM_SCHEMA)
-    .from("crm_contact_mags")
-    .insert({ contact_id: contactId, mag_id: magId, assigned_via: assignedVia ?? null });
-  if (error) {
-    console.error("Error adding contact to MAG:", { message: error.message, code: error.code });
-    return { success: false, error: new Error(error.message) };
+  const via = assignedVia ?? null;
+  const ancestorIds = await getMagAncestorIds(magId);
+  const magIdsToAssign = [magId, ...ancestorIds];
+
+  for (const mid of magIdsToAssign) {
+    const { error } = await supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_mags")
+      .insert({ contact_id: contactId, mag_id: mid, assigned_via: via });
+    if (error) {
+      const code = (error as { code?: string }).code;
+      if (code === "23505") {
+        continue;
+      }
+      console.error("Error adding contact to MAG:", { message: error.message, code: error.code });
+      return { success: false, error: new Error(error.message) };
+    }
   }
   return { success: true, error: null };
 }
@@ -1831,7 +1895,7 @@ export const ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "contact_added", label: "Contact added" },
   { value: "mag_assignment", label: "MAG assignment" },
   { value: "marketing_list", label: "Marketing list" },
-  { value: "order", label: "Orders / Abandoned checkout" },
+  { value: "order", label: "Transactions" },
 ] as const;
 
 /** Dashboard activity item (merged from notes, form submissions, contact created, blog comments, MAG assignments, marketing list, orders, messages). */

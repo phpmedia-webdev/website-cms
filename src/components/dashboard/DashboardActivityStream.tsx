@@ -96,7 +96,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Activity</CardTitle>
-        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, new contacts, MAG and list assignments, orders (pending = abandoned checkout). Click a row to open the contact, post, or order.</p>
+        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, new contacts, MAG and list assignments, transactions. Click a row to open the contact, post, or order.</p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2 items-center">

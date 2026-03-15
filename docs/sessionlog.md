@@ -11,9 +11,17 @@
 ---
 ## Next up
 
-- [ ] **Security review & fork deployment checklist** (see below; carries over to new fork)
+**Phase 19: Project Management Module** (from [planlog.md](./planlog.md)). Schema, RPC/API, and core Admin UI done. Scope in [prd.md](./prd.md).
 
+- [ ] **Admin UI — time tracking:** Task proposed_time, actual_time; optional punch-style entries UI.
+- [ ] **Integration — activity stream:** Log task created/completed, project status changes. Filter by project access (MAG).
+- [ ] **Integration — support tickets:** GPUM submits ticket (task type support_ticket) via member area; auto-create or reuse perpetual Support project for that GPUM; create task with task_type = support_ticket.
+- [ ] **Integration — e-commerce:** Order optional project_id; project detail shows linked orders; optional actual vs potential_sales.
+- [ ] **Integration — calendar:** Event project_id; project detail shows linked events; event visibility respects project MAG.
+- [ ] **Member area (GPUM):** (1) Projects — list/detail for GPUM (MAG); (2) Support Tickets; (3) Tasks. Feature registry, sidebar gating, and roles for projects at end of phase.
+- [ ] **Feature registry, sidebar gating & roles:** Add **projects** to feature registry; ensure sidebar gating; adjust roles as needed.
 ---
+
 ## Pre-fork: Security review & fork deployment checklist
 
 **Carries over to the new fork.** Two parts:
@@ -24,6 +32,12 @@
   - Template (root) domain deployment: Vercel, env vars, superadmin user, test auth
   - Integrations: test script injection, enable/disable, superadmin-only access
   - Document and lock down the fork deployment checklist for future client launches (e.g. first fork: **phpbme**, domain **phpbme.com**)
+
+---
+## Reference (design locked / Phase 19)
+
+- **Invoicing (locked):** Schema, number generator, shared sequence with orders, flow, customer identifiers — see changelog 2026-03-14 entry and planlog Phase 19 as needed.
+- **Phase 19 (Project Management):** Taxonomy for projects/tasks, MAG parent/child (done), CRM Organizations (done). Remaining: Project Management (projects + tasks) step-by-step in planlog.
 
 ---
 ## Paused / Later
