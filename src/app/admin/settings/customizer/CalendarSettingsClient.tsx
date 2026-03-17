@@ -89,9 +89,9 @@ export function CalendarSettingsClient({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Calendar Resource Types</CardTitle>
+        <CardTitle>Resource Types</CardTitle>
         <CardDescription>
-          Define the types for calendar resources (e.g., Room, Equipment, Video). These appear in the Resources dropdown when adding or editing a resource under Calendar. Order is used in the dropdown.
+          Define the Resource types for Calendar and Tasks (e.g., Room, Equipment, Video). These appear in the Resources Dropdown when adding or editing a resource. The order shown is the order in the resource dropdown picker.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

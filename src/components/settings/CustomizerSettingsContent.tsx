@@ -57,7 +57,7 @@ export function CustomizerSettingsContent({
     activeTab === TAB_CRM
       ? "Contact statuses and note types for the CRM."
       : activeTab === TAB_CALENDAR
-        ? "Calendar resource types for events (e.g., Room, Equipment, Video)."
+        ? "Resource types for calendar events and tasks (e.g., Room, Equipment, Video)."
         : "Content types and custom fields for content.";
 
   return (
@@ -72,7 +72,7 @@ export function CustomizerSettingsContent({
               Content
             </TabsTrigger>
             <TabsTrigger value={TAB_CALENDAR} className="flex-1 sm:flex-initial">
-              Calendar
+              Resources
             </TabsTrigger>
           </TabsList>
         </Tabs>

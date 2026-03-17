@@ -14,14 +14,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
 import type { Project } from "@/lib/supabase/projects";
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "new", label: "New" },
-  { value: "active", label: "Active" },
-  { value: "closed", label: "Closed" },
-  { value: "perpetual", label: "Perpetual" },
-] as const;
+import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
+import type { TaxonomyTermDisplay } from "@/lib/supabase/taxonomy";
+import { TaxonomyChips } from "@/components/taxonomy/TaxonomyChips";
+import { TermBadge } from "@/components/taxonomy/TermBadge";
 
 function formatDate(s: string | null): string {
   if (!s) return "—";
@@ -34,13 +30,19 @@ function formatDate(s: string | null): string {
 
 interface ProjectsListClientProps {
   initialProjects: Project[];
+  projectTaxonomyMap: Record<string, { categories: TaxonomyTermDisplay[]; tags: TaxonomyTermDisplay[] }>;
+  statusTerms: StatusOrTypeTerm[];
+  typeTerms: StatusOrTypeTerm[];
 }
 
 export function ProjectsListClient({
   initialProjects,
+  projectTaxonomyMap,
+  statusTerms,
+  typeTerms,
 }: ProjectsListClientProps) {
   const [projects, setProjects] = useState(initialProjects);
-  const [status, setStatus] = useState<string>("");
+  const [statusTermId, setStatusTermId] = useState<string>("");
   const [includeArchived, setIncludeArchived] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -48,7 +50,7 @@ export function ProjectsListClient({
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (status) params.set("status", status);
+      if (statusTermId) params.set("status_term_id", statusTermId);
       if (includeArchived) params.set("include_archived", "true");
       const res = await fetch(`/api/projects?${params.toString()}`);
       const data = await res.json();
@@ -58,7 +60,7 @@ export function ProjectsListClient({
     } finally {
       setLoading(false);
     }
-  }, [status, includeArchived]);
+  }, [statusTermId, includeArchived]);
 
   return (
     <div className="space-y-4">
@@ -69,14 +71,15 @@ export function ProjectsListClient({
             <Label htmlFor="status" className="text-sm text-muted-foreground whitespace-nowrap">
               Status
             </Label>
-            <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}>
+            <Select value={statusTermId || "all"} onValueChange={(v) => setStatusTermId(v === "all" ? "" : v)}>
               <SelectTrigger id="status" className="w-[130px]">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value || "all"} value={o.value || "all"}>
-                    {o.label}
+                <SelectItem value="all">All statuses</SelectItem>
+                {statusTerms.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -110,6 +113,7 @@ export function ProjectsListClient({
                 <tr className="border-b bg-muted/50">
                   <th className="h-9 px-4 text-left font-medium">Name</th>
                   <th className="h-9 px-4 text-left font-medium">Status</th>
+                  <th className="h-9 px-4 text-left font-medium">Categories & tags</th>
                   <th className="h-9 px-4 text-left font-medium">Start</th>
                   <th className="h-9 px-4 text-left font-medium">End</th>
                   <th className="h-9 px-4 text-left font-medium">Potential sales</th>
@@ -120,12 +124,14 @@ export function ProjectsListClient({
               <tbody>
                 {projects.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
                       No projects yet. Click “New project” to add one.
                     </td>
                   </tr>
                 ) : (
-                  projects.map((p) => (
+                  projects.map((p) => {
+                    const taxonomy = projectTaxonomyMap[p.id] ?? { categories: [], tags: [] };
+                    return (
                     <tr key={p.id} className="border-b hover:bg-muted/50">
                       <td className="p-3 font-medium">
                         <Link
@@ -138,7 +144,18 @@ export function ProjectsListClient({
                           <span className="ml-2 text-xs text-muted-foreground">(archived)</span>
                         )}
                       </td>
-                      <td className="p-3 text-muted-foreground capitalize">{p.status}</td>
+                      <td className="p-3">
+                        <TermBadge term={statusTerms.find((t) => t.id === p.status_term_id)} />
+                        {p.project_type_term_id && (
+                          <TermBadge
+                            className="ml-1"
+                            term={typeTerms.find((t) => t.id === p.project_type_term_id) ?? null}
+                          />
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <TaxonomyChips categories={taxonomy.categories} tags={taxonomy.tags} className="max-w-[200px]" />
+                      </td>
                       <td className="p-3 text-muted-foreground">{formatDate(p.proposed_start_date)}</td>
                       <td className="p-3 text-muted-foreground">{formatDate(p.proposed_end_date)}</td>
                       <td className="p-3 text-muted-foreground">
@@ -153,7 +170,7 @@ export function ProjectsListClient({
                         </Button>
                       </td>
                     </tr>
-                  ))
+                  ); })
                 )}
               </tbody>
             </table>

@@ -522,11 +522,13 @@ export async function getTaxonomyForContent(
   }
 }
 
-/** Term with name and slug for public display (e.g. blog post). */
+/** Term with name, slug, and optional color for display (e.g. blog post, project, task). */
 export interface TaxonomyTermDisplay {
   id: string;
   name: string;
   slug: string;
+  /** Optional hex color for chips/badges. */
+  color?: string | null;
 }
 
 /**
@@ -581,6 +583,60 @@ export async function getContentIdsByTermId(
 }
 
 /**
+ * Server-only: get categories and tags (with color) for multiple content items of the same type.
+ * Returns a map contentId -> { categories, tags } for list views.
+ */
+export async function getTaxonomyForContentBatch(
+  contentIds: string[],
+  contentTypeSlug: string
+): Promise<Record<string, { categories: TaxonomyTermDisplay[]; tags: TaxonomyTermDisplay[] }>> {
+  const out: Record<string, { categories: TaxonomyTermDisplay[]; tags: TaxonomyTermDisplay[] }> = {};
+  contentIds.forEach((id) => {
+    out[id] = { categories: [], tags: [] };
+  });
+  if (contentIds.length === 0) return out;
+  try {
+    const supabase = createServerSupabaseClient();
+    const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+    const { data: rels, error: relErr } = await supabase
+      .schema(schema)
+      .from("taxonomy_relationships")
+      .select("content_id, term_id")
+      .eq("content_type", contentTypeSlug)
+      .in("content_id", contentIds);
+
+    if (relErr || !rels?.length) return out;
+    const relRows = rels as { content_id: string; term_id: string }[];
+    const termIds = [...new Set(relRows.map((r) => r.term_id))];
+    const { data: terms, error: termErr } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .select("id, name, slug, type, color")
+      .in("id", termIds);
+
+    if (termErr || !terms?.length) return out;
+    type Row = { id: string; name: string; slug: string; type: string; color?: string | null };
+    const termsById = new Map(
+      (terms as Row[]).map((t) => [t.id, { id: t.id, name: t.name, slug: t.slug, color: t.color ?? null }])
+    );
+    const termTypes = new Map((terms as Row[]).map((t) => [t.id, t.type]));
+    for (const r of relRows) {
+      const term = termsById.get(r.term_id);
+      const type = termTypes.get(r.term_id);
+      if (!term || !type) continue;
+      const entry = out[r.content_id];
+      if (!entry) continue;
+      if (type === "category") entry.categories.push(term);
+      else if (type === "tag") entry.tags.push(term);
+    }
+    return out;
+  } catch (e) {
+    console.warn("getTaxonomyForContentBatch:", e);
+    return out;
+  }
+}
+
+/**
  * Server-only: get categories and tags assigned to a content item, with name and slug for display.
  * Use on public blog/post page to show taxonomy and link to archive routes.
  */
@@ -606,16 +662,16 @@ export async function getTaxonomyTermsForContentDisplay(
     const { data: terms, error: termErr } = await supabase
       .schema(schema)
       .from("taxonomy_terms")
-      .select("id, name, slug, type")
+      .select("id, name, slug, type, color")
       .in("id", termIds);
 
     if (termErr || !terms?.length) {
       return { categories: [], tags: [] };
     }
     const byType = (type: string) =>
-      (terms as { id: string; name: string; slug: string; type: string }[])
+      (terms as { id: string; name: string; slug: string; type: string; color?: string | null }[])
         .filter((t) => t.type === type)
-        .map((t) => ({ id: t.id, name: t.name, slug: t.slug }));
+        .map((t) => ({ id: t.id, name: t.name, slug: t.slug, color: t.color ?? null }));
     return {
       categories: byType("category"),
       tags: byType("tag"),
@@ -668,6 +724,42 @@ export async function setTaxonomyForContent(
     console.error("setTaxonomyForContent insert:", insErr);
     throw insErr;
   }
+}
+
+/**
+ * Server-only: set taxonomy for a content item (same logic as setTaxonomyForContent).
+ * Use in API routes / server context where createClientSupabaseClient is not appropriate.
+ */
+export async function setTaxonomyForContentServer(
+  contentId: string,
+  contentTypeSlug: string,
+  termIds: string[]
+): Promise<void> {
+  const supabase = createServerSupabaseClient();
+  const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+
+  const { error: delErr } = await supabase
+    .schema(schema)
+    .from("taxonomy_relationships")
+    .delete()
+    .eq("content_type", contentTypeSlug)
+    .eq("content_id", contentId);
+
+  if (delErr) throw delErr;
+  if (termIds.length === 0) return;
+
+  const rows = termIds.map((term_id) => ({
+    term_id,
+    content_type: contentTypeSlug,
+    content_id: contentId,
+  }));
+
+  const { error: insErr } = await supabase
+    .schema(schema)
+    .from("taxonomy_relationships")
+    .insert(rows);
+
+  if (insErr) throw insErr;
 }
 
 /**

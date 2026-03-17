@@ -120,6 +120,7 @@ async function postHandler(request: Request) {
       event_type: typeof body?.event_type === "string" ? body.event_type : undefined,
       status: typeof body?.status === "string" ? body.status : undefined,
       cover_image_id: typeof body?.cover_image_id === "string" && body.cover_image_id ? body.cover_image_id : undefined,
+      project_id: typeof body?.project_id === "string" && body.project_id ? body.project_id : body?.project_id === null ? null : undefined,
     };
 
     const result = await createEvent(input);

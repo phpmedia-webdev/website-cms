@@ -63,9 +63,11 @@ export function MemberActivityStream() {
     let list = activity;
     if (typeFilter !== "all") {
       if (typeFilter === "note") {
-        list = list.filter((i) => i.type === "note" && i.noteType !== "email_sent" && i.noteType !== "message");
+        list = list.filter((i) => i.type === "note" && i.noteType !== "email_sent" && i.noteType !== "message" && i.noteType !== "task_status_change");
       } else if (typeFilter === "email_sent") {
         list = list.filter((i) => i.type === "note" && i.noteType === "email_sent");
+      } else if (typeFilter === "task_status_change") {
+        list = list.filter((i) => i.type === "note" && i.noteType === "task_status_change");
       } else {
         list = list.filter((i) => i.type === typeFilter);
       }

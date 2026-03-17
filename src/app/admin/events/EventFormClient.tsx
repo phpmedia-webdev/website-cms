@@ -138,6 +138,11 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
     { eventId: string; title: string; start_date: string; end_date: string }[]
   >([]);
 
+  const [projectId, setProjectId] = useState<string | null>(
+    (event as { project_id?: string | null })?.project_id ?? null
+  );
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+
   // Only set date/time defaults once for new events; avoid re-running when coverImageUrls changes
   const newEventDefaultsSet = useRef(false);
   const skipConflictCheckRef = useRef(false);
@@ -162,6 +167,7 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
       setAccessLevel((event.access_level as "public" | "members" | "mag" | "private") ?? "public");
       setRequiredMagId(event.required_mag_id ?? null);
       setShowOnPublicCalendar(event.visibility === "public");
+      setProjectId((event as { project_id?: string | null }).project_id ?? null);
       const parsed = parseRecurrenceRule(event.recurrence_rule ?? null);
       setRecurrencePreset(parsed.preset);
       setRecurrenceEndDate(parsed.endDate);
@@ -233,6 +239,13 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
     }
   }, [showImagePicker]);
 
+  useEffect(() => {
+    fetch("/api/projects")
+      .then((res) => res.json())
+      .then((data) => setProjects(Array.isArray(data?.projects) ? data.projects : []))
+      .catch(() => setProjects([]));
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -265,6 +278,7 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
       required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
       visibility: showOnPublicCalendar ? "public" : "private",
       event_type: showOnPublicCalendar ? "public" : "meeting",
+      project_id: projectId || null,
     };
 
     try {
@@ -380,6 +394,7 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
       required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
       visibility: showOnPublicCalendar ? "public" : "private",
       event_type: showOnPublicCalendar ? "public" : "meeting",
+      project_id: projectId || null,
     };
     try {
       const res = await fetch("/api/events", {
@@ -526,6 +541,28 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
                 rows={3}
                 className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="project" className="text-sm">Project (optional)</Label>
+              <Select
+                value={projectId ?? "none"}
+                onValueChange={(v) => setProjectId(v === "none" ? null : v)}
+              >
+                <SelectTrigger id="project" className="w-full max-w-xs">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Link this event to a project to show it on the project detail Events tab.
+              </p>
             </div>
             <div className="flex items-center gap-2 py-0.5">
               <Checkbox

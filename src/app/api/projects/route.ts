@@ -1,17 +1,12 @@
 /**
- * GET /api/projects — List projects (admin). Query: status, required_mag_id, include_archived.
+ * GET /api/projects — List projects (admin). Query: status_term_id, required_mag_id, include_archived.
  * POST /api/projects — Create project (admin).
  */
 
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
-import {
-  listProjects,
-  createProject,
-  type ProjectStatus,
-  type ProjectInsert,
-} from "@/lib/supabase/projects";
+import { listProjects, createProject, addProjectMember, type ProjectInsert } from "@/lib/supabase/projects";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -31,12 +26,12 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") as ProjectStatus | null;
+    const status_term_id = searchParams.get("status_term_id") ?? undefined;
     const required_mag_id = searchParams.get("required_mag_id") ?? undefined;
     const include_archived = searchParams.get("include_archived") === "true";
 
     const projects = await listProjects({
-      status: status ?? undefined,
+      status_term_id: status_term_id || undefined,
       required_mag_id: required_mag_id || undefined,
       include_archived,
     });
@@ -56,6 +51,10 @@ export async function POST(request: Request) {
     if (authErr) {
       return NextResponse.json({ error: authErr.error }, { status: authErr.status });
     }
+    const user = await getCurrentUser();
+    if (!user?.id) {
+      return NextResponse.json({ error: "User not found" }, { status: 401 });
+    }
 
     const body = await request.json();
     const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -66,17 +65,26 @@ export async function POST(request: Request) {
     const input: ProjectInsert = {
       name,
       description: typeof body.description === "string" ? body.description : undefined,
-      status: body.status as ProjectInsert["status"] | undefined,
+      status_term_id: typeof body.status_term_id === "string" ? body.status_term_id : undefined,
+      project_type_term_id:
+        typeof body.project_type_term_id === "string" ? body.project_type_term_id : undefined,
       proposed_start_date: body.proposed_start_date ?? undefined,
       proposed_end_date: body.proposed_end_date ?? undefined,
+      proposed_time: typeof body.proposed_time === "number" ? body.proposed_time : undefined,
       potential_sales: typeof body.potential_sales === "number" ? body.potential_sales : undefined,
       required_mag_id: body.required_mag_id ?? undefined,
-      created_by: body.created_by ?? undefined,
+      contact_id: body.contact_id ?? undefined,
+      client_organization_id: body.client_organization_id ?? undefined,
+      created_by: body.created_by ?? user.id,
     };
 
     const result = await createProject(input);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+    const addMemberResult = await addProjectMember(result.id, { user_id: user.id });
+    if ("error" in addMemberResult) {
+      console.error("Add creator as project member:", addMemberResult.error);
     }
     return NextResponse.json({ id: result.id }, { status: 201 });
   } catch (error) {

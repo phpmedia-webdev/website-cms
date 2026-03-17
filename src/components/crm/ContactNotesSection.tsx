@@ -107,7 +107,7 @@ export function ContactNotesSection({
     if (typeFilter !== "all") {
       list = list.filter((n) => {
         const isSystem = "isSystem" in n && n.isSystem;
-        if (typeFilter === "note") return !isSystem && n.note_type !== "email_sent" && n.note_type !== "blog_comment" && n.note_type !== "message";
+        if (typeFilter === "note") return !isSystem && n.note_type !== "email_sent" && n.note_type !== "blog_comment" && n.note_type !== "message" && n.note_type !== "task_status_change";
         if (typeFilter === "message") return !isSystem && n.note_type === "message";
         return n.note_type === typeFilter;
       });

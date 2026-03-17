@@ -316,7 +316,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [ ] **Integration — activity stream:** Log task created/completed, project status changes. Filter by project access (MAG).
   - [ ] **Integration — support tickets:** GPUM submits a **ticket** (task of type support_ticket) via member area; auto-create or reuse a **perpetual Support project** for that GPUM (customer) when they start a support process (first ticket). Project: status = **perpetual** (lives with the life of the client), category = **Support Ticket**. Create task with task_type = support_ticket linked to that project.
   - [ ] **Integration — e-commerce:** Order optional project_id; project detail shows linked orders; optional actual vs potential_sales.
-  - [ ] **Integration — calendar:** Event project_id; project detail shows linked events; event visibility respects project MAG.
+  - [x] **Integration — calendar:** Event project_id; project detail shows linked events (Events tab, list + Unlink); event form Project selector; API create/update accept project_id. (Event visibility by project MAG deferred to member-facing project view.)
+  - [ ] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list views); create event from here auto-assigns project_id; wiring in place.
   - [ ] **Member area (GPUM):** Two additional items: **(1) Projects** — list/detail of projects the GPUM can see (MAG); read-only progress. **(2) Support Tickets** — list view of tickets (tasks with task_type = support_ticket) submitted by that GPUM. **(3) Tasks** — standard task list when the GPUM was assigned tasks to accomplish or follow under a project (creator/responsible/follower). Feature registry, sidebar gating, and roles for projects at end of phase.
 
 - **Phase 19 expansion (decisions 3/16/2026):** Orders + invoices remain two tables; project_id on both; project total = sum(orders.total). Activity stream: task_id and conversation_uid on crm_notes for task threads and message threading; focus-mode UI later. User handle for messaging/conversations.
@@ -332,14 +333,39 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [x] **Conversation — activity inclusion:** getMemberActivity includes notes for tasks I'm on (and messages by conversation_uid when applicable); filter by type.
   - [x] **Project detail — Transactions tab:** Tab on project detail: merged list of orders + invoices where project_id = this project. Project total = sum(orders.total). Link/unlink project_id from project tab or order/invoice detail. When creating order from paid invoice, copy invoice.project_id to order.
   - [x] **Sidebar — Activities:** Replace top-level Calendar and top-level Projects (currently Projects + Tasks) with one "Activities" section; under it: Events, Tasks, Projects, Resources. Update sidebar-config and Sidebar; feature gating and roles for Activities.
-  - [ ] **Time tracking — API & UI:** Time log API (create/list/update/delete per task). Task detail: time log entries (date, minutes, note); total on task; project detail rolled-up total. Time logs do not create activity stream items.
-  - [ ] **Priority & taxonomy colors:** Task priority color mapping (e.g. high=red); task list/detail color chip. Optional color on taxonomy terms (Projects section); projects list color chip per type. Document extend to other sections later.
+  - [x] **Time tracking — API & UI:** Time log API (create/list/update/delete per task). Task detail: time log entries (date, minutes, note); total on task; project detail rolled-up total. Time logs do not create activity stream items.
+  - [x] **Priority & taxonomy colors:** Task priority color mapping (e.g. high=red); task list/detail color chip. Optional color on taxonomy terms (Projects section); projects list color chip per type. Document extend to other sections later.
+  - [x] **Taxonomy — color option (do first):** Add optional color field to taxonomy_terms (migration). Categories (parent and child) and tags: each term has an optional color chip (stored value). UI: Admin → Settings → Taxonomy; add color to the shared Edit Category / Edit Tag modal (Categories tab and Tags tab). When creating a new sub-item (child category or tag), auto-inherit the color from the parent.
+  - [x] **Task priority as taxonomy:** Implement task priority as taxonomy-driven (dedicated section; terms tag-like). Remove hardcoded low/medium/high from tasks (migration; backfill; drop enum/CHECK). Manage priority terms in Settings → Taxonomy; task create/edit and lists use priority term (label + color from taxonomy).
+  - [x] **Projects/tasks — taxonomy UI (with color):** Add taxonomy assignment to project and task create/edit/detail; display categories/tags with taxonomy color where shown.
   - [ ] **Custom view presets (optional):** Table user_view_presets (user_id, view_type, name, payload JSON). API CRUD. Projects/tasks list: View dropdown, Save current view, Manage presets.
-  - [ ] **Activity stream — task state changes:** When task status (or key fields) changes, create activity stream entry so stream shows e.g. "Task X marked done" (no time logs in stream).
-  - [ ] **Support project (per GPUM):** Create when GPUM starts support (first ticket), not on member creation; status = perpetual; category = Support Ticket (taxonomy); one project per GPUM; all support_ticket tasks link to it.
-  - [ ] **Integration — support tickets:** GPUM submits ticket (task type support_ticket) via member area; auto-create or reuse perpetual Support project (status = perpetual, category = Support Ticket) when GPUM starts support; create task linked to that project.
-  - [ ] **Integration — calendar:** Event project_id; project detail shows linked events; event visibility respects project MAG.
+  - [x] **Activity stream — task state changes:** When task status (or key fields) changes, create activity stream entry so stream shows e.g. "Task X marked done" (no time logs in stream).
+  - [x] **Support project (per GPUM):** Create when GPUM starts support (first ticket), not on member creation; status = perpetual; category = Support Ticket (taxonomy); one project per GPUM; all support_ticket tasks link to it.
+  - [x] **Integration — support tickets:** GPUM submits ticket (task type support_ticket) via member area; auto-create or reuse perpetual Support project (status = perpetual, category = Support Ticket) when GPUM starts support; create task linked to that project.
+  - [x] **Integration — calendar:** Event project_id; project detail shows linked events (Events tab, list + Unlink); event form Project selector; API create/update accept project_id. (Event visibility by project MAG deferred to member-facing project view.)
+  - [ ] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list); create event auto-assigns project; wiring in place.
   - [ ] **Feature registry, sidebar gating & roles (Phase 19):** Add projects to feature registry; ensure sidebar gating; adjust roles.
+
+- **Phase 19 — Project members, client, assignee scoping (plan):** See [project-members-and-client-plan.md](./project-members-and-client-plan.md). **Core PM taxonomy sections (non-deletable):** Project Type, Project Status, Task Type, Task Status, Task Priority, **Project Roles** (new). Reserved terms (e.g. Support, Perpetual) protected from deletion (optional this phase).
+  - [x] **Schema — project client (org):** Add `client_organization_id` (nullable FK → organizations) to projects; RPC/types/API.
+  - [x] **Schema — project_roles section:** Add Project Roles as core taxonomy section (is_staple); optionally seed default terms; lib getProjectRoleTerms().
+  - [x] **Schema — project_members:** Table project_members (project_id, user_id | contact_id, role_term_id nullable FK → taxonomy_terms); RLS; list/add/remove API.
+  - [x] **Project UI — client:** Client = Contact or Organization; when org, “Add org members” (all or tick) → project_members.
+  - [x] **Project UI — members:** Project detail: members as circle badges (initials + role); “Add member” (team + contacts) with role picker from Project Roles taxonomy.
+  - [x] **Task assignee scoping:** When task has project with members, restrict assignee picker (creator/responsible/follower) to project members; API + TaskFollowersSection.
+  - [x] **Task assignee — team + contacts:** Allow adding team (user) and contacts from project members in Assignments section.
+  - [ ] **Support project:** Title "Support Requests for – (client-name)"; project_type_term_id = Support; add GPUM contact to project_members when creating perpetual support project.
+  - [ ] **Reserved taxonomy terms (optional):** Prevent deletion of reserved term slugs (e.g. project_type.support, project_status.perpetual) in Settings → Taxonomy; document list.
+
+### Site Visitor Analytics
+
+**Status:** Planned. Simple site visitor tracker; anonymous aggregate stats; optional GPUM page-view tracking with activity stream. Scope: schema, tracking, API, admin dashboard graph, GPUM page views in activity stream.
+
+- [ ] **Schema:** Table(s) for visitor events or daily aggregates (e.g. page views, visits by path/date). Tenant-scoped. Optional: member page views (contact_id, path, visited_at) for GPUM tracking. Migration; RLS.
+- [ ] **Tracking:** Record visits for public pages (API or middleware); minimal data (path, date, optional referrer/session). No PII for anonymous. When request is from logged-in GPUM, optionally record with contact_id for activity stream.
+- [ ] **API:** Endpoints to fetch aggregated stats (e.g. by date range, by path) for admin.
+- [ ] **Admin dashboard:** Widget or section with visitor statistics and graph (e.g. line/bar chart over time). Admin dashboard only.
+- [ ] **GPUM page views in activity stream:** When GPUM views public pages, record per-member page views; include in getMemberActivity so member (and admin viewing contact) sees "Viewed: …" in activity stream. Scope to content pages only if desired.
 
 ### Code Review, Security & Modular Alignment
 

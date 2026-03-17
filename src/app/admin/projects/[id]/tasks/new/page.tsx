@@ -1,5 +1,10 @@
 import { notFound } from "next/navigation";
-import { getProjectById } from "@/lib/supabase/projects";
+import {
+  getProjectById,
+  getTaskPriorityTerms,
+  getTaskStatusTerms,
+  getTaskTypeTerms,
+} from "@/lib/supabase/projects";
 import { TaskNewClient } from "./TaskNewClient";
 
 export default async function NewTaskPage({
@@ -8,8 +13,21 @@ export default async function NewTaskPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: projectId } = await params;
-  const project = await getProjectById(projectId);
+  const [project, priorityTerms, statusTerms, taskTypeTerms] = await Promise.all([
+    getProjectById(projectId),
+    getTaskPriorityTerms(),
+    getTaskStatusTerms(),
+    getTaskTypeTerms(),
+  ]);
   if (!project) notFound();
 
-  return <TaskNewClient projectId={projectId} projectName={project.name} />;
+  return (
+    <TaskNewClient
+      projectId={projectId}
+      projectName={project.name}
+      priorityTerms={priorityTerms}
+      statusTerms={statusTerms}
+      taskTypeTerms={taskTypeTerms}
+    />
+  );
 }

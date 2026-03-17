@@ -13,6 +13,8 @@ export interface TaxonomyTerm {
   parent_id: string | null;
   description: string | null;
   suggested_sections: string[] | null; // Sections this term is suggested for
+  /** Optional color for chips/badges (e.g. hex #rrggbb). */
+  color: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +39,8 @@ export interface TaxonomyTermFormData {
   parent_id: string | null;
   description: string | null;
   suggested_sections: string[]; // Sections to suggest this term for
+  /** Optional color (e.g. hex #rrggbb). */
+  color: string;
 }
 
 export interface SectionTaxonomyConfig {

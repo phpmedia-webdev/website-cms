@@ -94,6 +94,45 @@ export async function deleteProfileFieldValue(userId: string, fieldKey: string):
   return true;
 }
 
+/**
+ * Ensure the member has a handle. If missing, auto-generate one (do NOT set communicate_in_messages).
+ * Used when GPUM creates a support ticket so the ticket can be created; user can change handle later in profile.
+ * Returns { handle, created: true } if a handle was generated, { handle, created: false } if they already had one.
+ */
+export async function getOrCreateMemberHandle(userId: string): Promise<{ handle: string; created: boolean }> {
+  const profile = await getProfileByUserId(userId);
+  const existingHandle = profile?.handle?.trim();
+  if (existingHandle) {
+    return { handle: existingHandle, created: false };
+  }
+  const supabase = createServerSupabaseClient();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = "user-" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("handle", candidate)
+      .limit(1)
+      .maybeSingle();
+    if (existing) continue;
+    const updated = await upsertProfile({
+      user_id: userId,
+      display_name: profile?.display_name ?? null,
+      avatar_url: profile?.avatar_url ?? null,
+      title: profile?.title ?? null,
+      company: profile?.company ?? null,
+      bio: profile?.bio ?? null,
+      phone: profile?.phone ?? null,
+      handle: candidate,
+      communicate_in_messages: profile?.communicate_in_messages ?? false,
+    });
+    if (updated) {
+      return { handle: candidate, created: true };
+    }
+  }
+  throw new Error("Failed to generate unique handle");
+}
+
 /** Get profile plus custom fields as a single object for the Settings UI. */
 export async function getProfileWithFields(userId: string): Promise<ProfileWithFields | null> {
   const profile = await getProfileByUserId(userId);

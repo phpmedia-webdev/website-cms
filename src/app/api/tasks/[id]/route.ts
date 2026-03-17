@@ -11,8 +11,11 @@ import {
   getTaskById,
   updateTask,
   deleteTask,
+  getTaskFollowers,
+  getTermNameById,
   type TaskUpdate,
 } from "@/lib/supabase/projects";
+import { logTaskStatusChange } from "@/lib/supabase/crm";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -72,18 +75,34 @@ export async function PUT(
     const input: TaskUpdate = {};
     if (typeof body?.title === "string") input.title = body.title.trim();
     if (body?.description !== undefined) input.description = body.description;
-    if (body?.status !== undefined) input.status = body.status;
-    if (body?.task_type !== undefined) input.task_type = body.task_type;
-    if (body?.priority !== undefined) input.priority = body.priority;
+    if (body?.status_term_id !== undefined) input.status_term_id = body.status_term_id;
+    if (body?.task_type_term_id !== undefined) input.task_type_term_id = body.task_type_term_id;
+    if (body?.priority_term_id !== undefined) input.priority_term_id = body.priority_term_id;
     if (body?.proposed_time !== undefined) input.proposed_time = body.proposed_time;
     if (body?.actual_time !== undefined) input.actual_time = body.actual_time;
     if (body?.due_date !== undefined) input.due_date = body.due_date;
     if (body?.start_date !== undefined) input.start_date = body.start_date;
     if (body?.responsible_id !== undefined) input.responsible_id = body.responsible_id;
 
+    const existing = await getTaskById(id);
     const result = await updateTask(id, input);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+    const newStatusTermId = input.status_term_id;
+    if (
+      existing &&
+      newStatusTermId !== undefined &&
+      newStatusTermId !== null &&
+      newStatusTermId !== existing.status_term_id
+    ) {
+      const followers = await getTaskFollowers(id);
+      const contactIds = followers.map((f) => f.contact_id).filter((c): c is string => !!c);
+      if (contactIds.length > 0) {
+        const statusLabel =
+          (await getTermNameById(newStatusTermId)) ?? newStatusTermId;
+        await logTaskStatusChange(id, existing.title, statusLabel, contactIds);
+      }
     }
     return NextResponse.json({ ok: true });
   } catch (error) {

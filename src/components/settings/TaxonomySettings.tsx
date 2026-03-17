@@ -44,6 +44,7 @@ export function TaxonomySettings() {
     parent_id: "",
     type: "category" as TaxonomyType,
     suggested_sections: [] as string[],
+    color: "",
   });
   const [sectionFormData, setSectionFormData] = useState({
     section_name: "",
@@ -203,6 +204,7 @@ export function TaxonomySettings() {
         parent_id: type === "category" ? (formData.parent_id || null) : null,
         description: formData.description.trim() || null,
         suggested_sections: formData.suggested_sections.length > 0 ? formData.suggested_sections : null,
+        color: formData.color.trim() || null,
       };
 
       const oldSlug = editingTerm?.slug ?? null;
@@ -517,6 +519,7 @@ export function TaxonomySettings() {
       parent_id: "",
       type: "category",
       suggested_sections: [],
+      color: "",
     });
   };
 
@@ -1032,6 +1035,7 @@ export function TaxonomySettings() {
                                             parent_id: term.parent_id || "",
                                             type: term.type,
                                             suggested_sections: term.suggested_sections || [],
+                                            color: term.color ?? "",
                                           });
                                         }}
                                       >
@@ -1159,6 +1163,7 @@ export function TaxonomySettings() {
                                             parent_id: "",
                                             type: term.type,
                                             suggested_sections: term.suggested_sections || [],
+                                            color: term.color ?? "",
                                           });
                                         }}
                                       >
@@ -1196,7 +1201,7 @@ export function TaxonomySettings() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {formData.type === "category"
@@ -1248,7 +1253,18 @@ export function TaxonomySettings() {
                 <select
                   className="w-full px-3 py-2 border rounded-md bg-background"
                   value={formData.parent_id}
-                  onChange={(e) => setFormData({ ...formData, parent_id: e.target.value })}
+                  onChange={(e) => {
+                    const parentId = e.target.value;
+                    const next = { ...formData, parent_id: parentId };
+                    // Auto-inherit color from parent when creating a new child and parent has a color
+                    if (!editingTerm && parentId) {
+                      const parent = flattenCategories(categories).find((c) => c.id === parentId);
+                      if (parent?.color && !formData.color.trim()) {
+                        next.color = parent.color;
+                      }
+                    }
+                    setFormData(next);
+                  }}
                   disabled={editingTerm?.id === formData.parent_id}
                 >
                   <option value="">None (Top Level)</option>
@@ -1269,6 +1285,65 @@ export function TaxonomySettings() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Description"
               />
+            </div>
+            <div>
+              <Label>Color (optional)</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Used for chips and badges when this term is shown in lists or filters.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { value: "", label: "None" },
+                  { value: "#ef4444", label: "Red" },
+                  { value: "#f97316", label: "Orange" },
+                  { value: "#eab308", label: "Amber" },
+                  { value: "#22c55e", label: "Green" },
+                  { value: "#3b82f6", label: "Blue" },
+                  { value: "#8b5cf6", label: "Violet" },
+                  { value: "#ec4899", label: "Pink" },
+                  { value: "#64748b", label: "Slate" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value || "none"}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, color: value })}
+                    className={cn(
+                      "rounded-md border-2 p-1.5 transition-colors",
+                      (value ? formData.color === value : !formData.color.trim())
+                        ? "border-primary ring-1 ring-primary"
+                        : "border-transparent hover:border-muted-foreground/30"
+                    )}
+                    title={label}
+                  >
+                    {value ? (
+                      <span
+                        className="block h-6 w-6 rounded-sm shrink-0"
+                        style={{ backgroundColor: value }}
+                      />
+                    ) : (
+                      <span className="block h-6 w-6 rounded-sm border border-dashed border-muted-foreground/50 bg-muted/30" />
+                    )}
+                  </button>
+                ))}
+                <span className="h-8 w-px bg-border mx-1" aria-hidden />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground shrink-0">Custom:</span>
+                  <input
+                    type="color"
+                    value={formData.color.match(/^#[0-9A-Fa-f]{6}$/) ? formData.color : "#808080"}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                    className="h-8 w-8 cursor-pointer rounded border border-input bg-transparent p-0"
+                    title="Custom color"
+                  />
+                  <Input
+                    type="text"
+                    value={formData.color}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                    placeholder="#rrggbb"
+                    className="w-24 font-mono text-sm"
+                  />
+                </div>
+              </div>
             </div>
             <div>
               <Label>Apply to these Content Type Sections</Label>

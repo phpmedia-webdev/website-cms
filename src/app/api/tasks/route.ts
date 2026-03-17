@@ -1,12 +1,11 @@
 /**
- * GET /api/tasks — List all tasks (admin). Query: project_id, status, task_type.
+ * GET /api/tasks — List all tasks (admin). Query: project_id, status_term_id, task_type_term_id.
  */
 
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import { listTasks } from "@/lib/supabase/projects";
-import type { TaskStatus, TaskType } from "@/lib/supabase/projects";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -27,13 +26,13 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const project_id = searchParams.get("project_id") ?? undefined;
-    const status = searchParams.get("status") as TaskStatus | null;
-    const task_type = searchParams.get("task_type") as TaskType | null;
+    const status_term_id = searchParams.get("status_term_id") ?? undefined;
+    const task_type_term_id = searchParams.get("task_type_term_id") ?? undefined;
 
     const tasks = await listTasks({
       project_id: project_id || undefined,
-      status: status ?? undefined,
-      task_type: task_type ?? undefined,
+      status_term_id: status_term_id || undefined,
+      task_type_term_id: task_type_term_id || undefined,
     });
     return NextResponse.json({ tasks });
   } catch (error) {

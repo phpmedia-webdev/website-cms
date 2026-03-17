@@ -12,22 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import type { Project, Task } from "@/lib/supabase/projects";
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "open", label: "Open" },
-  { value: "in_progress", label: "In progress" },
-  { value: "blocked", label: "Blocked" },
-  { value: "done", label: "Done" },
-  { value: "cancelled", label: "Cancelled" },
-] as const;
-
-const TYPE_OPTIONS = [
-  { value: "", label: "All types" },
-  { value: "default", label: "Default" },
-  { value: "support_ticket", label: "Support ticket" },
-] as const;
+import type { Project, Task, TaskPriorityTerm } from "@/lib/supabase/projects";
+import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
+import type { TaxonomyTermDisplay } from "@/lib/supabase/taxonomy";
+import { TaxonomyChips } from "@/components/taxonomy/TaxonomyChips";
+import { TermBadge } from "@/components/taxonomy/TermBadge";
 
 function formatDate(s: string | null): string {
   if (!s) return "—";
@@ -41,16 +30,24 @@ function formatDate(s: string | null): string {
 interface AllTasksListClientProps {
   initialProjects: Project[];
   initialTasks: Task[];
+  priorityTerms: TaskPriorityTerm[];
+  statusTerms: StatusOrTypeTerm[];
+  taskTypeTerms: StatusOrTypeTerm[];
+  taskTaxonomyMap: Record<string, { categories: TaxonomyTermDisplay[]; tags: TaxonomyTermDisplay[] }>;
 }
 
 export function AllTasksListClient({
   initialProjects,
   initialTasks,
+  priorityTerms,
+  statusTerms,
+  taskTypeTerms,
+  taskTaxonomyMap,
 }: AllTasksListClientProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [projectId, setProjectId] = useState<string>("");
-  const [status, setStatus] = useState<string>("");
-  const [taskType, setTaskType] = useState<string>("");
+  const [statusTermId, setStatusTermId] = useState<string>("");
+  const [taskTypeTermId, setTaskTypeTermId] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   const projectMap = new Map(initialProjects.map((p) => [p.id, p.name]));
@@ -60,8 +57,8 @@ export function AllTasksListClient({
     try {
       const params = new URLSearchParams();
       if (projectId) params.set("project_id", projectId);
-      if (status) params.set("status", status);
-      if (taskType) params.set("task_type", taskType);
+      if (statusTermId) params.set("status_term_id", statusTermId);
+      if (taskTypeTermId) params.set("task_type_term_id", taskTypeTermId);
       const res = await fetch(`/api/tasks?${params.toString()}`);
       const data = await res.json();
       if (res.ok && Array.isArray(data.tasks)) {
@@ -70,7 +67,7 @@ export function AllTasksListClient({
     } finally {
       setLoading(false);
     }
-  }, [projectId, status, taskType]);
+  }, [projectId, statusTermId, taskTypeTermId]);
 
   return (
     <div className="space-y-4">
@@ -100,14 +97,15 @@ export function AllTasksListClient({
             <Label htmlFor="status" className="text-sm text-muted-foreground whitespace-nowrap">
               Status
             </Label>
-            <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}>
+            <Select value={statusTermId || "all"} onValueChange={(v) => setStatusTermId(v === "all" ? "" : v)}>
               <SelectTrigger id="status" className="w-[130px]">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value || "all"} value={o.value || "all"}>
-                    {o.label}
+                <SelectItem value="all">All statuses</SelectItem>
+                {statusTerms.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -117,14 +115,15 @@ export function AllTasksListClient({
             <Label htmlFor="type" className="text-sm text-muted-foreground whitespace-nowrap">
               Type
             </Label>
-            <Select value={taskType || "all"} onValueChange={(v) => setTaskType(v === "all" ? "" : v)}>
+            <Select value={taskTypeTermId || "all"} onValueChange={(v) => setTaskTypeTermId(v === "all" ? "" : v)}>
               <SelectTrigger id="type" className="w-[140px]">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                {TYPE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value || "all"} value={o.value || "all"}>
-                    {o.label}
+                <SelectItem value="all">All types</SelectItem>
+                {taskTypeTerms.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -145,6 +144,7 @@ export function AllTasksListClient({
                   <th className="h-9 px-4 text-left font-medium">Project</th>
                   <th className="h-9 px-4 text-left font-medium">Status</th>
                   <th className="h-9 px-4 text-left font-medium">Priority</th>
+                  <th className="h-9 px-4 text-left font-medium">Categories & tags</th>
                   <th className="h-9 px-4 text-left font-medium">Type</th>
                   <th className="h-9 px-4 text-left font-medium">Start</th>
                   <th className="h-9 px-4 text-left font-medium">Due</th>
@@ -154,12 +154,14 @@ export function AllTasksListClient({
               <tbody>
                 {tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={9} className="p-8 text-center text-muted-foreground">
                       No tasks match the filters.
                     </td>
                   </tr>
                 ) : (
-                  tasks.map((t) => (
+                  tasks.map((t) => {
+                    const taxonomy = taskTaxonomyMap[t.id] ?? { categories: [], tags: [] };
+                    return (
                     <tr key={t.id} className="border-b hover:bg-muted/50">
                       <td className="p-3 font-medium">{t.title}</td>
                       <td className="p-3">
@@ -170,12 +172,17 @@ export function AllTasksListClient({
                           {projectMap.get(t.project_id) ?? t.project_id.slice(0, 8) + "…"}
                         </Link>
                       </td>
-                      <td className="p-3 text-muted-foreground capitalize">
-                        {t.status.replace("_", " ")}
+                      <td className="p-3">
+                        <TermBadge term={statusTerms.find((s) => s.id === t.status_term_id)} />
                       </td>
-                      <td className="p-3 text-muted-foreground capitalize">{t.priority}</td>
-                      <td className="p-3 text-muted-foreground capitalize">
-                        {t.task_type.replace("_", " ")}
+                      <td className="p-3">
+                        <TermBadge term={priorityTerms.find((p) => p.id === t.priority_term_id) ?? null} />
+                      </td>
+                      <td className="p-3">
+                        <TaxonomyChips categories={taxonomy.categories} tags={taxonomy.tags} className="max-w-[180px]" />
+                      </td>
+                      <td className="p-3">
+                        <TermBadge term={taskTypeTerms.find((s) => s.id === t.task_type_term_id)} />
                       </td>
                       <td className="p-3 text-muted-foreground">{formatDate(t.start_date)}</td>
                       <td className="p-3 text-muted-foreground">{formatDate(t.due_date)}</td>
@@ -187,7 +194,7 @@ export function AllTasksListClient({
                         </Button>
                       </td>
                     </tr>
-                  ))
+                  ); })
                 )}
               </tbody>
             </table>

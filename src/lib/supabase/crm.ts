@@ -947,6 +947,27 @@ export async function deleteNote(noteId: string): Promise<{ success: boolean; er
   return { success: true, error: null };
 }
 
+/**
+ * Log task status change to activity stream for each contact follower.
+ * Creates one crm_note per contact with note_type "task_status_change" and task_id so it appears in member/dashboard activity.
+ */
+export async function logTaskStatusChange(
+  taskId: string,
+  taskTitle: string,
+  newStatus: string,
+  contactIds: string[]
+): Promise<void> {
+  const label = newStatus.replace(/_/g, " ");
+  const body =
+    label === "done"
+      ? `Task "${taskTitle}" marked done`
+      : `Task "${taskTitle}" status changed to ${label}`;
+  for (const contactId of contactIds) {
+    if (!contactId) continue;
+    await createNote(contactId, body, null, "task_status_change", undefined, undefined, taskId, undefined);
+  }
+}
+
 /** Create a blog comment (write). Requires authenticated user; contact_id is null; status = 'pending'. */
 export async function createBlogComment(
   contentId: string,
@@ -1920,6 +1941,7 @@ export const ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "all", label: "All" },
   { value: "message", label: "Messages" },
   { value: "note", label: "Notes" },
+  { value: "task_status_change", label: "Task status changes" },
   { value: "blog_comment", label: "Comments" },
   { value: "email_sent", label: "Outbound email" },
   { value: "form_submission", label: "Form submissions" },

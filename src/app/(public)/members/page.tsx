@@ -26,6 +26,11 @@ export default function MembersDashboardPage() {
             </Link>
           </li>
           <li>
+            <Link href="/members/support" className="text-primary hover:underline">
+              Support (submit a ticket)
+            </Link>
+          </li>
+          <li>
             <Link href="/members/profile" className="text-primary hover:underline">
               My profile
             </Link>

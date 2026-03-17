@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,36 +16,68 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
-
-const STATUS_OPTIONS = [
-  { value: "open", label: "Open" },
-  { value: "in_progress", label: "In progress" },
-  { value: "blocked", label: "Blocked" },
-  { value: "done", label: "Done" },
-  { value: "cancelled", label: "Cancelled" },
-] as const;
-
-const PRIORITY_OPTIONS = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-] as const;
+import type { TaskPriorityTerm, StatusOrTypeTerm } from "@/lib/supabase/projects";
+import { DurationPicker } from "@/components/ui/duration-picker";
+import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
+import { setTaxonomyForContent } from "@/lib/supabase/taxonomy";
 
 interface TaskNewClientProps {
   projectId: string;
   projectName: string;
+  priorityTerms: TaskPriorityTerm[];
+  statusTerms: StatusOrTypeTerm[];
+  taskTypeTerms: StatusOrTypeTerm[];
 }
 
-export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
+export function TaskNewClient({
+  projectId,
+  projectName,
+  priorityTerms,
+  statusTerms,
+  taskTypeTerms,
+}: TaskNewClientProps) {
   const router = useRouter();
+  const defaultPriorityId = useMemo(
+    () => priorityTerms.find((t) => t.slug === "medium")?.id ?? priorityTerms[0]?.id ?? "",
+    [priorityTerms]
+  );
+  const defaultStatusId = useMemo(
+    () => statusTerms.find((t) => t.slug === "open")?.id ?? statusTerms[0]?.id ?? "",
+    [statusTerms]
+  );
+  const defaultTypeId = useMemo(
+    () => taskTypeTerms.find((t) => t.slug === "default")?.id ?? taskTypeTerms[0]?.id ?? "",
+    [taskTypeTerms]
+  );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<"open" | "in_progress" | "blocked" | "done" | "cancelled">("open");
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [statusTermId, setStatusTermId] = useState(defaultStatusId);
+  const [taskTypeTermId, setTaskTypeTermId] = useState(defaultTypeId);
+  const [priorityTermId, setPriorityTermId] = useState(defaultPriorityId);
+  const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(null);
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [taxonomyCategoryIds, setTaxonomyCategoryIds] = useState<Set<string>>(new Set());
+  const [taxonomyTagIds, setTaxonomyTagIds] = useState<Set<string>>(new Set());
+
+  const handleCategoryToggle = (id: string, checked: boolean) => {
+    setTaxonomyCategoryIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+  const handleTagToggle = (id: string, checked: boolean) => {
+    setTaxonomyTagIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,8 +95,10 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
         body: JSON.stringify({
           title: trimmed,
           description: description.trim() || undefined,
-          status,
-          priority,
+          status_term_id: statusTermId || defaultStatusId,
+          task_type_term_id: taskTypeTermId || defaultTypeId,
+          priority_term_id: priorityTermId || defaultPriorityId,
+          proposed_time: proposedTimeMinutes ?? undefined,
           start_date: startDate || undefined,
           due_date: dueDate || undefined,
         }),
@@ -74,10 +108,13 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
         setError(data?.error ?? "Failed to create task");
         return;
       }
-      if (data.id) {
-        router.push(`/admin/projects/${projectId}`);
-        router.refresh();
+      const taskId = data.id as string;
+      const termIds = [...taxonomyCategoryIds, ...taxonomyTagIds];
+      if (termIds.length > 0) {
+        await setTaxonomyForContent(taskId, "task", termIds);
       }
+      router.push(`/admin/projects/${projectId}`);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create task");
     } finally {
@@ -128,14 +165,29 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="status">Status</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
+                <Select value={statusTermId} onValueChange={setStatusTermId}>
                   <SelectTrigger id="status" className="mt-1">
-                    <SelectValue />
+                    <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
+                    {statusTerms.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="task_type">Type</Label>
+                <Select value={taskTypeTermId} onValueChange={setTaskTypeTermId}>
+                  <SelectTrigger id="task_type" className="mt-1">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taskTypeTerms.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -143,20 +195,26 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
               </div>
               <div>
                 <Label htmlFor="priority">Priority</Label>
-                <Select value={priority} onValueChange={(v) => setPriority(v as typeof priority)}>
+                <Select value={priorityTermId} onValueChange={setPriorityTermId}>
                   <SelectTrigger id="priority" className="mt-1">
-                    <SelectValue />
+                    <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PRIORITY_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
+                    {priorityTerms.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+            <DurationPicker
+              value={proposedTimeMinutes}
+              onValueChange={setProposedTimeMinutes}
+              id="task_proposed_time"
+              label="Estimated time"
+            />
             <div className="grid grid-cols-2 gap-4 max-w-md">
               <div>
                 <Label htmlFor="start_date">Start date</Label>
@@ -178,6 +236,20 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
                   className="mt-1 w-40"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Categories & tags</Label>
+              <TaxonomyAssignmentForContent
+                contentTypeSlug="task"
+                section="task"
+                sectionLabel="Tasks"
+                compact
+                embedded
+                selectedCategoryIds={taxonomyCategoryIds}
+                selectedTagIds={taxonomyTagIds}
+                onCategoryToggle={handleCategoryToggle}
+                onTagToggle={handleTagToggle}
+              />
             </div>
             <div className="flex gap-2">
               <Button type="submit" disabled={submitting}>

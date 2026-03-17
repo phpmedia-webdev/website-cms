@@ -16,24 +16,48 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
+import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
+import { DurationPicker } from "@/components/ui/duration-picker";
+import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
+import { setTaxonomyForContent } from "@/lib/supabase/taxonomy";
 
-const STATUS_OPTIONS = [
-  { value: "new", label: "New" },
-  { value: "active", label: "Active" },
-  { value: "closed", label: "Closed" },
-  { value: "perpetual", label: "Perpetual" },
-] as const;
+interface ProjectNewClientProps {
+  statusTerms: StatusOrTypeTerm[];
+  typeTerms: StatusOrTypeTerm[];
+}
 
-export function ProjectNewClient() {
+export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientProps) {
   const router = useRouter();
+  const defaultStatusId = statusTerms.find((t) => t.slug === "new")?.id ?? statusTerms[0]?.id ?? "";
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<"new" | "active" | "closed" | "perpetual">("new");
+  const [statusTermId, setStatusTermId] = useState<string>(defaultStatusId);
+  const [projectTypeTermId, setProjectTypeTermId] = useState<string>("");
   const [proposedStartDate, setProposedStartDate] = useState("");
   const [proposedEndDate, setProposedEndDate] = useState("");
+  const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(null);
   const [potentialSales, setPotentialSales] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [taxonomyCategoryIds, setTaxonomyCategoryIds] = useState<Set<string>>(new Set());
+  const [taxonomyTagIds, setTaxonomyTagIds] = useState<Set<string>>(new Set());
+
+  const handleCategoryToggle = (id: string, checked: boolean) => {
+    setTaxonomyCategoryIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+  const handleTagToggle = (id: string, checked: boolean) => {
+    setTaxonomyTagIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,9 +75,11 @@ export function ProjectNewClient() {
         body: JSON.stringify({
           name: trimmed,
           description: description.trim() || undefined,
-          status,
+          status_term_id: statusTermId || undefined,
+          project_type_term_id: projectTypeTermId || undefined,
           proposed_start_date: proposedStartDate || undefined,
           proposed_end_date: proposedEndDate || undefined,
+          proposed_time: proposedTimeMinutes ?? undefined,
           potential_sales: potentialSales ? parseFloat(potentialSales) : undefined,
         }),
       });
@@ -62,10 +88,13 @@ export function ProjectNewClient() {
         setError(data?.error ?? "Failed to create project");
         return;
       }
-      if (data.id) {
-        router.push(`/admin/projects/${data.id}`);
-        router.refresh();
+      const projectId = data.id as string;
+      const termIds = [...taxonomyCategoryIds, ...taxonomyTagIds];
+      if (termIds.length > 0) {
+        await setTaxonomyForContent(projectId, "project", termIds);
       }
+      router.push(`/admin/projects/${projectId}`);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
@@ -114,19 +143,43 @@ export function ProjectNewClient() {
             </div>
             <div>
               <Label htmlFor="status">Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
+              <Select value={statusTermId} onValueChange={setStatusTermId}>
                 <SelectTrigger id="status" className="mt-1 w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
+                  {statusTerms.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            {typeTerms.length > 0 && (
+              <div>
+                <Label htmlFor="project_type">Type</Label>
+                <Select value={projectTypeTermId || "none"} onValueChange={(v) => setProjectTypeTermId(v === "none" ? "" : v)}>
+                  <SelectTrigger id="project_type" className="mt-1 w-[140px]">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {typeTerms.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <DurationPicker
+              value={proposedTimeMinutes}
+              onValueChange={setProposedTimeMinutes}
+              id="proposed_time"
+              label="Estimated time"
+            />
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="start">Proposed start date</Label>
@@ -160,6 +213,20 @@ export function ProjectNewClient() {
                 onChange={(e) => setPotentialSales(e.target.value)}
                 placeholder="0"
                 className="mt-1 w-40"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Categories & tags</Label>
+              <TaxonomyAssignmentForContent
+                contentTypeSlug="project"
+                section="project"
+                sectionLabel="Projects"
+                compact
+                embedded
+                selectedCategoryIds={taxonomyCategoryIds}
+                selectedTagIds={taxonomyTagIds}
+                onCategoryToggle={handleCategoryToggle}
+                onTagToggle={handleTagToggle}
               />
             </div>
             <div className="flex gap-2">

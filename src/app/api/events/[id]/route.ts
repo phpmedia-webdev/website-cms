@@ -88,6 +88,7 @@ async function putHandler(
     if (body?.event_type !== undefined) input.event_type = typeof body.event_type === "string" ? body.event_type : null;
     if (typeof body?.status === "string") input.status = body.status;
     if (body?.cover_image_id !== undefined) input.cover_image_id = typeof body.cover_image_id === "string" && body.cover_image_id ? body.cover_image_id : null;
+    if (body?.project_id !== undefined) input.project_id = typeof body.project_id === "string" && body.project_id ? body.project_id : null;
 
     if (Object.keys(input).length === 0) {
       return NextResponse.json({ data: { ok: true } });

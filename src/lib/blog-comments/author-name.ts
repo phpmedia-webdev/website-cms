@@ -44,8 +44,8 @@ export async function getDisplayLabelForUser(authUserId: string): Promise<string
     (meta?.full_name as string)?.trim() ||
     (meta?.name as string)?.trim() ||
     (meta?.display_name as string)?.trim() ||
-    user.email;
-  return fromAuth ?? "User";
+    (typeof user.email === "string" ? user.email.trim() : "");
+  return fromAuth || "User";
 }
 
 /**

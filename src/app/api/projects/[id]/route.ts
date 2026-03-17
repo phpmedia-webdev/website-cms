@@ -72,15 +72,21 @@ export async function PUT(
     const input: ProjectUpdate = {};
     if (typeof body?.name === "string") input.name = body.name.trim();
     if (body?.description !== undefined) input.description = body.description;
-    if (body?.status !== undefined) input.status = body.status;
+    if (body?.status_term_id !== undefined) input.status_term_id = body.status_term_id;
+    if (body?.project_type_term_id !== undefined)
+      input.project_type_term_id = body.project_type_term_id;
     if (body?.proposed_start_date !== undefined)
       input.proposed_start_date = body.proposed_start_date;
     if (body?.proposed_end_date !== undefined)
       input.proposed_end_date = body.proposed_end_date;
+    if (body?.proposed_time !== undefined) input.proposed_time = body.proposed_time;
     if (body?.potential_sales !== undefined)
       input.potential_sales = body.potential_sales;
     if (body?.required_mag_id !== undefined)
       input.required_mag_id = body.required_mag_id;
+    if (body?.contact_id !== undefined) input.contact_id = body.contact_id;
+    if (body?.client_organization_id !== undefined)
+      input.client_organization_id = body.client_organization_id;
     if (body?.archived_at !== undefined) input.archived_at = body.archived_at;
 
     const result = await updateProject(id, input);

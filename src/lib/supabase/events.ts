@@ -27,6 +27,7 @@ export interface EventInsert {
   event_type?: string | null;
   status?: string;
   cover_image_id?: string | null;
+  project_id?: string | null;
 }
 
 export interface EventUpdate {
@@ -45,6 +46,7 @@ export interface EventUpdate {
   event_type?: string | null;
   status?: string;
   cover_image_id?: string | null;
+  project_id?: string | null;
 }
 
 export interface Event {
@@ -64,6 +66,7 @@ export interface Event {
   event_type: string | null;
   status: string;
   cover_image_id?: string | null;
+  project_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -120,6 +123,31 @@ export async function getPublicEvents(
 }
 
 /**
+ * List events linked to a project (project_id = projectId).
+ * Used by project detail to show linked events. Does not expand recurring series.
+ */
+export async function listEventsByProjectId(
+  projectId: string,
+  schema?: string
+): Promise<Event[]> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? getClientSchema();
+
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("events")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("start_date", { ascending: true });
+
+  if (error) {
+    console.error("listEventsByProjectId error:", error);
+    return [];
+  }
+  return (data ?? []) as Event[];
+}
+
+/**
  * Get a single event by ID. Uses RPC get_event_by_id_dynamic.
  */
 export async function getEventById(
@@ -169,6 +197,7 @@ export async function createEvent(
     event_type: input.event_type ?? null,
     status: input.status ?? "published",
     cover_image_id: input.cover_image_id ?? null,
+    project_id: input.project_id ?? null,
   };
 
   const { data, error } = await supabase
@@ -214,6 +243,7 @@ export async function updateEvent(
   if (input.event_type !== undefined) payload.event_type = input.event_type;
   if (input.status !== undefined) payload.status = input.status;
   if (input.cover_image_id !== undefined) payload.cover_image_id = input.cover_image_id;
+  if (input.project_id !== undefined) payload.project_id = input.project_id;
   payload.updated_at = new Date().toISOString();
 
   if (Object.keys(payload).length <= 1) {

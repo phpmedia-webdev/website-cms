@@ -153,6 +153,7 @@ export interface Database {
           parent_id: string | null;
           description: string | null;
           suggested_sections: string[] | null;
+          color: string | null;
           created_at: string;
           updated_at: string;
         };
