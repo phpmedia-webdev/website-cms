@@ -146,6 +146,7 @@ export function AllTasksListClient({
                   <th className="h-9 px-4 text-left font-medium">Status</th>
                   <th className="h-9 px-4 text-left font-medium">Priority</th>
                   <th className="h-9 px-4 text-left font-medium">Type</th>
+                  <th className="h-9 px-4 text-left font-medium">Start</th>
                   <th className="h-9 px-4 text-left font-medium">Due</th>
                   <th className="h-9 w-24 px-4 text-left font-medium" />
                 </tr>
@@ -153,7 +154,7 @@ export function AllTasksListClient({
               <tbody>
                 {tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
                       No tasks match the filters.
                     </td>
                   </tr>
@@ -176,6 +177,7 @@ export function AllTasksListClient({
                       <td className="p-3 text-muted-foreground capitalize">
                         {t.task_type.replace("_", " ")}
                       </td>
+                      <td className="p-3 text-muted-foreground">{formatDate(t.start_date)}</td>
                       <td className="p-3 text-muted-foreground">{formatDate(t.due_date)}</td>
                       <td className="p-3">
                         <Button variant="ghost" size="sm" className="h-7 px-2" asChild>

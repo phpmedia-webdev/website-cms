@@ -100,6 +100,7 @@ export async function POST(
       proposed_time: typeof body.proposed_time === "number" ? body.proposed_time : undefined,
       actual_time: typeof body.actual_time === "number" ? body.actual_time : undefined,
       due_date: body.due_date ?? undefined,
+      start_date: body.start_date ?? undefined,
       creator_id: body.creator_id ?? undefined,
       responsible_id: body.responsible_id ?? undefined,
     };

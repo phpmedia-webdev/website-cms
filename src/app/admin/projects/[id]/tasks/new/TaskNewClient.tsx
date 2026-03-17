@@ -42,6 +42,7 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"open" | "in_progress" | "blocked" | "done" | "cancelled">("open");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
           description: description.trim() || undefined,
           status,
           priority,
+          start_date: startDate || undefined,
           due_date: dueDate || undefined,
         }),
       });
@@ -155,15 +157,27 @@ export function TaskNewClient({ projectId, projectName }: TaskNewClientProps) {
                 </Select>
               </div>
             </div>
-            <div>
-              <Label htmlFor="due">Due date</Label>
-              <Input
-                id="due"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="mt-1 w-40"
-              />
+            <div className="grid grid-cols-2 gap-4 max-w-md">
+              <div>
+                <Label htmlFor="start_date">Start date</Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="mt-1 w-40"
+                />
+              </div>
+              <div>
+                <Label htmlFor="due">Due date</Label>
+                <Input
+                  id="due"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="mt-1 w-40"
+                />
+              </div>
             </div>
             <div className="flex gap-2">
               <Button type="submit" disabled={submitting}>

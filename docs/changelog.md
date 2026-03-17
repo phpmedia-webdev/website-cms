@@ -11,6 +11,12 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-03-16 22:35 CT — Session wrap: Sidebar Activities consolidation
+
+- **Context for Next Session:** Sidebar — Activities is complete. Admin sidebar now has one **Activities** section (replacing separate Calendar and Projects sections) with sub-items: Events, Tasks, Projects, Resources; feature gating and role checks unchanged. **Ready to test:** Admin → Activities (expand) → Events / Tasks / Projects / Resources. **Next up (sessionlog):** User handle — auto-generate on first support ticket (+ activity when auto-generated); Time tracking — API & UI; Priority & taxonomy colors; Support project (per GPUM); Integration — support tickets; Sidebar — Content consolidation; Feature registry/sidebar gating. Key files: `src/components/dashboard/Sidebar.tsx`, `src/components/dashboard/sidebar-config.ts`.
+- **Completed:**
+  - **Sidebar — Activities:** Replaced top-level Calendar and top-level Projects with one "Activities" section; sub-items Events (`/admin/events`), Tasks (`/admin/projects/tasks`), Projects (`/admin/projects`), Resources (`/admin/events/resources`). Config: `activitiesSubNav`, `SIDEBAR_ACTIVITIES_OPEN`; state `activitiesOpen` and pathname-driven expand when on Events or Projects routes; feature gating via `showActivities*` (content, calendar, events, resources, projects). Removed unused `showProjects*` vars and duplicate catch-block logic; build passes.
+
 ### 2026-03-15 00:18 CT — Phase 19 Project Management: schema, RPC/API, Admin UI (projects + tasks list/detail/forms), All Tasks view
 
 - **Context for Next Session:** Phase 19 Project Management is partially complete. **Done:** Full schema (projects, tasks, task_followers, Projects/Tasks taxonomy sections as core/is_staple, project_id on orders/events), RPC/API for projects and tasks, Admin UI: sidebar (Projects section with Projects + Tasks sub-items, feature slug `projects`), projects list (filters, new/detail/edit), project detail (header, tasks table, archive/restore), project new/edit forms, task new/detail, **All Tasks** page (`/admin/projects/tasks`) with filters (project, status, type) and Title as first column. **Next up (sessionlog):** Admin UI — time tracking; Integration — activity stream, support tickets, e-commerce/calendar links; Member area (GPUM); Feature registry/sidebar gating for projects at end of phase. Key files: `src/lib/supabase/projects.ts`, `src/app/admin/projects/*`, `src/app/api/projects/*`, `src/app/api/tasks/*`, migrations 145–151.

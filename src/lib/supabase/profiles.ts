@@ -37,6 +37,8 @@ export async function upsertProfile(row: ProfileInsert & Partial<ProfileUpdate>)
         company: row.company ?? null,
         bio: row.bio ?? null,
         phone: row.phone ?? null,
+        handle: row.handle ?? null,
+        communicate_in_messages: row.communicate_in_messages ?? false,
       },
       { onConflict: "user_id" }
     )
@@ -109,6 +111,8 @@ export async function getProfileWithFields(userId: string): Promise<ProfileWithF
       company: null,
       bio: null,
       phone: null,
+      handle: null,
+      communicate_in_messages: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       custom_fields,

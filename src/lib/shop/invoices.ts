@@ -24,6 +24,7 @@ export interface InvoiceRow {
   total: number;
   currency: string;
   due_date: string | null;
+  project_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +49,7 @@ export interface CreateInvoiceParams {
   contact_id?: string | null;
   due_date?: string | null;
   currency?: string;
+  project_id?: string | null;
 }
 
 export interface UpdateInvoiceParams {
@@ -55,6 +57,7 @@ export interface UpdateInvoiceParams {
   contact_id?: string | null;
   due_date?: string | null;
   currency?: string;
+  project_id?: string | null;
 }
 
 export interface AddInvoiceLineParams {
@@ -83,6 +86,7 @@ export async function listInvoices(
     status?: InvoiceStatus;
     limit?: number;
     contact_id?: string | null;
+    project_id?: string | null;
     from?: string | null;
     to?: string | null;
   },
@@ -98,6 +102,9 @@ export async function listInvoices(
 
   if (params?.contact_id) {
     q = q.eq("contact_id", params.contact_id);
+  }
+  if (params?.project_id) {
+    q = q.eq("project_id", params.project_id);
   }
   if (params?.from) {
     q = q.gte("created_at", params.from);
@@ -195,6 +202,7 @@ export async function createInvoice(
       total: 0,
       currency: params.currency ?? "USD",
       due_date: params.due_date ?? null,
+      project_id: params.project_id ?? null,
     })
     .select("*")
     .single();
@@ -224,6 +232,7 @@ export async function updateInvoice(
   if (params.contact_id !== undefined) update.contact_id = params.contact_id;
   if (params.due_date !== undefined) update.due_date = params.due_date;
   if (params.currency !== undefined) update.currency = params.currency;
+  if (params.project_id !== undefined) update.project_id = params.project_id;
   if (Object.keys(update).length === 0) return true;
 
   const { error } = await supabase
@@ -543,6 +552,7 @@ export async function createOrderFromAppInvoice(
       order_number: orderNumber,
       stripe_checkout_session_id: null,
       stripe_invoice_id: stripeInvoiceId,
+      project_id: inv.project_id ?? null,
       billing_snapshot: null,
       shipping_snapshot: null,
       coupon_code: null,

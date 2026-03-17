@@ -6,6 +6,7 @@
  */
 
 import { createServerSupabaseClient } from "./server-service";
+import { getTaskIdsForContact } from "./projects";
 import { CRM_STATUS_SLUG_NEW } from "./settings";
 
 const CRM_SCHEMA =
@@ -73,6 +74,10 @@ export interface CrmNote {
   recipient_contact_id?: string | null;
   /** Links reply to parent message for threading. */
   parent_note_id?: string | null;
+  /** When set, note is part of this task thread (e.g. support ticket). Phase 19. */
+  task_id?: string | null;
+  /** For note_type=message: same UID links thread; lookup by this for full conversation. Phase 19. */
+  conversation_uid?: string | null;
 }
 
 export interface Form {
@@ -658,6 +663,28 @@ export async function getContactNotes(contactId: string): Promise<CrmNote[]> {
   return (data as CrmNote[]) || [];
 }
 
+/** Prefix for task-scoped conversation_uid (unified thread model). */
+export const TASK_CONVERSATION_UID_PREFIX = "task:";
+
+/** Build conversation_uid for a task thread. */
+export function taskConversationUid(taskId: string): string {
+  return `${TASK_CONVERSATION_UID_PREFIX}${taskId}`;
+}
+
+/** Get notes for a conversation (unified thread: task thread, message thread). RPC get_notes_by_conversation_uid_dynamic. */
+export async function getNotesByConversationUid(conversationUid: string): Promise<CrmNote[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_notes_by_conversation_uid_dynamic", {
+    schema_name: CRM_SCHEMA,
+    conversation_uid_param: conversationUid,
+  });
+  if (error) {
+    console.error("Error fetching notes by conversation_uid:", { message: error.message, code: error.code });
+    return [];
+  }
+  return (data as CrmNote[]) || [];
+}
+
 /** Get CRM custom field definitions (RPC). */
 export async function getCrmCustomFields(): Promise<CrmCustomField[]> {
   const supabase = createServerSupabaseClient();
@@ -849,14 +876,16 @@ export async function deleteContact(id: string): Promise<{ success: boolean; err
 
 // ==================== Notes ====================
 
-/** Create a note for a contact (write). Optional threading and recipient for messages. */
+/** Create a note for a contact (write). Optional threading, recipient for messages, and task_id for task threads. */
 export async function createNote(
   contactId: string,
   body: string,
   authorId?: string | null,
   noteType?: string | null,
   recipientContactId?: string | null,
-  parentNoteId?: string | null
+  parentNoteId?: string | null,
+  taskId?: string | null,
+  conversationUid?: string | null
 ): Promise<{ note: CrmNote | null; error: Error | null }> {
   const supabase = createServerSupabaseClient();
   const payload: Record<string, unknown> = {
@@ -867,6 +896,8 @@ export async function createNote(
   };
   if (recipientContactId !== undefined) payload.recipient_contact_id = recipientContactId ?? null;
   if (parentNoteId !== undefined) payload.parent_note_id = parentNoteId ?? null;
+  if (taskId !== undefined) payload.task_id = taskId ?? null;
+  if (conversationUid !== undefined) payload.conversation_uid = conversationUid ?? null;
   const { data, error } = await supabase
     .schema(CRM_SCHEMA)
     .from("crm_notes")
@@ -1921,6 +1952,8 @@ export interface DashboardActivityItem {
   orderId?: string;
   /** Set when type = 'order': pending, paid, processing, completed. */
   orderStatus?: string;
+  /** Set when note is from a task thread (tasks I'm on). Link to task in admin. */
+  taskId?: string | null;
 }
 
 /** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. Includes blog comments, MAG assignments, marketing list. */
@@ -2120,6 +2153,7 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
 
 /**
  * Activity stream for a single contact (member dashboard). Same event types as getDashboardActivity but filtered to one contact.
+ * Includes notes for tasks the contact is on (task_followers): task thread replies appear in the stream.
  */
 export async function getMemberActivity(contactId: string, limit = 80): Promise<DashboardActivityItem[]> {
   const [notes, formSubmissions, mags, marketingLists, contact, ordersData] = await Promise.all([
@@ -2145,21 +2179,42 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
     ? (contact.full_name?.trim() || [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email || "Contact")
     : "Contact";
 
+  const taskIds = await getTaskIdsForContact(contactId);
+  const noteById = new Map<string, CrmNote & { note_type?: string | null }>();
+  for (const n of notes as (CrmNote & { note_type?: string | null })[]) {
+    noteById.set(n.id, n);
+  }
+  for (const taskId of taskIds) {
+    const taskNotes = await getNotesByConversationUid(taskConversationUid(taskId));
+    for (const n of taskNotes) {
+      if (!noteById.has(n.id)) {
+        noteById.set(n.id, n as CrmNote & { note_type?: string | null });
+      }
+    }
+  }
+  const noteRows = [...noteById.values()].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   const forms = await getForms();
   const formNameById: Record<string, string> = Object.fromEntries(forms.map((f) => [f.id, f.name]));
 
   const items: DashboardActivityItem[] = [];
 
-  const noteRows = notes as (CrmNote & { note_type?: string | null })[];
   for (const n of noteRows) {
+    const authorName = n.author_id
+      ? await (await import("@/lib/blog-comments/author-name")).getDisplayLabelForUser(n.author_id)
+      : "User";
     if (n.note_type === "blog_comment") {
-      const authorName = n.author_id ? await (await import("@/lib/blog-comments/author-name")).getCommentAuthorDisplayName(n.author_id) : "Commenter";
+      const commentAuthorName = n.author_id
+        ? await (await import("@/lib/blog-comments/author-name")).getCommentAuthorDisplayName(n.author_id)
+        : "Commenter";
       items.push({
         type: "blog_comment",
         id: n.id,
         at: n.created_at,
         contactId: n.contact_id ?? "",
-        contactName: authorName,
+        contactName: commentAuthorName,
         body: n.body,
         noteType: "blog_comment",
         contentId: n.content_id ?? null,
@@ -2179,10 +2234,11 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
       items.push({
         type: "note",
         at: n.created_at,
-        contactId: contactId,
-        contactName,
+        contactId: n.contact_id ?? contactId,
+        contactName: n.contact_id === contactId ? contactName : authorName,
         body: n.body,
         noteType: n.note_type ?? null,
+        taskId: n.task_id ?? null,
       });
     }
   }

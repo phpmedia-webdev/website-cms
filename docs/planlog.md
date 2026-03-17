@@ -53,6 +53,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Status:** Complete. Sidebar, Dashboard, Content, Media, Galleries, Forms, CRM, Settings.
 
+- [ ] **Sidebar — Content consolidation:** One top-level "Content" with sub-items: Text Blocks (current Content page), Media (Media Library), Galleries. Remove separate top-level Media nav item. Do this before Phase 19 roles/gate sidebar work.
+
 ### Phase 05: Media Library
 
 **Status:** Core complete. Deferred: local copy workflow, `createClientBucket`/`renameBucket`, `getImageUrl`, `POST /api/media/[id]/optimize`, video embed on public.
@@ -312,10 +314,32 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [ ] **Admin UI — time tracking:** Task proposed_time, actual_time; optional punch-style entries UI.
   - [x] **Admin UI — archive/restore:** Buttons; list hides archived by default.
   - [ ] **Integration — activity stream:** Log task created/completed, project status changes. Filter by project access (MAG).
-  - [ ] **Integration — support tickets:** GPUM submits a **ticket** (task of type support_ticket) via member area; auto-create or reuse a **perpetual Support project** for that GPUM (customer); create task with task_type = support_ticket linked to that project.
+  - [ ] **Integration — support tickets:** GPUM submits a **ticket** (task of type support_ticket) via member area; auto-create or reuse a **perpetual Support project** for that GPUM (customer) when they start a support process (first ticket). Project: status = **perpetual** (lives with the life of the client), category = **Support Ticket**. Create task with task_type = support_ticket linked to that project.
   - [ ] **Integration — e-commerce:** Order optional project_id; project detail shows linked orders; optional actual vs potential_sales.
   - [ ] **Integration — calendar:** Event project_id; project detail shows linked events; event visibility respects project MAG.
   - [ ] **Member area (GPUM):** Two additional items: **(1) Projects** — list/detail of projects the GPUM can see (MAG); read-only progress. **(2) Support Tickets** — list view of tickets (tasks with task_type = support_ticket) submitted by that GPUM. **(3) Tasks** — standard task list when the GPUM was assigned tasks to accomplish or follow under a project (creator/responsible/follower). Feature registry, sidebar gating, and roles for projects at end of phase.
+
+- **Phase 19 expansion (decisions 3/16/2026):** Orders + invoices remain two tables; project_id on both; project total = sum(orders.total). Activity stream: task_id and conversation_uid on crm_notes for task threads and message threading; focus-mode UI later. User handle for messaging/conversations.
+  - [ ] **Schema — task start_date:** Add start_date (DATE, nullable) to tasks. Migration; RPC/types; task forms and list/detail.
+  - [ ] **Schema — task_id on crm_notes:** Add task_id (UUID, nullable, FK → tasks) to crm_notes. Index; migration; update RPC. Note tied to task (support ticket thread).
+  - [ ] **Schema — conversation_uid on crm_notes:** Add conversation_uid (TEXT or UUID, nullable). For note_type = 'message', same UID links thread; lookup by conversation_uid. Migration; index; RPC/API return.
+  - [ ] **Schema — task_time_logs:** Table task_time_logs (id, task_id FK, user_id nullable, contact_id nullable, log_date DATE, minutes INTEGER, note TEXT, created_at). Migration; RLS; indexes.
+  - [ ] **Schema — project_id on invoices:** Add project_id (nullable FK → projects) to invoices. Migration; index. When order created from paid invoice, copy project_id to order.
+  - [ ] **User handle — schema & profile:** Add handle (TEXT, unique per tenant/app) to profile (tenant_users or profiles). Migration; auto-generate (e.g. last name + suffix); editable in profile/settings.
+  - [ ] **User handle — display:** Show handle (fallback to email or "User") in task threads, member activity stream, blog comments where author is user.
+  - [x] **Conversation (thread) — create/get:** Unified model: conversation = comment/support ticket/message thread; conversation_uid identifies thread (task threads: `task:${taskId}`). createNote sets task_id + conversation_uid; RPC/API get notes by conversation_uid; task detail UI: thread, "Add reply", display handle. Messages/focus filter later.
+  - [x] **Task followers — UI:** Task detail Assignments section: list followers (contact/user + role), add follower (role + contact search), remove. API GET/POST/DELETE /api/tasks/[id]/followers. Enables task thread "Add reply" (contact_id from followers).
+  - [x] **Conversation — activity inclusion:** getMemberActivity includes notes for tasks I'm on (and messages by conversation_uid when applicable); filter by type.
+  - [x] **Project detail — Transactions tab:** Tab on project detail: merged list of orders + invoices where project_id = this project. Project total = sum(orders.total). Link/unlink project_id from project tab or order/invoice detail. When creating order from paid invoice, copy invoice.project_id to order.
+  - [x] **Sidebar — Activities:** Replace top-level Calendar and top-level Projects (currently Projects + Tasks) with one "Activities" section; under it: Events, Tasks, Projects, Resources. Update sidebar-config and Sidebar; feature gating and roles for Activities.
+  - [ ] **Time tracking — API & UI:** Time log API (create/list/update/delete per task). Task detail: time log entries (date, minutes, note); total on task; project detail rolled-up total. Time logs do not create activity stream items.
+  - [ ] **Priority & taxonomy colors:** Task priority color mapping (e.g. high=red); task list/detail color chip. Optional color on taxonomy terms (Projects section); projects list color chip per type. Document extend to other sections later.
+  - [ ] **Custom view presets (optional):** Table user_view_presets (user_id, view_type, name, payload JSON). API CRUD. Projects/tasks list: View dropdown, Save current view, Manage presets.
+  - [ ] **Activity stream — task state changes:** When task status (or key fields) changes, create activity stream entry so stream shows e.g. "Task X marked done" (no time logs in stream).
+  - [ ] **Support project (per GPUM):** Create when GPUM starts support (first ticket), not on member creation; status = perpetual; category = Support Ticket (taxonomy); one project per GPUM; all support_ticket tasks link to it.
+  - [ ] **Integration — support tickets:** GPUM submits ticket (task type support_ticket) via member area; auto-create or reuse perpetual Support project (status = perpetual, category = Support Ticket) when GPUM starts support; create task linked to that project.
+  - [ ] **Integration — calendar:** Event project_id; project detail shows linked events; event visibility respects project MAG.
+  - [ ] **Feature registry, sidebar gating & roles (Phase 19):** Add projects to feature registry; ensure sidebar gating; adjust roles.
 
 ### Code Review, Security & Modular Alignment
 

@@ -78,6 +78,7 @@ export async function PUT(
     if (body?.proposed_time !== undefined) input.proposed_time = body.proposed_time;
     if (body?.actual_time !== undefined) input.actual_time = body.actual_time;
     if (body?.due_date !== undefined) input.due_date = body.due_date;
+    if (body?.start_date !== undefined) input.start_date = body.start_date;
     if (body?.responsible_id !== undefined) input.responsible_id = body.responsible_id;
 
     const result = await updateTask(id, input);

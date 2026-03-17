@@ -41,6 +41,7 @@ export interface Task {
   proposed_time: number | null;
   actual_time: number | null;
   due_date: string | null;
+  start_date: string | null;
   creator_id: string | null;
   responsible_id: string | null;
   created_at: string;
@@ -95,6 +96,7 @@ export interface TaskInsert {
   proposed_time?: number | null;
   actual_time?: number | null;
   due_date?: string | null;
+  start_date?: string | null;
   creator_id?: string | null;
   responsible_id?: string | null;
 }
@@ -108,7 +110,29 @@ export interface TaskUpdate {
   proposed_time?: number | null;
   actual_time?: number | null;
   due_date?: string | null;
+  start_date?: string | null;
   responsible_id?: string | null;
+}
+
+/** Task time log (Phase 19 expansion). Total task time = sum of minutes. */
+export interface TaskTimeLog {
+  id: string;
+  task_id: string;
+  user_id: string | null;
+  contact_id: string | null;
+  log_date: string;
+  minutes: number;
+  note: string | null;
+  created_at: string;
+}
+
+export interface TaskTimeLogInsert {
+  task_id: string;
+  user_id?: string | null;
+  contact_id?: string | null;
+  log_date: string;
+  minutes: number;
+  note?: string | null;
 }
 
 /** List projects. Taxonomy filtering can be applied in app via taxonomy_relationships. */
@@ -274,6 +298,130 @@ export async function getTaskById(
   return rows[0] ?? null;
 }
 
+/** Task follower (creator, responsible, or follower). Exactly one of user_id or contact_id. */
+export interface TaskFollower {
+  id: string;
+  task_id: string;
+  role: "creator" | "responsible" | "follower";
+  user_id: string | null;
+  contact_id: string | null;
+  created_at: string;
+}
+
+/** List followers for a task. */
+export async function getTaskFollowers(
+  taskId: string,
+  schema?: string
+): Promise<TaskFollower[]> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("task_followers")
+    .select("id, task_id, role, user_id, contact_id, created_at")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("getTaskFollowers error:", error);
+    return [];
+  }
+  return (data as TaskFollower[]) ?? [];
+}
+
+/** Add a follower to a task. Exactly one of user_id or contact_id must be set. */
+export async function addTaskFollower(
+  taskId: string,
+  payload: { role: "creator" | "responsible" | "follower"; user_id?: string | null; contact_id?: string | null },
+  schema?: string
+): Promise<{ id: string } | { error: string }> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const hasUser = payload.user_id != null && payload.user_id !== "";
+  const hasContact = payload.contact_id != null && payload.contact_id !== "";
+  if (hasUser === hasContact) {
+    return { error: "Exactly one of user_id or contact_id must be set." };
+  }
+  const row = {
+    task_id: taskId,
+    role: payload.role,
+    user_id: hasUser ? payload.user_id : null,
+    contact_id: hasContact ? payload.contact_id : null,
+  };
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("task_followers")
+    .insert(row)
+    .select("id")
+    .single();
+  if (error) {
+    console.error("addTaskFollower error:", error);
+    return { error: error.message };
+  }
+  return { id: data.id };
+}
+
+/** Remove a follower by row id. */
+export async function deleteTaskFollower(
+  followerId: string,
+  schema?: string
+): Promise<{ ok: true } | { error: string }> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const { error } = await supabase
+    .schema(schemaName)
+    .from("task_followers")
+    .delete()
+    .eq("id", followerId);
+  if (error) {
+    console.error("deleteTaskFollower error:", error);
+    return { error: error.message };
+  }
+  return { ok: true };
+}
+
+/** Get task IDs where this contact is a follower (creator, responsible, or follower). For member activity stream. */
+export async function getTaskIdsForContact(
+  contactId: string,
+  schema?: string
+): Promise<string[]> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("task_followers")
+    .select("task_id")
+    .eq("contact_id", contactId);
+  if (error) {
+    console.error("getTaskIdsForContact error:", error);
+    return [];
+  }
+  const rows = (data ?? []) as { task_id: string }[];
+  return [...new Set(rows.map((r) => r.task_id))];
+}
+
+/** Get one contact_id for a task from task_followers (for task thread note ownership). Returns null if none. */
+export async function getFirstTaskFollowerContactId(
+  taskId: string,
+  schema?: string
+): Promise<string | null> {
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("task_followers")
+    .select("contact_id")
+    .eq("task_id", taskId)
+    .not("contact_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("getFirstTaskFollowerContactId error:", error);
+    return null;
+  }
+  const row = data as { contact_id: string } | null;
+  return row?.contact_id ?? null;
+}
+
 /**
  * If task due_date > project proposed_end_date, set project end_date_extended = true
  * and optionally update project proposed_end_date to the task due_date.
@@ -318,6 +466,7 @@ export async function createTask(
     proposed_time: input.proposed_time ?? null,
     actual_time: input.actual_time ?? null,
     due_date: input.due_date ?? null,
+    start_date: input.start_date ?? null,
     creator_id: input.creator_id ?? null,
     responsible_id: input.responsible_id ?? null,
   };
@@ -360,6 +509,7 @@ export async function updateTask(
     payload.proposed_time = input.proposed_time;
   if (input.actual_time !== undefined) payload.actual_time = input.actual_time;
   if (input.due_date !== undefined) payload.due_date = input.due_date;
+  if (input.start_date !== undefined) payload.start_date = input.start_date;
   if (input.responsible_id !== undefined)
     payload.responsible_id = input.responsible_id;
 

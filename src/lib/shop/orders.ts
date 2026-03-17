@@ -33,6 +33,8 @@ export interface OrderRow {
   coupon_code: string | null;
   coupon_batch_id: string | null;
   discount_amount: number;
+  /** Phase 19: link to project (e.g. project Transactions tab). */
+  project_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +46,8 @@ export interface ListOrdersParams {
   limit?: number;
   /** Filter by CRM contact id (e.g. contact Transactions tab). */
   contact_id?: string | null;
+  /** Filter by project id (e.g. project Transactions tab). Phase 19. */
+  project_id?: string | null;
   /** ISO date string, start of range (inclusive). */
   from?: string | null;
   /** ISO date string, end of range (inclusive). */
@@ -323,6 +327,25 @@ export async function updateOrderStatus(
 }
 
 /**
+ * Set or clear order's project_id (Phase 19 — project Transactions tab link/unlink).
+ */
+export async function setOrderProjectId(
+  orderId: string,
+  projectId: string | null,
+  schema?: string
+): Promise<boolean> {
+  const schemaName = schema ?? CONTENT_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  const { error } = await supabase
+    .schema(schemaName)
+    .from("orders")
+    .update({ project_id: projectId, updated_at: new Date().toISOString() })
+    .eq("id", orderId);
+
+  return !error;
+}
+
+/**
  * List orders for admin: optional filter by status, search by email or order id.
  */
 export async function listOrders(
@@ -339,6 +362,9 @@ export async function listOrders(
 
   if (params.contact_id) {
     q = q.eq("contact_id", params.contact_id);
+  }
+  if (params.project_id) {
+    q = q.eq("project_id", params.project_id);
   }
   if (params.from) {
     q = q.gte("created_at", params.from);

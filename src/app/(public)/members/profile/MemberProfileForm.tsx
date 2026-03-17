@@ -20,6 +20,8 @@ export function MemberProfileForm() {
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [email, setEmail] = useState("");
+  const [handle, setHandle] = useState("");
+  const [communicateInMessages, setCommunicateInMessages] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -38,6 +40,15 @@ export function MemberProfileForm() {
       setEmail(user.email ?? "");
       setLoading(false);
     });
+    fetch("/api/members/profile")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { handle?: string | null; communicate_in_messages?: boolean } | null) => {
+        if (data) {
+          setHandle(data.handle ?? "");
+          setCommunicateInMessages(data.communicate_in_messages ?? false);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,6 +64,18 @@ export function MemberProfileForm() {
         },
       });
       if (error) throw error;
+      const profileRes = await fetch("/api/members/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          handle: handle.trim() || null,
+          communicate_in_messages: communicateInMessages,
+        }),
+      });
+      if (!profileRes.ok) {
+        const json = await profileRes.json();
+        throw new Error(json.error ?? "Failed to update handle settings");
+      }
       setMessage({ type: "success", text: "Profile updated." });
       router.refresh();
     } catch (err) {
@@ -106,6 +129,32 @@ export function MemberProfileForm() {
               placeholder="Your name"
               maxLength={100}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="member-handle">Handle / nickname</Label>
+            <Input
+              id="member-handle"
+              type="text"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              placeholder="Used in messages and comments"
+              maxLength={80}
+            />
+            <p className="text-xs text-muted-foreground">
+              Required for group conversations and direct messaging. You can change it anytime.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="member-communicate"
+              checked={communicateInMessages}
+              onChange={(e) => setCommunicateInMessages(e.target.checked)}
+              className="h-4 w-4 rounded border-input"
+            />
+            <Label htmlFor="member-communicate" className="font-normal cursor-pointer">
+              Participate in messages and comments (group conversations and direct messaging)
+            </Label>
           </div>
           <div className="space-y-2">
             <Label htmlFor="member-avatar-url">Avatar URL</Label>

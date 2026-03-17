@@ -25,6 +25,8 @@ interface ProfileData {
     company: string | null;
     bio: string | null;
     phone: string | null;
+    handle: string | null;
+    communicate_in_messages: boolean;
     custom_fields: Record<string, string>;
   };
 }
@@ -53,6 +55,8 @@ export function ProfileSettingsContent({
   const [company, setCompany] = useState("");
   const [bio, setBio] = useState("");
   const [phone, setPhone] = useState("");
+  const [handle, setHandle] = useState("");
+  const [communicateInMessages, setCommunicateInMessages] = useState(false);
   const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -79,6 +83,8 @@ export function ProfileSettingsContent({
           setCompany(p.company ?? "");
           setBio(p.bio ?? "");
           setPhone(p.phone ?? "");
+          setHandle(p.handle ?? "");
+          setCommunicateInMessages(p.communicate_in_messages ?? false);
           setCustomFields(
             Object.entries(p.custom_fields ?? {}).map(([key, value]) => ({ key, value }))
           );
@@ -107,6 +113,8 @@ export function ProfileSettingsContent({
           company: company || null,
           bio: bio || null,
           phone: phone || null,
+          handle: handle.trim() || null,
+          communicate_in_messages: communicateInMessages,
           custom_fields,
         }),
       });
@@ -277,6 +285,31 @@ export function ProfileSettingsContent({
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Phone number"
             />
+          </div>
+          <div>
+            <Label htmlFor="handle">Handle / nickname</Label>
+            <Input
+              id="handle"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              placeholder="Used in messages and comments"
+              maxLength={80}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Required for group conversations and direct messaging. You can change it anytime.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="communicate_in_messages"
+              checked={communicateInMessages}
+              onChange={(e) => setCommunicateInMessages(e.target.checked)}
+              className="h-4 w-4 rounded border-input"
+            />
+            <Label htmlFor="communicate_in_messages" className="font-normal cursor-pointer">
+              Participate in messages and comments (group conversations and direct messaging)
+            </Label>
           </div>
           <div>
             <Label htmlFor="bio">Bio</Label>

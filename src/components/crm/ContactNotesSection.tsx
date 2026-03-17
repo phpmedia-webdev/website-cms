@@ -14,6 +14,8 @@ type ActivityRow = CrmNote | { id: string; body: string; created_at: string; not
 interface ContactNotesSectionProps {
   contactId: string;
   initialNotes: CrmNote[];
+  /** Resolved display labels for note author_id (handle/display_name). */
+  authorLabels?: Record<string, string>;
   /** When set, show a "Contact added" system line at the appropriate position in the stream. */
   contactCreatedAt?: string | null;
   /** Form submissions for this contact (show "Submitted [Form name]" rows). */
@@ -34,6 +36,7 @@ interface ContactNotesSectionProps {
 export function ContactNotesSection({
   contactId,
   initialNotes,
+  authorLabels = {},
   contactCreatedAt,
   initialFormSubmissions = [],
   formNameById = {},
@@ -287,6 +290,9 @@ export function ContactNotesSection({
                     >
                       <p className="truncate">{n.body}</p>
                       <p className="text-muted-foreground text-xs mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        {"author_id" in n && n.author_id && (
+                          <span>By {authorLabels[n.author_id] ?? "User"}</span>
+                        )}
                         <span>{new Date(n.created_at).toLocaleString()}</span>
                         {n.note_type && (
                           <span className="inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium bg-muted">

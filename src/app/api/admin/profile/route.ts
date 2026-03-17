@@ -28,6 +28,8 @@ export async function GET() {
       company: null,
       bio: null,
       phone: null,
+      handle: null,
+      communicate_in_messages: false,
       created_at: "",
       updated_at: "",
       custom_fields: {},
@@ -47,6 +49,8 @@ export async function PATCH(request: Request) {
     company?: string | null;
     bio?: string | null;
     phone?: string | null;
+    handle?: string | null;
+    communicate_in_messages?: boolean;
     custom_fields?: Record<string, string>;
   };
   try {
@@ -61,6 +65,8 @@ export async function PATCH(request: Request) {
     company: body.company,
     bio: body.bio,
     phone: body.phone,
+    handle: body.handle !== undefined ? (body.handle?.trim() || null) : undefined,
+    communicate_in_messages: body.communicate_in_messages,
   };
   const updated = await upsertProfile({ user_id: user.id, ...update });
   if (!updated) {

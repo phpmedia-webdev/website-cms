@@ -15,6 +15,8 @@ export type ContactDetailSection = "notes" | "customFields" | "marketingLists" |
 interface ContactDetailClientProps {
   contactId: string;
   initialNotes: CrmNote[];
+  /** Resolved display labels for note author_id (handle/display_name). */
+  authorLabels?: Record<string, string>;
   /** Contact created_at for Activity Stream "Contact added" system line. */
   contactCreatedAt?: string | null;
   /** Form submissions for this contact (Activity Stream "Submitted [Form name]" rows). */
@@ -39,6 +41,7 @@ interface ContactDetailClientProps {
 export function ContactDetailClient({
   contactId,
   initialNotes,
+  authorLabels = {},
   contactCreatedAt,
   initialFormSubmissions,
   formNameById,
@@ -95,6 +98,7 @@ export function ContactDetailClient({
         <ContactNotesSection
           contactId={contactId}
           initialNotes={initialNotes}
+          authorLabels={authorLabels}
           contactCreatedAt={contactCreatedAt}
           initialFormSubmissions={initialFormSubmissions}
           formNameById={formNameById}

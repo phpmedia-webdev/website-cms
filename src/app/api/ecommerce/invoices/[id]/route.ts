@@ -71,6 +71,7 @@ export async function PATCH(
         contact_id: body.contact_id,
         due_date: body.due_date,
         currency: body.currency,
+        project_id: body.project_id,
       },
       schema
     );

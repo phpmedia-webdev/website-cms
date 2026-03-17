@@ -12,6 +12,7 @@ import {
   getMarketingLists,
 } from "@/lib/supabase/crm";
 import { getContactOrganizations } from "@/lib/supabase/organizations";
+import { getDisplayLabelForUser } from "@/lib/blog-comments/author-name";
 import { getCrmNoteTypes, getCrmContactStatuses } from "@/lib/supabase/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,6 +49,14 @@ export default async function ContactDetailPage({
   if (!contact) {
     notFound();
   }
+
+  const authorIds = [...new Set(notes.map((n) => n.author_id).filter(Boolean))] as string[];
+  const authorLabels: Record<string, string> = {};
+  await Promise.all(
+    authorIds.map(async (id) => {
+      authorLabels[id] = await getDisplayLabelForUser(id);
+    })
+  );
 
   const sourceLabel =
     contact.source ||
@@ -190,6 +199,7 @@ export default async function ContactDetailPage({
         contactStatus={contact.status}
         contactStatuses={contactStatuses}
         initialNotes={notes}
+        authorLabels={authorLabels}
         contactCreatedAt={contact.created_at}
         initialFormSubmissions={formSubmissions}
         formNameById={Object.fromEntries(forms.map((f) => [f.id, f.name]))}

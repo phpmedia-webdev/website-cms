@@ -12,6 +12,7 @@ import {
   getOrderById,
   getOrderItems,
   updateOrderStatus,
+  setOrderProjectId,
   decrementStockForOrder,
   type OrderStatus,
 } from "@/lib/shop/orders";
@@ -70,12 +71,16 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const status = body?.status as OrderStatus | undefined;
+    const projectId = body?.project_id !== undefined ? (body.project_id as string | null) : undefined;
     const valid: OrderStatus[] = ["pending", "paid", "processing", "completed"];
-    if (!status || !valid.includes(status)) {
+    const hasStatus = status && valid.includes(status);
+    const hasProjectId = projectId !== undefined;
+
+    if (!hasStatus && !hasProjectId) {
       return NextResponse.json(
-        { error: "Invalid or missing status. Use one of: pending, paid, processing, completed" },
+        { error: "Provide status and/or project_id" },
         { status: 400 }
       );
     }
@@ -86,12 +91,21 @@ export async function PATCH(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const ok = await updateOrderStatus(id, status, schema);
-    if (!ok) {
-      return NextResponse.json({ error: "Failed to update order status" }, { status: 500 });
+    if (hasProjectId) {
+      const ok = await setOrderProjectId(id, projectId, schema);
+      if (!ok) {
+        return NextResponse.json({ error: "Failed to update order project" }, { status: 500 });
+      }
     }
 
-    if (status === "paid") {
+    if (hasStatus) {
+      const ok = await updateOrderStatus(id, status, schema);
+      if (!ok) {
+        return NextResponse.json({ error: "Failed to update order status" }, { status: 500 });
+      }
+    }
+
+    if (hasStatus && status === "paid") {
       try {
         await decrementStockForOrder(id, schema);
         const { processed, errors } = await processMembershipProductsForOrder(id, schema);
@@ -110,7 +124,7 @@ export async function PATCH(
       }
     }
 
-    if (status === "completed") {
+    if (hasStatus && status === "completed") {
       const items = await getOrderItems(id, schema);
       const hasShippable = items.some((i) => i.shippable);
       if (!hasShippable) {
@@ -120,7 +134,11 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ success: true, status });
+    return NextResponse.json({
+      success: true,
+      ...(hasStatus && { status }),
+      ...(hasProjectId && { project_id: projectId }),
+    });
   } catch (error) {
     console.error("PATCH /api/ecommerce/orders/[id]:", error);
     return NextResponse.json(

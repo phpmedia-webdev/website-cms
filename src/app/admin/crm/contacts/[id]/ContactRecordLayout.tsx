@@ -23,6 +23,8 @@ interface ContactRecordLayoutProps {
   contactStatus: string;
   contactStatuses: CrmContactStatusOption[];
   initialNotes: CrmNote[];
+  /** Resolved display labels for note author_id (handle/display_name). */
+  authorLabels?: Record<string, string>;
   contactCreatedAt?: string | null;
   initialFormSubmissions?: { form_id: string; submitted_at: string }[];
   formNameById?: Record<string, string>;
@@ -44,6 +46,7 @@ export function ContactRecordLayout({
   contactStatus,
   contactStatuses,
   initialNotes,
+  authorLabels,
   contactCreatedAt,
   initialFormSubmissions,
   formNameById,
@@ -60,19 +63,20 @@ export function ContactRecordLayout({
 
   const detailClientProps = {
     contactId,
-    initialNotes,
-    contactCreatedAt,
-    initialFormSubmissions,
-    formNameById,
-    initialCustomFieldDefinitions,
-    initialContactCustomFieldValues,
-    initialForms,
-    contactFormId,
-    initialMags,
-    initialMarketingLists,
-    initialNoteTypes,
-    activeSection: "notes" as ContactDetailSection,
-  };
+  initialNotes,
+  authorLabels,
+  contactCreatedAt,
+  initialFormSubmissions,
+  formNameById,
+  initialCustomFieldDefinitions,
+  initialContactCustomFieldValues,
+  initialForms,
+  contactFormId,
+  initialMags,
+  initialMarketingLists,
+  initialNoteTypes,
+  activeSection: "notes" as ContactDetailSection,
+};
 
   return (
     <div className="space-y-6">

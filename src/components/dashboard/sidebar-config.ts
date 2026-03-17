@@ -45,6 +45,7 @@ export const SIDEBAR_SUPPORT_OPEN = "sidebar-support-open";
 export const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
 export const SIDEBAR_ECOM_OPEN = "sidebar-ecom-open";
 export const SIDEBAR_PROJECTS_OPEN = "sidebar-projects-open";
+export const SIDEBAR_ACTIVITIES_OPEN = "sidebar-activities-open";
 
 export interface SubNavItem {
   name: string;
@@ -77,6 +78,14 @@ export const marketingSubNav: SubNavItem[] = [
 
 export const calendarSubNav: SubNavItem[] = [
   { name: "Events", href: "/admin/events", icon: Calendar, featureSlug: "events" },
+  { name: "Resources", href: "/admin/events/resources", icon: Box, featureSlug: "resources" },
+];
+
+/** Activities: Events, Tasks, Projects, Resources (replaces top-level Calendar and Projects). Phase 19. */
+export const activitiesSubNav: SubNavItem[] = [
+  { name: "Events", href: "/admin/events", icon: Calendar, featureSlug: "events" },
+  { name: "Tasks", href: "/admin/projects/tasks", icon: ClipboardList, featureSlug: "projects" },
+  { name: "Projects", href: "/admin/projects", icon: FolderKanban, featureSlug: "projects" },
   { name: "Resources", href: "/admin/events/resources", icon: Box, featureSlug: "resources" },
 ];
 

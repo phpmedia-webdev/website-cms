@@ -11,6 +11,10 @@ export interface Profile {
   company: string | null;
   bio: string | null;
   phone: string | null;
+  /** Nickname/handle for messaging. Required for group conversations and DMs. Editable in profile. */
+  handle: string | null;
+  /** When true, user may participate in group conversations and messaging. */
+  communicate_in_messages: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +27,8 @@ export interface ProfileInsert {
   company?: string | null;
   bio?: string | null;
   phone?: string | null;
+  handle?: string | null;
+  communicate_in_messages?: boolean;
 }
 
 export interface ProfileUpdate {
@@ -32,6 +38,8 @@ export interface ProfileUpdate {
   company?: string | null;
   bio?: string | null;
   phone?: string | null;
+  handle?: string | null;
+  communicate_in_messages?: boolean;
 }
 
 export interface ProfileFieldValue {
