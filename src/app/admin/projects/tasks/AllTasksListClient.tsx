@@ -16,7 +16,12 @@ import type { Project, Task, TaskPriorityTerm } from "@/lib/supabase/projects";
 import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
 import type { TaxonomyTermDisplay } from "@/lib/supabase/taxonomy";
 import { TermBadge } from "@/components/taxonomy/TermBadge";
-import type { TaskAssigneeItem } from "../page";
+
+export interface TaskAssigneeItem {
+  id: string;
+  label: string;
+  avatarUrl: string | null;
+}
 
 function formatDate(s: string | null): string {
   if (!s) return "—";

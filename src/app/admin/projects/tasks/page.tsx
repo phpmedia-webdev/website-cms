@@ -10,16 +10,10 @@ import {
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
 import { getTaxonomyForContentBatch } from "@/lib/supabase/taxonomy";
-import { AllTasksListClient } from "./AllTasksListClient";
+import { AllTasksListClient, type TaskAssigneeItem } from "./AllTasksListClient";
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v && v.trim()))));
-}
-
-export interface TaskAssigneeItem {
-  id: string;
-  label: string;
-  avatarUrl: string | null;
 }
 
 export default async function AdminAllTasksPage() {
