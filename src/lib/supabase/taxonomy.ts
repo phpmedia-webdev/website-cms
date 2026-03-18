@@ -26,10 +26,12 @@ function termsForSection(
   };
 
   const filterBySuggested = (terms: TaxonomyTerm[], section: string) => {
+    const sectionLower = section.toLowerCase();
     return terms.filter(
       (t) =>
-        Array.isArray(t.suggested_sections) &&
-        t.suggested_sections.some((s) => s?.toLowerCase() === section.toLowerCase())
+        (Array.isArray(t.suggested_sections) &&
+          t.suggested_sections.some((s) => s?.toLowerCase() === sectionLower)) ||
+        (t.home_section_name != null && t.home_section_name.toLowerCase() === sectionLower)
     );
   };
 
@@ -258,15 +260,30 @@ export async function getSectionTaxonomyConfigs(): Promise<SectionTaxonomyConfig
 }
 
 /**
- * Client-side function to get taxonomy terms
- * Tries RPC functions first, falls back to direct query
+ * Client-side function to get taxonomy terms (including color for Settings → Taxonomy).
+ * Uses direct query first so we always get all columns (e.g. color); falls back to RPC if needed.
  */
 export async function getTaxonomyTermsClient(): Promise<TaxonomyTerm[]> {
   try {
     const supabase = createClientSupabaseClient();
-    
-    // Try dynamic RPC first (use client schema)
     const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+
+    // Prefer direct query so we get all columns (color, etc.); RPC may omit color until migration 173 is run
+    const { data: directData, error: directError } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (!directError && directData) {
+      return (directData as TaxonomyTerm[]) || [];
+    }
+
+    if (directError) {
+      console.warn("Taxonomy terms direct query failed, trying RPC:", directError.message || directError);
+    }
+
+    // Fallback: RPC (may not include color unless migration 173 is run)
     try {
       const { data: rpcData, error: rpcError } = await supabase.schema("public").rpc("get_taxonomy_terms_dynamic", {
         schema_name: schema,
@@ -274,42 +291,20 @@ export async function getTaxonomyTermsClient(): Promise<TaxonomyTerm[]> {
       if (!rpcError && rpcData) {
         return rpcData as TaxonomyTerm[];
       }
-      if (rpcError) {
-        console.warn("Dynamic RPC failed, trying direct query:", rpcError.message || rpcError);
-      }
     } catch (rpcErr) {
-      console.warn("RPC call failed, trying direct query:", rpcErr);
+      console.warn("RPC call failed:", rpcErr);
     }
-    
-    // Try schema-specific RPC (if exists, for backward compatibility)
+
     try {
       const { data: rpcData2, error: rpcError2 } = await supabase.schema("public").rpc("get_taxonomy_terms");
       if (!rpcError2 && rpcData2) {
         return rpcData2 as TaxonomyTerm[];
       }
-    } catch (rpcErr2) {
-      // Function doesn't exist, continue to direct query
+    } catch {
+      // ignore
     }
-    
-    // Direct query from client schema (tables are in client schema, not public)
-    // Reuse schema variable declared above
-    const { data, error } = await supabase
-      .schema(schema)
-      .from("taxonomy_terms")
-      .select("*")
-      .order("name", { ascending: true });
 
-    if (error) {
-      console.error("Direct query error:", {
-        error,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-      throw error;
-    }
-    return (data as TaxonomyTerm[]) || [];
+    throw directError ?? new Error("Failed to load taxonomy terms");
   } catch (error) {
     console.error("Error fetching taxonomy terms (client):", error);
     const errorDetails = error instanceof Error 

@@ -68,9 +68,10 @@ export const crmSubNav: SubNavItem[] = [
   { name: "Memberships", href: "/admin/crm/memberships", icon: Folder, featureSlug: "memberships" },
 ];
 
+/** Order: Lists, Email, Social, Templates, Code Generator, Reviews (matches gate/registry). */
 export const marketingSubNav: SubNavItem[] = [
-  { name: "Email", href: "/admin/crm/marketing", icon: LayoutDashboard, featureSlug: "marketing" },
   { name: "Lists", href: "/admin/crm/lists", icon: ListChecks, featureSlug: "lists" },
+  { name: "Email", href: "/admin/crm/marketing", icon: LayoutDashboard, featureSlug: "marketing" },
   { name: "Social", href: "/admin/crm/social", icon: LayoutDashboard, featureSlug: "social" },
   { name: "Templates", href: "/admin/crm/templates", icon: FileText, featureSlug: "templates" },
   { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
@@ -92,7 +93,7 @@ export const activitiesSubNav: SubNavItem[] = [
 
 export const ecommerceSubNav: SubNavItem[] = [
   { name: "Products", href: "/admin/ecommerce/products", icon: Package, featureSlug: "products" },
-  { name: "Transactions", href: "/admin/ecommerce/transactions", icon: Receipt, featureSlug: "transactions" },
+  { name: "Orders", href: "/admin/ecommerce/orders", icon: Receipt, featureSlug: "orders" },
   { name: "Invoices", href: "/admin/ecommerce/invoices", icon: FileText, featureSlug: "invoices" },
   { name: "Subscriptions", href: "/admin/ecommerce/subscriptions", icon: Repeat, featureSlug: "subscriptions" },
 ];

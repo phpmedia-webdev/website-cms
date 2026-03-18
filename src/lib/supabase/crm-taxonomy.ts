@@ -1,6 +1,7 @@
 /**
- * CRM taxonomy helpers: bridge between crm_contacts and taxonomy_relationships.
- * content_type = 'crm_contact' for contacts; section = 'crm' for term filtering.
+ * CRM taxonomy helpers: bridge between crm_contacts/crm_organizations and taxonomy_relationships.
+ * content_type = 'crm_contact' for contacts; section = 'contact' for term filtering.
+ * content_type = 'crm_organization' for organizations; section = 'organization' for term filtering.
  */
 
 import { createServerSupabaseClient } from "./client";
@@ -81,4 +82,27 @@ export async function removeContactsFromTermBulk(
     return { success: false, error: new Error(error.message) };
   }
   return { success: true, error: null };
+}
+
+/** Get taxonomy term IDs for multiple organizations (content_type = 'crm_organization'). Used for list filters. */
+export async function getOrganizationTaxonomyTermIds(
+  organizationIds: string[]
+): Promise<{ organization_id: string; term_id: string }[]> {
+  if (organizationIds.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(SCHEMA)
+    .from("taxonomy_relationships")
+    .select("content_id, term_id")
+    .eq("content_type", "crm_organization")
+    .in("content_id", organizationIds);
+
+  if (error) {
+    console.error("getOrganizationTaxonomyTermIds:", error.message);
+    return [];
+  }
+  return ((data as { content_id: string; term_id: string }[]) || []).map((r) => ({
+    organization_id: r.content_id,
+    term_id: r.term_id,
+  }));
 }

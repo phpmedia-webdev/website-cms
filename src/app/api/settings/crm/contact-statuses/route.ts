@@ -50,11 +50,12 @@ export async function PUT(request: Request) {
         s &&
         typeof s.slug === "string" &&
         typeof s.label === "string" &&
-        typeof s.color === "string"
+        typeof s.color === "string" &&
+        (s.is_core === undefined || typeof s.is_core === "boolean")
     );
     if (!valid) {
       return NextResponse.json(
-        { error: "Each status must have slug, label, and color" },
+        { error: "Each status must have slug, label, and color; is_core must be boolean if present" },
         { status: 400 }
       );
     }

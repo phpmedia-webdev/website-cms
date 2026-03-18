@@ -64,8 +64,8 @@ export function ContactTaxonomyBlock({
       <TaxonomyAssignmentForContent
         contentId={contactId}
         contentTypeSlug="crm_contact"
-        section="crm"
-        sectionLabel="CRM"
+        section="contact"
+        sectionLabel="Contact"
         compact
         onBeforeSave={saveStatusBeforeTaxonomy}
         onSaved={() => router.refresh()}

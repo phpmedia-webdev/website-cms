@@ -15,6 +15,12 @@ export interface TaxonomyTerm {
   suggested_sections: string[] | null; // Sections this term is suggested for
   /** Optional color for chips/badges (e.g. hex #rrggbb). */
   color: string | null;
+  /** When true, term is system-required: slug fixed, only name editable, non-deletable. */
+  is_core?: boolean;
+  /** Categories only: single taxonomy section this category belongs to. */
+  home_section_name?: string | null;
+  /** Categories only: sort order among siblings (same parent). */
+  display_order?: number;
   created_at: string;
   updated_at: string;
 }
@@ -51,6 +57,7 @@ export interface SectionTaxonomyConfig {
   category_slugs: string[] | null; // null = use suggested, [] = none, ['slug1'] = specific
   tag_slugs: string[] | null;
   is_staple?: boolean; // template section; cannot be deleted
+  is_core?: boolean; // system-required: slug locked, only label editable, cannot delete
   created_at: string;
   updated_at: string;
 }

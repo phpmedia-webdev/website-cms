@@ -511,6 +511,28 @@ export async function getTaskFollowers(
   return (data as TaskFollower[]) ?? [];
 }
 
+/** List followers for multiple tasks in one query (e.g. for All Tasks list assignee column). */
+export async function listTaskFollowersByTaskIds(
+  taskIds: string[],
+  schema?: string
+): Promise<TaskFollower[]> {
+  if (taskIds.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("task_followers")
+    .select("id, task_id, role, user_id, contact_id, created_at")
+    .in("task_id", taskIds)
+    .order("task_id")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("listTaskFollowersByTaskIds error:", error);
+    return [];
+  }
+  return (data as TaskFollower[]) ?? [];
+}
+
 /** Add a follower to a task. Exactly one of user_id or contact_id must be set. */
 export async function addTaskFollower(
   taskId: string,
@@ -1045,6 +1067,31 @@ export async function getTaskTimeLogTotalMinutes(
 ): Promise<number> {
   const logs = await listTaskTimeLogs(taskId, schema);
   return logs.reduce((sum, l) => sum + (l.minutes ?? 0), 0);
+}
+
+/** Total logged minutes per task for many tasks (e.g. for All Tasks list Progress column). */
+export async function getTaskTimeLogTotalMinutesByTaskIds(
+  taskIds: string[],
+  schema?: string
+): Promise<Record<string, number>> {
+  if (taskIds.length === 0) return {};
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? getClientSchema();
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("task_time_logs")
+    .select("task_id, minutes")
+    .in("task_id", taskIds);
+  if (error) {
+    console.error("getTaskTimeLogTotalMinutesByTaskIds error:", error);
+    return {};
+  }
+  const rows = (data ?? []) as { task_id: string; minutes: number | null }[];
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    out[r.task_id] = (out[r.task_id] ?? 0) + (r.minutes ?? 0);
+  }
+  return out;
 }
 
 /** Total logged minutes for all tasks in a project (rolled-up project total). */

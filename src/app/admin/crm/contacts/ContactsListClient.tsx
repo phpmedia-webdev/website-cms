@@ -142,7 +142,7 @@ export function ContactsListClient({
   }, [bulkMenuOpen]);
 
   const { categories, tags } = useMemo(
-    () => getTermsForContentSection(taxonomyTerms, sectionConfigs, "crm"),
+    () => getTermsForContentSection(taxonomyTerms, sectionConfigs, "contact"),
     [taxonomyTerms, sectionConfigs]
   );
 

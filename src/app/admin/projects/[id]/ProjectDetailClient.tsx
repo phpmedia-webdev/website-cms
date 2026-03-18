@@ -16,6 +16,7 @@ import type { InvoiceRow } from "@/lib/shop/invoices";
 import type { TaxonomyTermDisplay } from "@/lib/supabase/taxonomy";
 import { cn } from "@/lib/utils";
 import { EventsCalendar } from "@/components/events/EventsCalendar";
+import { ProjectProgressSegments, type ProjectProgressSegment } from "@/components/projects/ProjectProgressSegments";
 import { TaxonomyChips } from "@/components/taxonomy/TaxonomyChips";
 import { TermBadge } from "@/components/taxonomy/TermBadge";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
@@ -312,6 +313,26 @@ export function ProjectDetailClient({
               <ProjectProgressBar
                 loggedMinutes={projectTimeLogMinutes}
                 estimatedMinutes={project.proposed_time ?? null}
+              />
+            </dd>
+            <dt className="text-muted-foreground">Task progress</dt>
+            <dd>
+              <ProjectProgressSegments
+                segments={(() => {
+                  const doneIds = new Set(taskStatusTerms.filter((t) => t.slug === "done").map((t) => t.id));
+                  const cancelledIds = new Set(taskStatusTerms.filter((t) => t.slug === "cancelled").map((t) => t.id));
+                  const now = Date.now();
+                  return tasks.map((task): ProjectProgressSegment => {
+                    const isDone = doneIds.has(task.status_term_id);
+                    const isCancelled = cancelledIds.has(task.status_term_id);
+                    const overdue = !isDone && !isCancelled && !!task.due_date && new Date(task.due_date).getTime() < now;
+                    return {
+                      id: task.id,
+                      state: isDone ? "done" : overdue ? "overdue" : isCancelled ? "cancelled" : "todo",
+                    };
+                  });
+                })()}
+                className="min-w-[120px]"
               />
             </dd>
             <dt className="text-muted-foreground">Potential sales</dt>

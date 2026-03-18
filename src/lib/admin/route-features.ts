@@ -16,6 +16,7 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
 
   if (pathname === "/admin/content" || pathname.startsWith("/admin/content/")) return "content";
   if (pathname === "/admin/ecommerce/products" || pathname.startsWith("/admin/ecommerce/products/")) return "products";
+  if (pathname === "/admin/ecommerce/orders" || pathname.startsWith("/admin/ecommerce/orders/")) return "orders";
   if (pathname === "/admin/ecommerce/transactions" || pathname.startsWith("/admin/ecommerce/transactions/")) return "transactions";
   if (pathname === "/admin/ecommerce/invoices" || pathname.startsWith("/admin/ecommerce/invoices/")) return "invoices";
   if (pathname === "/admin/ecommerce/subscriptions" || pathname.startsWith("/admin/ecommerce/subscriptions/")) return "subscriptions";
@@ -65,6 +66,7 @@ export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
   galleries: "galleries",
   ecommerce: "ecommerce",
   products: "products",
+  orders: "orders",
   transactions: "transactions",
   invoices: "invoices",
   subscriptions: "subscriptions",
@@ -111,6 +113,7 @@ const FEATURE_PARENT_SLUG: Record<string, string> = {
   code_generator: "marketing",
   reviews: "marketing",
   products: "ecommerce",
+  orders: "ecommerce",
   transactions: "ecommerce",
   invoices: "ecommerce",
   subscriptions: "ecommerce",

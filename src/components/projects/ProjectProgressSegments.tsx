@@ -13,6 +13,8 @@ export interface ProjectProgressSegment {
 interface ProjectProgressSegmentsProps {
   segments: ProjectProgressSegment[];
   className?: string;
+  /** When true, show X/Y (Z%) or "No tasks" to the right of the bar. Default true. */
+  showMetric?: boolean;
 }
 
 const STATE_STYLES: Record<ProjectProgressSegmentState, string> = {
@@ -25,18 +27,22 @@ const STATE_STYLES: Record<ProjectProgressSegmentState, string> = {
 export function ProjectProgressSegments({
   segments,
   className,
+  showMetric = true,
 }: ProjectProgressSegmentsProps) {
-  if (segments.length === 0) {
-    return <div className={cn("h-2 rounded-full bg-muted", className)} />;
-  }
+  const total = segments.length;
+  const completed = segments.filter((s) => s.state === "done").length;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  return (
+  const bar = segments.length === 0 ? (
+    <div className={cn("h-2 min-w-[80px] rounded-full bg-muted", className)} />
+  ) : (
     <div
-      className={cn("flex h-2 overflow-hidden rounded-full bg-muted", className)}
+      className={cn("flex h-2 min-w-[80px] flex-1 overflow-hidden rounded-full bg-muted", className)}
       role="progressbar"
       aria-label="Project task progress"
       aria-valuemin={0}
       aria-valuemax={100}
+      aria-valuenow={pct}
     >
       {segments.map((segment) => (
         <div
@@ -45,6 +51,19 @@ export function ProjectProgressSegments({
           className={cn("h-full flex-1", STATE_STYLES[segment.state])}
         />
       ))}
+    </div>
+  );
+
+  if (!showMetric) {
+    return bar;
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {bar}
+      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+        {total === 0 ? "No tasks" : `${completed}/${total} (${pct}%)`}
+      </span>
     </div>
   );
 }

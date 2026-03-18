@@ -11,18 +11,32 @@
 ---
 ## Next up
 
-**Some Cleanup (current focus)** — Finish the remaining module tidy-up items before moving to the next expansion pass.
+**Customizer + Projects/Tasks (next session)** — Rewire Projects and Tasks to use the new **customizer** settings and continue UI enhancement.
 
 **Implementation order (start here):**
 
-- [x] **Sidebar — Content consolidation:** One top-level Content with sub-items Text Blocks, Media, Galleries; remove separate Media top-level. (Do before roles/gate.)
+- [ ] **Projects & Tasks — customizer:** Rewire Projects and Tasks to use the new customizer settings (project_type, project_status, project_role; task_type, task_status, task_phase from `customizer` table / GET-PUT by scope). Ensure admin UI (dropdowns, badges, filters) reads from customizer and continues UI enhancement there.
 - [ ] **Projects and Tasks UI Enhance** — *Shipped:* admin **projects list** refresh (table: type dot, dates, client + avatars, status/type pills, member avatars, task-segment progress). *Still open:* tasks list/detail polish, project detail progress vs list, presets, etc.
 - [ ] **Custom view presets (optional):** user_view_presets table; API; View dropdown on projects/tasks lists.
+- [ ] **Add Reconcile with Stripe feature for Products** — Same as for transactions; add to Products page action dropdown.
+- [x] **Sidebar — Content consolidation:** One top-level Content with sub-items Text Blocks, Media, Galleries; remove separate Media top-level.
 - [x] **Feature registry, sidebar gating & roles (Phase 19):** projects in registry; sidebar gating; roles.
 
 **Workflow:** Check off here → sync to planlog cleanup items → at session end, changelog + remove completed from here.
 
 ---
+
+## Taxonomy updates
+
+**Goal:** One home section per category (drop multi-section for categories); global `display_order` on category rows for scoped drag-and-drop + Save; tags remain multi-section / global. Pickers and scoped lists use hierarchy + sibling order; full list can sort by name/slug or by section order then tree.
+
+- [x] **Schema — category home + order:** Migration `175_taxonomy_category_home_order.sql` adds `home_section_name`, `display_order`; updates `get_taxonomy_terms_dynamic`. Run in Supabase SQL Editor. Slug remains globally unique for now.
+- [x] **Data migration — single section per category:** Included in 175: backfill home, `display_order`, rebuild `category_slugs` per section, `suggested_sections` = `[home]`.
+- [x] **Category edit modal — single section:** Categories use one “Home taxonomy section” select; tags keep multi-section checkboxes. Save rebuilds all sections’ `category_slugs`.
+- [ ] **Taxonomy Sections tab:** Section edit still allows manual category_slugs — may diverge from home model until tightened.
+- [x] **Taxonomy Sections list — column semantics:** Categories column = count of terms with `home_section_name` = row; Tags = `tag_slugs.length` (tooltips on headers).
+- [x] **Categories list — drag-and-drop (scoped):** Filter by section → drag handle reorders siblings → **Save order** updates `display_order` + rebuilds slugs.
+- [ ] **Consumers — pickers & APIs:** Order category pickers by `display_order` then name (tasks/projects/content) — next pass.
 
 ---
 

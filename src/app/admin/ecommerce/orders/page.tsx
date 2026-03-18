@@ -1,9 +1,8 @@
-import { redirect } from "next/navigation";
+import { OrdersListClient } from "./OrdersListClient";
 
 /**
- * Orders list URL redirects to Transactions (merged orders + invoices view).
- * Order detail stays at /admin/ecommerce/orders/[id]; Import at /admin/ecommerce/orders/import.
+ * Orders list: orders table only. Detail at /admin/ecommerce/orders/[id]; Import at /admin/ecommerce/orders/import.
  */
 export default function EcommerceOrdersPage() {
-  redirect("/admin/ecommerce/transactions");
+  return <OrdersListClient />;
 }

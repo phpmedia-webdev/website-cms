@@ -146,13 +146,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const showEcommerceByRole =
     hasRoleAccess("ecommerce") ||
     hasRoleAccess("products") ||
-    hasRoleAccess("transactions") ||
+    hasRoleAccess("orders") ||
     hasRoleAccess("invoices") ||
     hasRoleAccess("subscriptions");
   const showEcommerceEffective =
     canAccessFeature(displayEffectiveSlugs, "ecommerce") ||
     canAccessFeature(displayEffectiveSlugs, "products") ||
-    canAccessFeature(displayEffectiveSlugs, "transactions") ||
+    canAccessFeature(displayEffectiveSlugs, "orders") ||
     canAccessFeature(displayEffectiveSlugs, "invoices") ||
     canAccessFeature(displayEffectiveSlugs, "subscriptions");
   const showEcommerce = !hiddenSet.has("ecommerce") && (showEcommerceEffective || (isDisplayOnlyGhost && showEcommerceByRole)) && (roleFeatureSlugs === "all" || showEcommerceByRole);

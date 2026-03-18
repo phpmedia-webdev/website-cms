@@ -11,7 +11,7 @@ import {
  * POST /api/crm/contacts/taxonomy/bulk
  * Add or remove a single term (category or tag) for selected contacts.
  * Body: { contactIds: string[], termId: string, operation: 'add' | 'remove' }.
- * termId must be a CRM section category or tag.
+ * termId must be a Contact section category or tag.
  */
 export async function POST(request: Request) {
   try {
@@ -41,14 +41,14 @@ export async function POST(request: Request) {
       getAllTaxonomyTerms(),
       getSectionTaxonomyConfigs(),
     ]);
-    const { categories, tags } = getTermsForContentSection(terms, configs, "crm");
+    const { categories, tags } = getTermsForContentSection(terms, configs, "contact");
     const allowedIds = new Set([
       ...categories.map((c) => c.id),
       ...tags.map((t) => t.id),
     ]);
     if (!allowedIds.has(termId)) {
       return NextResponse.json(
-        { error: "Term is not a valid CRM category or tag" },
+        { error: "Term is not a valid Contact section category or tag" },
         { status: 400 }
       );
     }

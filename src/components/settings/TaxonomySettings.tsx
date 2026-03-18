@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,14 +16,81 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { createClientSupabaseClient } from "@/lib/supabase/client";
 import { getTaxonomyTermsClient, getSectionConfigsClient } from "@/lib/supabase/taxonomy";
 import { cn } from "@/lib/utils";
-import { Plus, Edit, Trash2, Tag, FolderTree, List, Settings, Loader2, Search } from "lucide-react";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Tag,
+  FolderTree,
+  List,
+  Settings,
+  Loader2,
+  Search,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
+import { TaxonomyCategoryDndRow } from "@/components/settings/TaxonomyCategoryDndRow";
 import type { TaxonomyTerm, TaxonomyTermWithChildren, TaxonomyType, SectionTaxonomyConfig } from "@/types/taxonomy";
 import { generateTaxonomySlug } from "@/types/taxonomy";
 
-export function TaxonomySettings() {
+function depthPathForCategory(
+  term: TaxonomyTerm,
+  byId: Map<string, TaxonomyTerm>
+): { depth: number; path: string[] } {
+  const chain: TaxonomyTerm[] = [];
+  let cur: TaxonomyTerm | undefined = term;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    chain.unshift(cur);
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  return { depth: Math.max(0, chain.length - 1), path: chain.map((c) => c.name) };
+}
+
+/** Depth-first rows for one home section: siblings by display_order then name. */
+function buildTreeRowsForHomeSection(
+  sectionName: string,
+  filtered: TaxonomyTerm[]
+): { term: TaxonomyTerm; depth: number; path: string[] }[] {
+  const inSection = filtered.filter((t) => t.home_section_name === sectionName);
+  if (inSection.length === 0) return [];
+  const idSet = new Set(inSection.map((t) => t.id));
+  const roots = inSection.filter((t) => !t.parent_id || !idSet.has(t.parent_id));
+  roots.sort(
+    (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name)
+  );
+  const result: { term: TaxonomyTerm; depth: number; path: string[] }[] = [];
+  const walk = (node: TaxonomyTerm, depth: number, pathPrefix: string[]) => {
+    const nodePath = [...pathPrefix, node.name];
+    result.push({ term: node, depth, path: nodePath });
+    const children = inSection
+      .filter((t) => t.parent_id === node.id)
+      .sort(
+        (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name)
+      );
+    for (const ch of children) walk(ch, depth + 1, nodePath);
+  };
+  for (const r of roots) walk(r, 0, []);
+  return result;
+}
+
+/** Returns dark or light text color for a hex background so pill text is readable. */
+function textColorForBg(hex: string): string {
+  const m = hex.match(/^#?([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/);
+  if (!m) return "#fff";
+  const r = parseInt(m[1], 16) / 255;
+  const g = parseInt(m[2], 16) / 255;
+  const b = parseInt(m[3], 16) / 255;
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+  return luminance > 0.5 ? "#1a1a1a" : "#fff";
+}
+
+export function TaxonomySettings({ isSuperadmin = false }: { isSuperadmin?: boolean }) {
   const [allTerms, setAllTerms] = useState<TaxonomyTerm[]>([]);
   const [categories, setCategories] = useState<TaxonomyTermWithChildren[]>([]);
   const [tags, setTags] = useState<TaxonomyTerm[]>([]);
@@ -44,20 +113,34 @@ export function TaxonomySettings() {
     parent_id: "",
     type: "category" as TaxonomyType,
     suggested_sections: [] as string[],
+    /** Categories only: single home taxonomy section. */
+    home_section_name: "",
     color: "",
+    is_core: false,
   });
+  /** When section filter is on: sibling order overrides by parent key (ROOT or parent uuid). */
+  const [pendingSiblingOrder, setPendingSiblingOrder] = useState<Record<string, string[]>>({});
+  const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
+  /** Categories table: tree = drag + default depth order; name/slug/home = column sort. */
+  const [categorySortColumn, setCategorySortColumn] = useState<"tree" | "name" | "slug" | "home">("tree");
+  const [categorySortDir, setCategorySortDir] = useState<"asc" | "desc">("asc");
   const [sectionFormData, setSectionFormData] = useState({
     section_name: "",
     display_name: "",
     // Removed: content_type - not functionally used
     category_slugs: [] as string[],
     tag_slugs: [] as string[],
+    is_core: false,
   });
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   useEffect(() => {
     loadAllData();
   }, []);
+
+  useEffect(() => {
+    setPendingSiblingOrder({});
+  }, [termListSectionFilter]);
 
   const loadAllData = async (showLoading = true) => {
     if (showLoading) {
@@ -132,7 +215,18 @@ export function TaxonomySettings() {
         }
       });
 
-      setCategories(rootCategories);
+      const sortCategoryTree = (nodes: TaxonomyTermWithChildren[]): TaxonomyTermWithChildren[] =>
+        [...nodes]
+          .sort(
+            (a, b) =>
+              (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name)
+          )
+          .map((n) => ({
+            ...n,
+            children: n.children?.length ? sortCategoryTree(n.children) : [],
+          }));
+
+      setCategories(sortCategoryTree(rootCategories));
       setTags(tgs);
     } catch (error) {
       console.error("Error loading taxonomy:", error);
@@ -167,6 +261,36 @@ export function TaxonomySettings() {
     }
   };
 
+  const rebuildAllSectionCategorySlugs = async (
+    supabase: ReturnType<typeof createClientSupabaseClient>,
+    schema: string
+  ) => {
+    const { data: secs } = await supabase
+      .schema(schema)
+      .from("section_taxonomy_config")
+      .select("id, section_name");
+    const { data: cats } = await supabase
+      .schema(schema)
+      .from("taxonomy_terms")
+      .select("slug, home_section_name, display_order, name")
+      .eq("type", "category");
+    for (const s of secs || []) {
+      const slugs = (cats || [])
+        .filter((c) => c.home_section_name === s.section_name)
+        .sort(
+          (a, b) =>
+            (a.display_order ?? 0) - (b.display_order ?? 0) ||
+            (a.name || "").localeCompare(b.name || "")
+        )
+        .map((c) => c.slug);
+      await supabase
+        .schema(schema)
+        .from("section_taxonomy_config")
+        .update({ category_slugs: slugs })
+        .eq("id", s.id);
+    }
+  };
+
   const handleCreateOrUpdateTerm = async () => {
     if (!formData.name.trim()) {
       alert("Name is required");
@@ -175,8 +299,14 @@ export function TaxonomySettings() {
 
     if (saving) return; // Prevent multiple submissions
 
-    const slug = formData.slug.trim() || generateTaxonomySlug(formData.name);
+    // Core terms: slug is fixed (use existing)
+    const slug = editingTerm?.is_core ? editingTerm.slug : (formData.slug.trim() || generateTaxonomySlug(formData.name));
     const type = editingTerm?.type || formData.type;
+
+    if (type === "category" && !formData.home_section_name.trim()) {
+      alert("Select a home taxonomy section for this category.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -197,15 +327,42 @@ export function TaxonomySettings() {
         return;
       }
 
-      const termData = {
+      const termData: Record<string, unknown> = {
         name: formData.name.trim(),
         slug,
         type,
         parent_id: type === "category" ? (formData.parent_id || null) : null,
         description: formData.description.trim() || null,
-        suggested_sections: formData.suggested_sections.length > 0 ? formData.suggested_sections : null,
         color: formData.color.trim() || null,
       };
+      if (isSuperadmin) {
+        termData.is_core = !!formData.is_core;
+      }
+
+      if (type === "category") {
+        const home = formData.home_section_name.trim();
+        termData.home_section_name = home;
+        termData.suggested_sections = [home];
+        if (!editingTerm) {
+          let sibQuery = supabase
+            .schema(schema)
+            .from("taxonomy_terms")
+            .select("display_order")
+            .eq("type", "category")
+            .eq("home_section_name", home);
+          if (formData.parent_id) {
+            sibQuery = sibQuery.eq("parent_id", formData.parent_id);
+          } else {
+            sibQuery = sibQuery.is("parent_id", null);
+          }
+          const { data: sibs } = await sibQuery;
+          const max = Math.max(0, ...(sibs || []).map((s) => (s.display_order as number) ?? 0));
+          termData.display_order = max + 10;
+        }
+      } else {
+        termData.suggested_sections =
+          formData.suggested_sections.length > 0 ? formData.suggested_sections : null;
+      }
 
       const oldSlug = editingTerm?.slug ?? null;
 
@@ -217,8 +374,8 @@ export function TaxonomySettings() {
           .eq("id", editingTerm.id);
         if (error) throw error;
 
-        // Cascade: update section_taxonomy_config when slug changed
-        if (oldSlug && oldSlug !== slug) {
+        // Cascade: update section_taxonomy_config when slug changed (never for core terms)
+        if (!editingTerm.is_core && oldSlug && oldSlug !== slug) {
           const { data: configs } = await supabase
             .schema(schema)
             .from("section_taxonomy_config")
@@ -243,24 +400,24 @@ export function TaxonomySettings() {
         if (error) throw error;
       }
 
-      // Apply to these Sections: add this term's slug to each selected section's
-      // category_slugs / tag_slugs so it appears in Sections tab count and edit checkboxes.
-      if (formData.suggested_sections.length > 0) {
+      if (type === "category") {
+        await rebuildAllSectionCategorySlugs(supabase, schema);
+      }
+
+      // Tags: add slug to each selected section's tag_slugs
+      if (type === "tag" && formData.suggested_sections.length > 0) {
         const { data: configs } = await supabase
           .schema(schema)
           .from("section_taxonomy_config")
-          .select("id, section_name, category_slugs, tag_slugs")
+          .select("id, section_name, tag_slugs")
           .in("section_name", formData.suggested_sections);
-        const isCat = type === "category";
         for (const row of configs || []) {
-          const arr = isCat ? row.category_slugs : row.tag_slugs;
-          const base = Array.isArray(arr) && arr.length > 0 ? arr : [];
+          const base = Array.isArray(row.tag_slugs) && row.tag_slugs.length > 0 ? row.tag_slugs : [];
           if (base.includes(slug)) continue;
-          const next = [...base, slug];
           await supabase
             .schema(schema)
             .from("section_taxonomy_config")
-            .update(isCat ? { category_slugs: next } : { tag_slugs: next })
+            .update({ tag_slugs: [...base, slug] })
             .eq("id", row.id);
         }
       }
@@ -268,6 +425,10 @@ export function TaxonomySettings() {
       resetForm();
       setShowTermForm(false);
       await loadAllData(false);
+      // So new tag is visible even when a section filter is applied
+      if (type === "tag") {
+        setTermListSectionFilter("");
+      }
     } catch (error) {
       console.error("Error saving term:", error);
       const errorMessage = error instanceof Error 
@@ -276,6 +437,8 @@ export function TaxonomySettings() {
         ? JSON.stringify(error, Object.getOwnPropertyNames(error))
         : String(error);
       alert(`Failed to save: ${errorMessage}`);
+      // Refresh list anyway so any partial success (e.g. term inserted) is visible
+      await loadAllData(false);
     } finally {
       setSaving(false);
     }
@@ -284,6 +447,10 @@ export function TaxonomySettings() {
   const handleDelete = async (term: TaxonomyTerm) => {
     if (term.slug === "uncategorized") {
       alert("Cannot delete the 'Uncategorized' category");
+      return;
+    }
+    if (term.is_core) {
+      alert("Cannot delete a Core term. Core terms are system-required; only the label (name) can be edited.");
       return;
     }
 
@@ -369,13 +536,20 @@ export function TaxonomySettings() {
       const supabase = createClientSupabaseClient();
       const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
 
-      const newSectionName = sectionFormData.section_name.trim();
+      // When editing a core or staple section, slug is locked
+      const newSectionName =
+        (editingSection?.is_core || editingSection?.is_staple)
+          ? editingSection.section_name
+          : sectionFormData.section_name.trim();
       const configData = {
         section_name: newSectionName,
         display_name: sectionFormData.display_name.trim(),
         content_type: "section", // Default value - not used functionally, but required by DB
         category_slugs: sectionFormData.category_slugs.length > 0 ? sectionFormData.category_slugs : null,
         tag_slugs: sectionFormData.tag_slugs.length > 0 ? sectionFormData.tag_slugs : null,
+        is_core: sectionFormData.is_core,
+        // Superadmin can unprotect template sections: sync is_staple with Core checkbox
+        ...(isSuperadmin ? { is_staple: sectionFormData.is_core } : {}),
       };
 
       if (editingSection) {
@@ -454,6 +628,10 @@ export function TaxonomySettings() {
   };
 
   const handleDeleteSection = async (section: SectionTaxonomyConfig) => {
+    if (section.is_core) {
+      alert("Core sections cannot be removed.");
+      return;
+    }
     if (section.is_staple) {
       alert("Template sections cannot be removed.");
       return;
@@ -519,7 +697,9 @@ export function TaxonomySettings() {
       parent_id: "",
       type: "category",
       suggested_sections: [],
+      home_section_name: "",
       color: "",
+      is_core: false,
     });
   };
 
@@ -529,9 +709,9 @@ export function TaxonomySettings() {
     setSectionFormData({
       section_name: "",
       display_name: "",
-      // Removed: content_type
       category_slugs: [],
       tag_slugs: [],
+      is_core: false,
     });
   };
 
@@ -551,7 +731,11 @@ export function TaxonomySettings() {
       resetSectionForm();
     }
     resetForm();
-    setFormData((prev) => ({ ...prev, type: "category" }));
+    setFormData((prev) => ({
+      ...prev,
+      type: "category",
+      home_section_name: termListSectionFilter || "",
+    }));
     setShowTermForm(true);
     setActiveTab("categories");
   };
@@ -582,25 +766,14 @@ export function TaxonomySettings() {
     return result;
   };
 
-  const getSectionBadges = (term: TaxonomyTerm) => {
+  /** Plain text list of section display names (categories list: Content Type Sections column). */
+  const getSectionNamesText = (term: TaxonomyTerm) => {
     if (!term.suggested_sections || term.suggested_sections.length === 0) {
       return <span className="text-xs text-muted-foreground">No sections</span>;
     }
-    return (
-      <div className="flex flex-wrap gap-1">
-        {term.suggested_sections.map((sectionSlug) => {
-          const section = sections.find((s) => s.section_name === sectionSlug);
-          return (
-            <span
-              key={sectionSlug}
-              className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-secondary text-secondary-foreground"
-            >
-              {section?.display_name || sectionSlug}
-            </span>
-          );
-        })}
-      </div>
-    );
+    const names = term.suggested_sections
+      .map((sectionSlug) => sections.find((s) => s.section_name === sectionSlug)?.display_name || sectionSlug);
+    return <span className="text-xs text-muted-foreground">{names.join(", ")}</span>;
   };
 
   const getFilteredSections = () => {
@@ -617,13 +790,12 @@ export function TaxonomySettings() {
 
     if (termListSectionFilter) {
       const sec = sections.find((s) => s.section_name === termListSectionFilter);
-      const slugs = sec?.category_slugs;
-      if (Array.isArray(slugs) && slugs.length > 0) {
-        const set = new Set(slugs);
-        flatCats = flatCats.filter((cat) => set.has(cat.slug));
-      } else {
-        flatCats = [];
-      }
+      const slugSet = new Set(sec?.category_slugs || []);
+      flatCats = flatCats.filter((cat) => {
+        if (cat.home_section_name === termListSectionFilter) return true;
+        if (!cat.home_section_name && slugSet.has(cat.slug)) return true;
+        return false;
+      });
     }
 
     if (!categorySearch.trim()) return flatCats;
@@ -644,6 +816,201 @@ export function TaxonomySettings() {
       });
     }
     return flatCats.filter((cat) => matchIds.has(cat.id));
+  };
+
+  /** Depth-first list with indent depth and path for tooltip. Visual indent capped at 5 levels. */
+  const MAX_VISUAL_DEPTH = 5;
+  const INDENT_CH_PER_LEVEL = 3;
+
+  const getFilteredCategoriesWithDepth = (): { term: TaxonomyTerm; depth: number; path: string[] }[] => {
+    const included = getFilteredCategories();
+    const includedIds = new Set(included.map((t) => t.id));
+    const termById = new Map(included.map((t) => [t.id, t]));
+
+    const siblingKey = (parentId: string | null) => (parentId ? parentId : "ROOT");
+    const sortSiblings = (nodes: TaxonomyTermWithChildren[], parentId: string | null) => {
+      const key = siblingKey(parentId);
+      const custom = pendingSiblingOrder[key];
+      const cmp = (a: TaxonomyTermWithChildren, b: TaxonomyTermWithChildren) =>
+        (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name);
+      if (!custom?.length) return [...nodes].sort(cmp);
+      const byId = new Map(nodes.map((n) => [n.id, n]));
+      const ordered = custom.map((id) => byId.get(id)).filter(Boolean) as TaxonomyTermWithChildren[];
+      const rest = nodes.filter((n) => !custom.includes(n.id)).sort(cmp);
+      return [...ordered, ...rest];
+    };
+
+    const result: { term: TaxonomyTerm; depth: number; path: string[] }[] = [];
+    const traverse = (nodes: TaxonomyTermWithChildren[], depth: number, path: string[], parentId: string | null) => {
+      const sorted = sortSiblings(nodes, parentId);
+      for (const node of sorted) {
+        const nodePath = path.concat(node.name);
+        if (includedIds.has(node.id)) {
+          const term = termById.get(node.id) ?? ({ ...node, children: undefined } as TaxonomyTerm);
+          result.push({ term, depth, path: nodePath });
+        }
+        traverse(node.children ?? [], depth + 1, nodePath, node.id);
+      }
+    };
+    traverse(
+      categories.filter((c) => !c.parent_id),
+      0,
+      [],
+      null
+    );
+    return result;
+  };
+
+  const onCategorySortHeader = (col: "name" | "slug" | "home") => {
+    setPendingSiblingOrder({});
+    if (col === "home" && termListSectionFilter) {
+      setCategorySortColumn("tree");
+      setCategorySortDir("asc");
+      return;
+    }
+    if (categorySortColumn === col) {
+      if (categorySortDir === "asc") {
+        setCategorySortDir("desc");
+      } else {
+        setCategorySortColumn("tree");
+        setCategorySortDir("asc");
+      }
+    } else {
+      setCategorySortColumn(col);
+      setCategorySortDir("asc");
+    }
+  };
+
+  const getCategoryTableRows = (): { term: TaxonomyTerm; depth: number; path: string[] }[] => {
+    const filtered = getFilteredCategories();
+    const allById = new Map(flattenCategories(categories).map((t) => [t.id, t]));
+    const dir = categorySortDir === "asc" ? 1 : -1;
+
+    if (categorySortColumn === "tree") {
+      return getFilteredCategoriesWithDepth();
+    }
+
+    if (categorySortColumn === "home") {
+      if (termListSectionFilter) {
+        return getFilteredCategoriesWithDepth();
+      }
+      const orderedSecs = [...sections].sort((a, b) => dir * a.display_name.localeCompare(b.display_name));
+      const out: { term: TaxonomyTerm; depth: number; path: string[] }[] = [];
+      for (const sec of orderedSecs) {
+        out.push(...buildTreeRowsForHomeSection(sec.section_name, filtered));
+      }
+      return out;
+    }
+
+    if (categorySortColumn === "name" || categorySortColumn === "slug") {
+      const key = categorySortColumn === "name" ? "name" : "slug";
+      const rows = filtered.map((term) => ({
+        term,
+        ...depthPathForCategory(term, allById),
+      }));
+      rows.sort((a, b) => dir * a.term[key].localeCompare(b.term[key], undefined, { sensitivity: "base" }));
+      return rows;
+    }
+
+    return getFilteredCategoriesWithDepth();
+  };
+
+  const handleCategoryReorder = useCallback(
+    (draggedId: string, targetId: string, parentId: string | null) => {
+      const key = parentId ? parentId : "ROOT";
+      const included = new Set(
+        (() => {
+          let flat = flattenCategories(categories);
+          if (termListSectionFilter) {
+            const sec = sections.find((s) => s.section_name === termListSectionFilter);
+            const slugSet = new Set(sec?.category_slugs || []);
+            flat = flat.filter((cat) => {
+              if (cat.home_section_name === termListSectionFilter) return true;
+              if (!cat.home_section_name && slugSet.has(cat.slug)) return true;
+              return false;
+            });
+          }
+          if (categorySearch.trim()) {
+            const q = categorySearch.toLowerCase();
+            const matches = flat.filter(
+              (cat) => cat.name.toLowerCase().includes(q) || cat.slug.toLowerCase().includes(q)
+            );
+            const matchIds = new Set(matches.map((m) => m.id));
+            let added = true;
+            while (added) {
+              added = false;
+              flat.forEach((cat) => {
+                if (cat.parent_id && matchIds.has(cat.id) && !matchIds.has(cat.parent_id)) {
+                  matchIds.add(cat.parent_id);
+                  added = true;
+                }
+              });
+            }
+            flat = flat.filter((cat) => matchIds.has(cat.id));
+          }
+          return flat.map((c) => c.id);
+        })()
+      );
+      const sortLeef = (arr: TaxonomyTermWithChildren[]) =>
+        [...arr]
+          .filter((n) => included.has(n.id))
+          .sort(
+            (a, b) =>
+              (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name)
+          )
+          .map((n) => n.id);
+      const getDefault = (): string[] => {
+        if (!parentId) return sortLeef(categories.filter((c) => !c.parent_id));
+        const findChildrenOf = (nodes: TaxonomyTermWithChildren[]): TaxonomyTermWithChildren[] | undefined => {
+          for (const n of nodes) {
+            if (n.id === parentId) return n.children || [];
+            const d = findChildrenOf(n.children || []);
+            if (d !== undefined) return d;
+          }
+          return undefined;
+        };
+        const ch = findChildrenOf(categories);
+        return ch !== undefined ? sortLeef(ch) : [];
+      };
+      setPendingSiblingOrder((prev) => {
+        const current = [...(prev[key] ?? getDefault())];
+        const fi = current.indexOf(draggedId);
+        const ti = current.indexOf(targetId);
+        if (fi < 0 || ti < 0) return prev;
+        current.splice(fi, 1);
+        current.splice(ti, 0, draggedId);
+        return { ...prev, [key]: current };
+      });
+    },
+    [categories, termListSectionFilter, categorySearch, sections]
+  );
+
+  const handleSaveCategoryOrder = async () => {
+    if (!termListSectionFilter || Object.keys(pendingSiblingOrder).length === 0) return;
+    setSavingCategoryOrder(true);
+    try {
+      const supabase = createClientSupabaseClient();
+      const schema = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "public";
+      for (const ids of Object.values(pendingSiblingOrder)) {
+        for (let i = 0; i < ids.length; i++) {
+          const { error } = await supabase
+            .schema(schema)
+            .from("taxonomy_terms")
+            .update({ display_order: (i + 1) * 10 })
+            .eq("id", ids[i])
+            .eq("type", "category");
+          if (error) throw error;
+        }
+      }
+      await rebuildAllSectionCategorySlugs(supabase, schema);
+      setPendingSiblingOrder({});
+      await loadAllData(false);
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "Failed to save order");
+    } finally {
+      setSavingCategoryOrder(false);
+    }
   };
 
   const getFilteredTags = () => {
@@ -678,7 +1045,7 @@ export function TaxonomySettings() {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="sections" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Content Type Sections
+            Taxonomy Sections
           </TabsTrigger>
           <TabsTrigger value="categories" className="flex items-center gap-2">
             <FolderTree className="h-4 w-4" />
@@ -696,8 +1063,8 @@ export function TaxonomySettings() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Content Type Sections</CardTitle>
-                  <CardDescription>Configure which categories and tags each content type section uses</CardDescription>
+                  <CardTitle>Taxonomy Sections</CardTitle>
+                  <CardDescription>Configure which categories and tags each taxonomy section uses</CardDescription>
                 </div>
                 <Button onClick={handleNewSection}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -730,8 +1097,18 @@ export function TaxonomySettings() {
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Display Name</th>
                               <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Slug</th>
                               {/* REMOVED: Content Type column */}
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Categories</th>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Tags</th>
+                              <th
+                                className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                                title="Categories whose home section is this row (includes hierarchy in that section)."
+                              >
+                                Categories
+                              </th>
+                              <th
+                                className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                                title="Tags assigned to this section; the same tag may appear in multiple sections."
+                              >
+                                Tags
+                              </th>
                               <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">Actions</th>
                             </tr>
                           </thead>
@@ -749,10 +1126,14 @@ export function TaxonomySettings() {
                                   <td className="px-3 py-1.5 text-xs text-muted-foreground">{section.section_name}</td>
                                   {/* REMOVED: content_type display */}
                                   <td className="px-3 py-1.5 text-xs text-muted-foreground">
-                                    {section.category_slugs?.length || "Use suggested"}
+                                    {allTerms.filter(
+                                      (t) =>
+                                        t.type === "category" &&
+                                        t.home_section_name === section.section_name
+                                    ).length}
                                   </td>
                                   <td className="px-3 py-1.5 text-xs text-muted-foreground">
-                                    {section.tag_slugs?.length || "Use suggested"}
+                                    {Array.isArray(section.tag_slugs) ? section.tag_slugs.length : 0}
                                   </td>
                                   <td className="px-3 py-1.5 text-right">
                                     <div className="flex items-center justify-end gap-1">
@@ -769,6 +1150,8 @@ export function TaxonomySettings() {
                                             display_name: section.display_name,
                                             category_slugs: section.category_slugs || [],
                                             tag_slugs: section.tag_slugs || [],
+                                            // Show Core checked when protected by is_core OR is_staple (template sections)
+                                            is_core: !!section.is_core || !!section.is_staple,
                                           });
                                         }}
                                       >
@@ -777,10 +1160,19 @@ export function TaxonomySettings() {
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className={cn("h-7 w-7 p-0", section.is_staple && "opacity-40 cursor-not-allowed")}
+                                        className={cn(
+                                          "h-7 w-7 p-0",
+                                          (section.is_core || section.is_staple) && "opacity-40 cursor-not-allowed"
+                                        )}
                                         onClick={() => handleDeleteSection(section)}
-                                        disabled={saving || section.is_staple}
-                                        title={section.is_staple ? "Template sections cannot be removed" : "Delete section"}
+                                        disabled={saving || !!section.is_core || !!section.is_staple}
+                                        title={
+                                          section.is_core
+                                            ? "Core sections cannot be removed"
+                                            : section.is_staple
+                                              ? "Template sections cannot be removed"
+                                              : "Delete section"
+                                        }
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
                                       </Button>
@@ -811,10 +1203,10 @@ export function TaxonomySettings() {
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {editingSection ? "Edit Content Type Section" : "Add New Content Type Section"}
+                  {editingSection ? "Edit Taxonomy Section" : "Add New Taxonomy Section"}
                 </DialogTitle>
                 <DialogDescription>
-                  Configure which categories and tags this content type section uses
+                  Set the display name and slug for this taxonomy section. Categories and tags can be created and assigned separately.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -836,44 +1228,11 @@ export function TaxonomySettings() {
                       setSectionFormData({ ...sectionFormData, section_name: e.target.value })
                     }
                     placeholder="blog"
+                    disabled={sectionFormData.is_core}
+                    title={sectionFormData.is_core ? "Core sections have a locked slug" : undefined}
                   />
                 </div>
-                {/* REMOVED: Content Type field - not functionally used */}
-                <div>
-                  <Label>Categories</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Select specific categories (leave empty to use suggested sections from terms)
-                  </p>
-                  <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
-                    {allTerms
-                      .filter((t) => t.type === "category")
-                      .map((term) => (
-                        <label key={term.id} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={sectionFormData.category_slugs.includes(term.slug)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSectionFormData({
-                                  ...sectionFormData,
-                                  category_slugs: [...sectionFormData.category_slugs, term.slug],
-                                });
-                              } else {
-                                setSectionFormData({
-                                  ...sectionFormData,
-                                  category_slugs: sectionFormData.category_slugs.filter(
-                                    (s) => s !== term.slug
-                                  ),
-                                });
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          <span className="text-sm">{term.name}</span>
-                        </label>
-                      ))}
-                  </div>
-                </div>
+                {/* Categories are created and assigned separately; no picker here */}
                 <div>
                   <Label>Tags</Label>
                   <p className="text-xs text-muted-foreground mb-2">
@@ -907,6 +1266,22 @@ export function TaxonomySettings() {
                       ))}
                   </div>
                 </div>
+                {isSuperadmin && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="section-is-core"
+                      checked={sectionFormData.is_core}
+                      onChange={(e) =>
+                        setSectionFormData({ ...sectionFormData, is_core: e.target.checked })
+                      }
+                      className="rounded"
+                    />
+                    <Label htmlFor="section-is-core" className="cursor-pointer">
+                      Core (system-required: slug locked, only label editable, cannot delete)
+                    </Label>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={resetSectionForm} disabled={saving}>
@@ -918,9 +1293,11 @@ export function TaxonomySettings() {
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Saving...
                     </>
+                  ) : editingSection ? (
+                    "Update Taxonomy Section"
                   ) : (
-                    editingSection ? "Update" : "Create"
-                  )} Content Type Section
+                    "Create Taxonomy Section"
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -934,12 +1311,34 @@ export function TaxonomySettings() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Categories</CardTitle>
-                  <CardDescription>Manage hierarchical categories for organizing content</CardDescription>
+                  <CardDescription>
+                    Sort by column headers (Name, Slug, Home section). Home section groups by section, then parent/child
+                    order. Click a header twice to reverse; third click restores default tree order. Drag-reorder when a
+                    section is selected and sort is default.
+                  </CardDescription>
                 </div>
-                <Button onClick={handleNewCategory}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New
-                </Button>
+                <div className="flex items-center gap-2">
+                  {termListSectionFilter && Object.keys(pendingSiblingOrder).length > 0 && (
+                    <Button
+                      variant="secondary"
+                      onClick={handleSaveCategoryOrder}
+                      disabled={savingCategoryOrder}
+                    >
+                      {savingCategoryOrder ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        "Save order"
+                      )}
+                    </Button>
+                  )}
+                  <Button onClick={handleNewCategory}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -948,8 +1347,8 @@ export function TaxonomySettings() {
                 <div>
                   <div className="space-y-3">
                     {/* Search + Section filter */}
-                    <div className="flex gap-2 items-center">
-                      <div className="relative flex-1">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <div className="relative flex-1 min-w-[200px]">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           placeholder="Search categories by name or slug..."
@@ -958,107 +1357,154 @@ export function TaxonomySettings() {
                           className="pl-10"
                         />
                       </div>
-                      <select
-                        value={termListSectionFilter}
-                        onChange={(e) => setTermListSectionFilter(e.target.value)}
-                        className="w-[180px] px-3 py-2 border border-input rounded-md bg-background text-sm"
-                      >
-                        <option value="">All sections</option>
-                        {sections.map((s) => (
-                          <option key={s.id} value={s.section_name}>
-                            {s.display_name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Label htmlFor="category-section-scope" className="text-sm font-medium whitespace-nowrap">
+                          Taxonomy Section
+                        </Label>
+                        <select
+                          id="category-section-scope"
+                          value={termListSectionFilter}
+                          onChange={(e) => setTermListSectionFilter(e.target.value)}
+                          className="w-[180px] px-3 py-2 border border-input rounded-md bg-background text-sm"
+                        >
+                          <option value="">All sections</option>
+                          {sections.map((s) => (
+                            <option key={s.id} value={s.section_name}>
+                              {s.display_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     {/* Scrollable Table */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <div className="max-h-[500px] overflow-y-auto">
-                        <table className="w-full">
-                          <thead className="bg-muted sticky top-0 z-10">
-                            <tr>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Name</th>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Slug</th>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Parent</th>
-                              <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">Content Type Sections</th>
-                              <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {getFilteredCategories().length === 0 ? (
+                    <DndProvider backend={HTML5Backend}>
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="max-h-[500px] overflow-y-auto">
+                          <table className="w-full">
+                            <thead className="bg-muted sticky top-0 z-10">
                               <tr>
-                                <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                                  {categorySearch || termListSectionFilter
-                                    ? "No categories match your search and filters"
-                                    : "No categories found"}
-                                </td>
+                                <th className="w-8 px-1 py-1.5" aria-label="Reorder" />
+                                <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-0.5 hover:text-foreground"
+                                    onClick={() => onCategorySortHeader("name")}
+                                  >
+                                    Name
+                                    {categorySortColumn === "name" &&
+                                      (categorySortDir === "asc" ? (
+                                        <ChevronUp className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <ChevronDown className="h-3.5 w-3.5" />
+                                      ))}
+                                  </button>
+                                </th>
+                                <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-0.5 hover:text-foreground"
+                                    onClick={() => onCategorySortHeader("slug")}
+                                  >
+                                    Slug
+                                    {categorySortColumn === "slug" &&
+                                      (categorySortDir === "asc" ? (
+                                        <ChevronUp className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <ChevronDown className="h-3.5 w-3.5" />
+                                      ))}
+                                  </button>
+                                </th>
+                                <th className="text-left px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-0.5 hover:text-foreground"
+                                    onClick={() => onCategorySortHeader("home")}
+                                    title={
+                                      termListSectionFilter
+                                        ? "With one section selected, list stays in tree order"
+                                        : "Group by home section, then category order (parent/child)"
+                                    }
+                                  >
+                                    Home section
+                                    {categorySortColumn === "home" &&
+                                      !termListSectionFilter &&
+                                      (categorySortDir === "asc" ? (
+                                        <ChevronUp className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <ChevronDown className="h-3.5 w-3.5" />
+                                      ))}
+                                  </button>
+                                </th>
+                                <th className="text-right px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                  Actions
+                                </th>
                               </tr>
-                            ) : (
-                              getFilteredCategories().map((term) => (
-                                <tr key={term.id} className="border-t hover:bg-accent">
-                                  <td className="px-3 py-1.5 text-sm">
-                                    {term.parent_id && <span className="text-muted-foreground mr-2">└─</span>}
-                                    {term.name}
-                                  </td>
-                                  <td className="px-3 py-1.5 text-xs text-muted-foreground">{term.slug}</td>
-                                  <td className="px-3 py-1.5 text-xs text-muted-foreground">
-                                    {term.parent_id
-                                      ? categories
-                                          .flatMap((c) => flattenCategories([c]))
-                                          .find((c) => c.id === term.parent_id)?.name || "—"
-                                      : "—"}
-                                  </td>
-                                  <td className="px-3 py-1.5 text-xs">
-                                    {getSectionBadges(term)}
-                                  </td>
-                                  <td className="px-3 py-1.5 text-right">
-                                    <div className="flex items-center justify-end gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0"
-                                        onClick={() => {
-                                          // Reset section form if it's open
-                                          if (editingSection || showSectionForm) {
-                                            resetSectionForm();
-                                          }
-                                          setSlugManuallyEdited(false);
-                                          setEditingTerm(term);
-                                          setShowTermForm(true);
-                                          // Switch to appropriate tab
-                                          setActiveTab(term.type === "category" ? "categories" : "tags");
-                                          setFormData({
-                                            name: term.name,
-                                            slug: term.slug,
-                                            description: term.description || "",
-                                            parent_id: term.parent_id || "",
-                                            type: term.type,
-                                            suggested_sections: term.suggested_sections || [],
-                                            color: term.color ?? "",
-                                          });
-                                        }}
-                                      >
-                                        <Edit className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0"
-                                        onClick={() => handleDelete(term)}
-                                        disabled={term.slug === "uncategorized"}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
+                            </thead>
+                            <tbody>
+                              {getCategoryTableRows().length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                                    {categorySearch || termListSectionFilter
+                                      ? "No categories match your search and filters"
+                                      : "No categories found"}
                                   </td>
                                 </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
+                              ) : (
+                                getCategoryTableRows().map(({ term, depth, path }) => {
+                                  const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
+                                  const indentCh = visualDepth * INDENT_CH_PER_LEVEL;
+                                  const showPathTooltip = path.length > MAX_VISUAL_DEPTH;
+                                  const homeLabel =
+                                    term.home_section_name &&
+                                    sections.find((s) => s.section_name === term.home_section_name)
+                                      ?.display_name;
+                                  return (
+                                    <TaxonomyCategoryDndRow
+                                      key={term.id}
+                                      term={term}
+                                      depth={depth}
+                                      path={path}
+                                      indentCh={indentCh}
+                                      showPathTooltip={showPathTooltip}
+                                      canDrag={!!termListSectionFilter && categorySortColumn === "tree"}
+                                      onReorder={handleCategoryReorder}
+                                      sectionsCell={
+                                        <span className="text-xs text-muted-foreground">
+                                          {homeLabel || term.home_section_name || "—"}
+                                        </span>
+                                      }
+                                      onEdit={() => {
+                                        if (editingSection || showSectionForm) resetSectionForm();
+                                        setSlugManuallyEdited(false);
+                                        setEditingTerm(term);
+                                        setShowTermForm(true);
+                                        setActiveTab("categories");
+                                        setFormData({
+                                          name: term.name,
+                                          slug: term.slug,
+                                          description: term.description || "",
+                                          parent_id: term.parent_id || "",
+                                          type: term.type,
+                                          suggested_sections: term.suggested_sections || [],
+                                          home_section_name:
+                                            term.home_section_name ||
+                                            term.suggested_sections?.[0] ||
+                                            "",
+                                          color: term.color ?? "",
+                                          is_core: !!term.is_core,
+                                        });
+                                      }}
+                                      onDelete={() => handleDelete(term)}
+                                    />
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
+                    </DndProvider>
                   </div>
                 </div>
               </div>
@@ -1135,10 +1581,19 @@ export function TaxonomySettings() {
                             ) : (
                               getFilteredTags().map((term) => (
                                 <tr key={term.id} className="border-t hover:bg-accent">
-                                  <td className="px-3 py-1.5 text-sm">{term.name}</td>
+                                  <td className="px-3 py-1.5">
+                                    <div className="inline-flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-sm">{term.name}</span>
+                                      {term.is_core && (
+                                        <Badge variant="secondary" className="text-[10px] font-normal shrink-0">
+                                          Core
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td className="px-3 py-1.5 text-xs text-muted-foreground">{term.slug}</td>
                                   <td className="px-3 py-1.5 text-xs">
-                                    {getSectionBadges(term)}
+                                    {getSectionNamesText(term)}
                                   </td>
                                   <td className="px-3 py-1.5 text-right">
                                     <div className="flex items-center justify-end gap-1">
@@ -1163,7 +1618,9 @@ export function TaxonomySettings() {
                                             parent_id: "",
                                             type: term.type,
                                             suggested_sections: term.suggested_sections || [],
+                                            home_section_name: "",
                                             color: term.color ?? "",
+                                            is_core: !!term.is_core,
                                           });
                                         }}
                                       >
@@ -1174,6 +1631,7 @@ export function TaxonomySettings() {
                                         size="sm"
                                         className="h-7 w-7 p-0"
                                         onClick={() => handleDelete(term)}
+                                        disabled={!!term.is_core}
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
                                       </Button>
@@ -1244,9 +1702,30 @@ export function TaxonomySettings() {
                   setFormData({ ...formData, slug: e.target.value });
                 }}
                 placeholder={formData.type === "category" ? "category-slug" : "tag-slug"}
-                disabled={editingTerm?.slug === "uncategorized"}
+                disabled={editingTerm?.slug === "uncategorized" || !!editingTerm?.is_core}
               />
             </div>
+            {formData.type === "category" && (
+              <div>
+                <Label>Home taxonomy section *</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  This category belongs to exactly one section. Section category lists and order are scoped per
+                  section.
+                </p>
+                <select
+                  className="w-full px-3 py-2 border rounded-md bg-background"
+                  value={formData.home_section_name}
+                  onChange={(e) => setFormData({ ...formData, home_section_name: e.target.value })}
+                >
+                  <option value="">Select section…</option>
+                  {sections.map((section) => (
+                    <option key={section.id} value={section.section_name}>
+                      {section.display_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {formData.type === "category" && (
               <div>
                 <Label>Parent Category (optional)</Label>
@@ -1345,45 +1824,59 @@ export function TaxonomySettings() {
                 </div>
               </div>
             </div>
-            <div>
-              <Label>Apply to these Content Type Sections</Label>
-              <p className="text-xs text-muted-foreground mb-2">
-                {formData.type === "category"
-                  ? "Add this category to the selected content type sections. It will be assigned to those sections."
-                  : "Add this tag to the selected content type sections. It will be assigned to those sections."}
-              </p>
-              <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
-                {sections.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No content type sections configured.</p>
-                ) : (
-                  sections.map((section) => (
-                    <label key={section.id} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.suggested_sections.includes(section.section_name)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData({
-                              ...formData,
-                              suggested_sections: [...formData.suggested_sections, section.section_name],
-                            });
-                          } else {
-                            setFormData({
-                              ...formData,
-                              suggested_sections: formData.suggested_sections.filter(
-                                (s) => s !== section.section_name
-                              ),
-                            });
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      <span className="text-sm">{section.display_name}</span>
-                    </label>
-                  ))
-                )}
+            {formData.type === "tag" && (
+              <div>
+                <Label>Apply to these taxonomy sections</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Tags can be assigned to multiple sections for filtering and global tagging.
+                </p>
+                <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
+                  {sections.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No taxonomy sections configured.</p>
+                  ) : (
+                    sections.map((section) => (
+                      <label key={section.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.suggested_sections.includes(section.section_name)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                suggested_sections: [...formData.suggested_sections, section.section_name],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                suggested_sections: formData.suggested_sections.filter(
+                                  (s) => s !== section.section_name
+                                ),
+                              });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{section.display_name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+            {isSuperadmin && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="term-is-core"
+                  checked={formData.is_core}
+                  onChange={(e) => setFormData({ ...formData, is_core: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="term-is-core" className="cursor-pointer">
+                  Core (system-required: slug locked, only label editable, cannot delete)
+                </Label>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetForm} disabled={saving}>

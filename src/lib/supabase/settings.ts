@@ -434,46 +434,119 @@ export interface CrmContactStatusOption {
   slug: string;
   label: string;
   color: string;
+  /** When true, status is used by code/triggers; delete is disabled for admins. Only superadmin can toggle. */
+  is_core?: boolean;
 }
 
 /** Fixed slug for "New" status; required for sidebar badge (work-to-do count). Cannot be deleted. */
 export const CRM_STATUS_SLUG_NEW = "new";
 
+/** Customizer table scope for contact statuses. */
+const CUSTOMIZER_SCOPE_CONTACT_STATUS = "contact_status";
+
 const DEFAULT_CRM_CONTACT_STATUSES: CrmContactStatusOption[] = [
-  { slug: CRM_STATUS_SLUG_NEW, label: "New", color: "#22c55e" },
+  { slug: CRM_STATUS_SLUG_NEW, label: "New", color: "#22c55e", is_core: true },
   { slug: "contacted", label: "Contacted", color: "#3b82f6" },
   { slug: "archived", label: "Archived", color: "#6b7280" },
 ];
 
 /**
- * Get CRM contact statuses (ordered picklist with colors).
+ * Get CRM contact statuses from customizer table (scope = contact_status). Fallback to defaults if table empty or missing.
  */
-export async function getCrmContactStatuses(): Promise<CrmContactStatusOption[]> {
-  const raw = await getSetting<CrmContactStatusOption[]>("crm.contact_statuses");
-  if (Array.isArray(raw) && raw.length > 0) return raw;
-  return DEFAULT_CRM_CONTACT_STATUSES;
+export async function getCrmContactStatuses(
+  schema?: string
+): Promise<CrmContactStatusOption[]> {
+  const schemaName = schema ?? getClientSchema();
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .schema(schemaName)
+      .from("customizer")
+      .select("slug, label, color, is_core")
+      .eq("scope", CUSTOMIZER_SCOPE_CONTACT_STATUS)
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      console.error("getCrmContactStatuses customizer query:", error);
+      return DEFAULT_CRM_CONTACT_STATUSES;
+    }
+    if (!Array.isArray(data) || data.length === 0) return DEFAULT_CRM_CONTACT_STATUSES;
+
+    return data.map((row: { slug: string; label: string; color: string | null; is_core?: boolean }) => ({
+      slug: row.slug,
+      label: row.label,
+      color: row.color ?? "#6b7280",
+      is_core: !!row.is_core,
+    }));
+  } catch (e) {
+    console.error("getCrmContactStatuses:", e);
+    return DEFAULT_CRM_CONTACT_STATUSES;
+  }
 }
 
 /**
- * Set CRM contact statuses. The status with slug "new" is always kept (required for sidebar badge).
+ * Set CRM contact statuses in customizer table. The status with slug "new" is always kept (required for sidebar badge).
  */
 export async function setCrmContactStatuses(
-  statuses: CrmContactStatusOption[]
+  statuses: CrmContactStatusOption[],
+  schema?: string
 ): Promise<boolean> {
+  const schemaName = schema ?? getClientSchema();
   const normalized = statuses
     .filter((s) => s && typeof s.slug === "string" && typeof s.label === "string" && typeof s.color === "string")
     .map((s) => ({
       slug: s.slug.trim().toLowerCase(),
       label: s.label.trim(),
       color: s.color,
+      is_core: !!s.is_core,
     }));
+  const slugs = normalized.map((s) => s.slug);
+  if (new Set(slugs).size !== slugs.length) return false;
+
   const hasNew = normalized.some((s) => s.slug === CRM_STATUS_SLUG_NEW);
   if (!hasNew) {
-    const current = await getCrmContactStatuses();
-    const newOption = current.find((s) => s.slug === CRM_STATUS_SLUG_NEW) ?? DEFAULT_CRM_CONTACT_STATUSES[0];
+    const newOption = DEFAULT_CRM_CONTACT_STATUSES[0];
     normalized.unshift(newOption);
   }
-  return setSetting("crm.contact_statuses", normalized);
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { error: deleteError } = await supabase
+      .schema(schemaName)
+      .from("customizer")
+      .delete()
+      .eq("scope", CUSTOMIZER_SCOPE_CONTACT_STATUS);
+
+    if (deleteError) {
+      console.error("setCrmContactStatuses delete:", deleteError);
+      return false;
+    }
+
+    if (normalized.length === 0) return true;
+
+    const rows = normalized.map((s, i) => ({
+      scope: CUSTOMIZER_SCOPE_CONTACT_STATUS,
+      slug: s.slug,
+      label: s.label,
+      color: s.color,
+      display_order: i,
+      is_core: s.is_core ?? false,
+    }));
+
+    const { error: insertError } = await supabase
+      .schema(schemaName)
+      .from("customizer")
+      .insert(rows);
+
+    if (insertError) {
+      console.error("setCrmContactStatuses insert:", insertError);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("setCrmContactStatuses:", e);
+    return false;
+  }
 }
 
 /** Calendar resource type option (slug stored on resource, label for UI). */
@@ -488,28 +561,138 @@ const DEFAULT_CALENDAR_RESOURCE_TYPES: CalendarResourceTypeOption[] = [
   { slug: "video", label: "Video" },
 ];
 
+const CUSTOMIZER_SCOPE_RESOURCE_TYPE = "resource_type";
+
 /**
- * Get calendar resource types (ordered list for Settings > Customizer > Calendar and Resources dropdown).
+ * Get calendar resource types from customizer table (scope = resource_type). Used by Events/Resources and Customizer.
  */
-export async function getCalendarResourceTypes(): Promise<CalendarResourceTypeOption[]> {
-  const raw = await getSetting<CalendarResourceTypeOption[]>("calendar.resource_types");
-  if (Array.isArray(raw) && raw.length > 0) return raw;
+export async function getCalendarResourceTypes(
+  schema?: string
+): Promise<CalendarResourceTypeOption[]> {
+  const rows = await getCustomizerOptions(CUSTOMIZER_SCOPE_RESOURCE_TYPE, schema);
+  if (rows.length > 0) return rows.map((r) => ({ slug: r.slug, label: r.label }));
   return DEFAULT_CALENDAR_RESOURCE_TYPES;
 }
 
 /**
- * Set calendar resource types.
+ * Set calendar resource types in customizer table (scope = resource_type).
  */
 export async function setCalendarResourceTypes(
-  types: CalendarResourceTypeOption[]
+  types: CalendarResourceTypeOption[],
+  schema?: string
 ): Promise<boolean> {
   const normalized = types
     .filter((t) => t && typeof t.slug === "string" && typeof t.label === "string")
     .map((t) => ({
       slug: t.slug.trim().toLowerCase().replace(/\s+/g, "-"),
       label: t.label.trim(),
+      color: null as string | null,
+      is_core: false,
     }));
   const slugs = normalized.map((t) => t.slug);
-  if (new Set(slugs).size !== slugs.length) return false; // duplicate slugs
-  return setSetting("calendar.resource_types", normalized);
+  if (new Set(slugs).size !== slugs.length) return false;
+  return setCustomizerOptions(CUSTOMIZER_SCOPE_RESOURCE_TYPE, normalized, schema);
+}
+
+/** One row for generic customizer scope (project_type, project_status, project_role, etc.). */
+export interface CustomizerOptionRowServer {
+  slug: string;
+  label: string;
+  color?: string | null;
+  is_core?: boolean;
+}
+
+/**
+ * Get customizer options for a scope from the customizer table. Returns [] if empty or error.
+ */
+export async function getCustomizerOptions(
+  scope: string,
+  schema?: string
+): Promise<CustomizerOptionRowServer[]> {
+  const schemaName = schema ?? getClientSchema();
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .schema(schemaName)
+      .from("customizer")
+      .select("slug, label, color, is_core")
+      .eq("scope", scope)
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      console.error("getCustomizerOptions:", scope, error);
+      return [];
+    }
+    if (!Array.isArray(data) || data.length === 0) return [];
+
+    return data.map((row: { slug: string; label: string; color: string | null; is_core?: boolean }) => ({
+      slug: row.slug,
+      label: row.label,
+      color: row.color ?? undefined,
+      is_core: !!row.is_core,
+    }));
+  } catch (e) {
+    console.error("getCustomizerOptions:", scope, e);
+    return [];
+  }
+}
+
+/**
+ * Set customizer options for a scope (replaces all rows for that scope).
+ */
+export async function setCustomizerOptions(
+  scope: string,
+  items: CustomizerOptionRowServer[],
+  schema?: string
+): Promise<boolean> {
+  const schemaName = schema ?? getClientSchema();
+  const normalized = items
+    .filter((i) => i && typeof i.slug === "string" && typeof i.label === "string")
+    .map((i) => ({
+      slug: i.slug.trim().toLowerCase().replace(/\s+/g, "-"),
+      label: i.label.trim(),
+      color: i.color ?? null,
+      is_core: !!i.is_core,
+    }));
+  const slugs = normalized.map((i) => i.slug);
+  if (new Set(slugs).size !== slugs.length) return false;
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { error: deleteError } = await supabase
+      .schema(schemaName)
+      .from("customizer")
+      .delete()
+      .eq("scope", scope);
+
+    if (deleteError) {
+      console.error("setCustomizerOptions delete:", scope, deleteError);
+      return false;
+    }
+
+    if (normalized.length === 0) return true;
+
+    const rows = normalized.map((item, i) => ({
+      scope,
+      slug: item.slug,
+      label: item.label,
+      color: item.color,
+      display_order: i,
+      is_core: item.is_core ?? false,
+    }));
+
+    const { error: insertError } = await supabase
+      .schema(schemaName)
+      .from("customizer")
+      .insert(rows);
+
+    if (insertError) {
+      console.error("setCustomizerOptions insert:", scope, insertError);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("setCustomizerOptions:", scope, e);
+    return false;
+  }
 }
