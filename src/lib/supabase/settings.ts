@@ -506,7 +506,12 @@ export async function setCrmContactStatuses(
   const hasNew = normalized.some((s) => s.slug === CRM_STATUS_SLUG_NEW);
   if (!hasNew) {
     const newOption = DEFAULT_CRM_CONTACT_STATUSES[0];
-    normalized.unshift(newOption);
+    normalized.unshift({
+      slug: newOption.slug.trim().toLowerCase(),
+      label: newOption.label.trim(),
+      color: newOption.color,
+      is_core: !!newOption.is_core,
+    });
   }
 
   try {
