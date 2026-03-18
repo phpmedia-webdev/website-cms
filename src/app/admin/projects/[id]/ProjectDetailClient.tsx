@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { View } from "react-big-calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ArrowLeft, Pencil, Archive, ArchiveRestore, Receipt, ListOrdered, Calendar } from "lucide-react";
@@ -14,6 +15,7 @@ import type { OrderRow } from "@/lib/shop/orders";
 import type { InvoiceRow } from "@/lib/shop/invoices";
 import type { TaxonomyTermDisplay } from "@/lib/supabase/taxonomy";
 import { cn } from "@/lib/utils";
+import { EventsCalendar } from "@/components/events/EventsCalendar";
 import { TaxonomyChips } from "@/components/taxonomy/TaxonomyChips";
 import { TermBadge } from "@/components/taxonomy/TermBadge";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
@@ -111,6 +113,8 @@ export function ProjectDetailClient({
   const [invoices, setInvoices] = useState(initialInvoices);
   const [projectEvents, setProjectEvents] = useState(initialProjectEvents);
   const [projectMembers, setProjectMembers] = useState(initialProjectMembers);
+  const [projectEventsDate, setProjectEventsDate] = useState(() => new Date());
+  const [projectEventsView, setProjectEventsView] = useState<View>("month");
   const [tab, setTab] = useState<TabId>("overview");
   const [archivedAt, setArchivedAt] = useState(project.archived_at);
   const [busy, setBusy] = useState(false);
@@ -516,58 +520,91 @@ export function ProjectDetailClient({
       )}
 
       {tab === "events" && (
-        <Card>
-          <CardHeader className="pb-2">
-            <h2 className="text-lg font-medium">Events</h2>
-            <p className="text-sm text-muted-foreground">
-              Calendar events linked to this project. Link an event from the event edit form (Project field).
-            </p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full caption-bottom text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="h-9 px-4 text-left font-medium">Title</th>
-                    <th className="h-9 px-4 text-left font-medium">Start</th>
-                    <th className="h-9 px-4 text-left font-medium">End</th>
-                    <th className="h-9 w-24 px-4 text-left font-medium" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectEvents.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-6 text-center text-muted-foreground">
-                        No events linked to this project.
-                      </td>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-medium">Events</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Calendar events linked to this project. Add a new event here to pre-fill the project link.
+                  </p>
+                </div>
+                <Button asChild>
+                  <Link href={`/admin/events/new?project_id=${encodeURIComponent(project.id)}`}>
+                    <Calendar className="h-4 w-4 mr-1" />
+                    Add event
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="min-h-[540px]">
+                <EventsCalendar
+                  events={projectEvents}
+                  date={projectEventsDate}
+                  view={projectEventsView}
+                  onDateChange={setProjectEventsDate}
+                  onViewChange={setProjectEventsView}
+                  height={520}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <h3 className="text-base font-medium">Linked events</h3>
+              <p className="text-sm text-muted-foreground">
+                Edit or unlink events from the project record.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full caption-bottom text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="h-9 px-4 text-left font-medium">Title</th>
+                      <th className="h-9 px-4 text-left font-medium">Start</th>
+                      <th className="h-9 px-4 text-left font-medium">End</th>
+                      <th className="h-9 w-24 px-4 text-left font-medium" />
                     </tr>
-                  ) : (
-                    projectEvents.map((ev) => (
-                      <tr key={ev.id} className="border-b hover:bg-muted/50">
-                        <td className="p-3 font-medium">{ev.title}</td>
-                        <td className="p-3 text-muted-foreground">{formatDate(ev.start_date)}</td>
-                        <td className="p-3 text-muted-foreground">{formatDate(ev.end_date)}</td>
-                        <td className="p-3 flex gap-1">
-                          <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
-                            <Link href={`/admin/events/${ev.id}/edit`}>Edit</Link>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-muted-foreground"
-                            onClick={() => unlinkEvent(ev.id)}
-                          >
-                            Unlink
-                          </Button>
+                  </thead>
+                  <tbody>
+                    {projectEvents.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                          No events linked to this project.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                    ) : (
+                      projectEvents.map((ev) => (
+                        <tr key={ev.id} className="border-b hover:bg-muted/50">
+                          <td className="p-3 font-medium">{ev.title}</td>
+                          <td className="p-3 text-muted-foreground">{formatDate(ev.start_date)}</td>
+                          <td className="p-3 text-muted-foreground">{formatDate(ev.end_date)}</td>
+                          <td className="p-3 flex gap-1">
+                            <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
+                              <Link href={`/admin/events/${ev.id}/edit`}>Edit</Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-muted-foreground"
+                              onClick={() => unlinkEvent(ev.id)}
+                            >
+                              Unlink
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

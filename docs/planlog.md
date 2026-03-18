@@ -53,7 +53,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 **Status:** Complete. Sidebar, Dashboard, Content, Media, Galleries, Forms, CRM, Settings.
 
-- [ ] **Sidebar — Content consolidation:** One top-level "Content" with sub-items: Text Blocks (current Content page), Media (Media Library), Galleries. Remove separate top-level Media nav item. Do this before Phase 19 roles/gate sidebar work.
+- [x] **Sidebar — Content consolidation:** One top-level "Content" with sub-items: Text Blocks (current Content page), Media (Media Library), Galleries. Remove separate top-level Media nav item. Do this before Phase 19 roles/gate sidebar work.
 
 ### Phase 05: Media Library
 
@@ -82,6 +82,14 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [x] CRM external UIDs (4 columns): external_crm_id, external_vbout_id, external_stripe_id, external_ecommerce_id; migration 113; getContactByExternalId(source, id).
 - [x] CRM contact list sort: column headers (Last name, First name, Full name, Status, Updated) clickable; default sort = Updated desc (last activity at top).
 - [x] Optional: `crm_consents`; auto-assign tags on form submit; central automations layer; push to external CRM
+- [x] **CRM avatar_url (contacts + organizations):** Migration 172 (tenant schema). Add avatar_url to crm_contacts and organizations; create/edit forms + Media Library picker; project list uses for client and member avatars.
+
+- **CRM organizations ↔ contacts linking (phone-first):**
+  - [x] **Schema — organization company fields:** confirm/add `company_domain` on organizations; keep `company_email` and `company_phone` as company-level fields.
+  - [x] **Schema — multi-value contact methods:** add labeled phone/email rows for contacts with `label` (work, mobile, personal, main), `value`, `normalized_value`, and `is_primary`.
+  - [x] **Matching — phone-first linking:** when a contact phone uniquely matches an organization phone, auto-link the organization/contact relationship; ambiguous matches become review suggestions.
+  - [x] **Matching — manual override and review:** provide a review UI to confirm/reject matches and manually add/remove organization links without losing history.
+  - [ ] **Later — email/domain matching:** add email/domain-based matching after phone-first linking is stable.
 
 ### Phase 08: Forms Management
 
@@ -308,6 +316,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [x] **RPC/API — list visibility:** "My tasks" = creator/responsible/follower. Optional: team restricted to assigned-only vs all. Top-level admins see all.
   - [x] **Admin UI — sidebar & gate:** Projects in sidebar; feature slug **projects**; feature-gate per tenant. Routes /admin/projects, /admin/projects/[id]. Roles and feature-registry step at end of phase.
   - [x] **Admin UI — projects list:** Filters (status, taxonomy, search). Columns: name, status, dates, MAG, potential_sales. Show archived toggle.
+  - [x] **Admin UI — projects list (refresh):** Table: title + project-type color dot, Proposed End Date, client (contact/org link + avatar), status pill, member avatars (contact/team), task-segment progress bar (done/overdue/todo/cancelled), project type. Batch server data (members, tasks, contacts, orgs, profiles); include_archived filter. Migration 172 adds avatar_url to crm_contacts and organizations (tenant schema).
   - [x] **Admin UI — project detail:** Header (name, description, status, timeline, potential_sales, MAG), tasks list or Kanban, linked events/orders/links. Edit, Archive/Restore.
   - [x] **Admin UI — project create/edit:** Form: name, description, status, proposed start/end, potential_sales, required_mag_id, taxonomy (categories/tags).
   - [x] **Admin UI — tasks:** Add/edit task (title, description, status, **priority** (low/medium/high), due_date, proposed/actual time, creator, responsible, followers, taxonomy — category/tag for Task section for phase/milestone). Project task list: filter by category (phase) or tag; "Show all". Optional Kanban (group by status or by category/phase).
@@ -317,7 +326,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [ ] **Integration — support tickets:** GPUM submits a **ticket** (task of type support_ticket) via member area; auto-create or reuse a **perpetual Support project** for that GPUM (customer) when they start a support process (first ticket). Project: status = **perpetual** (lives with the life of the client), category = **Support Ticket**. Create task with task_type = support_ticket linked to that project.
   - [ ] **Integration — e-commerce:** Order optional project_id; project detail shows linked orders; optional actual vs potential_sales.
   - [x] **Integration — calendar:** Event project_id; project detail shows linked events (Events tab, list + Unlink); event form Project selector; API create/update accept project_id. (Event visibility by project MAG deferred to member-facing project view.)
-  - [ ] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list views); create event from here auto-assigns project_id; wiring in place.
+- [x] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list views); create event from here auto-assigns project_id; wiring in place.
   - [ ] **Member area (GPUM):** Two additional items: **(1) Projects** — list/detail of projects the GPUM can see (MAG); read-only progress. **(2) Support Tickets** — list view of tickets (tasks with task_type = support_ticket) submitted by that GPUM. **(3) Tasks** — standard task list when the GPUM was assigned tasks to accomplish or follow under a project (creator/responsible/follower). Feature registry, sidebar gating, and roles for projects at end of phase.
 
 - **Phase 19 expansion (decisions 3/16/2026):** Orders + invoices remain two tables; project_id on both; project total = sum(orders.total). Activity stream: task_id and conversation_uid on crm_notes for task threads and message threading; focus-mode UI later. User handle for messaging/conversations.
@@ -343,8 +352,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [x] **Support project (per GPUM):** Create when GPUM starts support (first ticket), not on member creation; status = perpetual; category = Support Ticket (taxonomy); one project per GPUM; all support_ticket tasks link to it.
   - [x] **Integration — support tickets:** GPUM submits ticket (task type support_ticket) via member area; auto-create or reuse perpetual Support project (status = perpetual, category = Support Ticket) when GPUM starts support; create task linked to that project.
   - [x] **Integration — calendar:** Event project_id; project detail shows linked events (Events tab, list + Unlink); event form Project selector; API create/update accept project_id. (Event visibility by project MAG deferred to member-facing project view.)
-  - [ ] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list); create event auto-assigns project; wiring in place.
-  - [ ] **Feature registry, sidebar gating & roles (Phase 19):** Add projects to feature registry; ensure sidebar gating; adjust roles.
+  - [x] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list); create event auto-assigns project; wiring in place.
+  - [x] **Feature registry, sidebar gating & roles (Phase 19):** Add projects to feature registry; ensure sidebar gating; adjust roles. Ecommerce/Social/Marketing order in registry (migration 171); route-features and sidebar match.
 
 - **Phase 19 — Project members, client, assignee scoping (plan):** See [project-members-and-client-plan.md](./project-members-and-client-plan.md). **Core PM taxonomy sections (non-deletable):** Project Type, Project Status, Task Type, Task Status, Task Priority, **Project Roles** (new). Reserved terms (e.g. Support, Perpetual) protected from deletion (optional this phase).
   - [x] **Schema — project client (org):** Add `client_organization_id` (nullable FK → organizations) to projects; RPC/types/API.

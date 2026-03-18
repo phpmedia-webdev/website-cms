@@ -24,6 +24,18 @@ export async function getProfileByUserId(userId: string): Promise<Profile | null
   return data as Profile;
 }
 
+/** Get profiles for multiple users in one query. */
+export async function getProfilesByUserIds(userIds: string[]): Promise<Profile[]> {
+  if (userIds.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.from("profiles").select("*").in("user_id", userIds);
+  if (error) {
+    console.error("getProfilesByUserIds:", error);
+    return [];
+  }
+  return (data as Profile[]) ?? [];
+}
+
 export async function upsertProfile(row: ProfileInsert & Partial<ProfileUpdate>): Promise<Profile | null> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase

@@ -15,7 +15,11 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (pathname === "/admin/upgrade" || pathname.startsWith("/admin/upgrade/")) return null;
 
   if (pathname === "/admin/content" || pathname.startsWith("/admin/content/")) return "content";
-  if (pathname === "/admin/ecommerce" || pathname.startsWith("/admin/ecommerce/")) return "content";
+  if (pathname === "/admin/ecommerce/products" || pathname.startsWith("/admin/ecommerce/products/")) return "products";
+  if (pathname === "/admin/ecommerce/transactions" || pathname.startsWith("/admin/ecommerce/transactions/")) return "transactions";
+  if (pathname === "/admin/ecommerce/invoices" || pathname.startsWith("/admin/ecommerce/invoices/")) return "invoices";
+  if (pathname === "/admin/ecommerce/subscriptions" || pathname.startsWith("/admin/ecommerce/subscriptions/")) return "subscriptions";
+  if (pathname === "/admin/ecommerce" || pathname.startsWith("/admin/ecommerce/")) return "ecommerce";
   if (pathname === "/admin/media" || pathname.startsWith("/admin/media/")) return "library";
   if (pathname === "/admin/galleries" || pathname.startsWith("/admin/galleries/")) return "galleries";
   // CRM sub-routes: more specific first
@@ -23,6 +27,7 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (pathname.startsWith("/admin/crm/forms/submissions")) return "form_submissions";
   if (pathname.startsWith("/admin/crm/forms")) return "forms";
   if (pathname.startsWith("/admin/crm/marketing")) return "marketing";
+  if (pathname.startsWith("/admin/crm/social")) return "social";
   if (pathname.startsWith("/admin/crm/lists")) return "lists";
   if (pathname.startsWith("/admin/crm/templates")) return "templates";
   if (pathname.startsWith("/admin/crm/reviews")) return "reviews";
@@ -58,11 +63,17 @@ export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
   media: "media",
   library: "library",
   galleries: "galleries",
+  ecommerce: "ecommerce",
+  products: "products",
+  transactions: "transactions",
+  invoices: "invoices",
+  subscriptions: "subscriptions",
   crm: "crm",
   contacts: "contacts",
   forms: "forms",
   form_submissions: "form_submissions",
   marketing: "marketing",
+  social: "social",
   lists: "lists",
   templates: "templates",
   reviews: "reviews",
@@ -87,7 +98,23 @@ export const SIDEBAR_FEATURE_MAP: Record<string, string> = {
 };
 
 /** Top-level slug that grants access to sub-features. Sub-slug → parent slug. All section children omitted for one-to-one gate. */
-const FEATURE_PARENT_SLUG: Record<string, string> = {};
+const FEATURE_PARENT_SLUG: Record<string, string> = {
+  contacts: "crm",
+  forms: "crm",
+  form_submissions: "crm",
+  memberships: "crm",
+  library: "media",
+  galleries: "media",
+  social: "marketing",
+  lists: "marketing",
+  templates: "marketing",
+  code_generator: "marketing",
+  reviews: "marketing",
+  products: "ecommerce",
+  transactions: "ecommerce",
+  invoices: "ecommerce",
+  subscriptions: "ecommerce",
+};
 
 /**
  * Whether the user can access a section.

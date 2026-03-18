@@ -36,7 +36,6 @@ import {
 
 /** Session storage keys for sidebar accordion open state. */
 export const SIDEBAR_SETTINGS_OPEN = "sidebar-settings-open";
-export const SIDEBAR_MEDIA_OPEN = "sidebar-media-open";
 export const SIDEBAR_CONTENT_OPEN = "sidebar-content-open";
 export const SIDEBAR_CRM_OPEN = "sidebar-crm-open";
 export const SIDEBAR_MARKETING_OPEN = "sidebar-marketing-open";
@@ -55,8 +54,9 @@ export interface SubNavItem {
   adminOnly?: boolean;
 }
 
-export const mediaSubNav: SubNavItem[] = [
-  { name: "Library", href: "/admin/media", icon: Image, featureSlug: "library" },
+export const contentSubNav: SubNavItem[] = [
+  { name: "Text Blocks", href: "/admin/content", icon: FileText, featureSlug: "content" },
+  { name: "Media", href: "/admin/media", icon: Image, featureSlug: "library" },
   { name: "Galleries", href: "/admin/galleries", icon: Folder, featureSlug: "galleries" },
 ];
 
@@ -69,8 +69,9 @@ export const crmSubNav: SubNavItem[] = [
 ];
 
 export const marketingSubNav: SubNavItem[] = [
-  { name: "Marketing", href: "/admin/crm/marketing", icon: LayoutDashboard, featureSlug: "marketing" },
+  { name: "Email", href: "/admin/crm/marketing", icon: LayoutDashboard, featureSlug: "marketing" },
   { name: "Lists", href: "/admin/crm/lists", icon: ListChecks, featureSlug: "lists" },
+  { name: "Social", href: "/admin/crm/social", icon: LayoutDashboard, featureSlug: "social" },
   { name: "Templates", href: "/admin/crm/templates", icon: FileText, featureSlug: "templates" },
   { name: "Code Generator", href: "/admin/crm/memberships/code-generator", icon: KeyRound, featureSlug: "code_generator" },
   { name: "Reviews", href: "/admin/crm/reviews", icon: Star, featureSlug: "reviews" },
@@ -90,10 +91,10 @@ export const activitiesSubNav: SubNavItem[] = [
 ];
 
 export const ecommerceSubNav: SubNavItem[] = [
-  { name: "Transactions", href: "/admin/ecommerce/transactions", icon: Receipt, featureSlug: "content" },
-  { name: "Products", href: "/admin/ecommerce/products", icon: Package, featureSlug: "content" },
-  { name: "Invoices", href: "/admin/ecommerce/invoices", icon: FileText, featureSlug: "content" },
-  { name: "Subscriptions", href: "/admin/ecommerce/subscriptions", icon: Repeat, featureSlug: "content" },
+  { name: "Products", href: "/admin/ecommerce/products", icon: Package, featureSlug: "products" },
+  { name: "Transactions", href: "/admin/ecommerce/transactions", icon: Receipt, featureSlug: "transactions" },
+  { name: "Invoices", href: "/admin/ecommerce/invoices", icon: FileText, featureSlug: "invoices" },
+  { name: "Subscriptions", href: "/admin/ecommerce/subscriptions", icon: Repeat, featureSlug: "subscriptions" },
 ];
 
 export const projectsSubNav: SubNavItem[] = [

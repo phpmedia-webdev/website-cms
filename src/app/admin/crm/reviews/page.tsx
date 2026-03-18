@@ -1,11 +1,11 @@
-/**
- * Marketing → Reviews: standby page. Full reviews management coming later.
- */
-export default function ReviewsPage() {
+import { listContactOrganizationMatchReviews } from "@/lib/supabase/organizations";
+import { PhoneMatchReviewsClient } from "./PhoneMatchReviewsClient";
+
+export default async function ReviewsPage() {
+  const initialReviews = await listContactOrganizationMatchReviews({ status: "suggested" });
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold">Reviews</h1>
-      <p className="text-muted-foreground mt-1">Coming soon.</p>
+      <PhoneMatchReviewsClient initialReviews={initialReviews} />
     </div>
   );
 }

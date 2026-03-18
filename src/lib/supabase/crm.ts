@@ -8,6 +8,8 @@
 import { createServerSupabaseClient } from "./server-service";
 import { getTaskIdsForContact } from "./projects";
 import { CRM_STATUS_SLUG_NEW } from "./settings";
+import { syncContactOrganizationPhoneMatches } from "./organizations";
+import { replaceContactMethods } from "./contact-methods";
 
 const CRM_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -30,6 +32,7 @@ export interface CrmContact {
   first_name: string | null;
   last_name: string | null;
   full_name: string | null;
+  avatar_url: string | null;
   company: string | null;
   address: string | null;
   city: string | null;
@@ -822,7 +825,19 @@ export async function createContact(
     console.error("Error creating contact:", { message: error.message, code: error.code });
     return { contact: null, error: new Error(error.message) };
   }
-  return { contact: data as CrmContact, error: null };
+  const contact = data as CrmContact;
+  await replaceContactMethods(
+    contact.id,
+    [
+      contact.email ? { method_type: "email", label: "main", value: contact.email, is_primary: true } : null,
+      contact.phone ? { method_type: "phone", label: "main", value: contact.phone, is_primary: true } : null,
+    ].filter((method): method is { method_type: "email" | "phone"; label: string; value: string; is_primary: boolean } => method != null)
+  );
+  const phoneValues = [contact.phone ?? payload.phone ?? ""].filter((value): value is string => !!value && value.trim().length > 0);
+  if (phoneValues.length > 0) {
+    await syncContactOrganizationPhoneMatches(contact.id, phoneValues);
+  }
+  return { contact, error: null };
 }
 
 /** Update a contact (write via .schema().from()). */
@@ -842,7 +857,19 @@ export async function updateContact(
     console.error("Error updating contact:", { message: error.message, code: error.code });
     return { contact: null, error: new Error(error.message) };
   }
-  return { contact: data as CrmContact, error: null };
+  const contact = data as CrmContact;
+  await replaceContactMethods(
+    contact.id,
+    [
+      contact.email ? { method_type: "email", label: "main", value: contact.email, is_primary: true } : null,
+      contact.phone ? { method_type: "phone", label: "main", value: contact.phone, is_primary: true } : null,
+    ].filter((method): method is { method_type: "email" | "phone"; label: string; value: string; is_primary: boolean } => method != null)
+  );
+  const phoneValues = [contact.phone ?? payload.phone ?? ""].filter((value): value is string => !!value && value.trim().length > 0);
+  if (phoneValues.length > 0) {
+    await syncContactOrganizationPhoneMatches(contact.id, phoneValues);
+  }
+  return { contact, error: null };
 }
 
 /**

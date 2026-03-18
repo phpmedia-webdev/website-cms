@@ -29,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import { canAccessFeature } from "@/lib/admin/route-features";
 import {
   SIDEBAR_SETTINGS_OPEN,
-  SIDEBAR_MEDIA_OPEN,
   SIDEBAR_CONTENT_OPEN,
   SIDEBAR_CRM_OPEN,
   SIDEBAR_MARKETING_OPEN,
@@ -37,7 +36,7 @@ import {
   SIDEBAR_SUPPORT_OPEN,
   SIDEBAR_SUPER_OPEN,
   SIDEBAR_ECOM_OPEN,
-  mediaSubNav,
+  contentSubNav,
   crmSubNav,
   marketingSubNav,
   activitiesSubNav,
@@ -95,6 +94,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     !pathname?.startsWith("/admin/crm/lists/");
   const isMarketing =
     pathname === "/admin/crm/marketing" ||
+    pathname === "/admin/crm/social" ||
     pathname === "/admin/crm/lists" ||
     pathname?.startsWith("/admin/crm/lists/") ||
     pathname === "/admin/crm/templates" ||
@@ -104,8 +104,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     pathname === "/admin/crm/reviews" ||
     pathname?.startsWith("/admin/crm/reviews/");
   const isEvents = pathname === "/admin/events" || pathname?.startsWith("/admin/events/");
-  const isMedia = pathname === "/admin/media" || pathname?.startsWith("/admin/media/") || pathname === "/admin/galleries" || pathname?.startsWith("/admin/galleries/");
-  const isContent = pathname === "/admin/content" || pathname?.startsWith("/admin/content/");
+  const isContent =
+    pathname === "/admin/content" ||
+    pathname?.startsWith("/admin/content/") ||
+    pathname === "/admin/media" ||
+    pathname?.startsWith("/admin/media/") ||
+    pathname === "/admin/galleries" ||
+    pathname?.startsWith("/admin/galleries/");
   const isEcommerce = pathname === "/admin/ecommerce" || pathname?.startsWith("/admin/ecommerce/");
   const isProjects = pathname === "/admin/projects" || pathname?.startsWith("/admin/projects/");
   const isActivities = isEvents || isProjects;
@@ -130,18 +135,40 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     canAccessFeature(displayEffectiveSlugs, "marketing") ||
     canAccessFeature(displayEffectiveSlugs, "memberships");
   const showCrm = (showCrmEffective || (isDisplayOnlyGhost && showCrmByRole)) && (roleFeatureSlugs === "all" || showCrmByRole);
-  const showMediaByRole = hasRoleAccess("media") || hasRoleAccess("library") || hasRoleAccess("galleries");
-  const showMediaEffective =
+  const showContentByRole =
+    hasRoleAccess("content") || hasRoleAccess("media") || hasRoleAccess("library") || hasRoleAccess("galleries");
+  const showContentEffective =
+    canAccessFeature(displayEffectiveSlugs, "content") ||
     canAccessFeature(displayEffectiveSlugs, "media") ||
     canAccessFeature(displayEffectiveSlugs, "library") ||
     canAccessFeature(displayEffectiveSlugs, "galleries");
-  const showMedia = !hiddenSet.has("media") && (showMediaEffective || (isDisplayOnlyGhost && showMediaByRole)) && (roleFeatureSlugs === "all" || showMediaByRole);
-  const showContent =
-    !hiddenSet.has("content") &&
-    canAccessFeature(displayEffectiveSlugs, "content") && (roleFeatureSlugs === "all" || hasRoleAccess("content"));
-  const showEcommerce = showContent;
-  const showMarketingByRole = hasRoleAccess("marketing") || hasRoleAccess("lists") || hasRoleAccess("templates") || hasRoleAccess("code_generator") || hasRoleAccess("reviews");
-  const showMarketingEffective = canAccessFeature(displayEffectiveSlugs, "marketing") || canAccessFeature(displayEffectiveSlugs, "templates") || canAccessFeature(displayEffectiveSlugs, "code_generator") || canAccessFeature(displayEffectiveSlugs, "reviews");
+  const showContent = !hiddenSet.has("content") && (showContentEffective || (isDisplayOnlyGhost && showContentByRole)) && (roleFeatureSlugs === "all" || showContentByRole);
+  const showEcommerceByRole =
+    hasRoleAccess("ecommerce") ||
+    hasRoleAccess("products") ||
+    hasRoleAccess("transactions") ||
+    hasRoleAccess("invoices") ||
+    hasRoleAccess("subscriptions");
+  const showEcommerceEffective =
+    canAccessFeature(displayEffectiveSlugs, "ecommerce") ||
+    canAccessFeature(displayEffectiveSlugs, "products") ||
+    canAccessFeature(displayEffectiveSlugs, "transactions") ||
+    canAccessFeature(displayEffectiveSlugs, "invoices") ||
+    canAccessFeature(displayEffectiveSlugs, "subscriptions");
+  const showEcommerce = !hiddenSet.has("ecommerce") && (showEcommerceEffective || (isDisplayOnlyGhost && showEcommerceByRole)) && (roleFeatureSlugs === "all" || showEcommerceByRole);
+  const showMarketingByRole =
+    hasRoleAccess("marketing") ||
+    hasRoleAccess("social") ||
+    hasRoleAccess("lists") ||
+    hasRoleAccess("templates") ||
+    hasRoleAccess("code_generator") ||
+    hasRoleAccess("reviews");
+  const showMarketingEffective =
+    canAccessFeature(displayEffectiveSlugs, "marketing") ||
+    canAccessFeature(displayEffectiveSlugs, "social") ||
+    canAccessFeature(displayEffectiveSlugs, "templates") ||
+    canAccessFeature(displayEffectiveSlugs, "code_generator") ||
+    canAccessFeature(displayEffectiveSlugs, "reviews");
   const showMarketing = (showMarketingEffective || (isDisplayOnlyGhost && showMarketingByRole)) && (roleFeatureSlugs === "all" || showMarketingByRole);
   const showActivitiesByRole =
     hasRoleAccess("content") ||
@@ -178,7 +205,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const [crmOpen, setCrmOpen] = useState(false);
   const [marketingOpen, setMarketingOpen] = useState(false);
   const [activitiesOpen, setActivitiesOpen] = useState(false);
-  const [mediaOpen, setMediaOpen] = useState(false);
+  const [contentOpen, setContentOpen] = useState(false);
   const [ecomOpen, setEcomOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
@@ -227,7 +254,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
@@ -235,7 +262,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -247,7 +274,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(true);
         setMarketingOpen(false);
         setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
@@ -255,7 +282,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "true");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -267,7 +294,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(false);
         setMarketingOpen(true);
         setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
@@ -275,7 +302,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "true");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -287,7 +314,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(true);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
@@ -295,7 +322,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "true");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -303,11 +330,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
         return;
       }
-      if (isMedia) {
+      if (isContent) {
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
-        setMediaOpen(true);
+        setContentOpen(true);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
@@ -315,7 +342,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "true");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "true");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -327,7 +354,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(true);
         setSettingsOpen(false);
         setSupportOpen(false);
@@ -335,7 +362,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "true");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -347,7 +374,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setActivitiesOpen(false);
         setSupportOpen(false);
@@ -356,7 +383,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
@@ -369,7 +396,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(true);
@@ -377,7 +404,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -389,7 +416,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
@@ -397,7 +424,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -409,7 +436,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
-      setMediaOpen(false);
+      setContentOpen(false);
       setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
@@ -417,7 +444,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
       localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
       localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-      localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+      localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
       localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
       localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
       localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
@@ -428,13 +455,13 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       if (isCrm && !isMarketing) setCrmOpen(true);
       if (isMarketing) setMarketingOpen(true);
       if (isActivities) setActivitiesOpen(true);
-      if (isMedia) setMediaOpen(true);
+      if (isContent) setContentOpen(true);
       if (isEcommerce) setEcomOpen(true);
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
     }
-  }, [pathname, isCrm, isMarketing, isActivities, isMedia, isEcommerce, isSettings, isSupport, isSuper]);
+  }, [pathname, isCrm, isMarketing, isActivities, isContent, isEcommerce, isSettings, isSupport, isSuper]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -444,14 +471,14 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     if (next) {
       setMarketingOpen(false);
       setActivitiesOpen(false);
-        setMediaOpen(false);
+        setContentOpen(false);
         setEcomOpen(false);
         setSettingsOpen(false);
         setSupportOpen(false);
         try {
           localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
           localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-          localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+          localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
           localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
           localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
           localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
@@ -470,7 +497,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     if (next) {
       setCrmOpen(false);
       setActivitiesOpen(false);
-      setMediaOpen(false);
+      setContentOpen(false);
       setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
@@ -478,7 +505,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -499,7 +526,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     if (next) {
       setCrmOpen(false);
       setMarketingOpen(false);
-      setMediaOpen(false);
+      setContentOpen(false);
       setEcomOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
@@ -507,7 +534,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       try {
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -520,11 +547,11 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     } catch { /* ignore */ }
   };
 
-  const toggleMedia = (e: React.MouseEvent) => {
+  const toggleContent = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const next = !mediaOpen;
-    setMediaOpen(next);
+    const next = !contentOpen;
+    setContentOpen(next);
     if (next) {
       setCrmOpen(false);
       setMarketingOpen(false);
@@ -542,7 +569,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       } catch { /* ignore */ }
     }
     try {
-      localStorage.setItem(SIDEBAR_MEDIA_OPEN, next ? "true" : "false");
+      localStorage.setItem(SIDEBAR_CONTENT_OPEN, next ? "true" : "false");
     } catch { /* ignore */ }
   };
 
@@ -555,7 +582,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
-      setMediaOpen(false);
+      setContentOpen(false);
       setActivitiesOpen(false);
       setSettingsOpen(false);
       setSupportOpen(false);
@@ -564,7 +591,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
@@ -586,7 +613,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
-      setMediaOpen(false);
+      setContentOpen(false);
       setEcomOpen(false);
       setActivitiesOpen(false);
       setSettingsOpen(false);
@@ -595,7 +622,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
@@ -617,7 +644,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
-      setMediaOpen(false);
+      setContentOpen(false);
       setEcomOpen(false);
       setActivitiesOpen(false);
       setSupportOpen(false);
@@ -626,7 +653,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
@@ -648,7 +675,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
-      setMediaOpen(false);
+      setContentOpen(false);
       setEcomOpen(false);
       setActivitiesOpen(false);
       setSettingsOpen(false);
@@ -657,7 +684,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
-        localStorage.setItem(SIDEBAR_MEDIA_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
         localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
         localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
@@ -1058,46 +1085,46 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
           )
           ) : null}
         </div>
-        {/* Media twirldown: Phase F — hide when no role; ghost when in role but not effective */}
+        {/* Content twirldown: Phase F ? hide when no role; ghost when in role but not effective */}
         <div className="pt-1">
-          {showMedia ? (
+          {showContent ? (
           <>
-            <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isMedia && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]")}>
-              {hasEffectiveAccess("media") || mediaSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
-                <Link href="/admin/media" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isMedia ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
-                  <Image className="h-5 w-5 flex-shrink-0" />
-                  Media
+            <div className={cn("flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium", isContent && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]") }>
+              {hasEffectiveAccess("content") || contentSubNav.some((s) => s.featureSlug && hasEffectiveAccess(s.featureSlug)) ? (
+                <Link href="/admin/content" className={cn("flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0", isContent ? "text-slate-800 font-medium" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground") }>
+                  <FileText className="h-5 w-5 flex-shrink-0" />
+                  Content
                 </Link>
               ) : isDisplayOnlyGhost ? (
-                <Link href="/admin/media" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
-                  <Image className="h-5 w-5 flex-shrink-0" />
-                  Media
+                <Link href="/admin/content" className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Gated for this site (you have access as superadmin)">
+                  <FileText className="h-5 w-5 flex-shrink-0" />
+                  Content
                 </Link>
               ) : (
                 <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70" title="Not included in your plan. Request support.">
-                  <Image className="h-5 w-5 flex-shrink-0" />
-                  Media
+                  <FileText className="h-5 w-5 flex-shrink-0" />
+                  Content
                 </button>
               )}
-              <button type="button" onClick={toggleMedia} className={cn("p-1 rounded transition-colors", isMedia ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={mediaOpen}>
-                {mediaOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              <button type="button" onClick={toggleContent} className={cn("p-1 rounded transition-colors", isContent ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")} aria-expanded={contentOpen}>
+                {contentOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
-            {mediaOpen && (
+            {contentOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
-                {mediaSubNav
+                {contentSubNav
                   .filter((sub) => {
-                    const subSlug = sub.featureSlug ?? "media";
+                    const subSlug = sub.featureSlug ?? "content";
                     return !hiddenSet.has(subSlug) && hasRoleAccess(subSlug);
                   })
                   .map((sub) => {
-                    const subSlug = sub.featureSlug ?? "media";
+                    const subSlug = sub.featureSlug ?? "content";
                     const hasSubEffective = hasRealEffectiveAccess(subSlug);
                     const hasSubInDisplay = hasEffectiveAccess(subSlug);
                     const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                     const SubIcon = sub.icon;
                     return hasSubEffective ? (
-                      <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                      <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground") }>
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
@@ -1116,52 +1143,21 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
               </div>
             )}
           </>
-          ) : showMediaByRole ? (
+          ) : showContentByRole ? (
           isDisplayOnlyGhost ? (
-            <Link href="/admin/media" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
-              <Image className="h-5 w-5 flex-shrink-0" />
-              Media
+            <Link href="/admin/content" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
+              <FileText className="h-5 w-5 flex-shrink-0" />
+              Content
             </Link>
           ) : (
           <button type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
-            <Image className="h-5 w-5 flex-shrink-0" />
-            Media
+            <FileText className="h-5 w-5 flex-shrink-0" />
+            Content
           </button>
           )
           ) : null}
         </div>
-        {/* Content: Phase F — hide when not in role; ghost when in role but not effective */}
-        {hasRoleAccess("content") &&
-          (hasEffectiveAccess("content") ? (
-            <Link
-              href="/admin/content"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                isContent
-                  ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <FileText className="h-5 w-5" />
-              Content
-            </Link>
-          ) : isDisplayOnlyGhost ? (
-            <Link href="/admin/content" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
-              <FileText className="h-5 w-5" />
-              Content
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => router.push(UPGRADE_PATH)}
-              className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
-              title="Not included in your plan. Request support."
-            >
-              <FileText className="h-5 w-5" />
-              Content
-            </button>
-          ))}
-        {/* Ecommerce twirldown: Products, Orders (Phase 09). Gated by content access. */}
+        {/* Ecommerce twirldown: Products, Transactions, Invoices, Subscriptions. */}
         <div className="pt-1">
           {showEcommerce && (
           <>

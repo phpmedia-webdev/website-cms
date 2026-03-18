@@ -47,6 +47,7 @@ import {
 interface EventFormClientProps {
   event?: Event | null;
   coverImageUrls?: Record<string, string>;
+  initialProjectId?: string | null;
 }
 
 function toDatetimeLocal(iso: string): string {
@@ -80,7 +81,11 @@ function parseToISO(
   return new Date(y, m - 1, d, 0, 0, 0).toISOString();
 }
 
-export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientProps) {
+export function EventFormClient({
+  event,
+  coverImageUrls = {},
+  initialProjectId = null,
+}: EventFormClientProps) {
   const router = useRouter();
   const isEdit = !!event;
 
@@ -139,7 +144,7 @@ export function EventFormClient({ event, coverImageUrls = {} }: EventFormClientP
   >([]);
 
   const [projectId, setProjectId] = useState<string | null>(
-    (event as { project_id?: string | null })?.project_id ?? null
+    (event as { project_id?: string | null })?.project_id ?? initialProjectId
   );
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 

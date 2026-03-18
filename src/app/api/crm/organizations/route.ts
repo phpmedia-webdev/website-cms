@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import {
   listOrganizationsWithMemberCount,
   createOrganization,
+  syncOrganizationContactPhoneMatches,
 } from "@/lib/supabase/organizations";
 
 /**
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
-    const { name, email, phone, type, industry } = body;
+    const { name, email, phone, avatar_url, company_domain, type, industry } = body;
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
         { error: "Organization name is required" },
@@ -50,6 +51,8 @@ export async function POST(request: Request) {
       name: name.trim(),
       email: email ?? null,
       phone: phone ?? null,
+      avatar_url: avatar_url ?? null,
+      company_domain: company_domain ?? null,
       type: type ?? null,
       industry: industry ?? null,
     });
@@ -58,6 +61,9 @@ export async function POST(request: Request) {
         { error: (error as Error).message ?? "Failed to create organization" },
         { status: 500 }
       );
+    }
+    if (organization?.id) {
+      await syncOrganizationContactPhoneMatches(organization.id);
     }
     return NextResponse.json(organization);
   } catch (error) {

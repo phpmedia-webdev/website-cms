@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Mail, Phone, Building2, Users, Trash2 } from "lucide-react";
+import { ImageIcon, Mail, Phone, Building2, Globe, Users, Trash2 } from "lucide-react";
 import type { OrganizationRow } from "@/lib/supabase/organizations";
 
 interface OrgDetailClientProps {
@@ -37,9 +38,12 @@ export function OrganizationDetailClient({
     name: org.name,
     email: org.email ?? "",
     phone: org.phone ?? "",
+    avatar_url: org.avatar_url ?? "",
+    company_domain: org.company_domain ?? "",
     type: org.type ?? "",
     industry: org.industry ?? "",
   });
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [contacts, setContacts] = useState(initialContacts);
 
@@ -53,6 +57,8 @@ export function OrganizationDetailClient({
           name: form.name.trim(),
           email: form.email.trim() || null,
           phone: form.phone.trim() || null,
+          avatar_url: form.avatar_url.trim() || null,
+          company_domain: form.company_domain.trim() || null,
           type: form.type.trim() || null,
           industry: form.industry.trim() || null,
         }),
@@ -64,6 +70,8 @@ export function OrganizationDetailClient({
           name: data.name,
           email: data.email ?? "",
           phone: data.phone ?? "",
+          avatar_url: data.avatar_url ?? "",
+          company_domain: data.company_domain ?? "",
           type: data.type ?? "",
           industry: data.industry ?? "",
         });
@@ -92,7 +100,26 @@ export function OrganizationDetailClient({
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-row items-start justify-between gap-4 mb-4">
-            <div className="min-w-0">
+            <div className="flex items-start gap-3 min-w-0">
+              {!editing && form.avatar_url ? (
+                <img
+                  src={form.avatar_url}
+                  alt={displayName}
+                  className="h-12 w-12 rounded-full object-cover border"
+                />
+              ) : (
+                !editing && (
+                  <div className="h-12 w-12 rounded-full border bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
+                    {displayName
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase())
+                      .join("") || "??"}
+                  </div>
+                )
+              )}
+              <div className="min-w-0">
               {editing ? (
                 <div className="space-y-2">
                   <Label htmlFor="org-name">Organization Name</Label>
@@ -105,6 +132,7 @@ export function OrganizationDetailClient({
               ) : (
                 <h1 className="text-xl font-bold truncate">{displayName}</h1>
               )}
+              </div>
             </div>
             <div className="shrink-0">
               {editing ? (
@@ -137,8 +165,36 @@ export function OrganizationDetailClient({
 
           {editing ? (
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="org-avatar">Avatar URL</Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    id="org-avatar"
+                    type="url"
+                    value={form.avatar_url}
+                    onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))}
+                    placeholder="https://..."
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAvatarPickerOpen(true)}
+                    className="shrink-0"
+                  >
+                    <ImageIcon className="h-4 w-4 mr-1" />
+                    Media Library
+                  </Button>
+                </div>
+                <AvatarMediaPicker
+                  open={avatarPickerOpen}
+                  onOpenChange={setAvatarPickerOpen}
+                  onSelect={(url) => setForm((f) => ({ ...f, avatar_url: url }))}
+                />
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="org-email">Email</Label>
+                <Label htmlFor="org-email">Company email</Label>
                 <Input
                   id="org-email"
                   type="email"
@@ -147,11 +203,20 @@ export function OrganizationDetailClient({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="org-phone">Phone</Label>
+                <Label htmlFor="org-phone">Company phone</Label>
                 <Input
                   id="org-phone"
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="org-domain">Company domain</Label>
+                <Input
+                  id="org-domain"
+                  value={form.company_domain}
+                  onChange={(e) => setForm((f) => ({ ...f, company_domain: e.target.value }))}
+                  placeholder="example.com"
                 />
               </div>
               <div className="space-y-2">
@@ -187,6 +252,10 @@ export function OrganizationDetailClient({
                 <div className="flex items-center gap-2">
                   <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="text-muted-foreground">{org.phone ?? "—"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="text-muted-foreground">{org.company_domain ?? "—"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmContact } from "@/lib/supabase/crm";
+import type { ContactMethodRow, ContactMethodType } from "@/lib/supabase/contact-methods";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 import { Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
+import { ImageIcon } from "lucide-react";
 
 const DND_OPTIONS = ["none", "email", "phone", "all"] as const;
 
@@ -17,10 +21,12 @@ export function ContactEditForm({
   contact,
   contactStatuses,
   initialOrganizations = [],
+  initialContactMethods = [],
 }: {
   contact: CrmContact;
   contactStatuses: CrmContactStatusOption[];
   initialOrganizations?: { id: string; name: string }[];
+  initialContactMethods?: ContactMethodRow[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -29,12 +35,13 @@ export function ContactEditForm({
   const [orgSearch, setOrgSearch] = useState("");
   const [orgSearchResults, setOrgSearchResults] = useState<{ id: string; name: string }[]>([]);
   const [orgSearchOpen, setOrgSearchOpen] = useState(false);
+  const [contactMethods, setContactMethods] = useState<ContactMethodRow[]>(initialContactMethods);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [form, setForm] = useState({
     first_name: contact.first_name ?? "",
     last_name: contact.last_name ?? "",
     full_name: contact.full_name ?? "",
-    email: contact.email ?? "",
-    phone: contact.phone ?? "",
+    avatar_url: contact.avatar_url ?? "",
     address: contact.address ?? "",
     city: contact.city ?? "",
     state: contact.state ?? "",
@@ -55,12 +62,15 @@ export function ContactEditForm({
   }, [initialOrganizations]);
 
   useEffect(() => {
+    setContactMethods(initialContactMethods);
+  }, [initialContactMethods]);
+
+  useEffect(() => {
     setForm({
       first_name: contact.first_name ?? "",
       last_name: contact.last_name ?? "",
       full_name: contact.full_name ?? "",
-      email: contact.email ?? "",
-      phone: contact.phone ?? "",
+      avatar_url: contact.avatar_url ?? "",
       address: contact.address ?? "",
       city: contact.city ?? "",
       state: contact.state ?? "",
@@ -110,11 +120,105 @@ export function ContactEditForm({
     setOrganizations((prev) => prev.filter((o) => o.id !== id));
   };
 
+  const primaryContactMethodValue = useCallback(
+    (methodType: ContactMethodType): string | null => {
+      const ordered = [...contactMethods]
+        .filter((method) => method.method_type === methodType)
+        .sort((a, b) => {
+          if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+          if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+          return a.created_at.localeCompare(b.created_at);
+        });
+      return ordered[0]?.value.trim() || null;
+    },
+    [contactMethods]
+  );
+
+  const hasPrimaryPhone = useMemo(
+    () => contactMethods.some((method) => method.method_type === "phone" && method.is_primary),
+    [contactMethods]
+  );
+  const hasPrimaryEmail = useMemo(
+    () => contactMethods.some((method) => method.method_type === "email" && method.is_primary),
+    [contactMethods]
+  );
+
+  const setPrimaryForMethod = useCallback((id: string, checked: boolean) => {
+    setContactMethods((prev) => {
+      const target = prev.find((method) => method.id === id);
+      if (!target) return prev;
+      return prev.map((method) => {
+        if (method.id === id) {
+          return { ...method, is_primary: checked };
+        }
+        if (checked && method.method_type === target.method_type) {
+          return { ...method, is_primary: false };
+        }
+        return method;
+      });
+    });
+  }, []);
+
+  const updateMethod = useCallback(
+    (id: string, key: keyof ContactMethodRow, value: string | boolean) => {
+      setContactMethods((prev) =>
+        prev.map((method) => {
+          if (method.id !== id) return method;
+          if (key === "method_type") {
+            return { ...method, method_type: value as ContactMethodType };
+          }
+          return { ...method, [key]: value } as ContactMethodRow;
+        })
+      );
+    },
+    []
+  );
+
+  const addMethod = useCallback(
+    (methodType: ContactMethodType) => {
+      setContactMethods((prev) => {
+        const hasType = prev.some((method) => method.method_type === methodType);
+        const now = new Date().toISOString();
+        return [
+          ...prev,
+          {
+            id: `draft-${crypto.randomUUID()}`,
+            contact_id: contact.id,
+            method_type: methodType,
+            label: hasType ? "other" : "main",
+            value: "",
+            normalized_value: "",
+            is_primary: !hasType,
+            sort_order: prev.length,
+            source: null,
+            created_at: now,
+            updated_at: now,
+          },
+        ];
+      });
+    },
+    [contact.id]
+  );
+
+  const removeMethod = useCallback((id: string) => {
+    setContactMethods((prev) => prev.filter((method) => method.id !== id));
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
+      const normalizedMethods = contactMethods
+        .map((method, index) => ({
+          ...method,
+          label: method.label.trim() || "main",
+          value: method.value.trim(),
+          sort_order: Number.isFinite(method.sort_order) ? method.sort_order : index,
+        }))
+        .filter((method) => method.value.length > 0);
+      const primaryEmail = primaryContactMethodValue("email");
+      const primaryPhone = primaryContactMethodValue("phone");
       const res = await fetch(`/api/crm/contacts/${contact.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -122,8 +226,9 @@ export function ContactEditForm({
           first_name: form.first_name || null,
           last_name: form.last_name || null,
           full_name: form.full_name || null,
-          email: form.email || null,
-          phone: form.phone || null,
+          avatar_url: form.avatar_url || null,
+          email: primaryEmail,
+          phone: primaryPhone,
           address: form.address || null,
           city: form.city || null,
           state: form.state || null,
@@ -154,6 +259,16 @@ export function ContactEditForm({
         setError(orgData.error ?? "Failed to update organizations");
         return;
       }
+      const methodsRes = await fetch(`/api/crm/contacts/${contact.id}/methods`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ methods: normalizedMethods }),
+      });
+      if (!methodsRes.ok) {
+        const methodsData = await methodsRes.json();
+        setError(methodsData.error ?? "Failed to update contact methods");
+        return;
+      }
       router.push(`/admin/crm/contacts/${contact.id}`);
       router.refresh();
     } catch (err) {
@@ -168,6 +283,34 @@ export function ContactEditForm({
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
           {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="space-y-2">
+            <Label htmlFor="avatar_url">Avatar URL</Label>
+            <div className="flex gap-2 items-center">
+              <Input
+                id="avatar_url"
+                type="url"
+                value={form.avatar_url}
+                onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))}
+                placeholder="https://..."
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAvatarPickerOpen(true)}
+                className="shrink-0"
+              >
+                <ImageIcon className="h-4 w-4 mr-1" />
+                Media Library
+              </Button>
+            </div>
+            <AvatarMediaPicker
+              open={avatarPickerOpen}
+              onOpenChange={setAvatarPickerOpen}
+              onSelect={(url) => setForm((f) => ({ ...f, avatar_url: url }))}
+            />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="first_name">First name</Label>
@@ -194,24 +337,95 @@ export function ContactEditForm({
               onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              />
+          <div className="space-y-3 rounded-md border p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Phone & email methods</h2>
+                <p className="text-xs text-muted-foreground">
+                  Manage multiple labeled phone numbers and email addresses for this contact.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => addMethod("phone")}>
+                  Add phone
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => addMethod("email")}>
+                  Add email
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              />
-            </div>
+            {contactMethods.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No contact methods yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {contactMethods.map((method) => (
+                  <div key={method.id} className="rounded-md border bg-muted/20 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="capitalize">
+                          {method.method_type}
+                        </Badge>
+                        {method.is_primary && <Badge variant="outline">Primary</Badge>}
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeMethod(method.id)}>
+                        Remove
+                      </Button>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`method-type-${method.id}`}>Type</Label>
+                        <select
+                          id={`method-type-${method.id}`}
+                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          value={method.method_type}
+                          onChange={(e) =>
+                            updateMethod(method.id, "method_type", e.target.value as ContactMethodType)
+                          }
+                        >
+                          <option value="phone">Phone</option>
+                          <option value="email">Email</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`method-label-${method.id}`}>Label</Label>
+                        <Input
+                          id={`method-label-${method.id}`}
+                          value={method.label}
+                          onChange={(e) => updateMethod(method.id, "label", e.target.value)}
+                          placeholder="work, mobile, personal, main"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <Label htmlFor={`method-value-${method.id}`}>Value</Label>
+                        <Input
+                          id={`method-value-${method.id}`}
+                          value={method.value}
+                          onChange={(e) => updateMethod(method.id, "value", e.target.value)}
+                          placeholder={method.method_type === "phone" ? "(555) 123-4567" : "name@example.com"}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 pb-2">
+                        <Checkbox
+                          id={`method-primary-${method.id}`}
+                          checked={method.is_primary}
+                          onCheckedChange={(checked) => setPrimaryForMethod(method.id, !!checked)}
+                        />
+                        <Label htmlFor={`method-primary-${method.id}`} className="cursor-pointer">
+                          Primary
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {(!hasPrimaryPhone || !hasPrimaryEmail) && (
+              <p className="text-xs text-muted-foreground">
+                Tip: keep one primary phone and one primary email so the contact record stays in sync.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Organization</Label>

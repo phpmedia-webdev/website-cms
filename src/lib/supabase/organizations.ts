@@ -4,6 +4,7 @@
  */
 
 import { createServerSupabaseClient } from "./server-service";
+import { normalizeContactMethodValue } from "./contact-methods";
 
 const CRM_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -13,6 +14,8 @@ export interface OrganizationRow {
   name: string;
   email: string | null;
   phone: string | null;
+  avatar_url: string | null;
+  company_domain: string | null;
   type: string | null;
   industry: string | null;
   created_at: string;
@@ -152,12 +155,34 @@ export async function getOrganizationById(
   return data as OrganizationRow;
 }
 
+/** Get organizations by ids for batch lookups. */
+export async function getOrganizationsByIds(
+  ids: string[],
+  schema?: string
+): Promise<OrganizationRow[]> {
+  if (ids.length === 0) return [];
+  const schemaName = schema ?? CRM_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("organizations")
+    .select("*")
+    .in("id", ids);
+  if (error) {
+    console.error("getOrganizationsByIds:", error);
+    return [];
+  }
+  return (data ?? []) as OrganizationRow[];
+}
+
 /** Create organization. */
 export async function createOrganization(
   params: {
     name: string;
     email?: string | null;
     phone?: string | null;
+    avatar_url?: string | null;
+    company_domain?: string | null;
     type?: string | null;
     industry?: string | null;
   },
@@ -172,6 +197,8 @@ export async function createOrganization(
       name: params.name.trim(),
       email: params.email?.trim() || null,
       phone: params.phone?.trim() || null,
+      avatar_url: params.avatar_url?.trim() || null,
+      company_domain: params.company_domain?.trim() || null,
       type: params.type?.trim() || null,
       industry: params.industry?.trim() || null,
     })
@@ -188,6 +215,8 @@ export async function updateOrganization(
     name?: string;
     email?: string | null;
     phone?: string | null;
+    avatar_url?: string | null;
+    company_domain?: string | null;
     type?: string | null;
     industry?: string | null;
   },
@@ -199,6 +228,9 @@ export async function updateOrganization(
   if (params.name !== undefined) payload.name = params.name.trim();
   if (params.email !== undefined) payload.email = params.email?.trim() || null;
   if (params.phone !== undefined) payload.phone = params.phone?.trim() || null;
+  if (params.avatar_url !== undefined) payload.avatar_url = params.avatar_url?.trim() || null;
+  if (params.company_domain !== undefined)
+    payload.company_domain = params.company_domain?.trim() || null;
   if (params.type !== undefined) payload.type = params.type?.trim() || null;
   if (params.industry !== undefined)
     payload.industry = params.industry?.trim() || null;
@@ -305,4 +337,335 @@ export async function setContactOrganizations(
     .from("contact_organizations")
     .insert(rows);
   return { error: error ?? null };
+}
+
+export async function addContactOrganization(
+  contactId: string,
+  organizationId: string,
+  schema?: string
+): Promise<{ error: Error | null }> {
+  const schemaName = schema ?? CRM_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  const existing = await getContactOrganizations(contactId, schemaName);
+  if (existing.some((row) => row.organization_id === organizationId)) {
+    return { error: null };
+  }
+  const { error } = await supabase
+    .schema(schemaName)
+    .from("contact_organizations")
+    .insert({
+      contact_id: contactId,
+      organization_id: organizationId,
+      sort_order: existing.length,
+    });
+  return { error: error ?? null };
+}
+
+export interface PhoneMatchSuggestion {
+  phone: string;
+  organization_ids: string[];
+}
+
+export interface ContactPhoneMatchResult {
+  linkedOrganizationIds: string[];
+  suggestions: PhoneMatchSuggestion[];
+}
+
+export async function syncContactOrganizationPhoneMatches(
+  contactId: string,
+  phoneValues: string[],
+  schema?: string
+): Promise<ContactPhoneMatchResult> {
+  const schemaName = schema ?? CRM_SCHEMA;
+  const normalizedPhones = [...new Set(phoneValues.map((value) => normalizeContactMethodValue("phone", value)).filter((value) => value.length > 0))];
+  if (normalizedPhones.length === 0) {
+    return { linkedOrganizationIds: [], suggestions: [] };
+  }
+
+  const [existingLinks, orgs] = await Promise.all([
+    getContactOrganizations(contactId, schemaName),
+    listOrganizations({ schema: schemaName }),
+  ]);
+
+  const existingOrganizationIds = new Set(existingLinks.map((row) => row.organization_id));
+  const organizationMatches = new Map<string, OrganizationRow[]>();
+  for (const org of orgs) {
+    const normalizedOrgPhone = normalizeContactMethodValue("phone", org.phone ?? "");
+    if (!normalizedOrgPhone) continue;
+    const list = organizationMatches.get(normalizedOrgPhone) ?? [];
+    list.push(org);
+    organizationMatches.set(normalizedOrgPhone, list);
+  }
+
+  const linkedOrganizationIds: string[] = [];
+  const suggestions: PhoneMatchSuggestion[] = [];
+  for (const phone of normalizedPhones) {
+    const matches = organizationMatches.get(phone) ?? [];
+    if (matches.length === 1) {
+      const orgId = matches[0]?.id;
+      if (orgId && !existingOrganizationIds.has(orgId)) {
+        const { error } = await addContactOrganization(contactId, orgId, schemaName);
+        if (!error) {
+          existingOrganizationIds.add(orgId);
+          linkedOrganizationIds.push(orgId);
+          await recordContactOrganizationMatchReview(
+            {
+              contact_id: contactId,
+              organization_id: orgId,
+              phone,
+              status: "confirmed",
+              source: "phone",
+            },
+            schemaName
+          );
+        }
+      }
+    } else if (matches.length > 1) {
+      suggestions.push({
+        phone,
+        organization_ids: matches.map((org) => org.id),
+      });
+      await Promise.all(
+        matches.map((org) =>
+          recordContactOrganizationMatchReview(
+            {
+              contact_id: contactId,
+              organization_id: org.id,
+              phone,
+              status: "suggested",
+              source: "phone",
+            },
+            schemaName
+          )
+        )
+      );
+    }
+  }
+
+  return { linkedOrganizationIds, suggestions };
+}
+
+export interface OrganizationPhoneMatchSuggestion {
+  phone: string;
+  contact_ids: string[];
+}
+
+export interface OrganizationPhoneMatchResult {
+  linkedContactIds: string[];
+  suggestions: OrganizationPhoneMatchSuggestion[];
+}
+
+export interface ContactOrganizationMatchReviewRow {
+  id: string;
+  contact_id: string;
+  organization_id: string | null;
+  phone: string;
+  status: "suggested" | "confirmed" | "rejected";
+  source: string;
+  matched_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactOrganizationMatchReviewView extends ContactOrganizationMatchReviewRow {
+  contact_name: string | null;
+  contact_email: string | null;
+  organization_name: string | null;
+}
+
+export async function syncOrganizationContactPhoneMatches(
+  organizationId: string,
+  schema?: string
+): Promise<OrganizationPhoneMatchResult> {
+  const schemaName = schema ?? CRM_SCHEMA;
+  const organization = await getOrganizationById(organizationId, schemaName);
+  const normalizedPhone = normalizeContactMethodValue("phone", organization?.phone ?? "");
+  if (!organization || !normalizedPhone) {
+    return { linkedContactIds: [], suggestions: [] };
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { data: methodRows, error } = await supabase
+    .schema(schemaName)
+    .from("contact_methods")
+    .select("contact_id, normalized_value")
+    .eq("method_type", "phone")
+    .eq("normalized_value", normalizedPhone);
+  if (error) {
+    console.error("syncOrganizationContactPhoneMatches:", error);
+    return { linkedContactIds: [], suggestions: [] };
+  }
+
+  const contactIds: string[] = [...new Set<string>((methodRows ?? [])
+    .map((row: { contact_id?: string | null }) => row.contact_id)
+    .filter((contactId: string | null | undefined): contactId is string => typeof contactId === "string" && contactId.length > 0))];
+  if (contactIds.length === 0) {
+    return { linkedContactIds: [], suggestions: [] };
+  }
+
+  if (contactIds.length === 1) {
+    const { error: linkError } = await addContactOrganization(contactIds[0], organizationId, schemaName);
+    if (linkError) {
+      console.error("syncOrganizationContactPhoneMatches link:", linkError);
+      return { linkedContactIds: [], suggestions: [] };
+    }
+    await recordContactOrganizationMatchReview(
+      {
+        contact_id: contactIds[0],
+        organization_id: organizationId,
+        phone: normalizedPhone,
+        status: "confirmed",
+        source: "phone",
+      },
+      schemaName
+    );
+    return { linkedContactIds: contactIds, suggestions: [] };
+  }
+
+  await Promise.all(
+    contactIds.map((contactId) =>
+      recordContactOrganizationMatchReview(
+        {
+          contact_id: contactId,
+          organization_id: organizationId,
+          phone: normalizedPhone,
+          status: "suggested",
+          source: "phone",
+        },
+        schemaName
+      )
+    )
+  );
+  return {
+    linkedContactIds: [],
+    suggestions: [
+      {
+        phone: normalizedPhone,
+        contact_ids: contactIds,
+      },
+    ],
+  };
+}
+
+export async function recordContactOrganizationMatchReview(
+  input: {
+    contact_id: string;
+    organization_id: string | null;
+    phone: string;
+    status?: "suggested" | "confirmed" | "rejected";
+    source?: string;
+    reviewer_id?: string | null;
+  },
+  schema?: string
+): Promise<{ review: ContactOrganizationMatchReviewRow | null; error: Error | null }> {
+  const schemaName = schema ?? CRM_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("contact_organization_match_reviews")
+    .upsert(
+      {
+        contact_id: input.contact_id,
+        organization_id: input.organization_id,
+        phone: input.phone,
+        status: input.status ?? "suggested",
+        source: input.source ?? "phone",
+        reviewed_by: input.reviewer_id ?? null,
+        reviewed_at:
+          input.status && input.status !== "suggested" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "contact_id,organization_id,phone,source" }
+    )
+    .select()
+    .single();
+  if (error) {
+    return { review: null, error };
+  }
+  return { review: data as ContactOrganizationMatchReviewRow, error: null };
+}
+
+export async function listContactOrganizationMatchReviews(
+  options?: { status?: "suggested" | "confirmed" | "rejected"; schema?: string }
+): Promise<ContactOrganizationMatchReviewView[]> {
+  const schemaName = options?.schema ?? CRM_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  let query = supabase
+    .schema(schemaName)
+    .from("contact_organization_match_reviews")
+    .select("*, contact:crm_contacts(id, full_name, email), organization:organizations(id, name)")
+    .order("matched_at", { ascending: false });
+  if (options?.status) {
+    query = query.eq("status", options.status);
+  }
+  const { data, error } = await query;
+  if (error) {
+    console.error("listContactOrganizationMatchReviews:", error);
+    return [];
+  }
+  return (data ?? []).map((row: unknown) => {
+    const typed = row as ContactOrganizationMatchReviewRow & {
+      contact?: { full_name?: string | null; email?: string | null };
+      organization?: { name?: string | null };
+    };
+    return {
+      id: typed.id,
+      contact_id: typed.contact_id,
+      organization_id: typed.organization_id,
+      phone: typed.phone,
+      status: typed.status,
+      source: typed.source,
+      matched_at: typed.matched_at,
+      reviewed_by: typed.reviewed_by,
+      reviewed_at: typed.reviewed_at,
+      created_at: typed.created_at,
+      updated_at: typed.updated_at,
+      contact_name: typed.contact?.full_name ?? null,
+      contact_email: typed.contact?.email ?? null,
+      organization_name: typed.organization?.name ?? null,
+    };
+  });
+}
+
+export async function reviewContactOrganizationMatch(
+  reviewId: string,
+  status: "confirmed" | "rejected",
+  reviewerId?: string | null,
+  schema?: string
+): Promise<{ review: ContactOrganizationMatchReviewRow | null; error: Error | null }> {
+  const schemaName = schema ?? CRM_SCHEMA;
+  const supabase = createServerSupabaseClient();
+  const { data: review, error: fetchError } = await supabase
+    .schema(schemaName)
+    .from("contact_organization_match_reviews")
+    .select("*")
+    .eq("id", reviewId)
+    .single();
+  if (fetchError || !review) {
+    return { review: null, error: fetchError ?? new Error("Review not found") };
+  }
+  if (status === "confirmed" && review.organization_id) {
+    const { error: linkError } = await addContactOrganization(review.contact_id, review.organization_id, schemaName);
+    if (linkError) {
+      return { review: null, error: linkError };
+    }
+  }
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("contact_organization_match_reviews")
+    .update({
+      status,
+      reviewed_by: reviewerId ?? null,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", reviewId)
+    .select()
+    .single();
+  if (error) {
+    return { review: null, error };
+  }
+  return { review: data as ContactOrganizationMatchReviewRow, error: null };
 }

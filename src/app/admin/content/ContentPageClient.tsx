@@ -215,7 +215,7 @@ export function ContentPageClient() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Content</h1>
+        <h1 className="text-3xl font-bold">Text Block Content</h1>
         <p className="text-muted-foreground mt-2">
           Manage posts and other content. Search and filter below.
         </p>
@@ -225,7 +225,7 @@ export function ContentPageClient() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <CardTitle>All content</CardTitle>
+              <CardTitle>All Text Block Content</CardTitle>
               <CardDescription>
                 Add, edit, or remove content. Filter by type or search by name/slug.
               </CardDescription>

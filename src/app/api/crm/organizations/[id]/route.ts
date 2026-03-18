@@ -4,6 +4,7 @@ import {
   getOrganizationById,
   updateOrganization,
   deleteOrganization,
+  syncOrganizationContactPhoneMatches,
 } from "@/lib/supabase/organizations";
 
 /**
@@ -50,13 +51,15 @@ export async function PUT(
     }
     const { id } = await params;
     const body = await request.json();
-    const { name, email, phone, type, industry } = body;
+    const { name, email, phone, avatar_url, company_domain, type, industry } = body;
     const { organization, error } = await updateOrganization(
       id,
       {
         name,
         email,
         phone,
+        avatar_url,
+        company_domain,
         type,
         industry,
       }
@@ -66,6 +69,9 @@ export async function PUT(
         { error: (error as Error).message ?? "Failed to update organization" },
         { status: 500 }
       );
+    }
+    if (organization?.id) {
+      await syncOrganizationContactPhoneMatches(organization.id);
     }
     return NextResponse.json(organization);
   } catch (error) {

@@ -347,6 +347,48 @@ export async function listProjectMembers(
   return (data ?? []) as ProjectMember[];
 }
 
+/** List members for many projects in one query. */
+export async function listProjectMembersByProjectIds(
+  projectIds: string[],
+  schema?: string
+): Promise<ProjectMember[]> {
+  if (projectIds.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? getClientSchema();
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("project_members")
+    .select("id, project_id, user_id, contact_id, role_term_id, created_at")
+    .in("project_id", projectIds)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("listProjectMembersByProjectIds error:", error);
+    return [];
+  }
+  return (data ?? []) as ProjectMember[];
+}
+
+/** List tasks for many projects in one query, limited to fields used by list views. */
+export async function listTasksByProjectIds(
+  projectIds: string[],
+  schema?: string
+): Promise<Pick<Task, "id" | "project_id" | "status_term_id" | "due_date">[]> {
+  if (projectIds.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const { data, error } = await supabase
+    .schema(schemaName)
+    .from("tasks")
+    .select("id, project_id, status_term_id, due_date")
+    .in("project_id", projectIds)
+    .order("due_date", { ascending: true, nullsFirst: false });
+  if (error) {
+    console.error("listTasksByProjectIds error:", error);
+    return [];
+  }
+  return (data ?? []) as Pick<Task, "id" | "project_id" | "status_term_id" | "due_date">[];
+}
+
 /** Add a member to a project. Exactly one of user_id or contact_id must be set. */
 export async function addProjectMember(
   projectId: string,

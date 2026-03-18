@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
+import { ImageIcon } from "lucide-react";
 
 export function NewContactForm({
   contactStatuses,
@@ -21,11 +23,13 @@ export function NewContactForm({
     first_name: "",
     last_name: "",
     full_name: "",
+    avatar_url: "",
     email: "",
     phone: "",
     company: "",
     status: defaultStatus,
   });
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +43,7 @@ export function NewContactForm({
           first_name: form.first_name || null,
           last_name: form.last_name || null,
           full_name: form.full_name || null,
+          avatar_url: form.avatar_url || null,
           email: form.email || null,
           phone: form.phone || null,
           company: form.company || null,
@@ -66,6 +71,34 @@ export function NewContactForm({
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}
+          <div className="space-y-2">
+            <Label htmlFor="avatar_url">Avatar URL</Label>
+            <div className="flex gap-2 items-center">
+              <Input
+                id="avatar_url"
+                type="url"
+                value={form.avatar_url}
+                onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))}
+                placeholder="https://..."
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAvatarPickerOpen(true)}
+                className="shrink-0"
+              >
+                <ImageIcon className="h-4 w-4 mr-1" />
+                Media Library
+              </Button>
+            </div>
+            <AvatarMediaPicker
+              open={avatarPickerOpen}
+              onOpenChange={setAvatarPickerOpen}
+              onSelect={(url) => setForm((f) => ({ ...f, avatar_url: url }))}
+            />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="first_name">First name</Label>
