@@ -1,9 +1,17 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  type ComponentProps,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, dateFnsLocalizer, type View } from "react-big-calendar";
 import Agenda from "react-big-calendar/lib/Agenda";
+import AgendaWithDescription from "./AgendaWithDescription";
+import type { CSSProperties } from "react";
 import {
   format,
   parse,
@@ -17,8 +25,12 @@ import {
 import { enUS } from "date-fns/locale/en-US";
 import type { Event } from "@/lib/supabase/events";
 import { eventIdForEdit } from "@/lib/recurrence";
+import {
+  contrastTextOnHex,
+  DEFAULT_EVENT_TYPE_COLOR,
+  resolveEventTypeColor,
+} from "@/lib/event-type-colors";
 import { CalendarToolbar } from "./CalendarToolbar";
-import { Badge } from "@/components/ui/badge";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./events-calendar.css";
 
@@ -50,9 +62,24 @@ function agendaTitle(
   return opts?.localizer?.format?.({ start: r.start, end: r.end }, "agendaHeaderFormat") ?? `${r.start.toDateString()} – ${r.end.toDateString()}`;
 }
 
-/** Agenda view that includes past days in range. Uses default Agenda with custom range + title. */
-function AgendaWithPastRange(props: React.ComponentProps<typeof Agenda>) {
-  return <Agenda {...props} />;
+/**
+ * Agenda's built-in body only lists/filters from `date` through `date + length` (default 30 days forward).
+ * Our toolbar title and `agendaRangeWithPast` use 30 days back + 30 forward. Shift the anchor and extend
+ * `length` so listed days and the inRange filter match what we fetch via onRangeChange.
+ */
+function AgendaWithPastRange(props: ComponentProps<typeof Agenda>) {
+  const { date, length: forwardLength, localizer, ...rest } = props;
+  const forward = forwardLength ?? 30;
+  const shiftedStart = localizer.add(date, -AGENDA_PAST_DAYS, "day");
+  const totalLength = AGENDA_PAST_DAYS + forward;
+  return (
+    <AgendaWithDescription
+      {...rest}
+      date={shiftedStart}
+      length={totalLength}
+      localizer={localizer}
+    />
+  );
 }
 AgendaWithPastRange.range = agendaRangeWithPast;
 AgendaWithPastRange.navigate = Agenda.navigate;
@@ -74,30 +101,58 @@ export interface RBCEvent {
   title: string;
   id?: string;
   resource?: unknown;
+  /** Customizer `event_type` slug */
+  eventTypeSlug?: string | null;
+  /** Resolved hex color for this type */
+  displayColor?: string;
+  /** Plain or HTML description (agenda column strips tags for display) */
+  description?: string | null;
 }
 
-/** Custom event cell: "Past" badge only in Agenda view; other views show title only to avoid breaking layout. */
-function EventWithPastBadge(
-  props: { event: RBCEvent; title: string; [key: string]: unknown }
-) {
+/** Month: color chip + truncated title (one line). Agenda: chip + title (row tone = past/today/future in CSS). */
+function CalendarEventContent(props: {
+  event: RBCEvent;
+  title: string;
+  [key: string]: unknown;
+}) {
   const currentView = useContext(CalendarViewContext);
   const { event, title } = props;
-  const isPast = event?.end ? new Date(event.end) < new Date() : false;
-  const showBadge = currentView === "agenda" && isPast;
+  const color = event.displayColor ?? DEFAULT_EVENT_TYPE_COLOR;
 
-  if (currentView !== "agenda") {
-    return <>{title}</>;
+  if (currentView === "month") {
+    return (
+      <span
+        className="rbc-event-month-inner flex min-w-0 max-w-full items-center gap-1.5"
+        title={title}
+      >
+        <span
+          className="size-2 shrink-0 rounded-full border border-black/15 dark:border-white/20"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+        <span className="min-w-0 truncate text-left text-xs font-normal leading-tight text-foreground">
+          {title}
+        </span>
+      </span>
+    );
   }
-  return (
-    <span className="rbc-event-content-with-badge flex items-center gap-2 flex-wrap">
-      <span className="truncate">{title}</span>
-      {showBadge && (
-        <Badge variant="secondary" className="text-[10px] font-normal shrink-0">
-          Past
-        </Badge>
-      )}
-    </span>
-  );
+
+  if (currentView === "agenda") {
+    return (
+      <span className="rbc-agenda-event-title-row flex w-full min-w-0 items-center justify-start gap-2">
+        <span
+          className="size-2 shrink-0 rounded-full border border-black/15 dark:border-white/20"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+        <span className="min-w-0 shrink truncate text-left" title={title}>
+          {title}
+        </span>
+      </span>
+    );
+  }
+
+  return <span className="block min-w-0 truncate">{title}</span>;
 }
 
 /** Week view: "Feb 9 – Feb 15, 2025" */
@@ -111,17 +166,23 @@ function dayRangeHeaderFormat(
   return `${startStr} – ${endStr}`;
 }
 
-function toRBCEvent(ev: Event): RBCEvent {
+function toRBCEvent(ev: Event, colorMap: Record<string, string>): RBCEvent {
+  const displayColor = resolveEventTypeColor(ev.event_type, colorMap);
   return {
     start: new Date(ev.start_date),
     end: new Date(ev.end_date),
     title: ev.title,
     id: ev.id,
+    eventTypeSlug: ev.event_type ?? undefined,
+    displayColor,
+    description: ev.description,
   };
 }
 
 export interface EventsCalendarProps {
   events: Event[];
+  /** Slug → hex from customizer `event_type` (from API `event_type_colors` or SSR). */
+  eventTypeColors?: Record<string, string>;
   date: Date;
   view: View;
   onDateChange: (date: Date) => void;
@@ -134,6 +195,7 @@ export interface EventsCalendarProps {
 
 export function EventsCalendar({
   events,
+  eventTypeColors = {},
   date,
   view,
   onDateChange,
@@ -143,7 +205,10 @@ export function EventsCalendar({
   onSelectEvent: onSelectEventProp,
 }: EventsCalendarProps) {
   const router = useRouter();
-  const rbcEvents = useMemo(() => events.map(toRBCEvent), [events]);
+  const rbcEvents = useMemo(
+    () => events.map((ev) => toRBCEvent(ev, eventTypeColors)),
+    [events, eventTypeColors]
+  );
 
   const viewsConfig = useMemo(
     () => ({
@@ -170,12 +235,46 @@ export function EventsCalendar({
     [date, view, onDateChange]
   );
 
+  const chipOnlyEventStyle = {
+    backgroundColor: "transparent",
+    border: "none",
+    boxShadow: "none",
+    color: "inherit",
+  } satisfies CSSProperties;
+
+  const eventPropGetter = useCallback(
+    (ev: RBCEvent) => {
+      if (view === "month") {
+        return {
+          className: "rbc-event--month-compact",
+          style: chipOnlyEventStyle,
+        };
+      }
+      if (view === "agenda") {
+        return {
+          className: "rbc-event--agenda-compact",
+          style: chipOnlyEventStyle,
+        };
+      }
+      const bg = ev.displayColor ?? DEFAULT_EVENT_TYPE_COLOR;
+      const fg = contrastTextOnHex(bg);
+      return {
+        style: {
+          backgroundColor: bg,
+          color: fg,
+          borderColor: bg,
+        } satisfies CSSProperties,
+      };
+    },
+    [view]
+  );
+
   const components = useMemo(
     () => ({
-      toolbar: (props: React.ComponentProps<typeof CalendarToolbar>) => (
+      toolbar: (props: ComponentProps<typeof CalendarToolbar>) => (
         <CalendarToolbar {...props} onBigStep={onBigStep} />
       ),
-      event: EventWithPastBadge,
+      event: CalendarEventContent,
     }),
     [onBigStep]
   );
@@ -230,12 +329,26 @@ export function EventsCalendar({
           onView={onViewChange}
           onRangeChange={handleRangeChange}
           onSelectEvent={handleSelectEvent}
+          eventPropGetter={eventPropGetter}
           views={viewsConfig as import("react-big-calendar").ViewsProps<RBCEvent, object>}
           components={components as unknown as import("react-big-calendar").Components<RBCEvent, object>}
           formats={{
             dayHeaderFormat: "cccc, MMM d, yyyy",
             dayRangeHeaderFormat: (range: { start: Date; end: Date }, culture?: string, local?: unknown) =>
               dayRangeHeaderFormat(range, culture ?? "en", local),
+            /* Agenda date column: weekday + month + day, no year (e.g. Wed Feb 18) */
+            agendaDateFormat: "EEE MMM d",
+            agendaTimeFormat: "hh:mm a",
+            agendaTimeRangeFormat: (
+              range: { start: Date; end: Date },
+              culture?: string,
+              loc?: { format: (value: Date, formatStr: string, cult?: string) => string }
+            ) => {
+              const c = culture ?? "en-US";
+              const a = loc?.format(range.start, "hh:mm a", c) ?? "";
+              const b = loc?.format(range.end, "hh:mm a", c) ?? "";
+              return `${a} – ${b}`;
+            },
           }}
           style={{ height }}
           popup

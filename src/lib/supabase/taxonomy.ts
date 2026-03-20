@@ -632,6 +632,67 @@ export async function getTaxonomyForContentBatch(
 }
 
 /**
+ * Server-only: map taxonomy term id → slug (bridge task/project FKs to Customizer slugs).
+ */
+export async function getTermSlugsByIds(
+  termIds: string[],
+  schema?: string
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (termIds.length === 0) return out;
+  try {
+    const supabase = createServerSupabaseClient();
+    const schemaName = schema ?? (process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev");
+    const uniq = [...new Set(termIds.filter(Boolean))];
+    const { data, error } = await supabase
+      .schema(schemaName)
+      .from("taxonomy_terms")
+      .select("id, slug")
+      .in("id", uniq);
+    if (error) {
+      console.warn("getTermSlugsByIds:", error);
+      return out;
+    }
+    for (const row of (data ?? []) as { id: string; slug: string }[]) {
+      out[row.id] = row.slug;
+    }
+    return out;
+  } catch (e) {
+    console.warn("getTermSlugsByIds:", e);
+    return out;
+  }
+}
+
+/**
+ * Server-only: category term ids for a section (suggested_sections contains sectionName), matching slugs.
+ */
+export async function getCategoryTermIdsBySlugsForSection(
+  sectionName: string,
+  slugs: string[],
+  schema?: string
+): Promise<string[]> {
+  if (slugs.length === 0) return [];
+  try {
+    const supabase = createServerSupabaseClient();
+    const schemaName = schema ?? (process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev");
+    const normalized = [...new Set(slugs.map((s) => s.trim().toLowerCase()).filter(Boolean))];
+    if (normalized.length === 0) return [];
+    const { data, error } = await supabase
+      .schema(schemaName)
+      .from("taxonomy_terms")
+      .select("id")
+      .eq("type", "category")
+      .contains("suggested_sections", [sectionName])
+      .in("slug", normalized);
+    if (error || !data) return [];
+    return (data as { id: string }[]).map((r) => r.id);
+  } catch (e) {
+    console.warn("getCategoryTermIdsBySlugsForSection:", e);
+    return [];
+  }
+}
+
+/**
  * Server-only: get categories and tags assigned to a content item, with name and slug for display.
  * Use on public blog/post page to show taxonomy and link to archive routes.
  */

@@ -1,84 +1,133 @@
-import {
-  listProjects,
-  listTasks,
-  listTaskFollowersByTaskIds,
-  getTaskTimeLogTotalMinutesByTaskIds,
-  getTaskPriorityTerms,
-  getTaskStatusTerms,
-  getTaskTypeTerms,
-} from "@/lib/supabase/projects";
+import { listProjects, listProjectMembersByProjectIds, getProjectStatusTerms } from "@/lib/supabase/projects";
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
-import { getTaxonomyForContentBatch } from "@/lib/supabase/taxonomy";
-import { AllTasksListClient, type TaskAssigneeItem } from "./AllTasksListClient";
+import { getCustomizerOptions } from "@/lib/supabase/settings";
+import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms";
+import {
+  filterActiveProjectsForTaskList,
+  getAdminTasksListBundle,
+  type AdminTasksListBundle,
+} from "@/lib/tasks/admin-task-list";
+import { AllTasksListClient } from "./AllTasksListClient";
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v && v.trim()))));
 }
 
+const EMPTY_BUNDLE: AdminTasksListBundle = {
+  tasks: [],
+  phaseSlugByTaskId: {},
+  taskAssigneesMap: {},
+  taskTimeLogTotals: {},
+};
+
 export default async function AdminAllTasksPage() {
   let projects: Awaited<ReturnType<typeof listProjects>> = [];
-  let tasks: Awaited<ReturnType<typeof listTasks>> = [];
-  let priorityTerms: Awaited<ReturnType<typeof getTaskPriorityTerms>> = [];
-  let statusTerms: Awaited<ReturnType<typeof getTaskStatusTerms>> = [];
-  let taskTypeTerms: Awaited<ReturnType<typeof getTaskTypeTerms>> = [];
+  let bundle = EMPTY_BUNDLE;
+  let czTaskType: Awaited<ReturnType<typeof getCustomizerOptions>> = [];
+  let czTaskStatus: Awaited<ReturnType<typeof getCustomizerOptions>> = [];
+  let czTaskPhase: Awaited<ReturnType<typeof getCustomizerOptions>> = [];
+  let projectStatusTerms: Awaited<ReturnType<typeof getProjectStatusTerms>> = [];
   try {
-    [projects, tasks, priorityTerms, statusTerms, taskTypeTerms] = await Promise.all([
+    [projects, bundle, czTaskType, czTaskStatus, czTaskPhase, projectStatusTerms] = await Promise.all([
       listProjects({ include_archived: true }),
-      listTasks({}),
-      getTaskPriorityTerms(),
-      getTaskStatusTerms(),
-      getTaskTypeTerms(),
+      getAdminTasksListBundle({}),
+      getCustomizerOptions("task_type"),
+      getCustomizerOptions("task_status"),
+      getCustomizerOptions("task_phase"),
+      getProjectStatusTerms(),
     ]);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("Error loading tasks:", msg);
+    const e = err as { message?: string; details?: string; hint?: string; code?: string };
+    const msg =
+      err instanceof Error
+        ? err.message
+        : typeof e?.message === "string"
+          ? e.message
+          : JSON.stringify(err);
+    console.error("Error loading tasks:", msg, e?.details ?? "", e?.hint ?? "", e?.code ?? "");
   }
-  const taskIds = tasks.map((t) => t.id);
-  const [taskTaxonomyMap, followers, taskTimeLogTotals] = await Promise.all([
-    getTaxonomyForContentBatch(taskIds, "task"),
-    listTaskFollowersByTaskIds(taskIds),
-    getTaskTimeLogTotalMinutesByTaskIds(taskIds),
-  ]);
 
-  const userIds = uniqueStrings(followers.map((f) => f.user_id));
-  const contactIds = uniqueStrings(followers.map((f) => f.contact_id));
-  const [profiles, contacts] = await Promise.all([
-    getProfilesByUserIds(userIds),
-    contactIds.length > 0 ? getContactsByIds(contactIds) : Promise.resolve([]),
-  ]);
-  const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
-  const contactMap = new Map(contacts.map((c) => [c.id, c]));
+  const statusTerms = statusTermsFromCustomizerRows(czTaskStatus);
+  const taskTypeTerms = statusTermsFromCustomizerRows(czTaskType);
+  const taskPhaseTerms = statusTermsFromCustomizerRows(czTaskPhase);
 
-  const taskAssigneesMap: Record<string, TaskAssigneeItem[]> = {};
-  for (const f of followers) {
-    const list = taskAssigneesMap[f.task_id] ?? [];
-    const item: TaskAssigneeItem = {
-      id: f.id,
-      label: "—",
-      avatarUrl: null,
+  const { tasks, phaseSlugByTaskId, taskAssigneesMap, taskTimeLogTotals } = bundle;
+
+  const projectStatusSlugById = Object.fromEntries(
+    projectStatusTerms.map((t) => [t.id, t.slug])
+  );
+  const pickerProjects = filterActiveProjectsForTaskList(projects, projectStatusSlugById);
+
+  const pickerProjectIds = pickerProjects.map((p) => p.id);
+  const assigneeMemberRows =
+    pickerProjectIds.length > 0
+      ? await listProjectMembersByProjectIds(pickerProjectIds)
+      : [];
+  const assigneeUserIds = uniqueStrings(assigneeMemberRows.map((m) => m.user_id));
+  const assigneeContactIds = uniqueStrings(assigneeMemberRows.map((m) => m.contact_id));
+  const [assigneeProfiles, assigneeContacts] = await Promise.all([
+    getProfilesByUserIds(assigneeUserIds),
+    assigneeContactIds.length > 0 ? getContactsByIds(assigneeContactIds) : Promise.resolve([]),
+  ]);
+  const assigneeUserDisplay: Record<string, { label: string; avatarUrl: string | null }> = {};
+  for (const p of assigneeProfiles) {
+    assigneeUserDisplay[p.user_id] = {
+      label: (p.display_name ?? p.user_id).trim() || p.user_id.slice(0, 8),
+      avatarUrl: p.avatar_url ?? null,
     };
-    if (f.user_id) {
-      const p = profileMap.get(f.user_id);
-      item.label = p?.display_name ?? p?.user_id ?? f.user_id.slice(0, 8);
-      item.avatarUrl = p?.avatar_url ?? null;
-    } else if (f.contact_id) {
-      const c = contactMap.get(f.contact_id);
-      item.label = c ? (c.full_name || c.email || c.id) : f.contact_id.slice(0, 8);
-      item.avatarUrl = c?.avatar_url ?? null;
-    }
-    list.push(item);
-    taskAssigneesMap[f.task_id] = list;
   }
+  const assigneeContactDisplay: Record<string, { label: string; avatarUrl: string | null }> = {};
+  for (const c of assigneeContacts) {
+    assigneeContactDisplay[c.id] = {
+      label: (c.full_name?.trim() || c.email?.trim() || c.id).trim(),
+      avatarUrl: c.avatar_url ?? null,
+    };
+  }
+
+  const taskPhaseOptions = czTaskPhase
+    .filter((r) => String(r.slug ?? "").trim().length > 0)
+    .map((r) => ({
+      slug: String(r.slug).trim(),
+      label: (String(r.label ?? r.slug).trim() || String(r.slug).trim()),
+      color: r.color != null && String(r.color).trim() ? String(r.color).trim() : null,
+    }));
+
+  const taskTypeOptions = czTaskType
+    .filter((r) => String(r.slug ?? "").trim().length > 0)
+    .map((r) => ({
+      slug: String(r.slug).trim(),
+      label: (String(r.label ?? r.slug).trim() || String(r.slug).trim()),
+      color: r.color != null && String(r.color).trim() ? String(r.color).trim() : null,
+    }));
+
+  const taskStatusOptions = czTaskStatus
+    .filter((r) => String(r.slug ?? "").trim().length > 0)
+    .map((r) => ({
+      slug: String(r.slug).trim(),
+      label: (String(r.label ?? r.slug).trim() || String(r.slug).trim()),
+      color: r.color != null && String(r.color).trim() ? String(r.color).trim() : null,
+    }));
 
   return (
     <AllTasksListClient
       initialProjects={projects}
+      pickerProjects={pickerProjects}
+      assigneeMemberRows={assigneeMemberRows.map((m) => ({
+        project_id: m.project_id,
+        user_id: m.user_id,
+        contact_id: m.contact_id,
+      }))}
+      assigneeUserDisplay={assigneeUserDisplay}
+      assigneeContactDisplay={assigneeContactDisplay}
+      taskPhaseOptions={taskPhaseOptions}
+      taskTypeOptions={taskTypeOptions}
+      taskStatusOptions={taskStatusOptions}
       initialTasks={tasks}
-      priorityTerms={priorityTerms}
       statusTerms={statusTerms}
       taskTypeTerms={taskTypeTerms}
-      taskTaxonomyMap={taskTaxonomyMap}
+      taskPhaseTerms={taskPhaseTerms}
+      initialPhaseSlugByTaskId={phaseSlugByTaskId}
       taskAssigneesMap={taskAssigneesMap}
       taskTimeLogTotals={taskTimeLogTotals}
     />

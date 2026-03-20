@@ -12,6 +12,13 @@ import {
   setTaxonomyForContent,
 } from "@/lib/supabase/taxonomy";
 import type { TaxonomyTerm } from "@/types/taxonomy";
+import { TaskTermColorDot } from "@/components/tasks/TaskTermSelectItems";
+
+/** Optional Customizer-merged label/color for category rows (e.g. task phase terms by term id). */
+export type TaxonomyCategoryDisplayByTermId = Record<
+  string,
+  { name: string; color?: string | null }
+>;
 
 interface TaxonomyAssignmentForContentProps {
   /** Omit for "create mode": load terms only, no API fetch; use embedded + controlled state. */
@@ -37,6 +44,10 @@ interface TaxonomyAssignmentForContentProps {
   onCategoryToggle?: (id: string, checked: boolean) => void;
   onTagToggle?: (id: string, checked: boolean) => void;
   onInitialLoad?: (payload: { categoryIds: string[]; tagIds: string[] }) => void;
+  /** When set, category checkboxes use these labels (and optional color dot) instead of raw taxonomy names. */
+  categoryDisplayByTermId?: TaxonomyCategoryDisplayByTermId;
+  /** When true, only the Tags section is shown (e.g. task phase is edited elsewhere). */
+  tagsOnly?: boolean;
 }
 
 /**
@@ -59,6 +70,8 @@ export function TaxonomyAssignmentForContent({
   onCategoryToggle: controlledCategoryToggle,
   onTagToggle: controlledTagToggle,
   onInitialLoad,
+  categoryDisplayByTermId,
+  tagsOnly = false,
 }: TaxonomyAssignmentForContentProps) {
   const [terms, setTerms] = useState<TaxonomyTerm[]>([]);
   const [configs, setConfigs] = useState<Awaited<ReturnType<typeof getSectionConfigsClient>>>([]);
@@ -156,9 +169,9 @@ export function TaxonomyAssignmentForContent({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+      <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading categories and tags…
+        {tagsOnly ? "Loading tags…" : "Loading categories and tags…"}
       </div>
     );
   }
@@ -169,32 +182,42 @@ export function TaxonomyAssignmentForContent({
 
   return (
     <div className={compact ? "space-y-3" : "space-y-4"}>
-      <div>
-        <Label className="text-sm font-medium">Categories</Label>
-        {!compact && (
-          <p className="text-xs text-muted-foreground mb-2">
-            Section &quot;{displaySection}&quot; — select categories for this item.
-          </p>
-        )}
-        <div className={listClass}>
-          {categories.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No categories defined for this section.</p>
-          ) : (
-            categories.map((term) => (
-              <label key={term.id} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedCategoryIds.has(term.id)}
-                  onChange={(e) => handleCategoryToggle(term.id, e.target.checked)}
-                  disabled={disabled}
-                  className="rounded"
-                />
-                <span className="text-sm">{term.name}</span>
-              </label>
-            ))
+      {!tagsOnly && (
+        <div>
+          <Label className="text-sm font-medium">Categories</Label>
+          {!compact && (
+            <p className="mb-2 text-xs text-muted-foreground">
+              Section &quot;{displaySection}&quot; — select categories for this item.
+            </p>
           )}
+          <div className={listClass}>
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No categories defined for this section.</p>
+            ) : (
+              categories.map((term) => {
+                const o = categoryDisplayByTermId?.[term.id];
+                const label = o?.name ?? term.name;
+                const showDot = Boolean(o?.color != null && String(o.color).trim());
+                return (
+                  <label key={term.id} className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategoryIds.has(term.id)}
+                      onChange={(e) => handleCategoryToggle(term.id, e.target.checked)}
+                      disabled={disabled}
+                      className="rounded"
+                    />
+                    <span className="flex items-center gap-2 text-sm">
+                      {showDot ? <TaskTermColorDot color={o?.color} /> : null}
+                      <span>{label}</span>
+                    </span>
+                  </label>
+                );
+              })
+            )}
+          </div>
         </div>
-      </div>
+      )}
       <div>
         <Label className="text-sm font-medium">Tags</Label>
         <div className={listClass}>

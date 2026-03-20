@@ -11,6 +11,193 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-03-20 01:28 CT — Tasks: Customizer-only slugs (migration 187); drop task taxonomy for status/type/phase
+
+- **Context for Next Session:** **Migration 187** has been **run in Supabase SQL Editor** on this project’s tenant (confirmed). **Other** schemas/forks still need the same script if they use task admin. **Next focus:** **Task detail page** layout/UX and **more task UI** (polish, density, related flows). **Key files:** `src/lib/supabase/projects.ts` (`Task`, `listTasks`, `createTask`, `updateTask`, defaults `to_do` / `task` / `backlog`), `src/lib/tasks/customizer-task-terms.ts`, `src/lib/tasks/task-customizer-labels.ts`, `src/lib/tasks/admin-task-list.ts`, `src/app/api/tasks/route.ts`, `src/app/api/tasks/[id]/route.ts`, `src/app/api/projects/[id]/tasks/route.ts`, `src/app/api/members/support/route.ts`, task pages under `src/app/admin/projects/.../tasks/`, `AllTasksListClient.tsx`, `ProjectDetailClient.tsx`, `docs/mvt.md`.
+- **Completed:**
+  - **Migration `187_tasks_customizer_slugs.sql`:** *(Applied on tenant DB — SQL Editor.)* Backfill slugs from legacy taxonomy term ids + phase links; map legacy slugs toward Customizer (e.g. `open` → `to_do`); drop task FK columns; RPC slug filters/returns; remove task taxonomy relationships.
+  - **`Task` model & `projects.ts`:** Status/type/phase as **slug columns**; `ListTasksFilters` uses `status_slugs` / `type_slugs` / `phase_slugs`; `createTask` / `updateTask` persist slugs; exported `DEFAULT_TASK_*_SLUG`; `listTasksByProjectIds` selects `task_status_slug`.
+  - **`statusTermsFromCustomizerRows`:** Select options from **Customizer table only** (`id` === slug); used on All Tasks, project detail tasks, task new/edit/detail.
+  - **`getAdminTasksListBundle`:** No taxonomy batch for tasks; `phaseSlugByTaskId` from `task.task_phase_slug`; removed `termSlugById` from bundle.
+  - **APIs:** `GET /api/tasks` passes slugs straight to `listTasks`; `PUT /api/tasks/[id]` accepts `task_*_slug`; status-change log uses `getTaskStatusLabelForSlug`; `GET /api/projects/[id]/tasks` query `status_slug` / `type_slug`; `POST` body uses slug fields; support ticket `createTask` uses default slugs.
+  - **UI:** Task **new/edit** — slug selects only, no taxonomy/tags block; **task detail** — badges from Customizer rows; removed **`TaskDetailTaxonomyCard`** and task taxonomy chips section; **All Tasks** / **project task table** / **projects list progress** use `task_status_slug`.
+  - **`docs/mvt.md`:** Note customizer-task-terms for tasks.
+
+### 2026-03-19 23:40 CT — All Tasks table: column widths 17/12/15/12/12/10/10/12
+
+- **Context for Next Session:** **`ALL_TASKS_TABLE_COL`** — Title **17%**, Project **12%**, Assignee **15%**, Phase **12%**, Type **12%**, Due **10%**, Progress **10%**, Status **12%**.
+- **Completed:**
+  - **`AllTasksListClient.tsx`**.
+
+### 2026-03-19 23:37 CT — TermBadge: remove pillFixed; rounded-md + truncate; All Tasks no horizontal scroll
+
+- **Context for Next Session:** **`pillFixed`** removed. **`TermBadge`** is **`rounded-md`** again, **`max-w-full min-w-0`**, inner **`truncate`**, **`title`** on chip. **All Tasks** Phase/Type/Status use **`min-w-0`** wrapper; table container **`overflow-x-hidden`** (not **`overflow-x-auto`**) to avoid horizontal scrollbar; **`table-fixed`** + % columns unchanged.
+- **Completed:**
+  - **`TermBadge.tsx`**, **`AllTasksListClient.tsx`**, **`mvt.md`**.
+
+### 2026-03-19 23:34 CT — TermBadge `pillFixed`; All Tasks Phase/Type/Status centered pills
+
+- **Context for Next Session:** **`TermBadge`** supports **`variant="pillFixed"`**: **`rounded-full`**, fixed **`w-[7rem]` / `sm:w-[7.5rem]`**, **`h-6`**, **`justify-center`**, label **`truncate`** + **`title`**. Empty shows same-size **—** pill. **All Tasks** table uses it for Phase/Type/Status with **`text-center`** cells.
+- **Completed:**
+  - **`TermBadge.tsx`**, **`AllTasksListClient.tsx`**.
+
+### 2026-03-19 23:29 CT — All Tasks table: column widths 20/15/15/10/10/10/10/10
+
+- **Context for Next Session:** **`ALL_TASKS_TABLE_COL`** updated: Title **20%**, Project/Assignee **15%** each, remaining six columns **10%** each.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** `ALL_TASKS_TABLE_COL` comment + values.
+
+### 2026-03-19 23:26 CT — All Tasks table: column percent widths (20/20/20/9/9/9/4/9)
+
+- **Context for Next Session:** **`ALL_TASKS_TABLE_COL`** — Title/Project/Assignee **20%** each; Phase/Type/Due/Status **9%** each; Progress **4%**. **`table-fixed`** + **`min-w-0`**. **`ALL_TASKS_TOOLBAR_SEARCH`** object for locked search. Project cell **`truncate`** + **`title`**.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** `ALL_TASKS_TABLE_COL`, th/td.
+
+### 2026-03-19 23:15 CT — All Tasks toolbar: compact single row (~900px), dense controls
+
+- **Context for Next Session:** **`md:flex-nowrap`** (no toolbar scrollbar). **Search** **`flex-1 min-w-[7rem]`** shrinks first so fixed controls stay one line. **Projects/Assignees/Phases** compact **`h-8`** pills **`~7–7.25rem`**, **`text-xs`**. **Type/Status** larger fixed **`~10.75–11.25rem`** for chip + label, **`text-xs`**. **`gap-1`**, **`h-8`** reset. Targets ~**900px** content width beside sidebar.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Toolbar dimensions + comment.
+
+### 2026-03-19 23:08 CT — All Tasks toolbar: fixed pickers + only search flexes
+
+- **Context for Next Session:** **Search** alone uses **`md:flex-1`** (fills space in the row; **`min-w-0`**). **Projects / Assignees / Phases** fixed **`~9.25–9.5rem`** with **`truncate`** + **`title`**. **Type / Status** fixed **`13.5rem` / `sm:14rem`** (no breakpoint ladder). **Reset** stays **`w-9`**. Still **no horizontal scrollbar** on the toolbar (**`flex-wrap`** on `md+`). Comment block updated in client.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Toolbar widths.
+
+### 2026-03-19 23:05 CT — All Tasks toolbar: Option B + breakpoints (stack &lt; md, single row md+)
+
+- **Context for Next Session:** **Reset** is inside the **same flex group** as project/assignee/phase/type/status (no orphan third line). **&lt; md (768px):** column — full-width search, then wrapping controls + reset. **`md+`:** **`flex-nowrap`** one row, **`overflow-x-auto`** + thin scrollbar only if content overflows. Comment in **`AllTasksListClient`** documents breakpoint. To stack until **1024px** instead, switch **`md:`** → **`lg:`** on the toolbar classes.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Toolbar structure and responsive classes.
+
+### 2026-03-19 23:01 CT — All Tasks: wider Task type / Task status selects (second toolbar row)
+
+- **Context for Next Session:** Type/status **`SelectTrigger`** widths **`min(100%,20rem)`** cap on narrow; **`sm:16rem`**, **`md:18rem`**, **`lg:20rem`** to fit longer Customizer labels now that search sits on its own wrapped row.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Select trigger classes.
+
+### 2026-03-19 23:00 CT — All Tasks toolbar: revert scroll/flex-grow experiment; wrap + wider type/status
+
+- **Context for Next Session:** Removed **horizontal scroll** / **flex-grow-[2]** toolbar. **Search** again **`sm:flex-1`** with **`sm:max-w-[min(100%,22rem)]`**, **`md:max-w-none`**; **full width** on xs. **Type/status** triggers **`w-[min(100%,13.5rem)] sm:w-[13rem]`**; placeholders **Task type** / **Task status**. **Projects/Assignees/Phases** back to normal outline buttons (**`shrink-0 whitespace-nowrap`**). Outer row uses **`flex-wrap`** on narrow viewports; reset **`sm:ms-auto`**.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Toolbar class layout only.
+
+### 2026-03-19 22:58 CT — All Tasks toolbar: mobile layout (fixed pickers, flexible search + type/status)
+
+- **Context for Next Session:** **Projects / Assignees / Phases** use **fixed widths** (`~8.75–9.25rem`), **`truncate`** + **`title`** full label. **Search** uses **`flex-grow-[2]`** vs **`flex-grow`** on the **Type + Status** pair so search gets more room; both use **`basis-0` + `min-w-0`** for shrink. Selects sit in **`w-full`** triggers inside **`flex-1`** wrappers (`sm:min-w-[7rem]`). Row still **`flex-nowrap`** + horizontal scroll when needed.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Toolbar structure and responsive classes.
+
+### 2026-03-19 22:56 CT — All Tasks toolbar: inline title search + single-row layout
+
+- **Context for Next Session:** **Title** filter is an **`Input`** (search icon) with **live** client-side filtering; modal removed. Toolbar uses **`flex-nowrap`** + thin horizontal scroll if the viewport is too narrow. Type/status **`Select`** triggers narrowed (**~9–9.5rem**); placeholders **Type** / **Status**. Search area **`flex-1`** from `min-w-[13rem]` (sm+ uncapped width).
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Inline search; removed title `Dialog` and draft state.
+
+### 2026-03-19 22:52 CT — All Tasks table: remove Priority column; wider Title
+
+- **Context for Next Session:** **All tasks** table is 8 columns (no **Priority**). Title column uses `min-w` / `max-w` + `break-words` for space. **`page.tsx`** no longer loads `getTaskPriorityTerms` for this page.
+- **Completed:**
+  - **`AllTasksListClient.tsx` / `page.tsx`:** Dropped priority column and `priorityTerms` prop.
+
+### 2026-03-19 22:49 CT — All Tasks: title search modal + toolbar layout (search left, reset icon right)
+
+- **Context for Next Session:** Toolbar row: **Search** (opens dialog; substring on task title, client-side on current fetch) → flex **filters** → **Reset** (`RotateCcw` icon, disabled when nothing active). Active title search uses `secondary` Search button + table empty state when no title matches. Reset clears all filters + refetches `/api/tasks` with no query.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** `titleSearchQuery` / modal / `displayTasks`; `hasActiveFilters`; `resetAllFilters`.
+
+### 2026-03-19 22:45 CT — All Tasks: task status single-select (Customizer task_status); GET /api/tasks status_slugs
+
+- **Context for Next Session:** Toolbar: **Projects → Assignees → Phases → Type → Status**. **Task status** `Select` uses **`getCustomizerOptions("task_status")`**; **All statuses** or one row; **`status_slugs`** on refetch. **`buildTasksQuery`** sixth parameter. Other filters preserve selection.
+- **Completed:**
+  - **`page.tsx`:** `taskStatusOptions` from `czTaskStatus`.
+  - **`AllTasksListClient.tsx`:** `selectedTaskStatusSlug`, `onTaskStatusChange`, status `Select`.
+
+### 2026-03-19 22:42 CT — All Tasks: toolbar + table column order — Phase before Type
+
+- **Context for Next Session:** Filters row: **Projects → Assignees → Task phases → Task type**. Table columns **Phase** and **Type** match that order (after Priority). Behavior unchanged.
+- **Completed:**
+  - **`AllTasksListClient.tsx`:** Reordered phase button vs type `Select`; swapped `<th>` and `<td>` for phase/type.
+
+### 2026-03-19 22:39 CT — All Tasks: task type single-select (Customizer task_type); GET /api/tasks type_slugs
+
+- **Context for Next Session:** Toolbar includes a **Task type** shadcn `Select`: **All types** or one Customizer row (`task_type` order, label + color dot). Changing the value refetches immediately (no modal). Empty Customizer list disables the control. **`buildTasksQuery`** now includes optional **`type_slugs`** (single slug). Other pickers preserve the selected type. **Next:** e.g. task status from Customizer (single or multi, as desired).
+- **Completed:**
+  - **`page.tsx`:** `taskTypeOptions` from `getCustomizerOptions("task_type")`.
+  - **`AllTasksListClient.tsx`:** `Select` + `selectedTaskTypeSlug`; `buildTasksQuery` 5th parameter.
+
+### 2026-03-19 22:31 CT — All Tasks: task phase picker (Customizer task_phase order); GET /api/tasks phase_slugs
+
+- **Context for Next Session:** Third filter-row control: **Task phases** opens the same pattern as Projects/Assignees (search, multi-select, Select all, Clear, Done). Options = **`getCustomizerOptions("task_phase")`** (label, slug, color) in Customizer order; empty Customizer list disables the button. **`GET /api/tasks?phase_slugs=…`** was already supported; client passes slugs from the picker. Project/assignee Done keeps the current phase selection. **Next:** further row filters (e.g. task status/type from Customizer) when planned.
+- **Completed:**
+  - **`page.tsx`:** Build `taskPhaseOptions` from `czTaskPhase`; pass to client.
+  - **`AllTasksListClient.tsx`:** `selectedPhaseSlugs`, phase modal, `buildTasksQuery` 4th arg `phase_slugs`; prune on apply if options change.
+
+### 2026-03-19 22:23 CT — All Tasks: assignee picker (project members scoped by project filter); API contact ids
+
+- **Context for Next Session:** Second filter row control: **Assignees** button opens modal (team + client project members). Scope = members on **selected projects**, or on **all active projects** when project filter is “All projects”. Saving projects prunes assignee picks outside the new scope. **`GET /api/tasks`** accepts **`assignee_contact_ids`**. **`page.tsx`** loads `project_members` for active projects + profile/contact labels.
+- **Completed:**
+  - **`src/app/api/tasks/route.ts`:** `assignee_contact_ids` query param.
+  - **`page.tsx` / `AllTasksListClient`:** member rows, dual modals, `buildTasksQuery` for `project_ids` + user/contact assignees.
+
+### 2026-03-19 21:50 CT — All Tasks: project picker modal (active projects); scoped list via API
+
+- **Context for Next Session:** Row 1 has a **Projects** button: **All tasks** (no filter) or **N project(s) selected**. Modal lists **`filterActiveProjectsForTaskList`** (non-archived; not `completed`/`closed` status slugs) with search, Select all, Clear; **Done** applies selection and **`GET /api/tasks?project_ids=…`**. Full `initialProjects` still used for project name links. **Next:** Row 2 filters when ready.
+- **Completed:**
+  - **`page.tsx`:** `getProjectStatusTerms` + `pickerProjects` passed to client.
+  - **`AllTasksListClient`:** Dialog checklist, button label rules, bundle refetch on Done.
+
+### 2026-03-19 21:39 CT — All tasks: clean slate (SSR table only; filters removed from client)
+
+- **Context for Next Session:** **`AllTasksListClient`** is table + title only; data from **`getAdminTasksListBundle`** on `page.tsx` (unchanged). Reintroduce search/filters/`GET /api/tasks` when you rearrange. **`GET /api/tasks`** and **`admin-task-list`** remain available.
+- **Completed:**
+  - **`AllTasksListClient`:** Removed all filter controls, client fetch, query builders, and related state.
+
+### 2026-03-19 21:34 CT — All tasks: immediate filters; Reset only (calendar-style)
+
+- **Context for Next Session:** All tasks refetches on every filter change (no Apply). **Reset** matches events toolbar (outline + icon + label), disabled when no filters. Controls disabled while loading.
+- **Completed:**
+  - **`AllTasksListClient`:** `refetch` with explicit filter snapshot per change; removed Apply; `hasFilters` for Reset `disabled`.
+
+### 2026-03-19 21:30 CT — All tasks filter bar layout (panel, grid, Reset)
+
+- **Context for Next Session:** All tasks filters live in a **Filters** card (description + responsive grid + footer actions). **Reset** clears pickers and reloads unfiltered bundle via `GET /api/tasks`. Continue task list / projects table customizer work as planned.
+- **Completed:**
+  - **`AllTasksListClient`:** Filters card (`CardHeader` / `CardContent` / `CardFooter`); labels above controls; `grid` 1→2→4 columns; shared `loadTasksFromQuery`; **Reset** (`RotateCcw`) + **Apply filters**; color dots only inside taxonomy dropdown items.
+
+### 2026-03-19 21:32 CT — All tasks: strip filter card; minimal toolbar
+
+- **Context for Next Session:** All tasks uses one **toolbar row** (title + compact selects + Apply + icon Reset); no filter `Card` chrome. Same `loadTasksFromQuery` / API behavior. Iterate on layout when ready.
+- **Completed:**
+  - **`AllTasksListClient`:** Removed Filters card/header/description/footer; inline `flex-wrap` controls with `aria-label` on triggers; table remains in `Card`.
+
+### 2026-03-19 20:53 CT — All tasks: single bundle pipeline; Apply aligned with GET /api/tasks (slug params)
+
+- **Context for Next Session:** **All tasks** SSR and **Apply** both use `getAdminTasksListBundle` / the same JSON shape (`tasks`, `phaseSlugByTaskId`, `taskAssigneesMap`, `taskTimeLogTotals`). Client builds `project_ids`, `status_slugs`, `type_slugs`, `phase_slugs` from selected Customizer-backed terms. **Next:** Projects list/table customizer alignment (per prior plan). **Key files:** `src/app/admin/projects/tasks/page.tsx`, `src/app/admin/projects/tasks/AllTasksListClient.tsx`, `src/lib/tasks/admin-task-list.ts`, `src/app/api/tasks/route.ts`.
+- **Completed:**
+  - **All tasks page (`page.tsx`):** Removed duplicate `getTaxonomyForContentBatch` + phase color augment; initial load uses `getAdminTasksListBundle({})` only (taxonomy inside bundle for phase slugs + followers + time totals).
+  - **`AllTasksListClient`:** Dropped `taskTaxonomyMap`; phase column resolves `phaseSlugByTaskId` → `taskPhaseTerms` (Customizer colors on terms). **Apply** parses full admin bundle and updates tasks, assignees, time totals, and phase slug map; query matches `GET /api/tasks` contract.
+
+### 2026-03-19 16:48 CT — Resources asset columns; get_tasks_dynamic multi-filter + SQL fix; All tasks customizer colors; taxonomy slug helpers
+
+- **Context for Next Session:** Tenant DB has **migrations 183–186 applied** (`resources` asset columns; `get_tasks_dynamic` phase + multi-filter uuid[] + `format()` fix). `listTasks` calls only the uuid[] RPC (no legacy overload). **All tasks (`/admin/projects/tasks`):** SSR shows Customizer-driven colors on type/status/phase + phase column. **Next:** Align `AllTasksListClient` “Apply” with `GET /api/tasks` (client still sends `project_id` / `status_term_id` / …; API expects `project_ids`, `status_slugs`, … and returns a full **bundle**) so filters match after Apply. **Git:** this session ended with **no push**. Key files: `src/lib/supabase/projects.ts`, `src/lib/supabase/taxonomy.ts`, `src/lib/tasks/admin-task-list.ts`, `src/app/api/tasks/route.ts`, `src/app/admin/projects/tasks/AllTasksListClient.tsx`, `supabase/migrations/183_*.sql` … `186_*.sql`, `docs/sessionlog.md`, `docs/planlog.md`, `docs/mvt.md`.
+- **Completed:**
+  - **Phase 21 — schema step:** Tenant `resources` asset/scheduling/financial columns via migration `183_resources_asset_and_scheduling.sql`; sessionlog/planlog marked schema complete for Asset / Resource Management.
+  - **`get_tasks_dynamic` RPC:** `184` — optional phase filter via `taxonomy_relationships` (`task`); `185` — multi-value filters (`project_ids`, `status_term_ids`, `task_type_term_ids`, `phase_term_ids`, `assignee_user_ids`, `assignee_contact_ids` as `uuid[]`); `186` — correct **`format(schema_name, schema_name, schema_name, schema_name)`** (four `%I` placeholders for tasks, taxonomy_relationships, task_followers ×2).
+  - **`listTasks` / filters:** `ListTasksFilters` uses arrays only; `listTasks` calls uuid[] RPC; updated call sites (`project_ids: [id]`) for project task lists and `getProjectTimeLogTotalMinutes`; removed PostgREST legacy overload fallback.
+  - **Taxonomy helpers:** `getTermSlugsByIds`, `getCategoryTermIdsBySlugsForSection`; `??` + `||` grouped for SWC (`schema ?? (env || default)`).
+  - **Admin tasks API:** `GET /api/tasks` resolves Customizer slugs to term ids and returns `getAdminTasksListBundle` (tasks + `termSlugById`, `phaseSlugByTaskId`, assignee map, time totals).
+  - **`src/lib/tasks`:** `admin-task-list.ts` (bundle + `filterActiveProjectsForTaskList` for future use), `merge-task-customizer-colors.ts` (Customizer hex onto terms by slug).
+  - **UI:** `TaskFilterMultiSelect` (color dots inside menu only); **All tasks** page — Customizer merge for type/status/phase labels & colors, phase column, colored filter dropdowns; improved server error logging on tasks page load.
+  - **Docs:** MVT sitemap touches for `admin/projects`, `lib/tasks`, `projects` lib; sessionlog “Next up” / Phase 21 notes as updated this session.
+
+### 2026-03-19 12:20 CT — Events: creator auto-added as participant on create
+
+- **Context for Next Session:** **POST /api/events** now links the signed-in admin to the new event as a calendar participant (`team_member` participant = auth user id via `ensureParticipant` + `assignParticipantToEvent`). Duplicate assignment is harmless (unique constraint handled). If participant ensure/assign fails, the event is still created and errors are logged server-side. **Ready to test:** create a new event (no manual participants) → open edit or calendar with My View → you should appear as a participant. **Key file:** `src/app/api/events/route.ts`.
+- **Completed:**
+  - **Event create — creator as participant:** After successful `createEvent`, API ensures a `participants` row for `source_type: team_member`, `source_id: user.id`, assigns to `event_participants`; failures are non-blocking (console.error).
+
 ### 2026-03-18 16:31 CT — Taxonomy section modal & Core; CRM→Contact taxonomy; org list filters; tag refresh
 
 - **Context for Next Session:** Taxonomy section modal now uses "Add New Taxonomy Section" / "Edit Taxonomy Section" with Create/Update buttons; categories picker removed from section modal (categories created/assigned elsewhere). Sections support **Core** locking (is_core): checkbox in modal (superadmin), slug locked when core, delete icon ghosted; migration `180_section_taxonomy_config_is_core.sql` adds column + RPC + trigger. Staple sections show Core checked; superadmin can uncheck and persist (is_staple synced with Core). **CRM contacts** use taxonomy section **Contact** (slug `contact`): ContactTaxonomyBlock, ContactsListClient, bulk API, and term filtering use `contact`; categories included by `home_section_name` in `termsForSection`. **Organizations list:** search bar on the left; category and tag pickers scoped to **Organization** section; `getOrganizationTaxonomyTermIds` in crm-taxonomy; client-side filter by search + category + tag. **Taxonomy:** adding a new tag refreshes the list (loadAllData on error path; section filter cleared when adding a tag). **Next session:** Rewire **Projects** and **Tasks** to use the new **customizer** settings (project_type, project_status, project_role; task_type, task_status, task_phase) and continue UI enhancement there (see sessionlog). Key files: `TaxonomySettings.tsx`, `180_section_taxonomy_config_is_core.sql`, ContactTaxonomyBlock, ContactsListClient, crm-taxonomy.ts, taxonomy.ts (filterBySuggested + home_section_name), OrganizationsListClient, organizations page.

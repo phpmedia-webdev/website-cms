@@ -5,9 +5,15 @@
 
 import { createServerSupabaseClient } from "./client";
 import { getClientSchema } from "./schema";
+import { shouldIncludeProjectForEventLink } from "@/lib/projects/project-status-for-event-link";
 
 const PROJECTS_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
+
+/** Customizer defaults (migration 179 / Settings → Customizer) when slugs are omitted on create. */
+export const DEFAULT_TASK_STATUS_SLUG = "to_do";
+export const DEFAULT_TASK_TYPE_SLUG = "task";
+export const DEFAULT_TASK_PHASE_SLUG = "backlog";
 
 /** Format total minutes as "X h Y min" for display. Returns "—" when null or not a number. */
 export function formatMinutesAsHoursMinutes(totalMinutes: number | null | undefined): string {
@@ -46,8 +52,12 @@ export interface Task {
   project_id: string;
   title: string;
   description: string | null;
-  status_term_id: string;
-  task_type_term_id: string;
+  /** Settings → Customizer scope `task_status`. */
+  task_status_slug: string;
+  /** Settings → Customizer scope `task_type`. */
+  task_type_slug: string;
+  /** Settings → Customizer scope `task_phase`. */
+  task_phase_slug: string;
   priority_term_id: string;
   proposed_time: number | null;
   actual_time: number | null;
@@ -66,13 +76,16 @@ export interface ListProjectsFilters {
 }
 
 export interface ListTasksFilters {
-  project_id?: string | null;
-  status_term_id?: string | null;
-  task_type_term_id?: string | null;
-  /** "My tasks" for a user (team member). */
-  assignee_user_id?: string | null;
-  /** "My tasks" for a contact (e.g. GPUM). */
-  assignee_contact_id?: string | null;
+  /** When set and non-empty, restrict to these projects. Null/omit = no project constraint (caller should scope). */
+  project_ids?: string[] | null;
+  /** Lowercased Customizer slugs (task_status). */
+  status_slugs?: string[] | null;
+  /** Lowercased Customizer slugs (task_type). */
+  type_slugs?: string[] | null;
+  /** Lowercased Customizer slugs (task_phase). */
+  phase_slugs?: string[] | null;
+  assignee_user_ids?: string[] | null;
+  assignee_contact_ids?: string[] | null;
 }
 
 export interface ProjectInsert {
@@ -110,8 +123,9 @@ export interface TaskInsert {
   project_id: string;
   title: string;
   description?: string | null;
-  status_term_id?: string | null;
-  task_type_term_id?: string | null;
+  task_status_slug?: string | null;
+  task_type_slug?: string | null;
+  task_phase_slug?: string | null;
   priority_term_id?: string | null;
   proposed_time?: number | null;
   actual_time?: number | null;
@@ -124,8 +138,9 @@ export interface TaskInsert {
 export interface TaskUpdate {
   title?: string;
   description?: string | null;
-  status_term_id?: string | null;
-  task_type_term_id?: string | null;
+  task_status_slug?: string | null;
+  task_type_slug?: string | null;
+  task_phase_slug?: string | null;
   priority_term_id?: string | null;
   proposed_time?: number | null;
   actual_time?: number | null;
@@ -152,6 +167,55 @@ export async function listProjects(
     throw error;
   }
   return (data ?? []) as Project[];
+}
+
+/** Minimal project row for linking an event (excludes complete/archived status slugs; see project-status-for-event-link). */
+export interface ProjectForEventLink {
+  id: string;
+  name: string;
+  status_slug: string | null;
+}
+
+/**
+ * Projects eligible to attach to a calendar event: not soft-deleted by archived_at,
+ * and status taxonomy slug not in excluded list (e.g. complete, archived).
+ */
+export async function listProjectsForEventLinking(
+  schema?: string
+): Promise<ProjectForEventLink[]> {
+  const all = await listProjects({ include_archived: true }, schema);
+  const supabase = createServerSupabaseClient();
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const statusIds = [...new Set(all.map((p) => p.status_term_id).filter(Boolean))];
+
+  let idToSlug = new Map<string, string>();
+  if (statusIds.length > 0) {
+    const { data: terms, error } = await supabase
+      .schema(schemaName)
+      .from("taxonomy_terms")
+      .select("id, slug")
+      .in("id", statusIds);
+    if (error) {
+      console.error("listProjectsForEventLinking taxonomy_terms:", error);
+    } else {
+      idToSlug = new Map(
+        (terms ?? []).map((t: { id: string; slug: string }) => [t.id, t.slug])
+      );
+    }
+  }
+
+  return all
+    .filter((p) => {
+      if (p.archived_at) return false;
+      const slug = idToSlug.get(p.status_term_id) ?? null;
+      return shouldIncludeProjectForEventLink(slug);
+    })
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      status_slug: idToSlug.get(p.status_term_id) ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
 
 /** Get a single project by ID. */
@@ -372,21 +436,21 @@ export async function listProjectMembersByProjectIds(
 export async function listTasksByProjectIds(
   projectIds: string[],
   schema?: string
-): Promise<Pick<Task, "id" | "project_id" | "status_term_id" | "due_date">[]> {
+): Promise<Pick<Task, "id" | "project_id" | "task_status_slug" | "due_date">[]> {
   if (projectIds.length === 0) return [];
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? PROJECTS_SCHEMA;
   const { data, error } = await supabase
     .schema(schemaName)
     .from("tasks")
-    .select("id, project_id, status_term_id, due_date")
+    .select("id, project_id, task_status_slug, due_date")
     .in("project_id", projectIds)
     .order("due_date", { ascending: true, nullsFirst: false });
   if (error) {
     console.error("listTasksByProjectIds error:", error);
     return [];
   }
-  return (data ?? []) as Pick<Task, "id" | "project_id" | "status_term_id" | "due_date">[];
+  return (data ?? []) as Pick<Task, "id" | "project_id" | "task_status_slug" | "due_date">[];
 }
 
 /** Add a member to a project. Exactly one of user_id or contact_id must be set. */
@@ -440,23 +504,42 @@ export async function removeProjectMember(
   return { ok: true };
 }
 
-/** List tasks (by project, or "my tasks" when assignee_user_id/assignee_contact_id set). */
+/**
+ * List tasks via public.get_tasks_dynamic (Customizer slug filters).
+ * Requires migration `187_tasks_customizer_slugs.sql` (replaces term-id filters from 185/186).
+ */
 export async function listTasks(
   filters: ListTasksFilters = {},
   schema?: string
 ): Promise<Task[]> {
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? PROJECTS_SCHEMA;
+  const pack = (ids: string[] | null | undefined) =>
+    ids != null && ids.length > 0 ? ids : null;
+  const packSlugs = (slugs: string[] | null | undefined) => {
+    if (slugs == null || slugs.length === 0) return null;
+    const norm = [...new Set(slugs.map((s) => s.trim().toLowerCase()).filter(Boolean))];
+    return norm.length > 0 ? norm : null;
+  };
+
   const { data, error } = await supabase.rpc("get_tasks_dynamic", {
     schema_name: schemaName,
-    project_id_param: filters.project_id ?? null,
-    status_term_id_filter: filters.status_term_id ?? null,
-    task_type_term_id_filter: filters.task_type_term_id ?? null,
-    assignee_user_id: filters.assignee_user_id ?? null,
-    assignee_contact_id: filters.assignee_contact_id ?? null,
+    project_ids: pack(filters.project_ids ?? null),
+    status_slugs: packSlugs(filters.status_slugs ?? null),
+    type_slugs: packSlugs(filters.type_slugs ?? null),
+    phase_slugs: packSlugs(filters.phase_slugs ?? null),
+    assignee_user_ids: pack(filters.assignee_user_ids ?? null),
+    assignee_contact_ids: pack(filters.assignee_contact_ids ?? null),
   });
   if (error) {
-    console.error("listTasks error:", error);
+    const e = error as { message?: string; details?: string; hint?: string; code?: string };
+    console.error(
+      "listTasks error:",
+      e.message ?? error,
+      e.details ?? "",
+      e.hint ?? "",
+      e.code ?? ""
+    );
     throw error;
   }
   return (data ?? []) as Task[];
@@ -697,6 +780,8 @@ export const getTaskStatusTerms = (schema?: string) =>
   getTermsForSection("task_status", schema);
 export const getTaskTypeTerms = (schema?: string) =>
   getTermsForSection("task_type", schema);
+/** Category terms in the Tasks taxonomy section (phases / milestones on tasks). */
+export const getTaskPhaseTerms = (schema?: string) => getTermsForSection("task", schema);
 export const getProjectStatusTerms = (schema?: string) =>
   getTermsForSection("project_status", schema);
 export const getProjectTypeTerms = (schema?: string) =>
@@ -795,38 +880,33 @@ export async function createTask(
 ): Promise<{ id: string } | { error: string }> {
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? getClientSchema();
-  const [defaultPriorityId, defaultStatusId, defaultTypeId] = await Promise.all([
-    getDefaultTaskPriorityTermId(schemaName),
-    getDefaultTaskStatusTermId(schemaName),
-    getDefaultTaskTypeTermId(schemaName),
-  ]);
+  const defaultPriorityId = await getDefaultTaskPriorityTermId(schemaName);
   const priorityTermId = input.priority_term_id ?? defaultPriorityId;
-  const statusTermId = input.status_term_id ?? defaultStatusId;
-  const taskTypeTermId = input.task_type_term_id ?? defaultTypeId;
+  const taskStatusSlug =
+    (input.task_status_slug != null && String(input.task_status_slug).trim()
+      ? String(input.task_status_slug).trim().toLowerCase()
+      : null) ?? DEFAULT_TASK_STATUS_SLUG;
+  const taskTypeSlug =
+    (input.task_type_slug != null && String(input.task_type_slug).trim()
+      ? String(input.task_type_slug).trim().toLowerCase()
+      : null) ?? DEFAULT_TASK_TYPE_SLUG;
+  const taskPhaseSlug =
+    (input.task_phase_slug != null && String(input.task_phase_slug).trim()
+      ? String(input.task_phase_slug).trim().toLowerCase()
+      : null) ?? DEFAULT_TASK_PHASE_SLUG;
   if (!priorityTermId) {
     return {
       error:
         "Default task priority term not found. Run migration 161_task_priority_as_taxonomy.sql.",
     };
   }
-  if (!statusTermId) {
-    return {
-      error:
-        "Default task status term not found. Run migration 163_task_status_and_type_as_taxonomy.sql.",
-    };
-  }
-  if (!taskTypeTermId) {
-    return {
-      error:
-        "Default task type term not found. Run migration 163_task_status_and_type_as_taxonomy.sql.",
-    };
-  }
   const payload: Record<string, unknown> = {
     project_id: input.project_id,
     title: input.title.trim(),
     description: input.description ?? null,
-    status_term_id: statusTermId,
-    task_type_term_id: taskTypeTermId,
+    task_status_slug: taskStatusSlug,
+    task_type_slug: taskTypeSlug,
+    task_phase_slug: taskPhaseSlug,
     priority_term_id: priorityTermId,
     proposed_time: input.proposed_time ?? null,
     actual_time: input.actual_time ?? null,
@@ -867,9 +947,21 @@ export async function updateTask(
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.title !== undefined) payload.title = input.title.trim();
   if (input.description !== undefined) payload.description = input.description;
-  if (input.status_term_id !== undefined) payload.status_term_id = input.status_term_id;
-  if (input.task_type_term_id !== undefined)
-    payload.task_type_term_id = input.task_type_term_id;
+  if (input.task_status_slug !== undefined)
+    payload.task_status_slug =
+      input.task_status_slug != null && String(input.task_status_slug).trim()
+        ? String(input.task_status_slug).trim().toLowerCase()
+        : DEFAULT_TASK_STATUS_SLUG;
+  if (input.task_type_slug !== undefined)
+    payload.task_type_slug =
+      input.task_type_slug != null && String(input.task_type_slug).trim()
+        ? String(input.task_type_slug).trim().toLowerCase()
+        : DEFAULT_TASK_TYPE_SLUG;
+  if (input.task_phase_slug !== undefined)
+    payload.task_phase_slug =
+      input.task_phase_slug != null && String(input.task_phase_slug).trim()
+        ? String(input.task_phase_slug).trim().toLowerCase()
+        : DEFAULT_TASK_PHASE_SLUG;
   if (input.priority_term_id !== undefined)
     payload.priority_term_id = input.priority_term_id;
   if (input.proposed_time !== undefined)
@@ -1099,7 +1191,7 @@ export async function getProjectTimeLogTotalMinutes(
   projectId: string,
   schema?: string
 ): Promise<number> {
-  const tasks = await listTasks({ project_id: projectId }, schema);
+  const tasks = await listTasks({ project_ids: [projectId] }, schema);
   const taskIds = tasks.map((t) => t.id);
   if (taskIds.length === 0) return 0;
   const supabase = createServerSupabaseClient();

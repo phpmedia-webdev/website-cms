@@ -52,7 +52,7 @@ export function TaxonomyMultiSelect({
         type="button"
         variant="outline"
         size="sm"
-        className="h-9 min-w-[7rem] justify-between gap-1"
+        className="h-9 w-full min-w-0 justify-between gap-1"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="listbox"

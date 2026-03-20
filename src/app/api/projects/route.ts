@@ -6,7 +6,13 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
-import { listProjects, createProject, addProjectMember, type ProjectInsert } from "@/lib/supabase/projects";
+import {
+  listProjects,
+  listProjectsForEventLinking,
+  createProject,
+  addProjectMember,
+  type ProjectInsert,
+} from "@/lib/supabase/projects";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -26,6 +32,13 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
+    const forEventLink = searchParams.get("for_event_link") === "true";
+
+    if (forEventLink) {
+      const projects = await listProjectsForEventLinking();
+      return NextResponse.json({ projects });
+    }
+
     const status_term_id = searchParams.get("status_term_id") ?? undefined;
     const required_mag_id = searchParams.get("required_mag_id") ?? undefined;
     const include_archived = searchParams.get("include_archived") === "true";

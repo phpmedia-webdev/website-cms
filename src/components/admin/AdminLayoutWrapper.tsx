@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { FeatureGuard } from "@/components/admin/FeatureGuard";
 import { VIEW_AS_COOKIE_NAME } from "@/lib/admin/view-as";
@@ -52,15 +51,6 @@ export function AdminLayoutWrapper({
   const isMfaPage = pathname?.startsWith("/admin/mfa");
   const isAuthFlowPage = isLoginPage || isMfaPage;
 
-  useEffect(() => {
-    if (!isAuthFlowPage) {
-      document.body.classList.add("admin-theme");
-      return () => {
-        document.body.classList.remove("admin-theme");
-      };
-    }
-  }, [isAuthFlowPage]);
-
   function exitViewAs() {
     document.cookie = `${VIEW_AS_COOKIE_NAME}=; path=/; max-age=0`;
     router.refresh();
@@ -96,7 +86,7 @@ export function AdminLayoutWrapper({
       : roleFeatureSlugs;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="admin-theme flex h-screen overflow-hidden bg-background text-foreground">
       <Sidebar
         isSuperadmin={isSuperadmin}
         effectiveFeatureSlugs={effectiveSlugsForGuard}

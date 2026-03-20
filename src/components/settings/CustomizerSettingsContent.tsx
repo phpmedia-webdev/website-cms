@@ -7,18 +7,29 @@ import { CrmSettingsClient } from "@/app/admin/settings/crm/CrmSettingsClient";
 import { ProjectsSettingsClient } from "@/app/admin/settings/projects/ProjectsSettingsClient";
 import { TasksSettingsClient } from "@/app/admin/settings/tasks/TasksSettingsClient";
 import { ResourcesSettingsClient } from "@/app/admin/settings/resources/ResourcesSettingsClient";
+import { EventsSettingsClient } from "@/app/admin/settings/events/EventsSettingsClient";
 import { ContentTypesBoard } from "@/components/settings/ContentTypesBoard";
 import { ContentFieldsBoard } from "@/components/settings/ContentFieldsBoard";
 import type { CustomizerOptionRow } from "@/components/settings/CustomizerOptionsTable";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 
 const TAB_CRM = "crm";
-const TAB_PROJECTS = "projects";
+const TAB_EVENTS = "events";
 const TAB_TASKS = "tasks";
-const TAB_CALENDAR = "calendar";
+const TAB_PROJECTS = "projects";
+const TAB_RESOURCES = "resources";
+/** Legacy URL param; normalized to Resources tab */
+const LEGACY_TAB_CALENDAR = "calendar";
 const TAB_CONTENT = "content";
 
-const VALID_TABS = [TAB_CRM, TAB_PROJECTS, TAB_TASKS, TAB_CALENDAR, TAB_CONTENT] as const;
+const VALID_TABS = [
+  TAB_CRM,
+  TAB_EVENTS,
+  TAB_TASKS,
+  TAB_PROJECTS,
+  TAB_RESOURCES,
+  TAB_CONTENT,
+] as const;
 
 interface CustomizerSettingsContentProps {
   isSuperadmin?: boolean;
@@ -31,6 +42,7 @@ interface CustomizerSettingsContentProps {
   initialTaskTypes?: CustomizerOptionRow[];
   initialTaskStatuses?: CustomizerOptionRow[];
   initialTaskPhases?: CustomizerOptionRow[];
+  initialEventTypes?: CustomizerOptionRow[];
 }
 
 export function CustomizerSettingsContent({
@@ -44,23 +56,33 @@ export function CustomizerSettingsContent({
   initialTaskTypes = [],
   initialTaskStatuses = [],
   initialTaskPhases = [],
+  initialEventTypes = [],
 }: CustomizerSettingsContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const tabParam = searchParams.get("tab");
-  const initialTab = VALID_TABS.includes(tabParam as (typeof VALID_TABS)[number])
-    ? tabParam
-    : TAB_CRM;
 
-  const [activeTab, setActiveTab] = useState(initialTab ?? TAB_CRM);
+  const normalizeTabParam = (t: string | null): string => {
+    if (!t) return TAB_CRM;
+    if (t === LEGACY_TAB_CALENDAR) return TAB_RESOURCES;
+    return VALID_TABS.includes(t as (typeof VALID_TABS)[number]) ? t : TAB_CRM;
+  };
+
+  const initialTab = normalizeTabParam(tabParam);
+
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
-    const next = VALID_TABS.includes(tabParam as (typeof VALID_TABS)[number])
-      ? tabParam
-      : TAB_CRM;
-    setActiveTab(next ?? TAB_CRM);
+    setActiveTab(normalizeTabParam(tabParam));
   }, [tabParam]);
+
+  useEffect(() => {
+    if (tabParam !== LEGACY_TAB_CALENDAR) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", TAB_RESOURCES);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [tabParam, pathname, router, searchParams]);
 
   const setTab = useCallback(
     (tab: string) => {
@@ -75,13 +97,15 @@ export function CustomizerSettingsContent({
   const description =
     activeTab === TAB_CRM
       ? "Contact statuses and note types for the CRM."
-      : activeTab === TAB_PROJECTS
-        ? "Project types and statuses (admin-managed workflow options)."
+      : activeTab === TAB_EVENTS
+        ? "Event types for calendar events (admin-managed list)."
         : activeTab === TAB_TASKS
           ? "Task types, statuses, and phases (admin-managed workflow options)."
-          : activeTab === TAB_CALENDAR
-            ? "Resource types for calendar events and tasks (e.g., Room, Equipment, Video)."
-            : "Content types and custom fields for content.";
+          : activeTab === TAB_PROJECTS
+            ? "Project types and statuses (admin-managed workflow options)."
+            : activeTab === TAB_RESOURCES
+              ? "Resource types for calendar events and tasks (e.g., Room, Equipment, Video)."
+              : "Content types and custom fields for content.";
 
   return (
     <div className="space-y-6">
@@ -91,13 +115,16 @@ export function CustomizerSettingsContent({
             <TabsTrigger value={TAB_CRM} className="flex-1 sm:flex-initial">
               CRM
             </TabsTrigger>
-            <TabsTrigger value={TAB_PROJECTS} className="flex-1 sm:flex-initial">
-              Projects
+            <TabsTrigger value={TAB_EVENTS} className="flex-1 sm:flex-initial">
+              Events
             </TabsTrigger>
             <TabsTrigger value={TAB_TASKS} className="flex-1 sm:flex-initial">
               Tasks
             </TabsTrigger>
-            <TabsTrigger value={TAB_CALENDAR} className="flex-1 sm:flex-initial">
+            <TabsTrigger value={TAB_PROJECTS} className="flex-1 sm:flex-initial">
+              Projects
+            </TabsTrigger>
+            <TabsTrigger value={TAB_RESOURCES} className="flex-1 sm:flex-initial">
               Resources
             </TabsTrigger>
             <TabsTrigger value={TAB_CONTENT} className="flex-1 sm:flex-initial">
@@ -115,12 +142,10 @@ export function CustomizerSettingsContent({
           initialContactStatuses={initialContactStatuses}
         />
       )}
-      {activeTab === TAB_PROJECTS && (
-        <ProjectsSettingsClient
+      {activeTab === TAB_EVENTS && (
+        <EventsSettingsClient
           isSuperadmin={isSuperadmin}
-          initialProjectTypes={initialProjectTypes}
-          initialProjectStatuses={initialProjectStatuses}
-          initialProjectRoles={initialProjectRoles}
+          initialEventTypes={initialEventTypes}
         />
       )}
       {activeTab === TAB_TASKS && (
@@ -131,7 +156,15 @@ export function CustomizerSettingsContent({
           initialTaskPhases={initialTaskPhases}
         />
       )}
-      {activeTab === TAB_CALENDAR && (
+      {activeTab === TAB_PROJECTS && (
+        <ProjectsSettingsClient
+          isSuperadmin={isSuperadmin}
+          initialProjectTypes={initialProjectTypes}
+          initialProjectStatuses={initialProjectStatuses}
+          initialProjectRoles={initialProjectRoles}
+        />
+      )}
+      {activeTab === TAB_RESOURCES && (
         <ResourcesSettingsClient
           isSuperadmin={isSuperadmin}
           initialResourceTypes={initialResourceTypes}

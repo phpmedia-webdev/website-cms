@@ -1,4 +1,4 @@
-import { listProjects, getProjectStatusTerms, getProjectTypeTerms, getTaskStatusTerms, listProjectMembersByProjectIds, listTasksByProjectIds } from "@/lib/supabase/projects";
+import { listProjects, getProjectStatusTerms, getProjectTypeTerms, listProjectMembersByProjectIds, listTasksByProjectIds } from "@/lib/supabase/projects";
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getOrganizationsByIds } from "@/lib/supabase/organizations";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
@@ -18,13 +18,11 @@ export default async function AdminProjectsPage() {
   let projects: Awaited<ReturnType<typeof listProjects>> = [];
   let statusTerms: Awaited<ReturnType<typeof getProjectStatusTerms>> = [];
   let typeTerms: Awaited<ReturnType<typeof getProjectTypeTerms>> = [];
-  let taskStatusTerms: Awaited<ReturnType<typeof getTaskStatusTerms>> = [];
   try {
-    [projects, statusTerms, typeTerms, taskStatusTerms] = await Promise.all([
+    [projects, statusTerms, typeTerms] = await Promise.all([
       listProjects({ include_archived: true }),
       getProjectStatusTerms(),
       getProjectTypeTerms(),
-      getTaskStatusTerms(),
     ]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -64,8 +62,6 @@ export default async function AdminProjectsPage() {
     membersByProject.set(member.project_id, current);
   }
 
-  const doneStatusIds = new Set(taskStatusTerms.filter((term) => term.slug === "done").map((term) => term.id));
-  const cancelledStatusIds = new Set(taskStatusTerms.filter((term) => term.slug === "cancelled").map((term) => term.id));
   const now = Date.now();
 
   const rows: ProjectListRow[] = projects.map((project) => {
@@ -112,8 +108,9 @@ export default async function AdminProjectsPage() {
     });
 
     const progressSegments = (tasksByProject.get(project.id) ?? []).map((task) => {
-      const isDone = doneStatusIds.has(task.status_term_id);
-      const isCancelled = cancelledStatusIds.has(task.status_term_id);
+      const slug = (task.task_status_slug ?? "").trim().toLowerCase();
+      const isDone = slug === "done";
+      const isCancelled = slug === "cancelled";
       const overdue = !isDone && !isCancelled && !!task.due_date && new Date(task.due_date).getTime() < now;
       return {
         id: task.id,

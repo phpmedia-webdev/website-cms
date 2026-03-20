@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ProjectEventLinkCombobox } from "@/components/events/ProjectEventLinkCombobox";
 import { GalleryMediaPicker } from "@/components/galleries/GalleryMediaPicker";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
 import {
@@ -43,6 +44,11 @@ import {
   RECURRENCE_PRESETS,
   type RecurrencePreset,
 } from "@/lib/recurrenceForm";
+import {
+  DEFAULT_EVENT_TYPE_COLOR,
+  normalizeHex,
+} from "@/lib/event-type-colors";
+import { cn } from "@/lib/utils";
 
 interface EventFormClientProps {
   event?: Event | null;
@@ -60,6 +66,40 @@ function toDateLocal(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+type EventTypeOption = { slug: string; label: string; color?: string | null };
+
+function hexForEventTypeOption(t: EventTypeOption | undefined): string {
+  if (t?.color && String(t.color).trim()) return normalizeHex(String(t.color));
+  return DEFAULT_EVENT_TYPE_COLOR;
+}
+
+function hexForEventTypeSlug(slug: string, options: EventTypeOption[]): string {
+  const row = options.find((o) => o.slug === slug);
+  return hexForEventTypeOption(row);
+}
+
+function pickDefaultEventTypeSlug(
+  options: EventTypeOption[],
+  stored: string | null | undefined
+): string {
+  if (stored && options.some((o) => o.slug === stored)) return stored;
+  const meeting = options.find((o) => o.slug === "meeting");
+  if (meeting) return meeting.slug;
+  return options[0]?.slug ?? "meeting";
+}
+
+/** Required indicator next to labels (bold red asterisk). Inputs keep native `required` for validation/a11y. */
+function RequiredFieldMark() {
+  return (
+    <span
+      className="ml-0.5 inline-block align-super text-lg font-bold leading-none text-destructive"
+      aria-hidden
+    >
+      *
+    </span>
+  );
 }
 
 function parseToISO(
@@ -125,6 +165,11 @@ export function EventFormClient({
   const [showOnPublicCalendar, setShowOnPublicCalendar] = useState(false);
   const [showPublicWarning, setShowPublicWarning] = useState(false);
 
+  const [eventTypes, setEventTypes] = useState<EventTypeOption[]>([]);
+  const [eventTypeSlug, setEventTypeSlug] = useState<string>("meeting");
+  /** New event: large chip stays neutral until user picks a type; edit/detail always shows type color. */
+  const [eventTypePickerInteracted, setEventTypePickerInteracted] = useState(!!event);
+
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [pickerMedia, setPickerMedia] = useState<Awaited<ReturnType<typeof getMediaWithVariants>>>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
@@ -146,7 +191,6 @@ export function EventFormClient({
   const [projectId, setProjectId] = useState<string | null>(
     (event as { project_id?: string | null })?.project_id ?? initialProjectId
   );
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 
   // Only set date/time defaults once for new events; avoid re-running when coverImageUrls changes
   const newEventDefaultsSet = useRef(false);
@@ -193,6 +237,45 @@ export function EventFormClient({
       return () => clearTimeout(id);
     }
   }, [event, coverImageUrls]);
+
+  useEffect(() => {
+    fetch("/api/settings/customizer?scope=event_type")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: unknown) => {
+        const raw = Array.isArray(data) ? data : [];
+        setEventTypes(
+          raw
+            .map((row: Record<string, unknown>) => {
+              const colorRaw = row.color;
+              const color =
+                colorRaw != null && String(colorRaw).trim()
+                  ? String(colorRaw).trim()
+                  : null;
+              return {
+                slug: String(row.slug ?? "").trim(),
+                label: String(row.label ?? row.slug ?? "").trim() || String(row.slug ?? ""),
+                color,
+              };
+            })
+            .filter((o: EventTypeOption) => o.slug.length > 0)
+        );
+      })
+      .catch(() => setEventTypes([]));
+  }, []);
+
+  useEffect(() => {
+    if (eventTypes.length === 0) return;
+    setEventTypeSlug((prev) => {
+      const fromEvent = event?.event_type;
+      const candidate = fromEvent ?? prev;
+      if (candidate && eventTypes.some((o) => o.slug === candidate)) return candidate;
+      return pickDefaultEventTypeSlug(eventTypes, fromEvent);
+    });
+  }, [event?.id, event?.event_type, eventTypes]);
+
+  useEffect(() => {
+    if (event) setEventTypePickerInteracted(true);
+  }, [event?.id]);
 
   useEffect(() => {
     fetch("/api/crm/mags")
@@ -244,15 +327,15 @@ export function EventFormClient({
     }
   }, [showImagePicker]);
 
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((res) => res.json())
-      .then((data) => setProjects(Array.isArray(data?.projects) ? data.projects : []))
-      .catch(() => setProjects([]));
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    // Defensive: HTML5 validation normally blocks submit before onSubmit; if this still runs invalid, bail without API/nav.
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
     setError(null);
     setSaving(true);
 
@@ -282,7 +365,7 @@ export function EventFormClient({
       access_level: accessLevel,
       required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
       visibility: showOnPublicCalendar ? "public" : "private",
-      event_type: showOnPublicCalendar ? "public" : "meeting",
+      event_type: eventTypeSlug.trim() || "meeting",
       project_id: projectId || null,
     };
 
@@ -358,11 +441,16 @@ export function EventFormClient({
         }
       }
       if (!isEdit && eventId) {
-        router.push(`/admin/events/${eventId}/edit`);
-      } else {
+        // New event: return to calendar (same as after editing). Avoid landing on another full-page form.
+        router.replace("/admin/events");
+        router.refresh();
+      } else if (isEdit) {
         router.push("/admin/events");
+        router.refresh();
+      } else {
+        // New event but no id in response (should not happen after 201); stay on page
+        setError("Event could not be created (no id returned). Please try again.");
       }
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -398,7 +486,7 @@ export function EventFormClient({
       access_level: accessLevel,
       required_mag_id: accessLevel === "mag" && requiredMagId ? requiredMagId : null,
       visibility: showOnPublicCalendar ? "public" : "private",
-      event_type: showOnPublicCalendar ? "public" : "meeting",
+      event_type: eventTypeSlug.trim() || "meeting",
       project_id: projectId || null,
     };
     try {
@@ -527,7 +615,10 @@ export function EventFormClient({
               <p className="text-sm text-destructive">{error}</p>
             )}
             <div className="space-y-1">
-              <Label htmlFor="title" className="text-sm">Title</Label>
+              <Label htmlFor="title" className="text-sm inline-flex items-center gap-1.5">
+                Title
+                <RequiredFieldMark />
+              </Label>
               <Input
                 id="title"
                 value={title}
@@ -535,6 +626,79 @@ export function EventFormClient({
                 placeholder="Event title"
                 required
               />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+              <div className="space-y-1 min-w-0">
+                <Label htmlFor="event-type" className="text-sm inline-flex items-center gap-1.5">
+                  Event type
+                  <RequiredFieldMark />
+                </Label>
+                {eventTypes.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "h-9 w-9 shrink-0 rounded-md border-2 border-border shadow-sm ring-1 ring-black/5 dark:ring-white/10",
+                        !event && !eventTypePickerInteracted && "bg-muted"
+                      )}
+                      style={
+                        event || eventTypePickerInteracted
+                          ? { backgroundColor: hexForEventTypeSlug(eventTypeSlug, eventTypes) }
+                          : undefined
+                      }
+                      title={
+                        event || eventTypePickerInteracted
+                          ? `Event type color (${eventTypeSlug})`
+                          : "Choose an event type to preview its color"
+                      }
+                      aria-hidden
+                    />
+                    <Select
+                      value={eventTypeSlug}
+                      onValueChange={(v) => {
+                        setEventTypePickerInteracted(true);
+                        setEventTypeSlug(v);
+                      }}
+                    >
+                      <SelectTrigger id="event-type" className="h-9 min-w-0 flex-1">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {eventTypes.map((t) => (
+                          <SelectItem key={t.slug} value={t.slug} textValue={t.label}>
+                            <span className="flex items-center gap-2">
+                              <span
+                                className="size-2.5 shrink-0 rounded-full border border-black/15 dark:border-white/25"
+                                style={{ backgroundColor: hexForEventTypeOption(t) }}
+                                aria-hidden
+                              />
+                              {t.label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No event types in Customizer yet. Defaults to &quot;meeting&quot; until you add types under{" "}
+                    <Link href="/admin/settings/customizer?tab=events" className="underline hover:text-foreground">
+                      Settings → Customizer → Events
+                    </Link>
+                    .
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1 min-w-0">
+                <Label htmlFor="event-project" className="text-sm">
+                  Project
+                </Label>
+                <ProjectEventLinkCombobox
+                  htmlId="event-project"
+                  value={projectId}
+                  onValueChange={setProjectId}
+                  disabled={saving || copying || deleting}
+                />
+              </div>
             </div>
             <div className="space-y-1">
               <Label htmlFor="description" className="text-sm">Description</Label>
@@ -547,136 +711,130 @@ export function EventFormClient({
                 className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="project" className="text-sm">Project (optional)</Label>
-              <Select
-                value={projectId ?? "none"}
-                onValueChange={(v) => setProjectId(v === "none" ? null : v)}
-              >
-                <SelectTrigger id="project" className="w-full max-w-xs">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Link this event to a project to show it on the project detail Events tab.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 py-0.5">
-              <Checkbox
-                id="is_all_day"
-                checked={isAllDay}
-                onCheckedChange={(v) => setIsAllDay(!!v)}
-              />
-              <Label htmlFor="is_all_day" className="cursor-pointer">
-                All day
-              </Label>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="recurrence" className="text-sm">Repeats</Label>
-              <Select
-                value={recurrencePreset}
-                onValueChange={(v) => {
-                  setRecurrencePreset(v as RecurrencePreset);
-                  setRecurrenceRuleRaw(null);
-                }}
-              >
-                <SelectTrigger id="recurrence" className="w-52">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  {RECURRENCE_PRESETS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {recurrencePreset !== "none" && (
-              <div className="space-y-1">
-                <Label className="text-sm">End repeat</Label>
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name="recurrence-end"
-                      checked={!recurrenceEndDate}
-                      onChange={() => setRecurrenceEndDate(null)}
-                      className="rounded-full border-input"
+            <Card className="rounded-xl border border-border bg-muted/50 text-card-foreground shadow-none">
+              <CardContent className="space-y-4 p-4 sm:p-5">
+                <p className="text-sm font-medium leading-none flex items-center gap-1.5">
+                  Date &amp; time
+                  <RequiredFieldMark />
+                </p>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="is_all_day"
+                      checked={isAllDay}
+                      onCheckedChange={(v) => setIsAllDay(!!v)}
                     />
-                    Never
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name="recurrence-end"
-                      checked={!!recurrenceEndDate}
-                      onChange={() => {
-                        if (!recurrenceEndDate) {
-                          const d = new Date();
-                          const pad = (n: number) => n.toString().padStart(2, "0");
-                          setRecurrenceEndDate(
-                            `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-                          );
-                        }
+                    <Label htmlFor="is_all_day" className="cursor-pointer">
+                      All day
+                    </Label>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <Label htmlFor="recurrence" className="text-sm shrink-0">
+                      Repeats
+                    </Label>
+                    <Select
+                      value={recurrencePreset}
+                      onValueChange={(v) => {
+                        setRecurrencePreset(v as RecurrencePreset);
+                        setRecurrenceRuleRaw(null);
                       }}
-                      className="rounded-full border-input"
-                    />
-                    On date
-                  </label>
-                  {recurrenceEndDate && (
+                    >
+                      <SelectTrigger id="recurrence" className="w-52 bg-background">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RECURRENCE_PRESETS.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {recurrencePreset !== "none" && (
+                  <div className="space-y-1">
+                    <Label className="text-sm">End repeat</Label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="recurrence-end"
+                          checked={!recurrenceEndDate}
+                          onChange={() => setRecurrenceEndDate(null)}
+                          className="rounded-full border-input"
+                        />
+                        Never
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="recurrence-end"
+                          checked={!!recurrenceEndDate}
+                          onChange={() => {
+                            if (!recurrenceEndDate) {
+                              const d = new Date();
+                              const pad = (n: number) => n.toString().padStart(2, "0");
+                              setRecurrenceEndDate(
+                                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+                              );
+                            }
+                          }}
+                          className="rounded-full border-input"
+                        />
+                        On date
+                      </label>
+                      {recurrenceEndDate && (
+                        <Input
+                          type="date"
+                          value={recurrenceEndDate}
+                          onChange={(e) => setRecurrenceEndDate(e.target.value || null)}
+                          className="w-40 bg-background"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-sm">Start</Label>
                     <Input
                       type="date"
-                      value={recurrenceEndDate}
-                      onChange={(e) => setRecurrenceEndDate(e.target.value || null)}
-                      className="w-40"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      required
+                      className="bg-background"
                     />
-                  )}
+                    {!isAllDay && (
+                      <Input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="bg-background"
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">End</Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      required
+                      className="bg-background"
+                    />
+                    {!isAllDay && (
+                      <Input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className="bg-background"
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-sm">Start</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  required
-                />
-                {!isAllDay && (
-                  <Input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                  />
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm">End</Label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                />
-                {!isAllDay && (
-                  <Input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                  />
-                )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="location" className="text-sm">Location</Label>

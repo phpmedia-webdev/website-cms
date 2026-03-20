@@ -15,9 +15,11 @@ import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 import { Plus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Event } from "@/lib/supabase/events";
 import { eventIdForEdit } from "@/lib/recurrence";
 import type { View } from "react-big-calendar";
+import { RotateCcw } from "lucide-react";
 
 function useContainerHeight(minHeight = 400) {
   const ref = useRef<HTMLDivElement>(null);
@@ -37,18 +39,29 @@ function useContainerHeight(minHeight = 400) {
 
 interface EventsPageClientProps {
   events: Event[];
+  /** From SSR + GET /api/events `event_type_colors` (Customizer scope event_type). */
+  initialEventTypeColors?: Record<string, string>;
 }
+
+type EventTypeOption = { slug: string; label: string };
 
 export function EventsPageClient({
   events: initialEvents,
+  initialEventTypeColors = {},
 }: EventsPageClientProps) {
   const { ref: calendarRef, height: calendarHeight } = useContainerHeight(400);
   const [events, setEvents] = useState<Event[]>(initialEvents);
+  const [eventTypeColors, setEventTypeColors] = useState<Record<string, string>>(
+    () => initialEventTypeColors
+  );
   const [date, setDate] = useState(() => new Date());
   const [view, setView] = useState<View>("month");
   const [loading, setLoading] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [eventTypeOptions, setEventTypeOptions] = useState<EventTypeOption[]>([]);
+  const [selectedEventType, setSelectedEventType] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [filterCategoryIds, setFilterCategoryIds] = useState<Set<string>>(new Set());
   const [filterTagIds, setFilterTagIds] = useState<Set<string>>(new Set());
   const [filterMembershipIds, setFilterMembershipIds] = useState<Set<string>>(new Set());
@@ -69,6 +82,23 @@ export function EventsPageClient({
   const [eventTaxonomyMap, setEventTaxonomyMap] = useState<
     Map<string, { categoryIds: string[]; tagIds: string[] }>
   >(new Map());
+
+  useEffect(() => {
+    fetch("/api/settings/customizer?scope=event_type")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: unknown) => {
+        const raw = Array.isArray(data) ? data : [];
+        setEventTypeOptions(
+          raw
+            .map((row: Record<string, unknown>) => ({
+              slug: String(row.slug ?? "").trim(),
+              label: String(row.label ?? row.slug ?? "").trim() || String(row.slug ?? ""),
+            }))
+            .filter((o) => o.slug.length > 0)
+        );
+      })
+      .catch(() => setEventTypeOptions([]));
+  }, []);
 
   useEffect(() => {
     Promise.all([getTaxonomyTermsClient(), getSectionConfigsClient()])
@@ -198,6 +228,14 @@ export function EventsPageClient({
       );
     }
 
+    if (selectedEventType) {
+      list = list.filter((e) => (e.event_type ?? null) === selectedEventType);
+    }
+
+    if (selectedProjectId) {
+      list = list.filter((e) => (e.project_id ?? null) === selectedProjectId);
+    }
+
     if (filterCategoryIds.size > 0) {
       list = list.filter((e) => {
         const t = eventTaxonomyMap.get(eventIdForEdit(e.id));
@@ -254,6 +292,8 @@ export function EventsPageClient({
     myViewEnabled,
     myParticipantId,
     search,
+    selectedEventType,
+    selectedProjectId,
     filterCategoryIds,
     filterTagIds,
     filterMembershipIds,
@@ -266,8 +306,36 @@ export function EventsPageClient({
     eventResourceMap,
   ]);
 
+  const hasFilters = useMemo(
+    () =>
+      search.trim().length > 0 ||
+      !!selectedEventType ||
+      !!selectedProjectId ||
+      filterCategoryIds.size > 0 ||
+      filterTagIds.size > 0 ||
+      filterMembershipIds.size > 0 ||
+      !filterPublic ||
+      !filterInternal ||
+      filterParticipantIds.size > 0 ||
+      filterResourceIds.size > 0,
+    [
+      search,
+      selectedEventType,
+      selectedProjectId,
+      filterCategoryIds,
+      filterTagIds,
+      filterMembershipIds,
+      filterPublic,
+      filterInternal,
+      filterParticipantIds,
+      filterResourceIds,
+    ]
+  );
+
   const handleResetFilters = useCallback(() => {
     setSearch("");
+    setSelectedEventType(null);
+    setSelectedProjectId(null);
     setFilterCategoryIds(new Set());
     setFilterTagIds(new Set());
     setFilterMembershipIds(new Set());
@@ -288,6 +356,9 @@ export function EventsPageClient({
       if (!res.ok) throw new Error("Failed to fetch events");
       const json = await res.json();
       setEvents(json.data ?? []);
+      if (json.event_type_colors && typeof json.event_type_colors === "object") {
+        setEventTypeColors(json.event_type_colors as Record<string, string>);
+      }
     } catch {
       setEvents([]);
     } finally {
@@ -316,8 +387,8 @@ export function EventsPageClient({
             Manage events and recurring schedules
           </p>
         </div>
-        <div className="flex flex-1 items-center justify-center shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center justify-end shrink-0">
+          <div className="flex items-center gap-4">
             <Switch
               id="my-view"
               checked={myViewEnabled}
@@ -332,9 +403,56 @@ export function EventsPageClient({
             >
               My View
             </Label>
+
+            <div className="w-6 shrink-0" aria-hidden />
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="filter-public"
+                checked={filterPublic}
+                onCheckedChange={(v) => {
+                  const checked = !!v;
+                  setFilterPublic(checked);
+                  if (!checked && !filterInternal) setFilterInternal(true);
+                }}
+                aria-label="Show public events"
+              />
+              <label htmlFor="filter-public" className="text-sm cursor-pointer select-none">
+                Public
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="filter-internal"
+                checked={filterInternal}
+                onCheckedChange={(v) => {
+                  const checked = !!v;
+                  setFilterInternal(checked);
+                  if (!checked && !filterPublic) setFilterPublic(true);
+                }}
+                aria-label="Show internal events"
+              />
+              <label htmlFor="filter-internal" className="text-sm cursor-pointer select-none">
+                Internal
+              </label>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0"
+              onClick={handleResetFilters}
+              disabled={!hasFilters}
+              title="Reset search and filters"
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Reset
+            </Button>
           </div>
         </div>
-        <div className="flex flex-1 justify-end shrink-0">
+        <div className="flex justify-end shrink-0">
           <Button asChild>
             <Link href="/admin/events/new">
               <Plus className="h-4 w-4 mr-2" />
@@ -348,22 +466,17 @@ export function EventsPageClient({
         <EventsFilterBar
           search={search}
           onSearchChange={setSearch}
+          eventTypeOptions={eventTypeOptions}
+          selectedEventType={selectedEventType}
+          onSelectedEventTypeChange={setSelectedEventType}
+          selectedProjectId={selectedProjectId}
+          onSelectedProjectIdChange={setSelectedProjectId}
           filterCategories={filterCategories}
           filterTags={filterTags}
           filterMemberships={mags}
           selectedCategoryIds={filterCategoryIds}
           selectedTagIds={filterTagIds}
           selectedMembershipIds={filterMembershipIds}
-          filterPublic={filterPublic}
-          filterInternal={filterInternal}
-          onFilterPublicChange={(checked) => {
-            setFilterPublic(checked);
-            if (!checked && !filterInternal) setFilterInternal(true);
-          }}
-          onFilterInternalChange={(checked) => {
-            setFilterInternal(checked);
-            if (!checked && !filterPublic) setFilterPublic(true);
-          }}
           filterParticipantIds={filterParticipantIds}
           filterResourceIds={filterResourceIds}
           onFilterParticipantsResourcesApply={(pIds, rIds) => {
@@ -396,7 +509,6 @@ export function EventsPageClient({
               return next;
             });
           }}
-          onReset={handleResetFilters}
         />
       </div>
 
@@ -416,6 +528,7 @@ export function EventsPageClient({
         )}
         <EventsCalendar
           events={filteredEvents}
+          eventTypeColors={eventTypeColors}
           date={date}
           view={view}
           onDateChange={handleDateChange}

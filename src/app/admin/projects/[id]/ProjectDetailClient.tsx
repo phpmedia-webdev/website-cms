@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ArrowLeft, Pencil, Archive, ArchiveRestore, Receipt, ListOrdered, Calendar } from "lucide-react";
 import type { Event } from "@/lib/supabase/events";
-import type { Project, Task, TaskPriorityTerm, ProjectMember } from "@/lib/supabase/projects";
+import type { Project, Task, ProjectMember } from "@/lib/supabase/projects";
 import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
 import { formatMinutesAsHoursMinutes } from "@/lib/supabase/projects";
 import type { OrderRow } from "@/lib/shop/orders";
@@ -77,7 +77,6 @@ interface ProjectDetailClientProps {
   projectTotal: number;
   /** Total minutes logged across all tasks in this project (time logs). */
   projectTimeLogMinutes: number;
-  priorityTerms: TaskPriorityTerm[];
   projectTaxonomy: { categories: TaxonomyTermDisplay[]; tags: TaxonomyTermDisplay[] };
   projectStatusTerms: StatusOrTypeTerm[];
   projectTypeTerms: StatusOrTypeTerm[];
@@ -98,7 +97,6 @@ export function ProjectDetailClient({
   initialInvoices,
   projectTotal,
   projectTimeLogMinutes,
-  priorityTerms,
   projectTaxonomy,
   projectStatusTerms,
   projectTypeTerms,
@@ -319,12 +317,11 @@ export function ProjectDetailClient({
             <dd>
               <ProjectProgressSegments
                 segments={(() => {
-                  const doneIds = new Set(taskStatusTerms.filter((t) => t.slug === "done").map((t) => t.id));
-                  const cancelledIds = new Set(taskStatusTerms.filter((t) => t.slug === "cancelled").map((t) => t.id));
                   const now = Date.now();
                   return tasks.map((task): ProjectProgressSegment => {
-                    const isDone = doneIds.has(task.status_term_id);
-                    const isCancelled = cancelledIds.has(task.status_term_id);
+                    const slug = (task.task_status_slug ?? "").trim().toLowerCase();
+                    const isDone = slug === "done";
+                    const isCancelled = slug === "cancelled";
                     const overdue = !isDone && !isCancelled && !!task.due_date && new Date(task.due_date).getTime() < now;
                     return {
                       id: task.id,
@@ -427,44 +424,39 @@ export function ProjectDetailClient({
                 <tr className="border-b bg-muted/50">
                   <th className="h-9 px-4 text-left font-medium">Title</th>
                   <th className="h-9 px-4 text-left font-medium">Status</th>
-                  <th className="h-9 px-4 text-left font-medium">Priority</th>
                   <th className="h-9 px-4 text-left font-medium">Start</th>
                   <th className="h-9 px-4 text-left font-medium">Due</th>
-                  <th className="h-9 w-20 px-4 text-left font-medium" />
                 </tr>
               </thead>
               <tbody>
                 {tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={3} className="p-6 text-center text-muted-foreground">
                       No tasks yet.
                     </td>
                   </tr>
                 ) : (
                   tasks.map((t) => (
                     <tr key={t.id} className="border-b hover:bg-muted/50">
-                      <td className="p-3 font-medium">{t.title}</td>
+                      <td className="p-3 font-medium">
+                        <Link
+                          href={`/admin/projects/${project.id}/tasks/${t.id}?from=project`}
+                          className="text-primary hover:underline"
+                        >
+                          {t.title}
+                        </Link>
+                      </td>
                       <td className="p-3">
-                        <TermBadge term={taskStatusTerms.find((s) => s.id === t.status_term_id)} />
-                        {t.task_type_term_id && (
+                        <TermBadge term={taskStatusTerms.find((s) => s.id === t.task_status_slug)} />
+                        {t.task_type_slug && (
                           <TermBadge
                             className="ml-1"
-                            term={taskTypeTerms.find((s) => s.id === t.task_type_term_id) ?? null}
+                            term={taskTypeTerms.find((s) => s.id === t.task_type_slug) ?? null}
                           />
                         )}
                       </td>
-                      <td className="p-3">
-                        <TermBadge term={priorityTerms.find((p) => p.id === t.priority_term_id) ?? null} />
-                      </td>
                       <td className="p-3 text-muted-foreground">{formatDate(t.start_date)}</td>
                       <td className="p-3 text-muted-foreground">{formatDate(t.due_date)}</td>
-                      <td className="p-3">
-                        <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
-                          <Link href={`/admin/projects/${project.id}/tasks/${t.id}`}>
-                            View
-                          </Link>
-                        </Button>
-                      </td>
                     </tr>
                   ))
                 )}

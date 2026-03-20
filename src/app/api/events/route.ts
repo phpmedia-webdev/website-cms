@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
 import { getEvents, createEvent } from "@/lib/supabase/events";
+import {
+  assignParticipantToEvent,
+  ensureParticipant,
+} from "@/lib/supabase/participants-resources";
+import { getEventTypeColorMap } from "@/lib/supabase/settings";
 import type { EventInsert } from "@/lib/supabase/events";
 import { withRateLimit } from "@/lib/api/middleware";
 
@@ -37,10 +42,13 @@ async function getHandler(request: Request) {
       );
     }
 
-    const events = await getEvents(start, end);
+    const [events, event_type_colors] = await Promise.all([
+      getEvents(start, end),
+      getEventTypeColorMap(),
+    ]);
 
     return NextResponse.json(
-      { data: events },
+      { data: events, event_type_colors },
       {
         headers: {
           "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
@@ -127,6 +135,25 @@ async function postHandler(request: Request) {
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
+
+    // Auto-assign creator as a calendar participant (team_member = auth user id).
+    // Non-blocking: event create still succeeds if participant row or link fails.
+    const ensured = await ensureParticipant("team_member", user.id);
+    if ("id" in ensured) {
+      const assigned = await assignParticipantToEvent(result.id, ensured.id);
+      if ("error" in assigned) {
+        console.error(
+          "POST /api/events: assign creator as participant failed:",
+          assigned.error
+        );
+      }
+    } else {
+      console.error(
+        "POST /api/events: ensureParticipant for creator failed:",
+        ensured.error
+      );
+    }
+
     return NextResponse.json({ data: { id: result.id } }, { status: 201 });
   } catch (error) {
     console.error("POST /api/events error:", error);

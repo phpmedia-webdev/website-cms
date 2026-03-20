@@ -1,11 +1,16 @@
 /**
- * GET /api/tasks — List all tasks (admin). Query: project_id, status_term_id, task_type_term_id.
+ * GET /api/tasks — Admin all-tasks bundle.
+ * Query (comma-separated): project_ids (UUIDs), status_slugs, type_slugs, phase_slugs,
+ * assignee_user_ids, assignee_contact_ids.
+ * Slugs match Settings → Customizer (task_status, task_type, task_phase).
  */
 
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
-import { listTasks } from "@/lib/supabase/projects";
+import type { ListTasksFilters } from "@/lib/supabase/projects";
+import { getAdminTasksListBundle } from "@/lib/tasks/admin-task-list";
+import { getClientSchema } from "@/lib/supabase/schema";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -17,6 +22,14 @@ async function requireAdmin() {
   return null;
 }
 
+function splitCsv(param: string | null): string[] {
+  if (!param?.trim()) return [];
+  return param
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export async function GET(request: Request) {
   try {
     const authErr = await requireAdmin();
@@ -25,16 +38,26 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const project_id = searchParams.get("project_id") ?? undefined;
-    const status_term_id = searchParams.get("status_term_id") ?? undefined;
-    const task_type_term_id = searchParams.get("task_type_term_id") ?? undefined;
+    const schema = getClientSchema();
 
-    const tasks = await listTasks({
-      project_id: project_id || undefined,
-      status_term_id: status_term_id || undefined,
-      task_type_term_id: task_type_term_id || undefined,
-    });
-    return NextResponse.json({ tasks });
+    const projectIds = splitCsv(searchParams.get("project_ids"));
+    const statusSlugs = splitCsv(searchParams.get("status_slugs")).map((s) => s.trim().toLowerCase());
+    const typeSlugs = splitCsv(searchParams.get("type_slugs")).map((s) => s.trim().toLowerCase());
+    const phaseSlugs = splitCsv(searchParams.get("phase_slugs")).map((s) => s.trim().toLowerCase());
+    const assigneeUserIds = splitCsv(searchParams.get("assignee_user_ids"));
+    const assigneeContactIds = splitCsv(searchParams.get("assignee_contact_ids"));
+
+    const filters: ListTasksFilters = {
+      project_ids: projectIds.length > 0 ? projectIds : null,
+      status_slugs: statusSlugs.length > 0 ? statusSlugs : null,
+      type_slugs: typeSlugs.length > 0 ? typeSlugs : null,
+      phase_slugs: phaseSlugs.length > 0 ? phaseSlugs : null,
+      assignee_user_ids: assigneeUserIds.length > 0 ? assigneeUserIds : null,
+      assignee_contact_ids: assigneeContactIds.length > 0 ? assigneeContactIds : null,
+    };
+
+    const bundle = await getAdminTasksListBundle(filters, schema);
+    return NextResponse.json(bundle);
   } catch (error) {
     console.error("GET /api/tasks error:", error);
     return NextResponse.json(

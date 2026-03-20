@@ -642,6 +642,22 @@ export async function getCustomizerOptions(
   }
 }
 
+const CUSTOMIZER_SCOPE_EVENT_TYPE = "event_type";
+
+/**
+ * Map event_type slug → hex color from customizer (scope event_type).
+ * Used by calendar APIs and SSR so public calendar does not need authenticated customizer GET.
+ */
+export async function getEventTypeColorMap(schema?: string): Promise<Record<string, string>> {
+  const rows = await getCustomizerOptions(CUSTOMIZER_SCOPE_EVENT_TYPE, schema);
+  const map: Record<string, string> = {};
+  for (const r of rows) {
+    const raw = (r.color && String(r.color).trim()) || "#3b82f6";
+    map[r.slug] = raw.startsWith("#") ? raw : `#${raw.replace(/^#/, "")}`;
+  }
+  return map;
+}
+
 /**
  * Set customizer options for a scope (replaces all rows for that scope).
  */

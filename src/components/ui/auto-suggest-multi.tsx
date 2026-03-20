@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 export interface AutoSuggestOption {
   id: string;
   label: string;
+  /** Optional hidden search text (e.g. email) not shown in UI label. */
+  searchText?: string;
 }
 
 interface AutoSuggestMultiProps {
@@ -42,7 +44,8 @@ export function AutoSuggestMulti({
     if (selectedIds.has(opt.id)) return false;
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    return opt.label.toLowerCase().includes(q);
+    const haystack = `${opt.label} ${opt.searchText ?? ""}`.toLowerCase();
+    return haystack.includes(q);
   });
 
   useEffect(() => {
@@ -104,6 +107,18 @@ export function AutoSuggestMulti({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            // In forms (event create/edit), Enter should select the top match
+            // instead of submitting the form while focus is in this combobox.
+            e.preventDefault();
+            if (!open) {
+              setOpen(true);
+              return;
+            }
+            const first = filtered[0];
+            if (first) add(first.id);
+          }}
           placeholder={selectedInThisSection.length === 0 ? placeholder : ""}
           className="flex-1 min-w-[8rem] border-0 bg-transparent px-1 py-0.5 text-sm outline-none placeholder:text-muted-foreground"
           aria-autocomplete="list"

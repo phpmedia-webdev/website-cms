@@ -58,6 +58,14 @@ export async function PATCH(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  const normalizedHandle =
+    body.handle !== undefined ? (body.handle?.trim() || null) : undefined;
+  if (body.communicate_in_messages === true && !normalizedHandle) {
+    return NextResponse.json(
+      { error: "Handle/Nickname is required when messaging is enabled." },
+      { status: 400 }
+    );
+  }
   const update: ProfileUpdate = {
     display_name: body.display_name,
     avatar_url: body.avatar_url,
@@ -65,7 +73,7 @@ export async function PATCH(request: Request) {
     company: body.company,
     bio: body.bio,
     phone: body.phone,
-    handle: body.handle !== undefined ? (body.handle?.trim() || null) : undefined,
+    handle: normalizedHandle,
     communicate_in_messages: body.communicate_in_messages,
   };
   const updated = await upsertProfile({ user_id: user.id, ...update });

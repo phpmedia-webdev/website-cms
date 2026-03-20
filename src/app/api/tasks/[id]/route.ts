@@ -12,10 +12,11 @@ import {
   updateTask,
   deleteTask,
   getTaskFollowers,
-  getTermNameById,
   type TaskUpdate,
 } from "@/lib/supabase/projects";
 import { logTaskStatusChange } from "@/lib/supabase/crm";
+import { getTaskStatusLabelForSlug } from "@/lib/tasks/task-customizer-labels";
+import { getClientSchema } from "@/lib/supabase/schema";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -75,8 +76,9 @@ export async function PUT(
     const input: TaskUpdate = {};
     if (typeof body?.title === "string") input.title = body.title.trim();
     if (body?.description !== undefined) input.description = body.description;
-    if (body?.status_term_id !== undefined) input.status_term_id = body.status_term_id;
-    if (body?.task_type_term_id !== undefined) input.task_type_term_id = body.task_type_term_id;
+    if (body?.task_status_slug !== undefined) input.task_status_slug = body.task_status_slug;
+    if (body?.task_type_slug !== undefined) input.task_type_slug = body.task_type_slug;
+    if (body?.task_phase_slug !== undefined) input.task_phase_slug = body.task_phase_slug;
     if (body?.priority_term_id !== undefined) input.priority_term_id = body.priority_term_id;
     if (body?.proposed_time !== undefined) input.proposed_time = body.proposed_time;
     if (body?.actual_time !== undefined) input.actual_time = body.actual_time;
@@ -89,18 +91,19 @@ export async function PUT(
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
-    const newStatusTermId = input.status_term_id;
+    const newStatusSlug = input.task_status_slug;
     if (
       existing &&
-      newStatusTermId !== undefined &&
-      newStatusTermId !== null &&
-      newStatusTermId !== existing.status_term_id
+      newStatusSlug !== undefined &&
+      newStatusSlug != null &&
+      String(newStatusSlug).trim().toLowerCase() !==
+        String(existing.task_status_slug).trim().toLowerCase()
     ) {
       const followers = await getTaskFollowers(id);
       const contactIds = followers.map((f) => f.contact_id).filter((c): c is string => !!c);
       if (contactIds.length > 0) {
-        const statusLabel =
-          (await getTermNameById(newStatusTermId)) ?? newStatusTermId;
+        const schema = getClientSchema();
+        const statusLabel = await getTaskStatusLabelForSlug(String(newStatusSlug), schema);
         await logTaskStatusChange(id, existing.title, statusLabel, contactIds);
       }
     }

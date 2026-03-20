@@ -297,7 +297,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 **Status:** Planned. Scope in [prd.md](./prd.md) — Project Management Module. Enhancement before/at domain launch; tenant-scoped, feature-gatable.
 
 - **Taxonomy (locked):** Use the **existing taxonomy system** for projects. Add **Projects** as a taxonomy section (like Post, Page, CRM, Media). Projects link to this section for **categories** (project type; one level is enough for now) and **tags**. No separate "project types" or simple-category system. Search and filter for projects follow the same category/tag patterns as Content and CRM.
-- **Task taxonomy (locked):** Tasks have their own taxonomy section **Tasks**. Use it for sorting and filtering tasks within a project (e.g. phases/milestones via **categories** — Phase 1, Phase 2, or custom; **tags** optional). Global for all tasks; users create categories in Settings → Taxonomy (Task section). Filter project task list by category/tag; "Show all" when no filter. Optional task board can group by category (phase). No per-project phase table; project-specific names = use a category only on tasks in that project.
+- **Task taxonomy (locked):** Tasks have their own taxonomy section **Tasks**. *Superseded for admin dimensions (2026-03):* **status, type, and phase** are **Customizer slugs** on the task row (`task_*_slug`); migration **187** clears `taxonomy_relationships` for `content_type = 'task'`. **Priority** remains taxonomy (`task_priority`). Historical note: phases/milestones were previously categories on the Tasks section.
 
 - [x] **CRM: Organizations table and contact–organization many-to-many (before Project Management):** Add first-class organizations (companies) and true many-to-many with contacts. **Schema:** (1) `organizations` table: id, name, email, phone, timestamps; (2) junction `contact_organizations`: contact_id, organization_id, optional role/title, optional is_primary, timestamps, UNIQUE(contact_id, organization_id). **Custom fields for organizations:** Reuse the existing **crm_custom_fields** definition table by adding an `entity_type` column ('contact' | 'organization'). Existing rows default to 'contact'. Add **crm_organization_custom_field_values** (organization_id, custom_field_id, value) for org values. Contact custom fields and forms continue to use only entity_type='contact'; Settings can show "Contact custom fields" and "Organization custom fields" (filter by entity_type). One definition table, two value tables (contacts = existing; organizations = new). **Deliverables:** Migration(s), RPC/API for orgs and junction, org list/detail/edit UI, contact detail "Organizations" section (assign/unassign, role), optional migration path for existing contact.company text (e.g. suggest/create org or keep as display-only). Do this upgrade before starting Project Management work.
 
@@ -319,7 +319,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [x] **Admin UI — projects list (refresh):** Table: title + project-type color dot, Proposed End Date, client (contact/org link + avatar), status pill, member avatars (contact/team), task-segment progress bar (done/overdue/todo/cancelled), project type. Batch server data (members, tasks, contacts, orgs, profiles); include_archived filter. Migration 172 adds avatar_url to crm_contacts and organizations (tenant schema).
   - [x] **Admin UI — project detail:** Header (name, description, status, timeline, potential_sales, MAG), tasks list or Kanban, linked events/orders/links. Edit, Archive/Restore.
   - [x] **Admin UI — project create/edit:** Form: name, description, status, proposed start/end, potential_sales, required_mag_id, taxonomy (categories/tags).
-  - [x] **Admin UI — tasks:** Add/edit task (title, description, status, **priority** (low/medium/high), due_date, proposed/actual time, creator, responsible, followers, taxonomy — category/tag for Task section for phase/milestone). Project task list: filter by category (phase) or tag; "Show all". Optional Kanban (group by status or by category/phase).
+  - [x] **Admin UI — tasks:** Add/edit task (title, description, status/type/phase via **Customizer slugs**, **priority** via taxonomy, due_date, proposed/actual time, creator, responsible, followers). Project task list + All Tasks use slug-backed filters/badges. Optional Kanban deferred.
+  - [x] **Migration 187 — task Customizer slugs:** `187_tasks_customizer_slugs.sql`; RPC `get_tasks_dynamic` / `get_task_by_id_dynamic` slug columns + text[] filters. Run in SQL Editor per tenant.
   - [ ] **Admin UI — time tracking:** Task proposed_time, actual_time; optional punch-style entries UI.
   - [x] **Admin UI — archive/restore:** Buttons; list hides archived by default.
   - [ ] **Integration — activity stream:** Log task created/completed, project status changes. Filter by project access (MAG).
@@ -365,6 +366,30 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [x] **Task assignee — team + contacts:** Allow adding team (user) and contacts from project members in Assignments section.
   - [ ] **Support project:** Title "Support Requests for – (client-name)"; project_type_term_id = Support; add GPUM contact to project_members when creating perpetual support project.
   - [ ] **Reserved taxonomy terms (optional):** Prevent deletion of reserved term slugs (e.g. project_type.support, project_status.perpetual) in Settings → Taxonomy; document list.
+
+### Phase 20: Calendar — reminders & personal ICS feeds
+
+**Status:** Planned. Detailed steps and architecture: [sessionlog.md](./sessionlog.md) — section **Calendar: reminders & personal ICS feeds (planned)**. **Note:** Creator auto-added as event participant on `POST /api/events` is already done (see changelog 2026-03-19); supports My View and personal-feed queries.
+
+- [ ] **Schema:** `events.reminder_minutes_before`; `event_reminder_deliveries`; `calendar_feed_tokens` (hashed token, optional JSON filters); RLS; indexes for cron and lookups. Migration with `-- File:` header; run in Supabase SQL Editor.
+- [ ] **API & form:** Reminder field on event create/update; types in `events.ts`; `EventFormClient` UI.
+- [ ] **ICS:** Shared `ics` builder module + VALARM from `reminder_minutes_before`; refactor public `GET /api/events/ics` to use it.
+- [ ] **Personal feed:** `GET /api/events/ics/personal` (token query); events where token’s user is participant; optional event_type filter from token metadata.
+- [ ] **Token UI + API:** Generate/rotate personal feed token; copy webcal/https URL; optional event-type matrix in Settings.
+- [ ] **Notifications:** `event_reminder` action; prefs (email/push); send helper + dedupe via `event_reminder_deliveries`.
+- [ ] **Push:** Subscriptions by user ids helper if missing; targeted send for reminders.
+- [ ] **Cron:** `/api/cron/event-reminders` + `CRON_SECRET`; `vercel.json` crons; env docs.
+
+### Phase 21: Asset / Resource Management
+
+**Status:** Planned. Single `resources` table as lightweight **asset registry** + **schedulability** flags; Customizer remains **resource_type** (slug, label, color). **Derived usage** from `event_resources` + event times; extend with **task_resources** + task time when PM module is ready. Full step plan: [sessionlog.md](./sessionlog.md) — **Asset / Resource Management (planned)**.
+
+- [x] **Schema:** Migration `183_resources_asset_and_scheduling.sql` on tenant `resources` — schedulability flags, `asset_status` + `archived_at`, inventory + financial fields (USD-only, non-negative costs). RLS unchanged.
+- [ ] **API:** Extend resources CRUD; optional `for_picker` / filter schedulable-only for calendar.
+- [ ] **UI — inventory:** `ResourcesListClient` + dialog — asset fields, flags, type color chip from Customizer.
+- [ ] **Usage:** `GET .../resources/usage` + Activities/Resources page — date presets, sortable table, optional charts.
+- [ ] **Tasks follow-on:** `task_resources` + picker + union usage API + project rollup.
+- [ ] **Docs:** `mvt.md`, `prd-technical.md`.
 
 ### Site Visitor Analytics
 

@@ -48,6 +48,7 @@ function formatEventTime(ev: { start_date: string; end_date: string; is_all_day:
 export function PublicCalendarPageClient() {
   const { ref: calendarRef, height: calendarHeight } = useCalendarHeight(400);
   const [events, setEvents] = useState<Event[]>([]);
+  const [eventTypeColors, setEventTypeColors] = useState<Record<string, string>>({});
   const [date, setDate] = useState(() => new Date());
   const [view, setView] = useState<View>("month");
   const [loading, setLoading] = useState(false);
@@ -126,6 +127,7 @@ export function PublicCalendarPageClient() {
         ) : (
           <EventsCalendar
             events={events}
+            eventTypeColors={eventTypeColors}
             date={date}
             view={view}
             onDateChange={setDate}

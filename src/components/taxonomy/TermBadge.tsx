@@ -14,7 +14,8 @@ interface TermBadgeProps {
 }
 
 /**
- * Renders a single taxonomy term as a colored chip, or "—" if missing.
+ * Renders a single taxonomy term as a rounded-md chip, or "—" if missing.
+ * Uses max-w-full + truncate so dense table columns do not overflow.
  */
 export function TermBadge({ term, className = "" }: TermBadgeProps) {
   if (!term) {
@@ -26,10 +27,11 @@ export function TermBadge({ term, className = "" }: TermBadgeProps) {
     : undefined;
   return (
     <span
-      className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium border border-border bg-muted ${className}`}
+      className={`inline-flex max-w-full min-w-0 items-center rounded-md px-2 py-0.5 text-xs font-medium border border-border bg-muted ${className}`}
       style={style}
+      title={term.name}
     >
-      {term.name}
+      <span className="min-w-0 truncate">{term.name}</span>
     </span>
   );
 }

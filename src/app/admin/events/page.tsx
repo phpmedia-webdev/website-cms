@@ -1,4 +1,5 @@
 import { getEvents } from "@/lib/supabase/events";
+import { getEventTypeColorMap } from "@/lib/supabase/settings";
 import { EventsPageClient } from "./EventsPageClient";
 
 export default async function AdminEventsPage() {
@@ -14,5 +15,14 @@ export default async function AdminEventsPage() {
     console.error("Error loading events:", msg, err);
   }
 
-  return <EventsPageClient events={events} />;
+  let eventTypeColors: Record<string, string> = {};
+  try {
+    eventTypeColors = await getEventTypeColorMap();
+  } catch {
+    eventTypeColors = {};
+  }
+
+  return (
+    <EventsPageClient events={events} initialEventTypeColors={eventTypeColors} />
+  );
 }

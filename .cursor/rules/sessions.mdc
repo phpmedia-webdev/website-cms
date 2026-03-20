@@ -37,6 +37,7 @@ These files live in the root of `docs/`.
   - Version format: `## [VERSION] - YYYY-MM-DD`.
   - Multiple entries per day allowed (use different times).
 - **Update when:** After features/fixes, at end of each session, on release or deprecation.
+- **AI assistants:** Batch changelog entries at **session wrap-up** or when the developer **explicitly requests** documentation; do not append to `changelog.md` after every incremental edit (see **Changelog and MVT — assistant behavior** in `.cursor/rules/coding.mdc`).
 - **Cross-reference:** Links to `planlog.md` for planned work.
 
 **Example structure:**

@@ -66,7 +66,9 @@ export function EventParticipantsResourcesTab({
   const [resourceIds, setResourceIds] = useState<string[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
-  const [contacts, setContacts] = useState<{ id: string; full_name?: string; email?: string }[]>([]);
+  const [contacts, setContacts] = useState<
+    { id: string; first_name?: string; last_name?: string; full_name?: string; email?: string }[]
+  >([]);
   const [teamUsers, setTeamUsers] = useState<
     { user_id: string; email?: string; display_name?: string }[]
   >([]);
@@ -121,19 +123,32 @@ export function EventParticipantsResourcesTab({
     onParticipantsSnapshot(list);
   }, [isCreateMode, pendingParticipants, participantIds, participants, onParticipantsSnapshot]);
 
-  const contactLabel = (c: { full_name?: string; email?: string }) =>
-    (c.full_name?.trim() || c.email || "Contact") as string;
+  const contactLabel = (c: {
+    first_name?: string;
+    last_name?: string;
+    full_name?: string;
+    email?: string;
+  }) => {
+    const full = c.full_name?.trim() ?? "";
+    const first = c.first_name?.trim() ?? "";
+    const last = c.last_name?.trim() ?? "";
+    const fromParts = [first, last].filter(Boolean).join(" ").trim();
+    return full || fromParts || "Contact";
+  };
   const teamLabel = (u: { display_name?: string; email?: string }) =>
-    (u.display_name?.trim() || u.email || "Team member") as string;
+    (u.display_name?.trim() || "Team member") as string;
 
   const participantOptions: AutoSuggestOption[] = [
     ...teamUsers.map((u) => ({
       id: toCompositeId("team_member", u.user_id),
       label: teamLabel(u),
+      searchText: `${u.display_name ?? ""} ${u.email ?? ""}`.trim(),
     })),
     ...contacts.map((c) => ({
       id: toCompositeId("crm_contact", c.id),
       label: contactLabel(c),
+      // Keep search broad (first/last/full/email), but display only name in label.
+      searchText: `${c.first_name ?? ""} ${c.last_name ?? ""} ${c.full_name ?? ""} ${c.email ?? ""}`.trim(),
     })),
   ];
 

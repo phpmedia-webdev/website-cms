@@ -1,5 +1,5 @@
 /**
- * GET /api/projects/[id]/tasks — List tasks for a project (admin). Query: status_term_id, task_type_term_id.
+ * GET /api/projects/[id]/tasks — List tasks for a project (admin). Query: status_slug, type_slug.
  * POST /api/projects/[id]/tasks — Create task in project (admin).
  */
 
@@ -44,13 +44,13 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const status_term_id = searchParams.get("status_term_id") ?? undefined;
-    const task_type_term_id = searchParams.get("task_type_term_id") ?? undefined;
+    const status_slug = searchParams.get("status_slug")?.trim().toLowerCase() ?? undefined;
+    const type_slug = searchParams.get("type_slug")?.trim().toLowerCase() ?? undefined;
 
     const tasks = await listTasks({
-      project_id: projectId,
-      status_term_id: status_term_id || undefined,
-      task_type_term_id: task_type_term_id || undefined,
+      project_ids: [projectId],
+      status_slugs: status_slug ? [status_slug] : null,
+      type_slugs: type_slug ? [type_slug] : null,
     });
     return NextResponse.json({ tasks });
   } catch (error) {
@@ -92,9 +92,11 @@ export async function POST(
       project_id: projectId,
       title,
       description: typeof body.description === "string" ? body.description : undefined,
-      status_term_id: typeof body.status_term_id === "string" ? body.status_term_id : undefined,
-      task_type_term_id:
-        typeof body.task_type_term_id === "string" ? body.task_type_term_id : undefined,
+      task_status_slug:
+        typeof body.task_status_slug === "string" ? body.task_status_slug : undefined,
+      task_type_slug: typeof body.task_type_slug === "string" ? body.task_type_slug : undefined,
+      task_phase_slug:
+        typeof body.task_phase_slug === "string" ? body.task_phase_slug : undefined,
       priority_term_id: typeof body.priority_term_id === "string" ? body.priority_term_id : undefined,
       proposed_time: typeof body.proposed_time === "number" ? body.proposed_time : undefined,
       actual_time: typeof body.actual_time === "number" ? body.actual_time : undefined,

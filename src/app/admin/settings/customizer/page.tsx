@@ -18,6 +18,7 @@ export default async function CustomizerSettingsPage() {
     taskTypes,
     taskStatuses,
     taskPhases,
+    eventTypes,
   ] = await Promise.all([
     getRoleForCurrentUser(),
     getCrmNoteTypes(),
@@ -29,6 +30,7 @@ export default async function CustomizerSettingsPage() {
     getCustomizerOptions("task_type"),
     getCustomizerOptions("task_status"),
     getCustomizerOptions("task_phase"),
+    getCustomizerOptions("event_type"),
   ]);
   const isSuperadmin = isSuperadminFromRole(role);
 
@@ -44,6 +46,7 @@ export default async function CustomizerSettingsPage() {
       initialTaskTypes={taskTypes}
       initialTaskStatuses={taskStatuses}
       initialTaskPhases={taskPhases}
+      initialEventTypes={eventTypes}
     />
   );
 }

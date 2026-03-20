@@ -80,6 +80,12 @@ When the developer is in learning mode or asks for explanation, provide feedback
 - **When to update:** When adding, renaming, or significantly changing a module (new or removed routes, components, or lib under that feature), update the relevant module section in `docs/mvt.md`: version if appropriate, folder structure / code paths, and data/schema/prerequisites if migrations or dependencies changed.
 - **Structure:** Keep the document’s sections — at-a-glance table, code sitemap (high-level tree), per-module sections with Version, Folder structure, Data/schema, Prerequisites. See `docs/mvt.md` for the current structure and conventions.
 
+## Changelog and MVT — assistant behavior
+
+- **Do not** edit `docs/changelog.md` or `docs/mvt.md` after every small or routine code change (e.g. layout/CSS tuning, column widths, copy tweaks, minor refactors with no new module boundary).
+- **Do** update them at **session wrap-up** (per `.cursor/rules/sessions.mdc`), when the **developer explicitly asks** for changelog or MVT updates, or when the change is **substantial** (new routes/modules, migrations/schema, security, releases, architecture shifts).
+- When you *do* update `mvt.md`, follow the **MVT** section above for *what* to record; only the *timing* is batched unless asked.
+
 ## Debug Code Guidelines
 - **Always comment out debug code** for easy cleanup later
 - Use clear comment markers: `// DEBUG:` or `/* DEBUG: ... */`

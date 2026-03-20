@@ -11,8 +11,9 @@ import {
   getOrCreateSupportProjectForContact,
   createTask,
   addTaskFollower,
-  getDefaultTaskStatusTermId,
-  getTaskTypeTermIdBySlug,
+  DEFAULT_TASK_PHASE_SLUG,
+  DEFAULT_TASK_STATUS_SLUG,
+  DEFAULT_TASK_TYPE_SLUG,
 } from "@/lib/supabase/projects";
 import {
   getTermBySlugAndType,
@@ -76,22 +77,13 @@ export async function POST(request: Request) {
       }
     }
 
-    const [openStatusId, supportTicketTypeId] = await Promise.all([
-      getDefaultTaskStatusTermId(),
-      getTaskTypeTermIdBySlug("support_ticket"),
-    ]);
-    if (!openStatusId || !supportTicketTypeId) {
-      return NextResponse.json(
-        { error: "Task status or type terms not found. Run migrations 163/164." },
-        { status: 500 }
-      );
-    }
     const taskResult = await createTask({
       project_id: support.id,
       title,
       description: description ?? undefined,
-      status_term_id: openStatusId,
-      task_type_term_id: supportTicketTypeId,
+      task_status_slug: DEFAULT_TASK_STATUS_SLUG,
+      task_type_slug: DEFAULT_TASK_TYPE_SLUG,
+      task_phase_slug: DEFAULT_TASK_PHASE_SLUG,
     });
     if ("error" in taskResult) {
       return NextResponse.json(

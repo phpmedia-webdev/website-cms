@@ -36,6 +36,12 @@ export async function PATCH(request: Request) {
     body.communicate_in_messages !== undefined
       ? body.communicate_in_messages
       : (existing?.communicate_in_messages ?? false);
+  if (communicate_in_messages && !handle) {
+    return NextResponse.json(
+      { error: "Handle/Nickname is required when messaging is enabled." },
+      { status: 400 }
+    );
+  }
   const updated = await upsertProfile({
     user_id: user.id,
     display_name: existing?.display_name ?? null,

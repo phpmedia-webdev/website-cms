@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPublicEvents } from "@/lib/supabase/events";
+import { getEventTypeColorMap } from "@/lib/supabase/settings";
 import { withRateLimit } from "@/lib/api/middleware";
 
 /**
@@ -38,10 +39,13 @@ async function getHandler(request: Request) {
       );
     }
 
-    const events = await getPublicEvents(start, end);
+    const [events, event_type_colors] = await Promise.all([
+      getPublicEvents(start, end),
+      getEventTypeColorMap(),
+    ]);
 
     return NextResponse.json(
-      { data: events },
+      { data: events, event_type_colors },
       {
         headers: {
           "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",

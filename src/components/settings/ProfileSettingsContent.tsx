@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Shield, KeyRound, ImageIcon } from "lucide-react";
+import { Shield, KeyRound } from "lucide-react";
 import MFAManagement from "@/components/auth/MFAManagement";
 import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -49,6 +50,8 @@ export function ProfileSettingsContent({
   hasEnrolledFactors = false,
 }: ProfileSettingsContentProps) {
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -77,6 +80,10 @@ export function ProfileSettingsContent({
         if (data) {
           setEmail(data.email ?? "");
           const p = data.profile;
+          const first = p.custom_fields?.first_name ?? "";
+          const last = p.custom_fields?.last_name ?? "";
+          setFirstName(first);
+          setLastName(last);
           setDisplayName(p.display_name ?? "");
           setAvatarUrl(p.avatar_url ?? "");
           setTitle(p.title ?? "");
@@ -85,10 +92,11 @@ export function ProfileSettingsContent({
           setPhone(p.phone ?? "");
           setHandle(p.handle ?? "");
           setCommunicateInMessages(p.communicate_in_messages ?? false);
-          setCustomFields(
-            Object.entries(p.custom_fields ?? {}).map(([key, value]) => ({ key, value }))
-          );
-          if (Object.keys(p.custom_fields ?? {}).length === 0) {
+          const remainingCustomFields = Object.entries(p.custom_fields ?? {})
+            .filter(([key]) => key !== "first_name" && key !== "last_name")
+            .map(([key, value]) => ({ key, value }));
+          setCustomFields(remainingCustomFields);
+          if (remainingCustomFields.length === 0) {
             setCustomFields([{ key: "", value: "" }]);
           }
         }
@@ -100,6 +108,8 @@ export function ProfileSettingsContent({
     setSaving(true);
     try {
       const custom_fields: Record<string, string> = {};
+      if (firstName.trim()) custom_fields.first_name = firstName.trim();
+      if (lastName.trim()) custom_fields.last_name = lastName.trim();
       for (const { key, value } of customFields) {
         if (key.trim()) custom_fields[key.trim()] = value;
       }
@@ -201,13 +211,68 @@ export function ProfileSettingsContent({
     );
   }
 
+  const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+  const displayNameMatchesFullName =
+    !!fullName &&
+    displayName.trim().localeCompare(fullName, undefined, {
+      sensitivity: "accent",
+      usage: "search",
+    }) === 0;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Profile</h1>
-        <p className="text-muted-foreground mt-2">
-          Your profile is shared across sites. Edit your display name, contact info, and custom fields.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Profile</h1>
+          <p className="text-muted-foreground mt-2">
+            Your profile is shared across sites. Edit your display name, contact info, and custom fields.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 sm:shrink-0">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAvatarPickerOpen(true)}
+            >
+              Change
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              Update
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAvatarUrl("")}
+              disabled={!avatarUrl}
+            >
+              Clear
+            </Button>
+          </div>
+          <div className="relative h-14 w-14 overflow-hidden rounded-full border bg-muted">
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt={displayName || "Profile avatar"}
+                fill
+                sizes="56px"
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm font-medium text-muted-foreground">
+                {(displayName?.trim()?.[0] || email?.trim()?.[0] || "U").toUpperCase()}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <Card>
         <CardHeader>
@@ -222,42 +287,64 @@ export function ProfileSettingsContent({
             <Input id="email" value={email} readOnly disabled className="bg-muted" />
             <p className="text-xs text-muted-foreground mt-1">Email cannot be changed here.</p>
           </div>
-          <div>
-            <Label htmlFor="display_name">Display name</Label>
-            <Input
-              id="display_name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your name"
-            />
-          </div>
-          <div>
-            <Label htmlFor="avatar_url">Avatar URL</Label>
-            <div className="flex gap-2 items-center">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label htmlFor="first_name">First name</Label>
               <Input
-                id="avatar_url"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://..."
-                type="url"
-                className="flex-1"
+                id="first_name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="First name"
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setAvatarPickerOpen(true)}
-                className="shrink-0"
-              >
-                <ImageIcon className="h-4 w-4 mr-1" />
-                Choose from Media Library
-              </Button>
             </div>
-            <AvatarMediaPicker
-              open={avatarPickerOpen}
-              onOpenChange={setAvatarPickerOpen}
-              onSelect={(url) => setAvatarUrl(url)}
-            />
+            <div>
+              <Label htmlFor="last_name">Last name</Label>
+              <Input
+                id="last_name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Last name"
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label htmlFor="display_name">
+                {displayNameMatchesFullName ? "Full Name / Display Name" : "Display name"}
+              </Label>
+              <Input
+                id="display_name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Your name"
+              />
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="communicate_in_messages"
+                  checked={communicateInMessages}
+                  onChange={(e) => setCommunicateInMessages(e.target.checked)}
+                  disabled={!handle.trim()}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label
+                  htmlFor="communicate_in_messages"
+                  className={`font-normal whitespace-nowrap ${handle.trim() ? "cursor-pointer" : "cursor-not-allowed text-muted-foreground"}`}
+                >
+                  Participate in messages and comments (group conversations and direct messaging). A Handle/Nickname is required.
+                </Label>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="handle">Handle / nickname</Label>
+              <Input
+                id="handle"
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                placeholder="Used in messages and comments"
+                maxLength={80}
+              />
+            </div>
           </div>
           <div>
             <Label htmlFor="title">Title</Label>
@@ -285,31 +372,6 @@ export function ProfileSettingsContent({
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Phone number"
             />
-          </div>
-          <div>
-            <Label htmlFor="handle">Handle / nickname</Label>
-            <Input
-              id="handle"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="Used in messages and comments"
-              maxLength={80}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Required for group conversations and direct messaging. You can change it anytime.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="communicate_in_messages"
-              checked={communicateInMessages}
-              onChange={(e) => setCommunicateInMessages(e.target.checked)}
-              className="h-4 w-4 rounded border-input"
-            />
-            <Label htmlFor="communicate_in_messages" className="font-normal cursor-pointer">
-              Participate in messages and comments (group conversations and direct messaging)
-            </Label>
           </div>
           <div>
             <Label htmlFor="bio">Bio</Label>
@@ -362,6 +424,11 @@ export function ProfileSettingsContent({
           </Button>
         </CardContent>
       </Card>
+      <AvatarMediaPicker
+        open={avatarPickerOpen}
+        onOpenChange={setAvatarPickerOpen}
+        onSelect={(url) => setAvatarUrl(url)}
+      />
 
       <Card>
         <CardHeader>

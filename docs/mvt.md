@@ -55,7 +55,8 @@ src/
 │   │   ├── forms/             # Form list, [id], submissions
 │   │   ├── galleries/         # List, [id], new
 │   │   ├── media/
-│   │   ├── settings/          # general, style, colors, fonts, content-types, content-fields, taxonomy, crm, customizer, security, profile, users
+│   │   ├── projects/          # projects list/detail, All tasks (title search modal client-side; reset icon; Customizer filters + GET /api/tasks), task new/detail
+│   │   ├── settings/          # general, style, colors, fonts, content-types, content-fields, taxonomy, crm, customizer (tabs: CRM, Events, Tasks, Projects, Resources, Content), events/EventsSettingsClient, security, profile, users
 │   │   ├── super/             # Tenant sites, tenant users, roles, code-library, integrations
 │   │   ├── support/
 │   │   ├── login/, mfa/       # Auth
@@ -91,7 +92,7 @@ src/
 │   ├── public/                 # GalleryEmbed, GalleryGrid, GalleryRenderer, GalleryPreviewModal, PublicHeaderAuth, PublicContentRenderer, ComingSoonSnippetView, blocks/, sections/
 │   ├── settings/               # ColorsSettings, PaletteLibrary, FontsSettings, DesignSystemSettings, TaxonomySettings, ContentTypesBoard, ContentFieldsBoard, ProfileSettingsContent, SettingsUsersContent, etc.
 │   ├── superadmin/             # IntegrationsManager, RolesManager, TenantFeaturesManager, TenantSiteModeCard, ViewAsCard, EditTenantAssignmentModal, RelatedTenantUsersClient
-│   ├── taxonomy/               # TaxonomyAssignment, TaxonomyAssignmentForContent
+│   ├── taxonomy/               # TaxonomyAssignment, TaxonomyAssignmentForContent, TermBadge (rounded-md chip, truncates in tables)
 │   ├── site/                   # Experiments (README)
 │   └── ui/                     # shadcn primitives (button, card, dialog, input, select, etc.)
 ├── lib/
@@ -103,7 +104,8 @@ src/
 │   ├── media/                  # image-optimizer, storage
 │   ├── shop/                   # cart, cart-cookie, orders, order-address, order-download-links, order-email, coupon, payment-to-mag, viewer (products), stripe-drift, stripe-customers-sync, stripe-orders-sync, woo-commerce-sync, import-orders-csv, export-orders, subscriptions, subscription-email, download-token
 │   ├── shortcodes/             # gallery.ts
-│   ├── supabase/               # client, content, crm, crm-taxonomy, events, galleries, galleries-server, media, settings, color-palettes, taxonomy, code-snippets, tenant-sites, tenant-users, feature-registry, profiles, members, licenses, migrations, schema, users, integrations
+│   ├── tasks/                  # customizer-task-terms (task status/type/phase from Customizer only); merge-task-customizer-colors (projects etc.)
+│   ├── supabase/               # client, content, crm, crm-taxonomy, events, galleries, galleries-server, media, settings, color-palettes, taxonomy, code-snippets, tenant-sites, tenant-users, feature-registry, profiles, members, licenses, migrations, schema, users, integrations, projects
 │   ├── design-system.ts
 │   ├── site-mode.ts
 │   ├── recurrence.ts
@@ -238,7 +240,7 @@ When you drop a new version of a module, replace the listed code paths and run t
   src/app/admin/events/          # EventsPageClient, EventFormClient, new, [id]/edit, resources
   src/app/(public)/events/      # Public calendar, PublicCalendarPageClient
   src/app/api/events/            # route, [id], participants, resources, public, ics, check-conflicts, assignments
-  src/components/events/        # EventsCalendar, EventFormClient, EventsFilterBar, EventParticipantsResourcesTab, ResourcesListClient
+  src/components/events/        # EventsCalendar, AgendaWithDescription, EventFormClient, EventsFilterBar, EventParticipantsResourcesTab, ResourcesListClient
   src/lib/supabase/events.ts
   src/lib/supabase/participants-resources.ts
   src/lib/recurrence.ts
@@ -248,6 +250,7 @@ When you drop a new version of a module, replace the listed code paths and run t
   - **Tables (client schema):** events, event_exceptions, event_participants, event_resources, participants, resources (or equivalent).
   - **Migrations:** 095–101 (events tables, RPCs, cover_image, link_url, participants/resources RPCs, resource_types).
   - **RPCs (public):** get_events_dynamic, get_resources_dynamic, get_participants_dynamic, get_event_participants_dynamic, get_event_resources_dynamic, get_events_participants_bulk, get_events_resources_bulk (see 100).
+- **API behavior:** `POST /api/events` assigns the authenticated creator to the new event as a `team_member` participant (`ensureParticipant` + `assignParticipantToEvent` in `route.ts`); assignment failure does not fail the create.
 - **Prerequisites:** Auth; Settings (calendar resource types in customizer); CRM (for participant type crm_contact).
 
 ---

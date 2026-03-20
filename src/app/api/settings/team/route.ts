@@ -11,6 +11,7 @@ import {
   removeUserFromSite,
   getAssignmentByAdminAndTenant,
 } from "@/lib/supabase/tenant-users";
+import { getProfilesByUserIds } from "@/lib/supabase/profiles";
 import { inviteUserByEmail } from "@/lib/supabase/users";
 import { pushAuditLog, getClientAuditContext } from "@/lib/php-auth/audit-log";
 import { syncUserOrgRoleToPhpAuth } from "@/lib/php-auth/sync-user-org-role";
@@ -34,8 +35,21 @@ export async function GET() {
       listUsersByTenantSite(context.tenantSiteId),
       getRolesForAssignmentFromPhpAuth(),
     ]);
+    const profiles = await getProfilesByUserIds(
+      users.map((u) => u.user_id).filter((id): id is string => !!id)
+    );
+    const profileDisplayByUserId = new Map(
+      profiles
+        .filter((p) => typeof p.user_id === "string" && !!p.user_id)
+        .map((p) => [p.user_id, p.display_name?.trim() || null] as const)
+    );
+    const usersWithBestDisplay = users.map((u) => ({
+      ...u,
+      // Prefer My Profile display_name, fallback to tenant_users.display_name.
+      display_name: profileDisplayByUserId.get(u.user_id) || u.display_name || null,
+    }));
     return NextResponse.json({
-      users,
+      users: usersWithBestDisplay,
       roles,
     });
   } catch (error) {

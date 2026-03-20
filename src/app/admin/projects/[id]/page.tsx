@@ -4,13 +4,12 @@ import {
   listTasks,
   listProjectMembers,
   getProjectTimeLogTotalMinutes,
-  getTaskPriorityTerms,
   getProjectStatusTerms,
   getProjectTypeTerms,
   getProjectRoleTerms,
-  getTaskStatusTerms,
-  getTaskTypeTerms,
 } from "@/lib/supabase/projects";
+import { getCustomizerOptions } from "@/lib/supabase/settings";
+import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms";
 import { getTaxonomyTermsForContentDisplay } from "@/lib/supabase/taxonomy";
 import { listOrders } from "@/lib/shop/orders";
 import { listInvoices } from "@/lib/shop/invoices";
@@ -33,30 +32,30 @@ export default async function AdminProjectDetailPage({
     projectInvoices,
     projectEvents,
     projectTimeLogMinutes,
-    priorityTerms,
     projectTaxonomy,
     projectStatusTerms,
     projectTypeTerms,
-    taskStatusTerms,
-    taskTypeTerms,
+    czTaskStatus,
+    czTaskType,
     projectMembers,
     projectRoleTerms,
   ] = await Promise.all([
     getProjectById(id),
-    listTasks({ project_id: id }),
+    listTasks({ project_ids: [id] }),
     listOrders({ project_id: id, limit: 100 }),
     listInvoices({ project_id: id, limit: 100 }),
     listEventsByProjectId(id),
     getProjectTimeLogTotalMinutes(id),
-    getTaskPriorityTerms(),
     getTaxonomyTermsForContentDisplay(id, "project"),
     getProjectStatusTerms(),
     getProjectTypeTerms(),
-    getTaskStatusTerms(),
-    getTaskTypeTerms(),
+    getCustomizerOptions("task_status"),
+    getCustomizerOptions("task_type"),
     listProjectMembers(id),
     getProjectRoleTerms(),
   ]);
+  const taskStatusTerms = statusTermsFromCustomizerRows(czTaskStatus);
+  const taskTypeTerms = statusTermsFromCustomizerRows(czTaskType);
   if (!project) notFound();
 
   const projectTotal = projectOrders.reduce((sum, o) => sum + Number(o.total), 0);
@@ -98,7 +97,6 @@ export default async function AdminProjectDetailPage({
       initialProjectEvents={projectEvents}
       projectTotal={projectTotal}
       projectTimeLogMinutes={projectTimeLogMinutes}
-      priorityTerms={priorityTerms}
       projectTaxonomy={projectTaxonomy}
       projectStatusTerms={projectStatusTerms}
       projectTypeTerms={projectTypeTerms}
