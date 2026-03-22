@@ -51,15 +51,16 @@ interface ResourceOption {
   name: string;
   resource_type: string;
 }
-interface TeamUser {
-  user_id: string;
-  email?: string;
-  display_name?: string;
+/** Unified directory row from GET /api/directory (labels for participant picker). */
+interface DirectoryRow {
+  source_type: string;
+  source_id: string;
+  display_label: string;
+  subtitle?: string;
 }
-interface ContactOption {
-  id: string;
-  full_name?: string;
-  email?: string;
+
+function directoryLabelKey(sourceType: string, sourceId: string): string {
+  return `${sourceType}:${sourceId}`;
 }
 
 export function EventsFilterBar({
@@ -89,8 +90,7 @@ export function EventsFilterBar({
   const [modalResourceIds, setModalResourceIds] = useState<Set<string>>(new Set());
   const [participants, setParticipants] = useState<ParticipantOption[]>([]);
   const [resources, setResources] = useState<ResourceOption[]>([]);
-  const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
-  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [directoryRows, setDirectoryRows] = useState<DirectoryRow[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
@@ -101,37 +101,62 @@ export function EventsFilterBar({
       Promise.all([
         fetch("/api/events/participants").then((r) => (r.ok ? r.json() : { data: [] })),
         fetch("/api/events/resources").then((r) => (r.ok ? r.json() : { data: [] })),
-        fetch("/api/settings/team").then((r) => (r.ok ? r.json() : { users: [] })).then((d) => d?.users ?? []),
-        fetch("/api/crm/contacts").then((r) => (r.ok ? r.json() : [])),
+        fetch("/api/directory?limit=5000")
+          .then((r) => (r.ok ? r.json() : { data: [] }))
+          .catch(() => ({ data: [] })),
       ])
-        .then(([pData, rData, tData, cData]) => {
+        .then(([pData, rData, dirRes]) => {
           setParticipants((pData?.data ?? []) as ParticipantOption[]);
           setResources((rData?.data ?? []) as ResourceOption[]);
-          setTeamUsers(Array.isArray(tData) ? tData : []);
-          setContacts(Array.isArray(cData) ? cData : []);
+          const rows = Array.isArray(dirRes?.data) ? dirRes.data : [];
+          setDirectoryRows(rows as DirectoryRow[]);
         })
         .finally(() => setModalLoading(false));
     }
   }, [showParticipantsModal, filterParticipantIds, filterResourceIds]);
 
+  const labelBySource = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const row of directoryRows) {
+      if (
+        (row.source_type === "team_member" || row.source_type === "crm_contact") &&
+        typeof row.source_id === "string"
+      ) {
+        const key = directoryLabelKey(row.source_type, row.source_id);
+        const raw = row.display_label?.trim();
+        m.set(
+          key,
+          raw ||
+            (row.source_type === "team_member" ? "Team member" : "Contact")
+        );
+      }
+    }
+    return m;
+  }, [directoryRows]);
+
   const teamParticipantOptions = useMemo(() => {
     return participants
       .filter((p) => p.source_type === "team_member")
       .map((p) => {
-        const u = teamUsers.find((t) => t.user_id === p.source_id);
-        const label = u?.display_name?.trim() || "Team member";
+        const label =
+          labelBySource.get(directoryLabelKey(p.source_type, p.source_id)) ??
+          p.display_name?.trim() ??
+          "Team member";
         return { id: p.id, label };
       });
-  }, [participants, teamUsers]);
+  }, [participants, labelBySource]);
 
   const crmParticipantOptions = useMemo(() => {
     return participants
       .filter((p) => p.source_type === "crm_contact")
-      .map((p) => ({
-        id: p.id,
-        label: (p.display_name?.trim() || "Contact") as string,
-      }));
-  }, [participants]);
+      .map((p) => {
+        const label =
+          labelBySource.get(directoryLabelKey(p.source_type, p.source_id)) ??
+          p.display_name?.trim() ??
+          "Contact";
+        return { id: p.id, label };
+      });
+  }, [participants, labelBySource]);
 
   const resourceOptions = useMemo(
     () =>

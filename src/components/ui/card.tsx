@@ -1,14 +1,19 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+export type CardVariant = "default" | "bento";
+
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLDivElement> & { variant?: CardVariant }
+>(({ className, variant = "default", ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      "rounded-lg border text-card-foreground",
+      variant === "default" && "border-border bg-card shadow-sm",
+      /* Bento: surfaces use .task-bento-* in globals (own bg, shadow, radius); omit bg-card so it never flattens the look */
+      variant === "bento" && "border-transparent bg-transparent",
       className
     )}
     {...props}

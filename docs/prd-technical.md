@@ -9,7 +9,7 @@ This document contains all technical implementation details, patterns, and solut
 ## Table of Contents
 
 1. [Database Architecture & Schema Management](#1-database-architecture--schema-management)
-2. [Database Schema Reference](#2-database-schema-reference)
+2. [Database Schema Reference](#2-database-schema-reference) — includes [Phase 18C: Directory & messaging](#phase-18c-directory-and-messaging)
 3. [Client Setup Process](#3-client-setup-process)
 4. [Development Patterns & Solutions](#4-development-patterns--solutions)  
    - [Taxonomy Integration for New Content Types](#taxonomy-integration-for-new-content-types)
@@ -267,6 +267,170 @@ All text-based content types (posts, pages, snippets, quotes, articles, custom) 
 - Documentation: description, props_schema, usage_examples, dependencies
 - Visual: screenshot_url, wireframe_url, preview_images
 - Development: development_status, is_linked_to_file, assigned_to
+
+<a id="phase-18c-directory-and-messaging"></a>
+
+### Phase 18C: Directory, unified picker & messages / notifications
+
+**Plan / checklist:** [planlog.md — Phase 18C](./planlog.md) (search **Phase 18C**). **Product context:** [prd.md — Shared identity UX (forks)](./prd.md#shared-identity-ux-forks) (auth and MFA stay on Supabase Auth only; Directory does not replace `auth.users`).
+
+This subsection locks **technical design** for (1) a **Directory** read model for admin pickers and (2) **Messages and notifications** — contact-scoped timeline + threaded async messaging. **Dev:** no obligation to backfill legacy `crm_notes`; reconcile Phase 19 `crm_notes` extensions (`task_id`, `conversation_uid`) during implementation (prefer new thread storage for new writes).
+
+---
+
+#### 18C.1 Goals
+
+| Area | Goal |
+|------|------|
+| **Directory** | One search/list API for **assigning people** across modules (events participants, project members, task assignees, future comment @mentions). **No second SSOT:** rows are projections of `crm_contacts`, team users (`auth.users` + `public.profiles` / `tenant_user_assignments` as applicable), not a writable duplicate of profile data. |
+| **Timeline** | **Contact-scoped** chronological feed on the CRM contact record: staff notes, “emailed on…”, MAG/list membership changes, commerce signals, and other **atomic** events. Supports `visibility` so **GPUM never sees staff-only** rows. |
+| **Threads** | **Async** multi-message conversations: support, task/ticket replies, DMs, small groups, **MAG group room** (broadcast to members of one MAG). Blog/product comment threads can use the same table with `thread_type` + RLS tuned per surface. |
+| **Unified UI** | Single product tab **“Messages and notifications”** for GPUM and admin; **merged API** returns a normalized DTO (sort by `created_at`). **Filters** (All, Messages, Notifications, Transactions, …) are **query/category** concerns, not separate physical products. |
+
+---
+
+#### 18C.2 Directory (read model)
+
+**Unified row shape (DTO)** — every Directory entry exposes at minimum:
+
+- `source_type`: `crm_contact` | `team_member` (align with existing `participants` pattern; extend only with a migration and code search if a new type is added).
+- `source_id`: UUID — `crm_contacts.id` or `auth.users.id` for team.
+- `display_name`, `subtitle` (email or role), `avatar_url` optional.
+- `search_text` or equivalent for server-side `ilike` (concat name, email, phone as needed).
+
+**Data sources (tenant + public):**
+
+- **CRM:** `crm_contacts` in the tenant schema (respect soft-delete: exclude `deleted_at` unless picker explicitly includes trashed).
+- **Team:** Users who may act as CMS staff for this tenant — typically join `public.tenant_user_assignments` (this tenant site) → `public.tenant_users` → `public.profiles` for display fields; `source_id` = `auth.users.id` (`tenant_users.user_id`).
+
+**Implementation (shipped):** Migrations **`188_directory_search_rpc.sql`** + **`189_directory_search_sort_team_first.sql`** — `public.get_directory_search_dynamic(schema_name, tenant_site_id, search_query, result_limit)`; `src/lib/supabase/directory.ts`; **`GET /api/directory`** (admin). **Sort rule (RPC):** `team_member` first, then `crm_contact`; within each group by `display_label` (then `source_id` for stable ties). Run **188** then **189** in Supabase SQL Editor per DB.
+
+**Alternatives (if forking patterns):**
+
+- **HTTP-only merge** — same DTO without RPC (more round-trips); document if used.
+
+**Dedup / UX:** If the same human exists as both contact and team user, product choice: **two rows** with distinct `source_type` (clear for assignment storage) or **merge** with badges — document in UI spec; storage of assignments remains explicit `source_type` + `source_id`.
+
+**Performance:** Index `crm_contacts` for common search columns; avoid N+1 when resolving avatars. Document extra work on hot paths in planlog Performance note.
+
+**Security:** Directory responses are **authenticated admin** (or authenticated member where explicitly allowed); not a public endpoint. Do not leak cross-tenant data; enforce tenant site ↔ schema consistently with existing admin APIs.
+
+---
+
+#### 18C.3 Messages / notifications — table split (two logical stores)
+
+**Store A — Contact timeline (atomic events)**  
+Tenant table: **`contact_notifications_timeline`** (migration **`190_contact_notifications_timeline.sql`**). Named to avoid confusion with calendar **`events`**.
+
+| Column | Type | Notes |
+|--------|------|--------|
+| `id` | UUID PK | |
+| `contact_id` | UUID FK → `crm_contacts` | Required for rows tied to a contact; nullable only if you add non-contact system rows later (prefer separate admin broadcast table or `recipient_user_id` below). |
+| `kind` | TEXT | App enum + DB CHECK or lookup table (see §18C.5). |
+| `visibility` | TEXT | `admin_only` \| `client_visible` \| `both` (min set); **RLS must hide `admin_only` from GPUM routes.** |
+| `title` | TEXT | Short line for lists. |
+| `body` | TEXT | Optional longer text (staff note body, email snippet). |
+| `metadata` | JSONB | Structured payload: list name, `mag_id`, `order_id`, template key, deep-link path, etc. |
+| `author_user_id` | UUID NULL | Staff author for notes; NULL for pure system rows. |
+| `recipient_user_id` | UUID NULL | Optional: timeline row targeted at a specific team user (inbox copy). |
+| `subject_type` | TEXT NULL | e.g. `order`, `subscription`, `task`, `content`, `mag`. |
+| `subject_id` | UUID NULL | FK target id (opaque to timeline). |
+| `source_event` | TEXT NULL | **Idempotency** key for webhooks (`stripe:invoice.paid:{id}`); **UNIQUE** partial index where `source_event IS NOT NULL`. |
+| `read_at` / `dismissed_at` | TIMESTAMPTZ NULL | Inbox UX; GPUM vs staff may differ — optional separate read pointers per recipient if needed later. |
+| `created_at` | TIMESTAMPTZ | |
+
+**Indexes:** `(contact_id, created_at DESC)`, `(recipient_user_id, created_at DESC)` if used, `(kind)`, partial for unread (`read_at IS NULL`) where applicable.
+
+**Store B — Threaded messages**  
+Tenant tables (migration **`191_conversation_threads_and_messages.sql`**):
+
+1. **`conversation_threads`:** `id`, `thread_type`, `mag_id` NULL (for MAG room), `subject_type`, `subject_id`, `created_at`, `updated_at`.
+2. **`thread_messages`:** `id`, `thread_id` FK, `body`, `author_user_id` NULL, `author_contact_id` NULL, `metadata` JSONB, `parent_message_id` NULL (optional threading), `created_at`, `edited_at` NULL.
+3. **`thread_participants`:** `thread_id`, `user_id` NULL, `contact_id` NULL, `last_read_at` NULL, `role` NULL — for **DMs and small groups**. **MAG group rooms:** access may be **derived** from `crm_contact_mags` for `thread.mag_id` (no materialized participant rows) unless you need mentions/subsets.
+
+**Async:** No separate “async table”; async = clients poll or future push — storage is append-only messages + timeline rows.
+
+---
+
+#### 18C.4 MAG group messaging
+
+- **Model:** One **stable `thread_id` per MAG** for the “group room” (`thread_type = mag_group`, `conversation_threads.mag_id` set).  
+- **Access:** RLS / API: user may read/post if their **member contact** has active **MAG** assignment matching that `mag_id` (reuse existing MAG checks).  
+- **New members:** **Default (documented):** may see full history after join (simple). Alternative: thread created per “announcement” — product choice; document in migration.  
+- **Leave / remove MAG:** User **loses access** to that thread immediately (RLS); whether historical rows are hidden or soft-retained is implementation detail — default **hidden** via RLS.
+
+---
+
+#### 18C.5 Enumerations (v1 — extend via migration)
+
+**`contact_notifications_timeline.kind` (examples)**  
+`staff_note`, `email_sent`, `marketing_list_added`, `marketing_list_removed`, `mag_assigned`, `mag_removed`, `form_submitted`, `order_created`, `order_paid`, `order_shipped`, `order_completed`, `subscription_started`, `subscription_renewed`, `subscription_canceled`, `subscription_payment_failed`, `digital_ready`, `task_created`, `task_status_changed`, `mention` (optional).
+
+**`visibility`**  
+`admin_only` — internal staff notes and sensitive ops; never exposed to GPUM APIs.  
+`client_visible` — may appear in member-facing merged stream.  
+`both` — optional shorthand if identical text is shown both places (rare; prefer explicit rows if copy differs).
+
+**`thread_messages` / `conversation_threads.thread_type`**  
+`support`, `task_ticket`, `blog_comment`, `product_comment`, `direct`, `mag_group`, `group` (non-MAG small group).
+
+**UI filter `category` (computed in API, not necessarily a column)**  
+Map `kind` → `notes` | `comms` | `membership` | `commerce` | `tasks` | `system` for contact detail filters and merged inbox chips.
+
+---
+
+#### 18C.6 Merged stream API (Messages and notifications)
+
+- **Input:** `cursor`, `limit`, `filter` (optional enum set).  
+- **Output:** Normalized items: `{ id, stream: 'timeline' | 'thread', sort_at, title, body?, kind?, thread_id?, unread, subject?, metadata }`.  
+- **Implementation:** Two queries (timeline by `recipient_contact_id` / `contact_id` / `recipient_user_id` as designed + thread “heads” or recent message per thread), merge sort in application layer **or** single SQL `UNION ALL` in RPC — choose based on RLS complexity (Supabase often favors **server route + service role** with explicit auth checks for GPUM vs admin).
+
+**Admin contact detail:** Query **timeline only** (`contact_id = :id`) with **kind/category filters** — no merge with threads unless product wants “open thread” links from timeline rows.
+
+**Superadmin system-wide feed:** Optional phase — may require `public` schema or cross-schema RPC; prefer **explicit superadmin-only route** with service role and audit logging.
+
+---
+
+#### 18C.7 RLS (requirements)
+
+- Tenant isolation: all new tables in **tenant schema** with policies consistent with `crm_contacts` / `tasks` (authenticated admin for CMS; stricter for member).  
+- **GPUM:** `contact_id` must resolve to **their** `members.contact_id`; reject `visibility = admin_only`.  
+- **Thread read:** Participant or MAG membership as per §18C.4.  
+- **Service role:** Prefer minimal use; encapsulate in API routes that already enforce session + tenant.
+
+---
+
+#### 18C.8 Cutover vs `crm_notes`
+
+- **New writes** for migrated types go to **timeline** and/or **thread_messages** (decide per `kind` / `thread_type`).  
+- **Blog comments (cutover):** One **`conversation_threads`** row per post (`thread_type = blog_comment`, `subject_type = content`, `subject_id = content.id`); each comment is a **`thread_messages`** row. Moderation uses **`metadata.blog_moderation_status`** (`pending` \| `approved` \| `rejected`). App code: **`src/lib/supabase/blog-comment-messages.ts`**; unique thread per post: migration **`192_blog_comment_thread_unique.sql`**. Public/admin APIs: **`/api/blog/comments`** and **`PATCH /api/blog/comments/[id]`** (id = `thread_messages.id`). Planned wiring checklist: **`docs/reference/messages-and-notifications-wiring.md`**.  
+- **`crm_notes`** may remain for **legacy** data or for **narrow** internal-only notes until migrated — **do not** add new heterogeneous `note_type` values without updating this doc.  
+- **Phase 19:** Prefer **new thread storage** for task/support replies going forward; existing `conversation_uid` / `task_id` on `crm_notes` can be **read-only** during transition or bulk-migrated later.  
+- **Pruning:** **Timeline/commerce notification rows** may be pruned/archived after N days (canonical order still in `orders`/Stripe); **thread_messages** retained per product retention (longer). Document job in planlog.
+
+---
+
+#### 18C.9 Edge cases (defaults to confirm in implementation)
+
+| Topic | Default / decision |
+|--------|-------------------|
+| Guest blog comment | `author_contact_id` NULL; `metadata.guest_name` + moderation state in `metadata` or columns. |
+| Stripe retries | `source_event` uniqueness prevents duplicate timeline rows. |
+| Read receipts | `thread_participants.last_read_at`; timeline `read_at` per row or per user extension later. |
+| Email + in-app | In-app row is SSOT for stream; email is side channel — optional `email_sent` timeline row when operational visibility needed. |
+| Internal staff notes | `kind = staff_note`, `visibility = admin_only` on **timeline** (avoids a third physical “notes” table if desired). |
+
+---
+
+#### 18C.10 Suggested code locations (after implementation)
+
+- `src/lib/supabase/directory.ts` (or `inbox.ts`) + `src/app/api/directory/route.ts`  
+- **`src/lib/supabase/contact-notifications-timeline.ts`** — list/insert `contact_notifications_timeline`  
+- **`src/lib/supabase/conversation-threads.ts`** — threads, messages, participants  
+- **`GET|POST /api/crm/contacts/[id]/notifications-timeline`** — contact detail timeline (Phase 18C v1)  
+- **`POST /api/conversation-threads`**, **`GET|POST /api/conversation-threads/[threadId]/messages`**  
+- `src/types/inbox.ts` — DTOs for merged stream (later)  
+- Update [mvt.md](./mvt.md) when UI ships.
 
 ---
 
@@ -629,6 +793,10 @@ When creating **any** new content type (e.g. properties, products, custom storag
 **Superadmin Bypass:**
 - If `type = "superadmin"` and `role = "superadmin"`, can bypass `tenant_id` match
 - Optional `allowed_schemas: ["*"]` or concrete allowlist
+
+### Shared identity UX (forks)
+
+Public login, registration, and forgot-password **copy**; **transactional** signup/welcome, reset, and confirmation emails; and signed-in help text must follow [prd.md — Shared identity UX (forks)](./prd.md#shared-identity-ux-forks): tiered messaging, **no account enumeration**, **no tenant directories** on cold auth pages, **PHP-Auth** naming primarily in **inbox** content where helpful, and clear **global vs tenant-local** labels on profile/settings where applicable. **Forks** must preserve this posture when customizing auth or email templates.
 
 ### Two-Factor Authentication (2FA/MFA)
 

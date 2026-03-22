@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, MessageSquarePlus } from "lucide-react";
 import type { DashboardActivityItem } from "@/lib/supabase/crm";
-import { ACTIVITY_TYPE_FILTER_OPTIONS } from "@/lib/supabase/crm";
+import { MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS } from "@/lib/supabase/crm";
 
 function formatItem(item: DashboardActivityItem): string {
   switch (item.type) {
@@ -133,7 +133,7 @@ export function MemberActivityStream() {
             className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
             aria-label="Filter by type"
           >
-            {ACTIVITY_TYPE_FILTER_OPTIONS.map(({ value, label }) => (
+            {MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS.map(({ value, label }) => (
               <option key={value} value={value}>
                 {label}
               </option>

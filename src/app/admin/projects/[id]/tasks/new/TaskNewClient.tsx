@@ -225,7 +225,11 @@ export function TaskNewClient({
               </div>
             </div>
             <div className="flex gap-2">
-              <Button type="submit" disabled={submitting}>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="task-bento-primary-btn rounded-xl transition-[box-shadow,transform] active:scale-[0.98]"
+              >
                 {submitting ? "Creating…" : "Create task"}
               </Button>
               <Button type="button" variant="outline" asChild>

@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+## `docs/donor-code/` (reference only — not production)
+
+- **Purpose:** Styling/layout **reference** (V0 exports, screenshots, snippets). This tree is **disposable** and may be **removed for production** or excluded from deploy; it is **not** a source package for the running app.
+- **Do not** add **imports** from `docs/donor-code/` into application code under `src/` (or any path the build bundles).
+- **Do not** add **tsconfig paths**, **aliases**, or **build steps** that make the app depend on `docs/donor-code/`.
+- **Do** **reimplement or copy patterns** into `src/` / `src/components/` when shipping features; treat donor files as **read-only inspiration**, not shared libraries.

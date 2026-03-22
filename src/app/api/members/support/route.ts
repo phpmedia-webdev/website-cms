@@ -97,7 +97,10 @@ export async function POST(request: Request) {
       contact_id: member.contact_id,
     });
 
-    return NextResponse.json({ taskId: taskResult.id });
+    return NextResponse.json({
+      taskId: taskResult.id,
+      taskNumber: taskResult.task_number,
+    });
   } catch (e) {
     console.error("POST /api/members/support:", e);
     return NextResponse.json(

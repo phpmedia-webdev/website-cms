@@ -422,6 +422,7 @@ export function ProjectDetailClient({
             <table className="w-full caption-bottom text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
+                  <th className="h-9 px-4 text-left font-medium">Task ID</th>
                   <th className="h-9 px-4 text-left font-medium">Title</th>
                   <th className="h-9 px-4 text-left font-medium">Status</th>
                   <th className="h-9 px-4 text-left font-medium">Start</th>
@@ -431,13 +432,16 @@ export function ProjectDetailClient({
               <tbody>
                 {tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
                       No tasks yet.
                     </td>
                   </tr>
                 ) : (
                   tasks.map((t) => (
                     <tr key={t.id} className="border-b hover:bg-muted/50">
+                      <td className="p-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                        {t.task_number}
+                      </td>
                       <td className="p-3 font-medium">
                         <Link
                           href={`/admin/projects/${project.id}/tasks/${t.id}?from=project`}

@@ -7,7 +7,7 @@ import { User, Tags, Settings, Mail, FileText, Users, FolderKanban, Receipt } fr
 import { ContactDetailClient } from "./ContactDetailClient";
 import { ContactTaxonomyBlock } from "./ContactTaxonomyBlock";
 import { ContactTransactionsTab } from "./ContactTransactionsTab";
-import type { CrmNote, CrmCustomField, ContactCustomFieldValue, ContactMag, ContactMarketingList, Form } from "@/lib/supabase/crm";
+import type { CrmCustomField, ContactCustomFieldValue, ContactMag, ContactMarketingList, Form } from "@/lib/supabase/crm";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 import type { ContactDetailSection } from "./ContactDetailClient";
 
@@ -22,12 +22,6 @@ interface ContactRecordLayoutProps {
   displayName: string;
   contactStatus: string;
   contactStatuses: CrmContactStatusOption[];
-  initialNotes: CrmNote[];
-  /** Resolved display labels for note author_id (handle/display_name). */
-  authorLabels?: Record<string, string>;
-  contactCreatedAt?: string | null;
-  initialFormSubmissions?: { form_id: string; submitted_at: string }[];
-  formNameById?: Record<string, string>;
   initialCustomFieldDefinitions: CrmCustomField[];
   initialContactCustomFieldValues: ContactCustomFieldValue[];
   initialForms: Form[];
@@ -35,7 +29,6 @@ interface ContactRecordLayoutProps {
   initialMags: ContactMag[];
   initialMarketingLists: ContactMarketingList[];
   allMarketingLists?: { id: string; name: string; slug: string }[];
-  initialNoteTypes?: string[];
 }
 
 export function ContactRecordLayout({
@@ -45,38 +38,26 @@ export function ContactRecordLayout({
   displayName,
   contactStatus,
   contactStatuses,
-  initialNotes,
-  authorLabels,
-  contactCreatedAt,
-  initialFormSubmissions,
-  formNameById,
   initialCustomFieldDefinitions,
   initialContactCustomFieldValues,
   initialForms,
   contactFormId,
   initialMags,
   initialMarketingLists,
-  initialNoteTypes = ["call", "task", "email", "meeting"],
 }: ContactRecordLayoutProps) {
   const [section1, setSection1] = useState<Section1Tab>("detail");
   const [section2, setSection2] = useState<Section2Tab>("activity");
 
   const detailClientProps = {
     contactId,
-  initialNotes,
-  authorLabels,
-  contactCreatedAt,
-  initialFormSubmissions,
-  formNameById,
-  initialCustomFieldDefinitions,
-  initialContactCustomFieldValues,
-  initialForms,
-  contactFormId,
-  initialMags,
-  initialMarketingLists,
-  initialNoteTypes,
-  activeSection: "notes" as ContactDetailSection,
-};
+    initialCustomFieldDefinitions,
+    initialContactCustomFieldValues,
+    initialForms,
+    contactFormId,
+    initialMags,
+    initialMarketingLists,
+    activeSection: "notes" as ContactDetailSection,
+  };
 
   return (
     <div className="space-y-6">
@@ -132,12 +113,12 @@ export function ContactRecordLayout({
         </div>
       </Tabs>
 
-      {/* Section 2: Action items — Activity Stream (default) | Memberships | Projects | Transactions */}
+      {/* Section 2: Messages & notifications (default) | Memberships | Projects | Transactions */}
       <Tabs value={section2} onValueChange={(v) => setSection2(v as Section2Tab)} className="w-full">
-        <TabsList className="w-full justify-start rounded-none bg-transparent p-0 h-auto border-b">
+        <TabsList className="w-full justify-start flex-wrap gap-y-1 rounded-none border-b bg-transparent p-0 h-auto">
           <TabsTrigger value="activity" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">
-            <FileText className="h-3.5 w-3.5 mr-1.5" />
-            Activity Stream
+            <FileText className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+            <span className="whitespace-normal text-left leading-tight">Messages and Notifications</span>
           </TabsTrigger>
           <TabsTrigger value="memberships" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">
             <Users className="h-3.5 w-3.5 mr-1.5" />
@@ -155,9 +136,7 @@ export function ContactRecordLayout({
         <div className="mt-4">
           {section2 === "activity" && (
             <Card className="rounded-lg border bg-card min-h-[300px]">
-              <CardContent className="p-6">
-                <h2 className="text-sm font-semibold mb-1">Activity Stream</h2>
-                <p className="text-xs text-muted-foreground mb-4">Timestamped activities for this contact, including custom notes.</p>
+              <CardContent className="p-4">
                 <ContactDetailClient {...detailClientProps} activeSection="notes" />
               </CardContent>
             </Card>

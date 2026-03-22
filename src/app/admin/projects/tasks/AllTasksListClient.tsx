@@ -368,7 +368,11 @@ export function AllTasksListClient({
   const displayTasks = useMemo(() => {
     const q = titleSearchQuery.trim().toLowerCase();
     if (!q) return tasks;
-    return tasks.filter((t) => (t.title ?? "").toLowerCase().includes(q));
+    return tasks.filter((t) => {
+      const title = (t.title ?? "").toLowerCase();
+      const num = (t.task_number ?? "").toLowerCase();
+      return title.includes(q) || num.includes(q);
+    });
   }, [tasks, titleSearchQuery]);
 
   const hasActiveFilters =
@@ -776,6 +780,9 @@ export function AllTasksListClient({
                           >
                             {t.title}
                           </Link>
+                          <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                            {t.task_number}
+                          </div>
                         </td>
                         <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.project}`}>
                           <Link

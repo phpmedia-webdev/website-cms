@@ -110,7 +110,7 @@ export async function POST(
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
-    return NextResponse.json({ id: result.id }, { status: 201 });
+    return NextResponse.json({ id: result.id, task_number: result.task_number }, { status: 201 });
   } catch (error) {
     console.error("POST /api/projects/[id]/tasks error:", error);
     return NextResponse.json(

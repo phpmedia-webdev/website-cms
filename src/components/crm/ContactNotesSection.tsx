@@ -30,7 +30,7 @@ interface ContactNotesSectionProps {
 }
 
 /**
- * Activity Stream (notes) section for contact detail.
+ * CRM notes + merged system lines for contact detail (under Messages and Notifications).
  * Self-contained: manages notes state, search, add/edit/delete modal.
  */
 export function ContactNotesSection({
@@ -224,7 +224,7 @@ export function ContactNotesSection({
     <>
       <div className="rounded-lg border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 border-b">
-          <span className="text-sm font-semibold">Activity Stream</span>
+          <span className="text-sm font-semibold">CRM notes & system activity</span>
           <div className="flex gap-1">
             <Button size="sm" variant="default" className="h-7 text-xs" onClick={openSendMessageModal}>
               <MessageSquare className="h-3.5 w-3.5 mr-1" />

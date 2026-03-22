@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { CrmNote, CrmCustomField, ContactCustomFieldValue, ContactMag, ContactMarketingList, Form } from "@/lib/supabase/crm";
-import { ContactNotesSection } from "@/components/crm/ContactNotesSection";
+import type { CrmCustomField, ContactCustomFieldValue, ContactMag, ContactMarketingList, Form } from "@/lib/supabase/crm";
+import { ContactNotificationsTimelineSection } from "@/components/crm/ContactNotificationsTimelineSection";
 import { ContactCustomFieldsSection } from "@/components/crm/ContactCustomFieldsSection";
 import { ContactMarketingListsSection } from "@/components/crm/ContactMarketingListsSection";
 import { ContactMagsSection } from "@/components/crm/ContactMagsSection";
@@ -14,15 +14,6 @@ export type ContactDetailSection = "notes" | "customFields" | "marketingLists" |
 
 interface ContactDetailClientProps {
   contactId: string;
-  initialNotes: CrmNote[];
-  /** Resolved display labels for note author_id (handle/display_name). */
-  authorLabels?: Record<string, string>;
-  /** Contact created_at for Activity Stream "Contact added" system line. */
-  contactCreatedAt?: string | null;
-  /** Form submissions for this contact (Activity Stream "Submitted [Form name]" rows). */
-  initialFormSubmissions?: { form_id: string; submitted_at: string }[];
-  /** Map form_id -> form name for labelling submissions. */
-  formNameById?: Record<string, string>;
   /** All CRM custom field definitions (from Settings/Forms); shown for every contact with value or empty. */
   initialCustomFieldDefinitions: CrmCustomField[];
   /** This contact's custom field values (from crm_contact_custom_fields). */
@@ -33,25 +24,18 @@ interface ContactDetailClientProps {
   contactFormId: string | null;
   initialMags: ContactMag[];
   initialMarketingLists: ContactMarketingList[];
-  initialNoteTypes?: string[];
   /** When set, render only this section (for tabbed layout). When undefined, render all sections in accordion. */
   activeSection?: ContactDetailSection | null;
 }
 
 export function ContactDetailClient({
   contactId,
-  initialNotes,
-  authorLabels = {},
-  contactCreatedAt,
-  initialFormSubmissions,
-  formNameById,
   initialCustomFieldDefinitions,
   initialContactCustomFieldValues,
   initialForms,
   contactFormId,
   initialMags,
   initialMarketingLists,
-  initialNoteTypes = ["call", "task", "email", "meeting"],
   activeSection = null,
 }: ContactDetailClientProps) {
   // Accordion state: persist per contact so sections stay open when returning from Edit (same contact)
@@ -94,19 +78,7 @@ export function ContactDetailClient({
 
   return (
     <>
-      {showNotes && (
-        <ContactNotesSection
-          contactId={contactId}
-          initialNotes={initialNotes}
-          authorLabels={authorLabels}
-          contactCreatedAt={contactCreatedAt}
-          initialFormSubmissions={initialFormSubmissions}
-          formNameById={formNameById}
-          initialMags={initialMags?.map((m) => ({ mag_name: m.mag_name, assigned_at: m.assigned_at }))}
-          initialMarketingLists={initialMarketingLists?.map((m) => ({ list_name: m.list_name, added_at: m.added_at }))}
-          noteTypes={initialNoteTypes}
-        />
-      )}
+      {showNotes && <ContactNotificationsTimelineSection contactId={contactId} />}
 
       {/* Custom Fields — accordion when full layout, always visible when tabbed */}
       {showCustomFields && (

@@ -995,73 +995,23 @@ export async function logTaskStatusChange(
   }
 }
 
-/** Create a blog comment (write). Requires authenticated user; contact_id is null; status = 'pending'. */
+/** Create a blog comment (write). Stored in `thread_messages` / `conversation_threads` (not crm_notes). */
 export async function createBlogComment(
   contentId: string,
   body: string,
   authorId: string
 ): Promise<{ note: CrmNote | null; error: Error | null }> {
-  const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase
-    .schema(CRM_SCHEMA)
-    .from("crm_notes")
-    .insert({
-      contact_id: null,
-      content_id: contentId,
-      body: body.trim(),
-      author_id: authorId,
-      note_type: "blog_comment",
-      status: "pending",
-    })
-    .select()
-    .single();
-  if (error) {
-    console.error("Error creating blog comment:", { message: error.message, code: error.code });
-    return { note: null, error: new Error(error.message) };
-  }
-  return { note: data as CrmNote, error: null };
+  const { createBlogCommentAsThreadMessage } = await import("./blog-comment-messages");
+  return createBlogCommentAsThreadMessage(contentId, body, authorId);
 }
 
-/** Get comments for a post. Pass status = 'approved' for public display. */
+/** Get comments for a post (`thread_messages`). Pass status = 'approved' for public display. */
 export async function getCommentsByContentId(
   contentId: string,
   status?: "pending" | "approved" | "rejected"
 ): Promise<CrmNote[]> {
-  const supabase = createServerSupabaseClient();
-  let q = supabase
-    .schema(CRM_SCHEMA)
-    .from("crm_notes")
-    .select("id, contact_id, body, author_id, note_type, created_at, updated_at, content_id, status")
-    .eq("content_id", contentId)
-    .eq("note_type", "blog_comment")
-    .order("created_at", { ascending: true });
-  if (status) {
-    q = q.eq("status", status);
-  }
-  const { data, error } = await q;
-  if (error) {
-    console.error("Error fetching comments by content:", { message: error.message, code: error.code });
-    return [];
-  }
-  return (data as CrmNote[]) ?? [];
-}
-
-/** Update a note's status (for blog comment moderation). */
-export async function updateNoteStatus(
-  noteId: string,
-  status: "pending" | "approved" | "rejected"
-): Promise<{ success: boolean; error: Error | null }> {
-  const supabase = createServerSupabaseClient();
-  const { error } = await supabase
-    .schema(CRM_SCHEMA)
-    .from("crm_notes")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", noteId);
-  if (error) {
-    console.error("Error updating note status:", { message: error.message, code: error.code });
-    return { success: false, error: new Error(error.message) };
-  }
-  return { success: true, error: null };
+  const { getBlogCommentsForContentAsNotes } = await import("./blog-comment-messages");
+  return getBlogCommentsForContentAsNotes(contentId, status);
 }
 
 // ==================== MAGs ====================
@@ -1963,8 +1913,8 @@ export async function getFormSubmissionsByContactId(contactId: string): Promise<
   return rows.map(normalizeSubmissionRow);
 }
 
-/** Activity stream type filter options. Shared by dashboard and CRM contact activity so both dropdowns match. */
-export const ACTIVITY_TYPE_FILTER_OPTIONS = [
+/** Member GPUM activity stream filter (`crm_notes` + other sources). */
+export const MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "all", label: "All" },
   { value: "message", label: "Messages" },
   { value: "note", label: "Notes" },
@@ -1978,20 +1928,45 @@ export const ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "order", label: "Transactions" },
 ] as const;
 
-/** Dashboard activity item (merged from notes, form submissions, contact created, blog comments, MAG assignments, marketing list, orders, messages). */
+/** Admin dashboard — Messages & notifications panel filter options. */
+export const ADMIN_MESSAGES_NOTIFICATIONS_FILTER_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "notification_timeline", label: "Contact timeline" },
+  { value: "blog_comment", label: "Blog comments" },
+  { value: "form_submission", label: "Form submissions" },
+  { value: "contact_added", label: "Contact added" },
+  { value: "mag_assignment", label: "MAG assignment" },
+  { value: "marketing_list", label: "Marketing list" },
+  { value: "order", label: "Transactions" },
+] as const;
+
+/** @deprecated Prefer `MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS` or `ADMIN_MESSAGES_NOTIFICATIONS_FILTER_OPTIONS`. */
+export const ACTIVITY_TYPE_FILTER_OPTIONS = MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS;
+
+/** Admin dashboard feed + member activity stream item shapes. Admin uses `notification_timeline` (not legacy `crm_notes`). Member area still surfaces `message` / `note` from `crm_notes` for support/task threads until fully migrated. */
 export interface DashboardActivityItem {
-  type: "note" | "message" | "form_submission" | "contact_added" | "blog_comment" | "mag_assignment" | "marketing_list" | "order";
+  type:
+    | "notification_timeline"
+    | "note"
+    | "message"
+    | "form_submission"
+    | "contact_added"
+    | "blog_comment"
+    | "mag_assignment"
+    | "marketing_list"
+    | "order";
   at: string;
   contactId: string;
   contactName: string;
   body?: string;
+  /** `kind` for notification_timeline; `blog_comment` for blog; legacy display for others. */
   noteType?: string | null;
   formName?: string;
   /** Set when type = 'blog_comment' (link to post). */
   contentId?: string | null;
   /** Set when type = 'blog_comment': pending, approved, rejected. */
   status?: string | null;
-  /** Note id (for blog_comment moderation). */
+  /** Row id (blog comment = thread_messages.id; timeline = contact_notifications_timeline.id). */
   id?: string;
   /** Set when type = 'mag_assignment'. */
   magName?: string;
@@ -2005,17 +1980,13 @@ export interface DashboardActivityItem {
   taskId?: string | null;
 }
 
-/** Fetch recent activity across all contacts for dashboard. Limit per type; merged and sorted by at desc. Includes blog comments, MAG assignments, marketing list. */
+/** Fetch recent messages & notifications for admin dashboard: timeline + blog threads + CRM events + orders (no legacy crm_notes). */
 export async function getDashboardActivity(limit = 50): Promise<DashboardActivityItem[]> {
   const supabase = createServerSupabaseClient();
   const perType = Math.max(15, Math.floor(limit / 4));
-  const [notesData, subsData, contactsData, magsData, listsData, ordersResult] = await Promise.all([
-    supabase
-      .schema(CRM_SCHEMA)
-      .from("crm_notes")
-      .select("id, contact_id, body, created_at, note_type, author_id, content_id, status")
-      .order("created_at", { ascending: false })
-      .limit(Math.floor(limit / 2)),
+  const { listRecentContactNotificationsTimelineGlobal } = await import("./contact-notifications-timeline");
+  const [subsData, contactsData, magsData, listsData, ordersResult, blogCommentRows, timelineRows] =
+    await Promise.all([
     supabase
       .schema(CRM_SCHEMA)
       .from("form_submissions")
@@ -2048,9 +2019,12 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
       .order("created_at", { ascending: false })
       .limit(20)
       .then((r: { data: unknown; error: unknown }) => (r.error ? { data: null } : r)),
+    import("./blog-comment-messages").then((m) =>
+      m.fetchRecentBlogCommentRowsForDashboard(Math.ceil(limit / 2))
+    ),
+    listRecentContactNotificationsTimelineGlobal(Math.ceil(limit / 2)),
   ]);
 
-  const notes = (notesData.data as { id: string; contact_id: string | null; body: string; created_at: string; note_type: string | null; author_id: string | null; content_id: string | null; status: string | null; recipient_contact_id?: string | null; parent_note_id?: string | null }[] | null) ?? [];
   const subs = (subsData.data as { id: string; contact_id: string | null; form_id: string; submitted_at: string }[] | null) ?? [];
   const contacts = (contactsData.data as { id: string; full_name: string | null; first_name: string | null; last_name: string | null; email: string | null; created_at: string }[] | null) ?? [];
   const magAssignments = (magsData.data as { contact_id: string; mag_id: string; assigned_at: string }[] | null) ?? [];
@@ -2058,7 +2032,9 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
   const orders = (ordersResult.data as { id: string; customer_email: string; contact_id: string | null; status: string; created_at: string }[] | null) ?? [];
 
   const contactIds = new Set<string>();
-  notes.forEach((n) => { if (n.contact_id) contactIds.add(n.contact_id); });
+  timelineRows.forEach((row) => {
+    if (row.contact_id) contactIds.add(row.contact_id);
+  });
   subs.forEach((s) => { if (s.contact_id) contactIds.add(s.contact_id); });
   contacts.forEach((c) => contactIds.add(c.id));
   magAssignments.forEach((m) => contactIds.add(m.contact_id));
@@ -2080,7 +2056,9 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
   }
 
   const authorIds = new Set<string>();
-  notes.forEach((n) => { if (n.note_type === "blog_comment" && n.author_id) authorIds.add(n.author_id); });
+  blogCommentRows.forEach((r) => {
+    if (r.author_user_id) authorIds.add(r.author_user_id);
+  });
   let authorNames: Record<string, string> = {};
   if (authorIds.size > 0) {
     const { getCommentAuthorDisplayName } = await import("@/lib/blog-comments/author-name");
@@ -2092,40 +2070,34 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
   const forms = await getForms();
   const formNameById: Record<string, string> = Object.fromEntries(forms.map((f) => [f.id, f.name]));
 
+  const { moderationStatusFromMetadata } = await import("./blog-comment-messages");
+
   const items: DashboardActivityItem[] = [];
-  for (const n of notes) {
-    if (n.note_type === "blog_comment") {
-      items.push({
-        type: "blog_comment",
-        id: n.id,
-        at: n.created_at,
-        contactId: n.contact_id ?? "",
-        contactName: n.author_id ? (authorNames[n.author_id] ?? "Commenter") : "Commenter",
-        body: n.body,
-        noteType: "blog_comment",
-        contentId: n.content_id ?? null,
-        status: n.status ?? null,
-      });
-    } else if (n.note_type === "message") {
-      items.push({
-        type: "message",
-        id: n.id,
-        at: n.created_at,
-        contactId: n.contact_id ?? "",
-        contactName: contactNames[n.contact_id ?? ""] ?? "Contact",
-        body: n.body,
-        noteType: "message",
-      });
-    } else {
-      items.push({
-        type: "note",
-        at: n.created_at,
-        contactId: n.contact_id ?? "",
-        contactName: contactNames[n.contact_id ?? ""] ?? "Contact",
-        body: n.body,
-        noteType: n.note_type,
-      });
-    }
+  for (const row of blogCommentRows) {
+    items.push({
+      type: "blog_comment",
+      id: row.id,
+      at: row.created_at,
+      contactId: "",
+      contactName: row.author_user_id ? (authorNames[row.author_user_id] ?? "Commenter") : "Commenter",
+      body: row.body,
+      noteType: "blog_comment",
+      contentId: row.content_id,
+      status: moderationStatusFromMetadata(row.metadata),
+    });
+  }
+  for (const t of timelineRows) {
+    const cid = t.contact_id ?? "";
+    const line = (t.body?.trim() || t.title?.trim() || t.kind) ?? "Notification";
+    items.push({
+      type: "notification_timeline",
+      id: t.id,
+      at: t.created_at,
+      contactId: cid,
+      contactName: cid ? (contactNames[cid] ?? "Contact") : "Contact",
+      body: line,
+      noteType: t.kind,
+    });
   }
   for (const s of subs) {
     if (!s.contact_id) continue;
@@ -2255,21 +2227,9 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
       ? await (await import("@/lib/blog-comments/author-name")).getDisplayLabelForUser(n.author_id)
       : "User";
     if (n.note_type === "blog_comment") {
-      const commentAuthorName = n.author_id
-        ? await (await import("@/lib/blog-comments/author-name")).getCommentAuthorDisplayName(n.author_id)
-        : "Commenter";
-      items.push({
-        type: "blog_comment",
-        id: n.id,
-        at: n.created_at,
-        contactId: n.contact_id ?? "",
-        contactName: commentAuthorName,
-        body: n.body,
-        noteType: "blog_comment",
-        contentId: n.content_id ?? null,
-        status: n.status ?? null,
-      });
-    } else if (n.note_type === "message") {
+      continue;
+    }
+    if (n.note_type === "message") {
       items.push({
         type: "message",
         id: n.id,

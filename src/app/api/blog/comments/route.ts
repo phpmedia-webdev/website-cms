@@ -10,7 +10,7 @@ import { getCommentAuthorDisplayName } from "@/lib/blog-comments/author-name";
  * POST /api/blog/comments
  * Submit a blog comment. Body: { content_id: string, body: string }.
  * Requires: authenticated user with verified email, AND (member of this tenant OR admin/superadmin).
- * Creates note with note_type = 'blog_comment', status = 'pending'.
+ * Creates a `thread_messages` row (blog_comment thread); moderation status pending in metadata.
  */
 export async function POST(request: Request) {
   try {

@@ -50,6 +50,8 @@ export interface Project {
 export interface Task {
   id: string;
   project_id: string;
+  /** Human-readable reference (TASK-YYYY-NNNNN; NNNNN resets each UTC calendar year — migration 194). Immutable; use `id` for FKs. */
+  task_number: string;
   title: string;
   description: string | null;
   /** Settings → Customizer scope `task_status`. */
@@ -450,7 +452,7 @@ export async function listTasksByProjectIds(
     console.error("listTasksByProjectIds error:", error);
     return [];
   }
-  return (data ?? []) as Pick<Task, "id" | "project_id" | "task_status_slug" | "due_date">[];
+  return (data ?? []) as Pick<Task, "id" | "project_id" | "task_number" | "task_status_slug" | "due_date">[];
 }
 
 /** Add a member to a project. Exactly one of user_id or contact_id must be set. */
@@ -877,7 +879,7 @@ async function maybeExtendProjectEndDate(
 export async function createTask(
   input: TaskInsert,
   schema?: string
-): Promise<{ id: string } | { error: string }> {
+): Promise<{ id: string; task_number: string } | { error: string }> {
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? getClientSchema();
   const defaultPriorityId = await getDefaultTaskPriorityTermId(schemaName);
@@ -919,7 +921,7 @@ export async function createTask(
     .schema(schemaName)
     .from("tasks")
     .insert(payload)
-    .select("id")
+    .select("id, task_number")
     .single();
   if (error) {
     console.error("createTask error:", error);
@@ -930,7 +932,7 @@ export async function createTask(
     input.due_date ?? null,
     schemaName
   );
-  return { id: data.id };
+  return { id: data.id, task_number: data.task_number as string };
 }
 
 /** Update a task. Auto-extends project when due_date is extended past project proposed_end_date. */

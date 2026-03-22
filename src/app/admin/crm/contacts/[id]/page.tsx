@@ -2,18 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getContactById,
-  getContactNotes,
   getCrmCustomFields,
   getContactCustomFields,
   getForms,
-  getFormSubmissionsByContactId,
   getContactMags,
   getContactMarketingLists,
   getMarketingLists,
 } from "@/lib/supabase/crm";
 import { getContactOrganizations } from "@/lib/supabase/organizations";
-import { getDisplayLabelForUser } from "@/lib/blog-comments/author-name";
-import { getCrmNoteTypes, getCrmContactStatuses } from "@/lib/supabase/settings";
+import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Mail, Phone, Building2, MapPin, User } from "lucide-react";
@@ -30,18 +27,15 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [contact, notes, customFieldDefinitions, contactCustomFieldValues, forms, formSubmissions, mags, contactMarketingLists, allMarketingLists, noteTypes, contactStatuses, contactOrgs] =
+  const [contact, customFieldDefinitions, contactCustomFieldValues, forms, mags, contactMarketingLists, allMarketingLists, contactStatuses, contactOrgs] =
     await Promise.all([
       getContactById(id),
-      getContactNotes(id),
       getCrmCustomFields(),
       getContactCustomFields(id),
       getForms(),
-      getFormSubmissionsByContactId(id),
       getContactMags(id),
       getContactMarketingLists(id),
       getMarketingLists(),
-      getCrmNoteTypes(),
       getCrmContactStatuses(),
       getContactOrganizations(id),
     ]);
@@ -49,14 +43,6 @@ export default async function ContactDetailPage({
   if (!contact) {
     notFound();
   }
-
-  const authorIds = [...new Set(notes.map((n) => n.author_id).filter(Boolean))] as string[];
-  const authorLabels: Record<string, string> = {};
-  await Promise.all(
-    authorIds.map(async (id) => {
-      authorLabels[id] = await getDisplayLabelForUser(id);
-    })
-  );
 
   const sourceLabel =
     contact.source ||
@@ -81,7 +67,7 @@ export default async function ContactDetailPage({
       </Link>
 
       {/* Section 1: Contact Detail (default) | Taxonomy | Custom Fields | Marketing Lists */}
-      {/* Section 2: Activity Stream (default) | Memberships | Projects | Transactions */}
+      {/* Section 2: Messages and Notifications (default) | Memberships | Projects | Transactions */}
       <ContactRecordLayout
         contactDetailContent={
           <Card className="overflow-hidden">
@@ -198,11 +184,6 @@ export default async function ContactDetailPage({
         displayName={displayName}
         contactStatus={contact.status}
         contactStatuses={contactStatuses}
-        initialNotes={notes}
-        authorLabels={authorLabels}
-        contactCreatedAt={contact.created_at}
-        initialFormSubmissions={formSubmissions}
-        formNameById={Object.fromEntries(forms.map((f) => [f.id, f.name]))}
         initialCustomFieldDefinitions={customFieldDefinitions}
         initialContactCustomFieldValues={contactCustomFieldValues}
         initialForms={forms}
@@ -210,7 +191,6 @@ export default async function ContactDetailPage({
         initialMags={mags}
         initialMarketingLists={contactMarketingLists}
         allMarketingLists={allMarketingLists}
-        initialNoteTypes={noteTypes}
       />
     </div>
   );

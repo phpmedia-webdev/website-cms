@@ -1,6 +1,7 @@
 /**
  * Shared invoice/order number generator (one sequence per tenant).
  * Used for invoices.invoice_number and orders.order_number.
+ * DB: INV-YYYY-NNNNN; numeric segment resets to start_number each UTC calendar year (migration 194).
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/client";

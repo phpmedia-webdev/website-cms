@@ -19,6 +19,10 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - **Notifications & PWA:** Admin → Settings → Notifications (route, actions list, preferences); SMTP config storage, encryption, Admin/Superadmin UIs, send lib, test endpoint; `notifyOnFormSubmitted` (email + PWA per preferences). PWA: `/status` page, manifest, push subscriptions, VAPID, service worker, StatusPushSubscribe. Tenant setup checklist: single doc with env list, Vercel section, merged env templates (archived).
 - **Contact outbound email & SMTP branding:** Drop-in `ComposeEmail` component (subject, body, attachments, dialog); send-email API and `sendEmail()` support attachments; activity log `email_sent` with snippet + attachment count. SMTP branding MVP: from-name fallback to site name when unset; minimal HTML wrapper for text-only sends. Contact UX: delete button moved to edit page; top row order Status, Merge, Edit, Compose email.
 - **GPUM member area (public):** `/members` dashboard (links to profile, account; Apply code); `/members/profile` (display name, avatar via user_metadata); `/members/account` placeholder for password etc. Sessionlog documents MVP; account settings to be built.
+- **Taxonomy — category home + order (migration 175):** One home section per category; `display_order`; Taxonomy Sections + Categories UI (drag/save). **Open:** order category pickers in tasks/projects/content by `display_order` then name (see Phase 06/07 backlog if tracked).
+- **Cursor session docs:** `.cursor/rules/sessions.mdc` + `.cursor/rules/coding.mdc` — **changelog** updates batched at **session wrap-up** (or explicit ask / release), not after every edit.
+- **Phase 18C planning (Directory + messages/notifications):** Full checklist under **Phase 18C** below + [prd-technical § Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging); **design locks** done — implementation (migrations, APIs, UI) remains open.
+- **Number sequences (migration 194):** `number_sequences.sequence_year` (UTC); `get_next_invoice_order_number` and `tasks_assign_task_number` reset the `NNNNN` segment to `start_number` when the UTC calendar year changes (Jan 1 UTC). Formats `INV-YYYY-NNNNN` / `TASK-YYYY-NNNNN`. Run SQL in Supabase SQL Editor per tenant schema.
 
 ---
 
@@ -34,6 +38,12 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [ ] Integrations: test script injection, enable/disable, superadmin-only access
 - [x] 2FA: API route AAL checks; RLS for AAL if needed; edge cases (session refresh, last factor); testing. MFA verify on Vercel fixed (cookie carrier, token relay / success-page cookies; working as expected).
 - [ ] SMS/Phone 2FA: deferred
+
+- **MVP — Shared identity UX (PHP-Auth / one account across the tenant family):** Spec: [prd.md — Shared identity UX (forks)](./prd.md#shared-identity-ux-forks). Single Supabase Auth user across forks sharing the project; messaging and emails must stay **enumeration-safe** on cold pages; **PHP-Auth** may appear helpfully in **transactional email** and richer copy when signed in.
+  - [ ] Implement tiered copy: cold `/login`, `/register`, forgot-password; signup/welcome (+ optional reset/confirm) emails; signed-in Security / account / admin profile help
+  - [ ] Signup/welcome email: mention PHP-Auth usefully; no tenant directory or attacker-useful infra map
+  - [ ] Profile / settings UI: label **global** vs **this site only** fields where tenant-local metadata exists
+  - [ ] Fork / deployment checklist: confirm auth + email templates still comply (see PRD subsection)
 
 ### Phase 01: Foundation & Infrastructure
 
@@ -71,6 +81,8 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [x] Blog template — author on post: Author dropdown in Content Status (GET /api/admin/authors); author_id saved; “By {name}” on /blog/[slug].
 - [x] Author display from profile: Superadmin in author picker; content/comment author resolution uses profile display_name (Settings → My Profile) first, then user_metadata, then email. Phase 2b form steps in sessionlog.
 - [x] **Shortcode Library MVP Phase 1 + 1a + 2 + 2b:** Public shortcode_types; universal picker; Gallery, Media, Separator, Section break, Spacer, Clear, Button, Form, Snippet; alignment; media size; Layout wizard (composite shortcode, Form column); Form styles, FormEmbed, embed code. **Phase 3 eliminated:** Content shortcode + default content types cover Quote/FAQ/Accordion (use content types + [[content:id]] or Layout → Content); no dedicated quote/faq_sets tables or specialized shortcodes.
+- [x] **Taxonomy — category home + order (migration 175):** Schema + UI for single home section per category and scoped drag `display_order` (Sections tab, Categories list Save order).
+- [ ] **Taxonomy — consumer pickers:** Order category pickers by `display_order` then name (tasks/projects/content APIs and UI) — next pass.
 
 ### Phase 07: CRM
 
@@ -292,9 +304,42 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [x] Optional: custom roles
 - [x] Team member profile (name, email, role, avatar, bio, photo, social links, digicard_slug); admin UI; source for Digicards
 
+### Phase 18C: Directory (unified picker) & Messages / notifications
+
+**Living wiring checklist** (thread messages vs notifications timeline, check off as built): [reference/messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md).
+
+**Status:** Planned — **prerequisite** before deepening Tasks/Projects UX (task detail polish, cross-module assignees, **task comments / threads** that would otherwise keep overloading `crm_notes`). Spec alignment: [prd.md — Shared identity UX (forks)](./prd.md#shared-identity-ux-forks) (auth unchanged). **No CRM history backfill required in dev** unless desired later.
+
+**Next build focus:** Implement **tenant migrations** for **contact timeline** + **thread** tables (and RLS) **before** wiring task-detail comments UI — comments should target **thread storage** per [prd-technical § Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging). Directory picker wiring (Projects/Tasks) can proceed in parallel where not blocked.
+
+**Directory (read model for pickers)** — SSOT remains `crm_contacts`, `members`, `auth.users` / team; Directory is **not** a second writable identity store.
+
+- [x] **Design lock:** Document in [prd-technical.md](./prd-technical.md) — **§ Phase 18C** (Directory row shape, sources, dedup, security).
+- [x] **Implementation:** Migration **`188_directory_search_rpc.sql`** — `public.get_directory_search_dynamic(schema_name, tenant_site_id, search_query, result_limit)`; `src/lib/supabase/directory.ts` (`searchDirectoryEntries`); **`GET /api/directory`** (admin-only). Run **188** in Supabase SQL Editor per tenant DB.
+- [x] **Wire pickers — Events:** `EventParticipantsResourcesTab` uses `/api/directory` for participant options (replaces separate CRM contacts + Settings team fetches).
+- [x] **Wire pickers — Tasks (assignees):** `TaskFollowersSection` — **Add Assignee** modal + **`DirectoryParticipantPicker`** + `GET /api/directory` (team_member / crm_contact → task_followers `user_id` / `contact_id`).
+- [ ] **Wire pickers — Projects (members):** Optional: align project “add member” flows with Directory API where it reduces duplicate fetches (assignee path above is done).
+- [ ] **Performance:** Indexes on underlying tables; avoid N+1; document cost in planlog Performance note if hot path.
+- [ ] **Fork note:** Custom pickers must not drop enumeration-safe patterns from PRD (Directory is admin/authenticated use).
+
+**Messages & notifications (two logical stores, one UI tab)** — GPUM and admin both use a single **“Messages and notifications”** surface; merged API normalizes rows. Internal CRM-only notes may remain **`crm_notes`** or move to timeline with `visibility = admin_only` (see design lock).
+
+- [x] **Design lock (prd-technical):** [§ Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging) — table roles, column lists, enums (`kind`, `visibility`, `thread_type`), UI filter mapping, MAG rules, pruning/idempotency, RLS requirements, cutover vs `crm_notes`, edge-case defaults.
+- [x] **Schema — contact notifications timeline:** Tenant table **`contact_notifications_timeline`** — migration **`190_contact_notifications_timeline.sql`** (`recipient_user_id`, indexes, partial unique `source_event`). **Run in Supabase SQL Editor** per tenant DB after 189. (Name avoids confusion with calendar `events`.)
+- [x] **Schema — threads:** **`conversation_threads`**, **`thread_messages`**, **`thread_participants`** — migration **`191_conversation_threads_and_messages.sql`**. **Run in SQL Editor** after 190.
+- [x] **RLS (v1 in migrations):** Tables enabled with **authenticated** full-access policies + grants (matches legacy tenant CRM pattern). **GPUM must not see `admin_only` timeline rows** — enforce in **API / routes** (see §18C.7); tighten policies in a follow-up migration if desired.
+- [x] **Write path — prove (v1):** Authenticated **POST** `/api/crm/contacts/[id]/notifications-timeline` inserts timeline rows (`staff_note`, etc.); **POST** `/api/conversation-threads` (+ optional `first_message`) and **POST** `.../[threadId]/messages` for threads. Lib: `contact-notifications-timeline.ts`, `conversation-threads.ts`.
+- [ ] **Read APIs:** **GET** notifications-timeline + thread messages **done** for admin; still need merged **stream** for GPUM + **Messages and notifications** tab (`UNION`/sort), cursors, and **visibility** filtering for GPUM routes.
+- [ ] **UI — contact detail:** **v1 shipped:** `ContactNotificationsTimelineSection` on Notes tab (list + add `staff_note`). **Remaining:** merge/filters with Activity Stream, `kind` categories, deep links.
+- [ ] **UI — Messages and notifications:** Single tab GPUM + admin; filters (transactions vs messages, etc.); thread drill-in for task/support/DM/MAG.
+- [ ] **Cutover (dev):** New writes to new tables; stop growing `crm_notes` for types you migrate (messages, duplicate system events); **reconcile** Phase 19 bullets that add `task_id` / `conversation_uid` on `crm_notes` — prefer new thread table or dual-write during transition (document choice in prd-technical).
+- [ ] **Edge cases checklist (document decisions):** Leave MAG → lose group thread access? Guest blog comment authors; read receipts (`last_read_at` on participants); admin system-wide feed for superadmin.
+
 ### Phase 19: Project Management Module
 
 **Status:** Planned. Scope in [prd.md](./prd.md) — Project Management Module. Enhancement before/at domain launch; tenant-scoped, feature-gatable.
+
+**Prerequisite:** **Phase 18C** on this page — especially **messages/notifications schema** (timeline + **threads**) — before heavy **task detail comments / threading** UI; Directory pickers + other task UI polish can proceed in parallel where unblocked. Prefer **thread table** over new `crm_notes` volume for task discussion (see Phase 18C cutover + [prd-technical](./prd-technical.md#phase-18c-directory-and-messaging)).
 
 - **Taxonomy (locked):** Use the **existing taxonomy system** for projects. Add **Projects** as a taxonomy section (like Post, Page, CRM, Media). Projects link to this section for **categories** (project type; one level is enough for now) and **tags**. No separate "project types" or simple-category system. Search and filter for projects follow the same category/tag patterns as Content and CRM.
 - **Task taxonomy (locked):** Tasks have their own taxonomy section **Tasks**. *Superseded for admin dimensions (2026-03):* **status, type, and phase** are **Customizer slugs** on the task row (`task_*_slug`); migration **187** clears `taxonomy_relationships` for `content_type = 'task'`. **Priority** remains taxonomy (`task_priority`). Historical note: phases/milestones were previously categories on the Tasks section.
@@ -388,8 +433,22 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [ ] **API:** Extend resources CRUD; optional `for_picker` / filter schedulable-only for calendar.
 - [ ] **UI — inventory:** `ResourcesListClient` + dialog — asset fields, flags, type color chip from Customizer.
 - [ ] **Usage:** `GET .../resources/usage` + Activities/Resources page — date presets, sortable table, optional charts.
-- [ ] **Tasks follow-on:** `task_resources` + picker + union usage API + project rollup.
+- [ ] **MVP — Task UI Resources bento tile:** Minimal **`task_resources`** (junction + list on task detail/edit) and picker from **`resources`** registry so the **Resources** card replaces “No resources yet.” — **next** for task UI after current bento work.
+- [ ] **Tasks follow-on (full):** `task_resources` + picker + union usage API + project rollup (extends MVP above).
 - [ ] **Docs:** `mvt.md`, `prd-technical.md`.
+
+### Phase 22: Accounting module
+
+**Status:** Planned. Tenant-scoped **standalone accounting** (income & expenses) suitable for small business use and **handoff to an accountant** (exports with clear categories and periods)—not a full tax engine; goal is to reduce or replace tools like QuickBooks for operators who already live in this admin app.
+
+- [ ] **PRD / technical spec:** Scope, data model sketch, privacy (who sees what), export formats (e.g. CSV/Excel for accountant), alignment with ecommerce/orders if double-counting must be avoided.
+- [ ] **Schema (tenant):** Core entities—e.g. chart of accounts or category taxonomy, transactions (income/expense), optional splits, import batches (file metadata, status), categorization rules or user overrides. Migrations with `-- File:` header; RLS; indexes for dashboard queries.
+- [ ] **Admin dashboard — accounting:** Summary view of **income vs expenses** over selectable periods (month/quarter/custom); optional comparison to prior period; links into detail views.
+- [ ] **Expense tracker:** List/filter transactions; manual add/edit; mark reviewed; attach to categories; search by payee, amount, date, category.
+- [ ] **CSV statement import:** Upload bank/CC exports; **column mapping** (date, amount, description, balance optional); preview before commit; idempotent or duplicate detection strategy; store raw row + parsed fields for audit.
+- [ ] **Categorization:** Post-import (and ongoing) flow to assign **proper expense/income categories**—manual picker, optional **rules** (e.g. description contains X → category Y), bulk recategorize; ensure categories are stable enough for **accountant-ready** exports.
+- [ ] **Export for accountant:** Date-range export (transactions + category + memo); optional P&L-style summary sheet; document recommended workflow for CPA (what to send, how often).
+- [ ] **Feature registry & access:** Sidebar/nav entry; Phase 19-style gating if required; superadmin vs tenant admin roles as spec’d.
 
 ### Site Visitor Analytics
 

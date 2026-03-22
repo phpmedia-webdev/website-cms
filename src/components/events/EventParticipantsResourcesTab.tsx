@@ -5,6 +5,13 @@ import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AutoSuggestMulti, type AutoSuggestOption } from "@/components/ui/auto-suggest-multi";
+import {
+  DirectoryParticipantPicker,
+  ADMIN_PICKER_DROPDOWN_CLASS,
+  ADMIN_PICKER_FIELD_CLASS,
+  toDirectoryParticipantCompositeId,
+  parseDirectoryParticipantCompositeId,
+} from "@/components/pickers";
 
 export type PendingParticipant = { source_type: "crm_contact" | "team_member"; source_id: string };
 
@@ -38,20 +45,6 @@ interface EventParticipantsResourcesTabProps {
   onParticipantsSnapshot?: (list: ParticipantsSnapshotItem[]) => void;
 }
 
-function toCompositeId(sourceType: "team_member" | "crm_contact", sourceId: string): string {
-  return `${sourceType}:${sourceId}`;
-}
-
-function parseCompositeId(
-  compositeId: string
-): { source_type: "team_member" | "crm_contact"; source_id: string } | null {
-  if (compositeId.startsWith("team_member:"))
-    return { source_type: "team_member", source_id: compositeId.slice("team_member:".length) };
-  if (compositeId.startsWith("crm_contact:"))
-    return { source_type: "crm_contact", source_id: compositeId.slice("crm_contact:".length) };
-  return null;
-}
-
 export function EventParticipantsResourcesTab({
   eventId,
   pendingParticipants = [],
@@ -66,11 +59,9 @@ export function EventParticipantsResourcesTab({
   const [resourceIds, setResourceIds] = useState<string[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
-  const [contacts, setContacts] = useState<
-    { id: string; first_name?: string; last_name?: string; full_name?: string; email?: string }[]
-  >([]);
-  const [teamUsers, setTeamUsers] = useState<
-    { user_id: string; email?: string; display_name?: string }[]
+  /** Unified directory rows from GET /api/directory (contacts + team). */
+  const [directoryRows, setDirectoryRows] = useState<
+    { source_type: string; source_id: string; display_label: string; subtitle: string }[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
@@ -91,15 +82,16 @@ export function EventParticipantsResourcesTab({
     Promise.all([
       isCreateMode ? Promise.resolve({ data: [] }) : fetch("/api/events/participants").then((r) => (r.ok ? r.json() : { data: [] })),
       fetch("/api/events/resources").then((r) => (r.ok ? r.json() : { data: [] })),
-      fetch("/api/crm/contacts").then((r) => (r.ok ? r.json() : [])).catch(() => []),
-      fetch("/api/settings/team").then((r) => (r.ok ? r.json() : { users: [] })).then((d) => d?.users ?? []).catch(() => []),
+      fetch("/api/directory?limit=5000")
+        .then((r) => (r.ok ? r.json() : { data: [] }))
+        .catch(() => ({ data: [] })),
     ])
-      .then(([pData, rData, cData, tData]) => {
+      .then(([pData, rData, dirRes]) => {
         if (!isCreateMode) setParticipants((pData?.data ?? []) as Participant[]);
         const rawResources = rData && typeof rData === "object" && Array.isArray(rData.data) ? rData.data : Array.isArray(rData) ? rData : [];
         setResources((rawResources ?? []) as Resource[]);
-        setContacts(Array.isArray(cData) ? cData : []);
-        setTeamUsers(Array.isArray(tData) ? tData : []);
+        const rows = Array.isArray(dirRes?.data) ? dirRes.data : [];
+        setDirectoryRows(rows);
       })
       .finally(() => setLoading(false));
   }, [isCreateMode]);
@@ -123,42 +115,20 @@ export function EventParticipantsResourcesTab({
     onParticipantsSnapshot(list);
   }, [isCreateMode, pendingParticipants, participantIds, participants, onParticipantsSnapshot]);
 
-  const contactLabel = (c: {
-    first_name?: string;
-    last_name?: string;
-    full_name?: string;
-    email?: string;
-  }) => {
-    const full = c.full_name?.trim() ?? "";
-    const first = c.first_name?.trim() ?? "";
-    const last = c.last_name?.trim() ?? "";
-    const fromParts = [first, last].filter(Boolean).join(" ").trim();
-    return full || fromParts || "Contact";
-  };
-  const teamLabel = (u: { display_name?: string; email?: string }) =>
-    (u.display_name?.trim() || "Team member") as string;
-
-  const participantOptions: AutoSuggestOption[] = [
-    ...teamUsers.map((u) => ({
-      id: toCompositeId("team_member", u.user_id),
-      label: teamLabel(u),
-      searchText: `${u.display_name ?? ""} ${u.email ?? ""}`.trim(),
-    })),
-    ...contacts.map((c) => ({
-      id: toCompositeId("crm_contact", c.id),
-      label: contactLabel(c),
-      // Keep search broad (first/last/full/email), but display only name in label.
-      searchText: `${c.first_name ?? ""} ${c.last_name ?? ""} ${c.full_name ?? ""} ${c.email ?? ""}`.trim(),
-    })),
-  ];
-
   const assignedCompositeIds = isCreateMode
-    ? new Set(pendingParticipants.map((p) => toCompositeId(p.source_type, p.source_id)))
+    ? new Set(
+        pendingParticipants.map((p) => toDirectoryParticipantCompositeId(p.source_type, p.source_id))
+      )
     : new Set(
         participantIds
           .map((pid) => {
             const p = participants.find((x) => x.id === pid);
-            return p ? toCompositeId(p.source_type as "team_member" | "crm_contact", p.source_id) : null;
+            return p
+              ? toDirectoryParticipantCompositeId(
+                  p.source_type as "team_member" | "crm_contact",
+                  p.source_id
+                )
+              : null;
           })
           .filter((id): id is string => id != null)
       );
@@ -167,7 +137,7 @@ export function EventParticipantsResourcesTab({
     if (isCreateMode && onPendingParticipantsChange) {
       const list: PendingParticipant[] = [];
       selectedIds.forEach((id) => {
-        const parsed = parseCompositeId(id);
+        const parsed = parseDirectoryParticipantCompositeId(id);
         if (parsed) list.push(parsed);
       });
       onPendingParticipantsChange(list);
@@ -175,7 +145,7 @@ export function EventParticipantsResourcesTab({
   };
 
   const addParticipantByCompositeId = (compositeId: string) => {
-    const parsed = parseCompositeId(compositeId);
+    const parsed = parseDirectoryParticipantCompositeId(compositeId);
     if (!parsed || !eventId) return;
     setAssigning(true);
     fetch(`/api/events/${eventId}/participants`, {
@@ -191,7 +161,7 @@ export function EventParticipantsResourcesTab({
 
   const removeParticipantByCompositeId = (compositeId: string) => {
     if (isCreateMode && onPendingParticipantsChange) {
-      const parsed = parseCompositeId(compositeId);
+      const parsed = parseDirectoryParticipantCompositeId(compositeId);
       if (!parsed) return;
       onPendingParticipantsChange(
         pendingParticipants.filter(
@@ -201,7 +171,11 @@ export function EventParticipantsResourcesTab({
       return;
     }
     const pid = participants.find(
-      (p) => toCompositeId(p.source_type as "team_member" | "crm_contact", p.source_id) === compositeId
+      (p) =>
+        toDirectoryParticipantCompositeId(
+          p.source_type as "team_member" | "crm_contact",
+          p.source_id
+        ) === compositeId
     )?.id;
     if (!pid || !eventId) return;
     setAssigning(true);
@@ -270,9 +244,9 @@ export function EventParticipantsResourcesTab({
             Selections will be applied when you save the event.
           </p>
         )}
-        <AutoSuggestMulti
-          options={participantOptions}
-          selectedIds={assignedCompositeIds}
+        <DirectoryParticipantPicker
+          directoryRows={directoryRows}
+          selectedCompositeIds={assignedCompositeIds}
           onSelectionChange={(nextIds) => {
             if (isCreateMode) {
               handleParticipantSelectionChange(nextIds);
@@ -284,9 +258,6 @@ export function EventParticipantsResourcesTab({
               if (removed) removeParticipantByCompositeId(removed);
             }
           }}
-          placeholder="Type to search team or contacts…"
-          label={undefined}
-          className="max-w-md"
         />
       </div>
 
@@ -314,7 +285,8 @@ export function EventParticipantsResourcesTab({
             }}
             placeholder="Type to search resources…"
             label={undefined}
-            className="max-w-md"
+            className={ADMIN_PICKER_FIELD_CLASS}
+            dropdownClassName={ADMIN_PICKER_DROPDOWN_CLASS}
           />
         ) : (
           <div className="space-y-2 text-sm">

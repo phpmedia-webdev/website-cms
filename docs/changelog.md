@@ -11,6 +11,39 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-03-21 22:06 CT — Task detail & edit: bento UI, time tracking, assignees (Directory), schedule hint, mark complete
+
+- **Context for Next Session:** Task **detail** and **edit** share the bento layout (hero, Phase & Type, Schedule, Assignees, Resources placeholder, time logs, thread). **Next priority for task UI:** ship an **MVP `task_resources` / resources integration** so the **Resources** bento tile is real (list + assign from registry)—see [planlog.md](./planlog.md) **Phase 21** (Tasks follow-on + new MVP bullet). Reserved status slugs for mark-complete: `in_progress` / `completed` in Customizer. **Key files:** `src/app/admin/projects/[id]/tasks/[taskId]/page.tsx`, `.../edit/TaskEditClient.tsx`, `src/components/crm/TaskTimeLogsSection.tsx`, `TaskFollowersSection.tsx`, `TaskAssigneesReadOnlyCard.tsx`, `ScheduleDueSubStatus.tsx`, `TaskBentoPanelTitle.tsx`, `src/lib/tasks/task-status-reserved.ts`, `src/lib/tasks/display-helpers.ts`, `src/app/globals.css` (`.task-bento-chip`, `.task-bento-primary-btn`).
+- **Completed (this session):**
+  - **Task detail & edit layout:** Edit page mirrors detail bento grid; hero chip + title/description; **Phase & Type** (phase + type); **Schedule** (start, due, status); **Assignees**; **Resources** placeholder; **`TaskTimeLogsSection`** + **`TaskThreadSection`** below; edit fetches time logs + notes like detail.
+  - **`TaskBentoPanelTitle`:** Shared icon + uppercase headers (`components/tasks/TaskBentoPanelTitle.tsx`); used on detail, edit, assignees.
+  - **Assignees (edit):** Removed helper text and role/member pickers; **Add Assignee** opens modal with **`DirectoryParticipantPicker`** + `GET /api/directory` (Team + Contacts); list shows avatar + name only (`AssigneeListItem` **`showRole`**); **`TaskAssigneesDetailCard`** name-only rows.
+  - **Time tracking:** **Estimated** via button + modal (`PUT` `proposed_time` only); **Logged** = sum of time log minutes; display **`formatMinutesAsHrsMin`** (`xxhrs xxmin`); removed duration pickers from Phase & Type and Schedule on edit; detail Phase card no longer shows **Recorded actual** from `task.actual_time`.
+  - **Mark complete:** Checkbox on time tracking card (after **Log time**); toggles **`completed`** ↔ **`in_progress`** via `PUT /api/tasks/[id]`; syncs edit Schedule status select via **`onTaskStatusSlugChange`**; constants in **`task-status-reserved.ts`**.
+  - **Schedule sub-status:** **`ScheduleDueSubStatus`** under status — green **On Schedule** / red **Overdue** from due date (local calendar); hidden if no due date (detail + edit).
+  - **Chrome:** Task ID chip — **`text-base`**, **`font-sans`**, padding tweak; **`.task-bento-primary-btn`** stronger shadow on primary actions (detail Edit, edit Save, new Create).
+  - **`TaskFollowersSection`:** **`type="button"`** on add/remove so they don’t submit the task form.
+  - **`docs/mvt.md`:** Notes `components/tasks` and task edit/detail flow.
+
+### 2026-03-21 12:38 CT — Docs: Phase 18C spec, planlog/sessionlog sync, changelog rules, taxonomy ref
+
+- **Context for Next Session:** **Implement Phase 18C** — Directory API + wire pickers; then timeline/thread migrations, RLS, APIs, **Messages and notifications** UI ([prd-technical § Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging), [planlog](./planlog.md) Phase 18C). **Then** task detail / task UI polish. Shared identity UX (**copy/emails**) still open in Phase 00. **Sessionlog** is trimmed — use **planlog** for long backlogs (Calendar Phase 20, Resources Phase 21, site analytics, pre-fork).
+- **Completed (this session / wrap-up):**
+  - **`.cursor/rules/sessions.mdc`** + **`.cursor/rules/coding.mdc`:** Changelog entries only at **session end** (summarized from sessionlog) or explicit ask / release — not after every change.
+  - **`docs/prd-technical.md`:** Full **Phase 18C** subsection — Directory read model, `contact_notifications_timeline` + thread tables, enums, MAG group rules, merged stream API, RLS, cutover vs `crm_notes`, edge defaults, suggested code paths.
+  - **`docs/planlog.md`:** Phase 18C section + design locks checked; **Completed / Reference** — taxonomy 175 summary, Cursor changelog rule, Phase 18C planning ref; Phase 06 — taxonomy 175 UI marked done, **consumer pickers** row added (open).
+  - **`docs/sessionlog.md`:** Checked off completed work, removed verbose duplicate lists; **Next up** focused on Phase 18C → task UI; backlog points to planlog.
+
+### 2026-03-21 11:16 CT — Docs: Shared identity UX (forks) in PRD; planlog, sessionlog, mvt, prd-technical
+
+- **Context for Next Session:** **Product spec** for **shared Supabase Auth / PHP-Auth messaging** is now **canonical** in [prd.md#shared-identity-ux-forks](./prd.md#shared-identity-ux-forks). **Implementation** (copy, emails, profile labels) remains **open** — see [planlog.md](./planlog.md) Phase 00 bullets and [sessionlog.md](./sessionlog.md). Continue prior focus (e.g. **task detail / task UI**) unless prioritizing auth UX.
+- **Completed:**
+  - **`docs/prd.md`:** New subsection **Shared identity UX (forks)** — MVP requirement, security principles (no enumeration, no tenant directories on cold pages), tiered copy (cold auth → transactional email → signed-in), global vs tenant-local labels, relation to CRM/consolidated contacts, fork obligation.
+  - **`docs/prd-technical.md`:** **Shared identity UX (forks)** under Authentication & Security with link to PRD.
+  - **`docs/planlog.md`:** Phase 00 checklist — MVP shared identity UX (implement copy/emails, signup email PHP-Auth, profile labels, fork checklist).
+  - **`docs/sessionlog.md`:** Next-up bullets for shared identity UX + fork re-check.
+  - **`docs/mvt.md`:** Auth / MFA — product spec pointer to PRD + planlog.
+
 ### 2026-03-20 01:28 CT — Tasks: Customizer-only slugs (migration 187); drop task taxonomy for status/type/phase
 
 - **Context for Next Session:** **Migration 187** has been **run in Supabase SQL Editor** on this project’s tenant (confirmed). **Other** schemas/forks still need the same script if they use task admin. **Next focus:** **Task detail page** layout/UX and **more task UI** (polish, density, related flows). **Key files:** `src/lib/supabase/projects.ts` (`Task`, `listTasks`, `createTask`, `updateTask`, defaults `to_do` / `task` / `backlog`), `src/lib/tasks/customizer-task-terms.ts`, `src/lib/tasks/task-customizer-labels.ts`, `src/lib/tasks/admin-task-list.ts`, `src/app/api/tasks/route.ts`, `src/app/api/tasks/[id]/route.ts`, `src/app/api/projects/[id]/tasks/route.ts`, `src/app/api/members/support/route.ts`, task pages under `src/app/admin/projects/.../tasks/`, `AllTasksListClient.tsx`, `ProjectDetailClient.tsx`, `docs/mvt.md`.

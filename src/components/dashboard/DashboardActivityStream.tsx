@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import type { DashboardActivityItem } from "@/lib/supabase/crm";
-import { ACTIVITY_TYPE_FILTER_OPTIONS } from "@/lib/supabase/crm";
+import { ADMIN_MESSAGES_NOTIFICATIONS_FILTER_OPTIONS } from "@/lib/supabase/crm";
 
 interface DashboardActivityStreamProps {
   initialItems: DashboardActivityItem[];
@@ -16,6 +16,8 @@ interface DashboardActivityStreamProps {
 
 function formatItem(item: DashboardActivityItem): string {
   switch (item.type) {
+    case "notification_timeline":
+      return item.body?.trim() ? item.body : "Notification";
     case "message":
       return item.body?.trim() ? item.body : "Message";
     case "note":
@@ -70,15 +72,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
   const filtered = useMemo(() => {
     let list = initialItems;
     if (typeFilter !== "all") {
-      if (typeFilter === "note") {
-        list = list.filter((i) => i.type === "note" && i.noteType !== "email_sent" && i.noteType !== "message" && i.noteType !== "task_status_change");
-      } else if (typeFilter === "email_sent") {
-        list = list.filter((i) => i.type === "note" && i.noteType === "email_sent");
-      } else if (typeFilter === "task_status_change") {
-        list = list.filter((i) => i.type === "note" && i.noteType === "task_status_change");
-      } else {
-        list = list.filter((i) => i.type === typeFilter);
-      }
+      list = list.filter((i) => i.type === typeFilter);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -97,8 +91,11 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Activity</CardTitle>
-        <p className="text-xs text-muted-foreground">Recent notes, comments, form submissions, new contacts, MAG and list assignments, transactions. Click a row to open the contact, post, or order.</p>
+        <CardTitle className="text-sm font-medium">Messages and Notifications</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Contact timeline rows, blog comments, form submissions, new contacts, MAG and list assignments, and orders. Grows as more events write to{" "}
+          <code className="text-[10px]">contact_notifications_timeline</code> and thread tables. Click a row to open the contact, post, or order.
+        </p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
@@ -116,7 +113,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
             onChange={(e) => setTypeFilter(e.target.value)}
             className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
           >
-            {ACTIVITY_TYPE_FILTER_OPTIONS.map(({ value, label }) => (
+            {ADMIN_MESSAGES_NOTIFICATIONS_FILTER_OPTIONS.map(({ value, label }) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -125,7 +122,7 @@ export function DashboardActivityStream({ initialItems }: DashboardActivityStrea
         </div>
         <div className="max-h-[360px] overflow-y-auto space-y-1">
           {filtered.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4 text-center">No activity matches</p>
+            <p className="text-xs text-muted-foreground py-4 text-center">No items match</p>
           ) : (
             filtered.map((item) => {
               const href =

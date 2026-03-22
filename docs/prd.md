@@ -19,7 +19,7 @@ A WordPress-style CMS application built with Next.js 15, designed as a lightweig
 - **Development Environment:** Cursor IDE
 - **Version Control:** GitHub
 - **Backend/Database:** Supabase (PostgreSQL with multi-schema architecture)
-- **Authentication:** Supabase Auth (identity and session); when configured, PHP-Auth is the single source of truth (SSOT) for admin roles, features, permissions, and audit logging (see [Authentication → PHP-Auth integration](#php-auth-integration-ssot-for-roles-features-permissions-and-audit)).
+- **Authentication:** Supabase Auth (identity and session); when configured, PHP-Auth is the single source of truth (SSOT) for admin roles, features, permissions, and audit logging (see [Authentication → PHP-Auth integration](#php-auth-integration-ssot-for-roles-features-permissions-and-audit)). **Forks:** end-user login/register/email copy and security rules — [Shared identity UX (forks)](#shared-identity-ux-forks).
 - **Styling:** Tailwind CSS
 - **UI Components:** shadcn/ui
 - **Rich Text Editor:** Tiptap
@@ -80,6 +80,8 @@ This WordPress-style approach provides:
 - **Projects** (Project Management)
   - `/admin/projects` - Project list
   - `/admin/projects/[id]` - Project detail (tasks, status, assignees)
+- **Accounting** (planned module; feature-gated like other admin features)
+  - `/admin/accounting` - Income & expense dashboard, expense tracker, CSV statement import and categorization (exact sub-routes TBD)
 - `/admin/events` - Event calendar management
 - `/admin/settings` - Site settings (including theme selection, design system: fonts and color palette)
 - `/admin/settings/taxonomy` - Taxonomy management (categories and tags for posts, pages, media, and CRM)
@@ -569,6 +571,32 @@ Detailed sub-steps, data model, and API design are captured in the planlog and p
 
 ---
 
+## Accounting module
+
+### Overview
+
+The **Accounting** module provides tenant-scoped **income and expense** tracking inside the admin app. It is intended for small businesses that want to **avoid a separate tool** (e.g. QuickBooks) for day-to-day visibility, while still producing **accountant-ready exports** (categorized transactions, date ranges, optional summary views). It is **not** a full general-ledger or tax product; scope stops at practical bookkeeping and handoff data quality.
+
+**Goal:** One place to see money in/out, track and categorize expenses (including from bank/credit CSV exports), and export clean data for a CPA or bookkeeper.
+
+### Scope (high level)
+
+- **Dashboard:** View **income vs expenses** over selectable periods (e.g. month, quarter, custom); optional comparison to a prior period; drill-down into lists.
+- **Expense tracker:** Transaction list with filters, manual entry/edits, review state, and assignment to **stable categories** suitable for reporting and export.
+- **CSV statement import:** Upload bank or card exports; **map columns** (date, amount, description, etc.); parse and preview before commit; strategy for duplicates and import batches (audit trail).
+- **Categorization:** After import (and for ongoing activity), assign categories—manual selection, optional **rules** (e.g. description patterns → category), and bulk fixes so classifications stay consistent for exports.
+- **Export for accountant:** Date-range export (e.g. CSV/Excel) with categories and memos; optional profit-and-loss-style summary; documented recommended handoff workflow.
+
+### Placement in the app
+
+- **Admin:** Dedicated sidebar entry (e.g. **Accounting**) and routes under `/admin/accounting` (sub-routes for dashboard, transactions, imports, categories/settings as implemented). Subject to **feature registry / per-tenant gating** like Projects and Ecommerce.
+- **Data:** Tenant-isolated (per schema); **RLS** and roles as specified in implementation. Consider overlap with **Ecommerce / orders** so revenue is not double-counted when both exist—resolved in technical spec.
+- **Superadmin:** Enable or disable Accounting per tenant via existing feature gating.
+
+**Implementation checklist:** [planlog — Phase 22: Accounting module](./planlog.md#phase-22-accounting-module). Technical schema, APIs, and UI patterns will live in [prd-technical.md](./prd-technical.md) as the module is specified.
+
+---
+
 ## Design System & Branding
 
 ### Design System Settings
@@ -708,6 +736,34 @@ Website-cms integrates with a central **PHP-Auth** application that has been rep
 - The app falls back to local data: role from Supabase user metadata (superadmin) or `tenant_user_assignments` (tenant admins); role→features from local `role_features` + `feature_registry`. This allows development or deployments without PHP-Auth.
 
 **Summary:** Supabase Auth = identity and session. PHP-Auth (when configured) = SSOT for roles, features, permissions, and central audit for this app. No session carry-over between the two; auth persists across website-cms forks (one login + MFA for all forks). Reference: [php-auth-ssot-roles-features-plan.md](./reference/php-auth-ssot-roles-features-plan.md), [php-auth-website-cms-tables-cross-reference.md](./reference/php-auth-website-cms-tables-cross-reference.md).
+
+### Shared identity UX (forks)
+
+**Requirement (MVP):** End users should understand—without weakening security—that **sign-in can be shared** across other template forks deployed against the **same Supabase Auth project** (one account for the “tenant family” of sites). **PHP-Auth** is the user- and operator-facing name for the shared auth platform that works with Supabase; use it where it **helps** (especially **after** the user has proven control of their email), not as infrastructure reconnaissance on anonymous pages.
+
+**Security principles**
+
+- **Do not** confirm whether an email is registered on cold `/login`, `/register`, or forgot-password screens (avoid **account enumeration**).
+- **Do not** publish lists of other tenant domains, counts of participating sites, or a full “directory” of deployments on **unauthenticated** public pages.
+- Forgot-password and similar flows: **one neutral outcome message** whether or not the email exists; optional short note that a password change may apply **everywhere that account is used**—without naming specific sites.
+
+**Copy placement (tiers)**
+
+1. **Cold login, registration, forgot-password (public):** Short, generic reassurance only (e.g. same email and password may work on other sites that use this sign-in). No long PHP-Auth explanation; optional link to a **generic** help article.
+2. **Transactional email** (signup/welcome, password reset, email confirmation if applicable): Appropriate to mention **PHP-Auth** in a **helpful** way—for example, that sign-in is provided by PHP-Auth and the same credentials may work on other participating sites. **Do not** embed a catalog of other tenants or unnecessary third-party URLs.
+3. **Signed-in surfaces** (`/members/account`, Security, admin profile/help): Fuller explanation of shared account scope, password/MFA implications, and support expectations.
+
+**Profile vs tenant-local data**
+
+- Where users edit **global** profile fields (e.g. display name, avatar, email) versus **tenant-only** metadata, **label** which applies only on the current site versus everywhere. This reduces support load without expanding what anonymous visitors can learn.
+
+**Relation to CRM / contacts**
+
+- **Consolidated contact storage** and directory-style identity matching are **data model** workstreams. **Shared identity UX** is **messaging and UI**. Forks should treat both as first-class; they are related but not the same deliverable.
+
+**Template repo and forks**
+
+- Customizing login, registration, member account, or transactional email templates **must not** drop these rules. Treat this subsection as **canonical** for fork development and client launches; track concrete tasks in [planlog.md](./planlog.md) (Phase 00) and [sessionlog.md](./sessionlog.md). Implementation patterns: [prd-technical.md — Authentication & Security](./prd-technical.md#6-authentication--security).
 
 ### Two-Factor Authentication (2FA/MFA)
 
@@ -1241,6 +1297,7 @@ Roku channel for member video on TV; BrightScript + SceneGraph. Delivers streams
 
 ### Other Planned Items
 
+- **Accounting:** Income/expense dashboard, expense tracker, CSV import and categorization, accountant exports — see [Accounting module](#accounting-module) and [planlog Phase 22](./planlog.md#phase-22-accounting-module).
 - **SEO & discovery:** SEO tools, sitemap generation
 - **Analytics:** Analytics integration, content scheduling
 - **Content:** Multi-language support

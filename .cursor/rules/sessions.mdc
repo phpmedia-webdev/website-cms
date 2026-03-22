@@ -32,12 +32,12 @@ These files live in the root of `docs/`.
 - **Format:** [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), [Semantic Versioning](https://semver.org/spec/v2.0.0.html), reverse chronological, date-stamped `YYYY-MM-DD`.
 - **Contents:** Completed changes, version releases, bug fixes, new features, breaking changes, deprecations, security updates.
 - **Writing style:** Concise. What changed, not how. Key files only. Minimal code. **Always include a "Context for Next Session" section** at the top of each entry (current state, what’s ready to test, where to continue, key files, important decisions).
+- **When to write (frequency):** **One changelog entry at the end of each developer-declared work session**, not after every task, commit, or mid-session “move.” The entry **summarizes the session**: list what was completed, using **checked-off items from `sessionlog.md`** (and session chat as needed). Do **not** append a new changelog heading after each incremental edit or isolated doc tweak. Exceptions: **release or deprecation** (may warrant its own entry), or the developer **explicitly** asks for a changelog update mid-session.
 - **Changelog pattern:**
   - Entry format: `### YYYY-MM-DD HH:MM CT - Description` (24-hour, Central Time).
   - Version format: `## [VERSION] - YYYY-MM-DD`.
-  - Multiple entries per day allowed (use different times).
-- **Update when:** After features/fixes, at end of each session, on release or deprecation.
-- **AI assistants:** Batch changelog entries at **session wrap-up** or when the developer **explicitly requests** documentation; do not append to `changelog.md` after every incremental edit (see **Changelog and MVT — assistant behavior** in `.cursor/rules/coding.mdc`).
+  - Multiple sessions in one calendar day → **separate entries** (different times), each tied to a **session wrap-up**, not to each micro-change.
+- **AI assistants:** Add or edit `changelog.md` at **session wrap-up** (per **Ending a work session** below), or when the developer **explicitly requests** it, or for a **release** — otherwise **leave changelog unchanged** during the session. See **Changelog and MVT — assistant behavior** in `.cursor/rules/coding.mdc`.
 - **Cross-reference:** Links to `planlog.md` for planned work.
 
 **Example structure:**
@@ -65,17 +65,21 @@ These files live in the root of `docs/`.
 
 #### `docs/sessionlog.md` — Session continuity
 
-- **Purpose:** Handoff for the next session. **Kept lean** — not a living archive.
-- **Contents:** Current focus, next up (often pointing to planlog), and context used to write changelog "Context for Next Session" (remove that block after it’s in changelog).
-- **Update when:** Start of session (read; optionally adjust Next up). End of session (check off, sync to planlog, delete completed items from sessionlog, use context for changelog).
-- **Cross-reference:** Planlog for next up and sync; changelog receives context at session end.
+- **Purpose:** Handoff for the next session and **active working checklist** for the current sprint chunk.
+- **Planlog vs sessionlog:** `planlog.md` is the **canonical** backlog (phases, full lists; items are **never deleted**, only checked off). `sessionlog.md` holds a **verbatim working copy** of the **one chunk** you are executing now (see below)—so you can check boxes iteratively without scrolling the whole planlog.
+- **Verbatim chunk rule (Next up):** At **session start** (or when switching focus), **copy into `sessionlog` → Next up** the relevant checkbox block(s) from `planlog` **word-for-word**—same headings, sub-bullets, and `- [ ]` / `- [x]` lines. Example: working on Directory + messaging → paste **Phase 18C** bullets from planlog under **Next up**. Do **not** paraphrase step text; keep checkboxes aligned with planlog.
+- **Stay in sync:** When you check off an item in `sessionlog`, check off the **matching** line in `planlog` (same item). Prefer updating planlog **as you go** or at least at **session end**—the two files must agree.
+- **Session end / cleanup:** After syncing completions to planlog and writing the changelog, **trim `sessionlog`:** remove completed lines from the working chunk **or** replace the whole **Next up** verbatim block with the **next** chunk from planlog. Avoid stale duplicates; only the **current** sprint chunk should live verbatim in sessionlog (plus short pointers for what comes later).
+- **Contents:** Short intro, **Next up** (verbatim chunk + optional 1-line focus), backlog pointers, reference one-liners. Context for changelog comes from completed sessionlog items.
+- **Update when:** Start of session (paste/adjust Next up chunk). During session (check boxes; sync planlog). End of session (final sync, changelog, trim sessionlog).
+- **Cross-reference:** Planlog is source of truth for full phases; sessionlog mirrors one chunk; changelog receives completed items at session end.
 
 ### Documentation principles
 
 **Separation of concerns**
 
 - **Planning vs. history:** `planlog.md` = what we plan; `changelog.md` = what we did (+ context for next session).
-- **Session handoff:** `sessionlog.md` = focus, next up, handoff context; lean; items removed after sync to planlog. Session context lives in changelog.
+- **Session handoff:** `sessionlog.md` = focus + **verbatim planlog chunk** under Next up (working checklist); trim completed chunk after sync. Session context lives in changelog.
 - **Spec vs. history:** `prd.md` = what the system is; `changelog.md` = how we got here.
 - **Structure vs. content:** `.cursor/rules/sessions.mdc` = how docs are organized; other docs = content.
 
@@ -108,12 +112,12 @@ A developer typically starts a new chat when context becomes too large, to preve
 
 1. **Review the session chat history** and **mark off** all completed items in `docs/sessionlog.md` (check the boxes for everything done this session).
 2. **Sync** those completions to `docs/planlog.md` — check off the same items there. Do not delete items from planlog.
-3. **Add a changelog entry** in `docs/changelog.md`:
-   - **CHANGELOG DATE (mandatory):** The entry heading must use format `### YYYY-MM-DD HH:MM CT — Brief title`. **Source of date/time:** (A) If the developer announced the current session date at session start in this conversation, use that date and time (or the **last** such announcement if multiple). (B) If no session date was announced, **you must run** `powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm CT'"` and use the output. **Never** use: user_info “Today’s date”, dates from other changelog entries, or any date from context—only developer-announced session date or the result of the Get-Date command. Multiple work sessions in a day get separate entries with different times.
-   - **List each and every checked-off item** from sessionlog in the changelog entry. The changelog is our history; we need a record of what was done and accomplished. Copy or summarize every completed item (e.g. "• 14. Add Layout to shortcode modal", "• 16. Wizard step 1: Layout definition") into the **Changes** or **Completed** section of the entry. Do not collapse them into a single line like "Phase 2 complete" — list the actual items so the changelog is the durable record.
+3. **Add one changelog entry** in `docs/changelog.md` for **this session** (not one entry per task or per edit — **one consolidated summary per session**):
+   - **CHANGELOG DATE (mandatory):** The entry heading must use format `### YYYY-MM-DD HH:MM CT — Brief title`. **Source of date/time:** (A) If the developer announced the current session date at session start in this conversation, use that date and time (or the **last** such announcement if multiple). (B) If no session date was announced, **you must run** `powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm CT'"` and use the output. **Never** use: user_info “Today’s date”, dates from other changelog entries, or any date from context—only developer-announced session date or the result of the Get-Date command. Multiple **sessions** in a day → **separate entries** at each session’s wrap-up (different times), not an entry after every change within a session.
+   - **Source of “what we did”:** **List each and every checked-off item** from `sessionlog.md` for this session (and anything completed in the session that belonged in sessionlog but was not yet written there — reconcile honestly). Copy or summarize every completed item into the **Changes** or **Completed** section. Do not collapse into a single vague line like "Phase 2 complete" — list the actual items so the changelog is the durable record.
    - **Create the "Context for Next Session"** section at the top of the entry: current state, what is ready to test, where to continue, key files. This is the handoff for the next session.
    - Include key files and any important code/behavior changes.
-4. **Remove** the completed items from `docs/sessionlog.md` so the sessionlog stays thin and is ready for the next work session.
+4. **Trim** `docs/sessionlog.md`: remove **completed** lines from the verbatim **Next up** chunk and/or replace that chunk with the **next** planlog slice. Sessionlog should not hold an outdated duplicate of the whole phase—only the **current** working chunk (see Verbatim chunk rule).
 5. Update `prd.md` if architecture or specs changed.
 6. Pause and allow developer to review update to documents.
 7. **Build check before push:** Run `pnpm run build` (or rely on the pre-push hook). If the build fails, fix type/lint errors before pushing to avoid failed Vercel deploys. Optional: run `pnpm run setup-git-hooks` once to install a pre-push hook that runs the build automatically.

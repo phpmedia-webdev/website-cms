@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { hasPermission, PERMISSION_APPROVE_REJECT } from "@/lib/auth/resolve-role";
-import { updateNoteStatus } from "@/lib/supabase/crm";
+import { updateBlogCommentModerationStatus } from "@/lib/supabase/blog-comment-messages";
 
 /**
  * PATCH /api/blog/comments/[id]
- * Update comment status (moderation). Body: { status: 'approved' | 'rejected' }.
+ * Update comment moderation. Body: { status: 'approved' | 'rejected' }.
+ * `id` is **`thread_messages.id`** (not `crm_notes`).
  * Requires "approve_reject" permission (PHP-Auth role assignment); when PHP-Auth not configured, admin/superadmin allowed.
  */
 export async function PATCH(
@@ -30,7 +31,7 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    const { success, error } = await updateNoteStatus(id, status);
+    const { success, error } = await updateBlogCommentModerationStatus(id, status);
     if (!success) {
       return NextResponse.json(
         { error: error?.message ?? "Failed to update comment status" },

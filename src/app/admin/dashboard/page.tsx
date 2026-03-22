@@ -190,7 +190,7 @@ export default async function DashboardPage() {
         <MediaMetricCard count={mediaCount} totalSizeBytes={mediaTotalBytes} />
       </div>
 
-      {/* Tabs: default Activity, then RAG */}
+      {/* Tabs: Messages and Notifications, then RAG */}
       <DashboardTabsClient
         activityItems={activityItems}
         ragStats={ragStats}

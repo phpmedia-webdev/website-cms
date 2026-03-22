@@ -236,17 +236,17 @@ export default async function StatusPage() {
           </div>
         </div>
 
-        {/* Recent activity */}
+        {/* Messages & notifications (same feed as admin dashboard panel) */}
         <section className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Activity className="h-4 w-4" />
             <h2 className="text-sm font-medium uppercase tracking-wide">
-              Recent activity
+              Messages and Notifications
             </h2>
           </div>
           {activity.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              No recent activity.
+              No recent items.
             </p>
           ) : (
             <ul className="mt-2 space-y-2">
@@ -274,6 +274,39 @@ export default async function StatusPage() {
                       <>
                         Note for <strong>{item.contactName}</strong>
                         {item.body ? `: ${item.body.slice(0, 60)}${item.body.length > 60 ? "…" : ""}` : ""}
+                      </>
+                    )}
+                    {item.type === "notification_timeline" && (
+                      <>
+                        <strong>{item.contactName}</strong>
+                        {item.body
+                          ? `: ${item.body.slice(0, 72)}${item.body.length > 72 ? "…" : ""}`
+                          : ""}
+                        {item.noteType ? (
+                          <span className="text-muted-foreground"> ({item.noteType})</span>
+                        ) : null}
+                      </>
+                    )}
+                    {item.type === "blog_comment" && (
+                      <>
+                        Blog comment{item.body ? `: ${item.body.slice(0, 60)}${item.body.length > 60 ? "…" : ""}` : ""}
+                      </>
+                    )}
+                    {item.type === "order" && <>{item.body ?? "Order update"}</>}
+                    {item.type === "message" && (
+                      <>
+                        Message — <strong>{item.contactName}</strong>
+                        {item.body ? `: ${item.body.slice(0, 60)}${item.body.length > 60 ? "…" : ""}` : ""}
+                      </>
+                    )}
+                    {item.type === "mag_assignment" && (
+                      <>
+                        <strong>{item.contactName}</strong> — MAG: {item.magName ?? "assignment"}
+                      </>
+                    )}
+                    {item.type === "marketing_list" && (
+                      <>
+                        <strong>{item.contactName}</strong> — list: {item.listName ?? "marketing list"}
                       </>
                     )}
                   </span>

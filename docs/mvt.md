@@ -55,7 +55,7 @@ src/
 │   │   ├── forms/             # Form list, [id], submissions
 │   │   ├── galleries/         # List, [id], new
 │   │   ├── media/
-│   │   ├── projects/          # projects list/detail, All tasks (title search modal client-side; reset icon; Customizer filters + GET /api/tasks), task new/detail
+│   │   ├── projects/          # projects list/detail, All tasks, task new/detail/edit (edit mirrors detail bento layout + time log + thread); task_number TASK-YYYY-NNNNN (193+194: NNNNN resets Jan 1 UTC)
 │   │   ├── settings/          # general, style, colors, fonts, content-types, content-fields, taxonomy, crm, customizer (tabs: CRM, Events, Tasks, Projects, Resources, Content), events/EventsSettingsClient, security, profile, users
 │   │   ├── super/             # Tenant sites, tenant users, roles, code-library, integrations
 │   │   ├── support/
@@ -92,6 +92,7 @@ src/
 │   ├── public/                 # GalleryEmbed, GalleryGrid, GalleryRenderer, GalleryPreviewModal, PublicHeaderAuth, PublicContentRenderer, ComingSoonSnippetView, blocks/, sections/
 │   ├── settings/               # ColorsSettings, PaletteLibrary, FontsSettings, DesignSystemSettings, TaxonomySettings, ContentTypesBoard, ContentFieldsBoard, ProfileSettingsContent, SettingsUsersContent, etc.
 │   ├── superadmin/             # IntegrationsManager, RolesManager, TenantFeaturesManager, TenantSiteModeCard, ViewAsCard, EditTenantAssignmentModal, RelatedTenantUsersClient
+│   ├── tasks/                  # TaskBentoPanelTitle (shared task detail/edit bento headers); TaskTermSelectItems
 │   ├── taxonomy/               # TaxonomyAssignment, TaxonomyAssignmentForContent, TermBadge (rounded-md chip, truncates in tables)
 │   ├── site/                   # Experiments (README)
 │   └── ui/                     # shadcn primitives (button, card, dialog, input, select, etc.)
@@ -152,17 +153,22 @@ When you drop a new version of a module, replace the listed code paths and run t
 - **Folder structure (where to find / replace code):**
   ```
   src/app/admin/crm/             # contacts, forms, lists, marketing, memberships, code-generator, omnichat
-  src/app/api/crm/               # contacts (CRUD, bulk-status, bulk-delete, bulk-restore, custom-fields/bulk, export, lists, taxonomy/bulk), custom-fields, forms, lists, mags, memberships, purge-trash
+  src/app/api/crm/               # contacts (CRUD, bulk-status, bulk-delete, bulk-restore, custom-fields/bulk, export, lists, taxonomy/bulk), custom-fields, forms, lists, mags, memberships, purge-trash; contacts/[id]/notifications-timeline (Phase 18C)
+  src/app/api/conversation-threads/   # POST; [threadId]/messages GET|POST (Phase 18C)
   src/app/api/forms/[formId]/submit/
-  src/components/crm/            # SetCrmFieldsDialog, ContactsListClient, ContactDetailClient, dialogs, etc.
+  src/components/crm/            # SetCrmFieldsDialog, ContactsListClient, ContactDetailClient, ContactNotificationsTimelineSection, ContactNotesSection, dialogs, etc.
   src/components/forms/          # FormEditor, FormSubmissionsTable
   src/lib/supabase/crm.ts
+  src/lib/supabase/contact-notifications-timeline.ts
+  src/lib/supabase/conversation-threads.ts
+  src/lib/supabase/blog-comment-messages.ts   # blog comments → thread_messages (not crm_notes)
   src/lib/supabase/crm-taxonomy.ts
   src/lib/crm-export.ts
   ```
 - **Data / schema:**
   - **Tables (client schema):** crm_contacts, crm_contact_custom_fields, crm_custom_fields, crm_notes, crm_contact_mags, crm_marketing_lists, crm_contact_marketing_lists, forms, form_fields, form_submissions; taxonomy_relationships for content_type crm_contact. crm_notes supports note_type = 'message' with recipient_contact_id (null = support), parent_note_id (threading).
-  - **Migrations (key):** 102 (crm_contacts.deleted_at, get_contacts_dynamic/get_contact_by_id_dynamic); 139 (crm_notes recipient_contact_id, parent_note_id; get_contact_notes_dynamic return cols). Plus archive migrations for CRM/forms schema.
+  - **Phase 18C:** Tables **190–191**; **192** (one blog thread per content); libs **`contact-notifications-timeline.ts`**, **`conversation-threads.ts`**, **`blog-comment-messages.ts`**; routes **notifications-timeline** + **conversation-threads** + **`/api/blog/comments`** (see prd-technical §18C, [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)). Merged GPUM stream + UI still planned.
+  - **Migrations (key):** 102 (crm_contacts.deleted_at, get_contacts_dynamic/get_contact_by_id_dynamic); 139 (crm_notes recipient_contact_id, parent_note_id; get_contact_notes_dynamic return cols). **190–192** notifications timeline + threads + blog thread unique. Plus archive migrations for CRM/forms schema.
   - **RPCs (public):** get_contacts_dynamic(schema_name), get_contact_by_id_dynamic(schema_name, contact_id); get_crm_custom_fields_dynamic (or equivalent).
 - **Prerequisites:** Auth; Settings (CRM contact statuses, note types); Taxonomy; optional Membership (MAGs for contact assignment).
 
@@ -187,7 +193,7 @@ When you drop a new version of a module, replace the listed code paths and run t
   ```
 - **Data / schema:**
   - **Tables (client schema):** Product = content (type product) + `product` table (content_id, price, currency, stripe_product_id, stripe_price_id, taxable, shippable, downloadable, digital_delivery_links, grant_mag_id, is_recurring, billing_interval, etc.). `cart_sessions`, `cart_items`; `orders` (customer_email, contact_id, user_id, status, total, currency, stripe_checkout_session_id, stripe_invoice_id, woocommerce_order_id, billing_snapshot, shipping_snapshot, coupon_code, coupon_batch_id, discount_amount); `order_items` (order_id, content_id, name_snapshot, quantity, unit_price, line_total, shippable, downloadable); `subscriptions` (stripe_subscription_id, stripe_customer_id, contact_id, user_id, product/content_id, status, current_period_end). Coupons reuse `membership_code_batches` (purpose discount) and `membership_codes`.
-  - **Migrations (key):** 131 (cart_sessions, cart_items), 132 (orders, order_items), 133 (product grant_mag_id), 136 (product downloadable, digital_delivery_links; order_items downloadable), 137 (product is_recurring, billing_interval, stripe_price_id), 138 (subscriptions table, orders.stripe_invoice_id), 140 (orders.woocommerce_order_id). Content type “product” and product table in earlier migrations (see archive/126, 128 if applicable).
+  - **Migrations (key):** 131 (cart_sessions, cart_items), 132 (orders, order_items), 133 (product grant_mag_id), 136 (product downloadable, digital_delivery_links; order_items downloadable), 137 (product is_recurring, billing_interval, stripe_price_id), 138 (subscriptions table, orders.stripe_invoice_id), 140 (orders.woocommerce_order_id). **194:** `number_sequences.sequence_year` — invoice/order `INV-YYYY-NNNNN` counter resets Jan 1 UTC. Archive **142** (`number_sequences`, `get_next_invoice_order_number`). Content type “product” and product table in earlier migrations (see archive/126, 128 if applicable).
   - **RPCs:** No Ecommerce-specific public RPCs; app uses Supabase client with schema (getClientSchema()) for orders, order_items, product, cart, subscriptions.
 - **Prerequisites:** Content (product content type); Auth (checkout requires sign-in; admin routes gated); CRM (contact_id on orders; getContactByEmail, getContactById for address/export); Settings (Stripe env keys, webhook secret). Optional: Membership (MAGs for product visibility, grant_mag_id for membership products); coupon batches with purpose discount.
 
@@ -240,8 +246,10 @@ When you drop a new version of a module, replace the listed code paths and run t
   src/app/admin/events/          # EventsPageClient, EventFormClient, new, [id]/edit, resources
   src/app/(public)/events/      # Public calendar, PublicCalendarPageClient
   src/app/api/events/            # route, [id], participants, resources, public, ics, check-conflicts, assignments
+  src/app/api/directory/         # GET — unified CRM + team picker (Phase 18C)
   src/components/events/        # EventsCalendar, AgendaWithDescription, EventFormClient, EventsFilterBar, EventParticipantsResourcesTab, ResourcesListClient
   src/lib/supabase/events.ts
+  src/lib/supabase/directory.ts  # searchDirectoryEntries → get_directory_search_dynamic
   src/lib/supabase/participants-resources.ts
   src/lib/recurrence.ts
   src/lib/recurrenceForm.ts
@@ -249,7 +257,7 @@ When you drop a new version of a module, replace the listed code paths and run t
 - **Data / schema:**
   - **Tables (client schema):** events, event_exceptions, event_participants, event_resources, participants, resources (or equivalent).
   - **Migrations:** 095–101 (events tables, RPCs, cover_image, link_url, participants/resources RPCs, resource_types).
-  - **RPCs (public):** get_events_dynamic, get_resources_dynamic, get_participants_dynamic, get_event_participants_dynamic, get_event_resources_dynamic, get_events_participants_bulk, get_events_resources_bulk (see 100).
+  - **RPCs (public):** get_events_dynamic, get_resources_dynamic, get_participants_dynamic, get_event_participants_dynamic, get_event_resources_dynamic, get_events_participants_bulk, get_events_resources_bulk (see 100); **get_directory_search_dynamic** (migrations **188** + **189** — Directory picker; team-first sort).
 - **API behavior:** `POST /api/events` assigns the authenticated creator to the new event as a `team_member` participant (`ensureParticipant` + `assignParticipantToEvent` in `route.ts`); assignment failure does not fail the create.
 - **Prerequisites:** Auth; Settings (calendar resource types in customizer); CRM (for participant type crm_contact).
 
@@ -297,6 +305,7 @@ When you drop a new version of a module, replace the listed code paths and run t
   - **Public tables:** tenant_sites, tenant_users, tenant_user_assignments, feature_registry, tenant_features (for resolve-role and effective features).
   - **Migrations:** 091 (RLS public tables); 081–086 (feature_registry, tenant tables).
 - **Prerequisites:** Supabase project with Auth enabled. MFA uses TOTP (AAL2).
+- **Product spec (forks):** Tiered login/register/email copy and enumeration-safe messaging — [prd.md — Shared identity UX (forks)](./prd.md#shared-identity-ux-forks); tasks in [planlog.md](./planlog.md) Phase 00.
 
 ---
 

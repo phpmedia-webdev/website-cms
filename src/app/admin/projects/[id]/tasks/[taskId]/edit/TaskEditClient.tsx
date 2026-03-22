@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Calendar, LayoutGrid, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,12 +15,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft } from "lucide-react";
-import type { Task, StatusOrTypeTerm } from "@/lib/supabase/projects";
-import { DEFAULT_TASK_PHASE_SLUG, DEFAULT_TASK_STATUS_SLUG, DEFAULT_TASK_TYPE_SLUG } from "@/lib/supabase/projects";
-import { DurationPicker } from "@/components/ui/duration-picker";
+import type { Task, StatusOrTypeTerm, TaskTimeLog } from "@/lib/supabase/projects";
+import {
+  DEFAULT_TASK_PHASE_SLUG,
+  DEFAULT_TASK_STATUS_SLUG,
+  DEFAULT_TASK_TYPE_SLUG,
+} from "@/lib/supabase/projects";
+import type { CrmNote } from "@/lib/supabase/crm";
 import { TaskTermSelectItems } from "@/components/tasks/TaskTermSelectItems";
-import { taskDetailQuery, type TaskDetailFrom } from "@/lib/tasks/task-detail-nav";
+import { TaskFollowersSection } from "@/components/crm/TaskFollowersSection";
+import { TaskTimeLogsSection } from "@/components/crm/TaskTimeLogsSection";
+import { TaskThreadSection } from "@/components/crm/TaskThreadSection";
+import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
+import { ScheduleDueSubStatus } from "@/components/tasks/ScheduleDueSubStatus";
+import {
+  ADMIN_TASKS_LIST_PATH,
+  taskDetailQuery,
+  type TaskDetailFrom,
+} from "@/lib/tasks/task-detail-nav";
+import type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
+
+const SELECT_TRIGGER_CLASS =
+  "mt-1 rounded-xl border-border/60 bg-background/90 shadow-sm backdrop-blur-sm";
 
 function dateInputValue(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -43,25 +60,42 @@ interface TaskEditClientProps {
   projectId: string;
   projectName: string;
   task: Task;
+  assignees: TaskFollowerWithLabel[];
   /** Customizer-driven options (`id` === slug). */
   statusTerms: StatusOrTypeTerm[];
   taskTypeTerms: StatusOrTypeTerm[];
   taskPhaseTerms: StatusOrTypeTerm[];
   taskDetailFrom: TaskDetailFrom;
+  initialTimeLogs: TaskTimeLog[];
+  timeLogUserLabels: Record<string, string>;
+  timeLogContactLabels: Record<string, string>;
+  initialNotes: CrmNote[];
+  authorLabels: Record<string, string>;
 }
 
 export function TaskEditClient({
   projectId,
   projectName,
   task,
+  assignees,
   statusTerms,
   taskTypeTerms,
   taskPhaseTerms,
   taskDetailFrom,
+  initialTimeLogs,
+  timeLogUserLabels,
+  timeLogContactLabels,
+  initialNotes,
+  authorLabels,
 }: TaskEditClientProps) {
   const router = useRouter();
   const fromQuery = taskDetailQuery(taskDetailFrom);
   const taskDetailHref = `/admin/projects/${projectId}/tasks/${task.id}${fromQuery}`;
+  const backHref =
+    taskDetailFrom === "project" ? `/admin/projects/${projectId}` : ADMIN_TASKS_LIST_PATH;
+  const backLabel =
+    taskDetailFrom === "project" ? `← Back to ${projectName}` : "← Back to all tasks";
+
   const defaultStatusSlug = useMemo(
     () => pickSlug(statusTerms, task.task_status_slug, DEFAULT_TASK_STATUS_SLUG),
     [statusTerms, task.task_status_slug]
@@ -80,12 +114,6 @@ export function TaskEditClient({
   const [statusSlug, setStatusSlug] = useState(defaultStatusSlug);
   const [typeSlug, setTypeSlug] = useState(defaultTypeSlug);
   const [phaseSlug, setPhaseSlug] = useState(defaultPhaseSlug);
-  const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(
-    task.proposed_time ?? null
-  );
-  const [actualTimeMinutes, setActualTimeMinutes] = useState<number | null>(
-    task.actual_time ?? null
-  );
   const [startDate, setStartDate] = useState(dateInputValue(task.start_date));
   const [dueDate, setDueDate] = useState(dateInputValue(task.due_date));
   const [submitting, setSubmitting] = useState(false);
@@ -115,8 +143,6 @@ export function TaskEditClient({
           task_status_slug: statusSlug || defaultStatusSlug,
           task_type_slug: typeSlug || defaultTypeSlug,
           task_phase_slug: phase || defaultPhaseSlug,
-          proposed_time: proposedTimeMinutes ?? null,
-          actual_time: actualTimeMinutes ?? null,
           start_date: startDate || null,
           due_date: dueDate || null,
         }),
@@ -136,77 +162,86 @@ export function TaskEditClient({
   };
 
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild>
-        <Link href={taskDetailHref}>
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to task
-        </Link>
-      </Button>
+    <div className="task-bento-page mx-auto max-w-7xl space-y-5 pb-10 md:space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Edit task</h1>
+          <Link
+            href={backHref}
+            className="mt-2 inline-block text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            {backLabel}
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="submit"
+            form="task-edit-form"
+            size="sm"
+            disabled={submitting}
+            className="task-bento-primary-btn shrink-0 rounded-xl border border-white/60 bg-primary/95 backdrop-blur-sm transition-[box-shadow,transform] hover:bg-primary active:scale-[0.98]"
+          >
+            {submitting ? "Saving…" : "Save changes"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
+            asChild
+          >
+            <Link href={taskDetailHref}>Cancel</Link>
+          </Button>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <h1 className="text-xl font-semibold">Edit task</h1>
-          <p className="text-sm text-muted-foreground">
-            Project: {projectName} · Status, type, and phase use Settings → Customizer (order, labels,
-            colors).
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="max-w-xl space-y-4">
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <div>
-              <Label htmlFor="title">Title *</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Task title"
-                className="mt-1"
-              />
+      <form id="task-edit-form" onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
+        <section className="task-bento-hero border-0 p-6 sm:p-8">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="task-bento-chip shrink-0" title="Task reference (cannot be changed)">
+              {task.task_number}
             </div>
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optional description"
-                rows={3}
-                className="mt-1"
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Input
+              id="task-edit-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Task title"
+              aria-label="Task title"
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-2xl font-semibold leading-tight tracking-tight text-foreground shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+          </div>
+          <div className="mt-4">
+            <Label htmlFor="task-edit-description" className="sr-only">
+              Description
+            </Label>
+            <Textarea
+              id="task-edit-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional description"
+              rows={4}
+              className="min-h-[5rem] resize-y rounded-xl border-border/50 bg-background/40 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 shadow-sm backdrop-blur-sm focus-visible:ring-1"
+            />
+          </div>
+          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+        </section>
+
+        <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4 lg:grid-rows-1">
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+              <TaskBentoPanelTitle icon={LayoutGrid}>Phase &amp; Type</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col space-y-3 px-5 pb-5 pt-0">
               <div>
-                <Label htmlFor="status">Status</Label>
-                <Select value={statusSlug} onValueChange={setStatusSlug}>
-                  <SelectTrigger id="status" className="mt-1">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <TaskTermSelectItems terms={statusTerms} />
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="task_type">Type</Label>
-                <Select value={typeSlug} onValueChange={setTypeSlug}>
-                  <SelectTrigger id="task_type" className="mt-1">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <TaskTermSelectItems terms={taskTypeTerms} />
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="task_phase">Phase</Label>
+                <Label htmlFor="task_phase" className="text-xs text-muted-foreground">
+                  Phase
+                </Label>
                 <Select
                   value={phaseSlug}
                   onValueChange={setPhaseSlug}
                   disabled={taskPhaseTerms.length === 0}
                 >
-                  <SelectTrigger id="task_phase" className="mt-1">
+                  <SelectTrigger id="task_phase" className={SELECT_TRIGGER_CLASS}>
                     <SelectValue placeholder={taskPhaseTerms.length === 0 ? "No phases" : "Phase"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -214,52 +249,99 @@ export function TaskEditClient({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <DurationPicker
-              value={proposedTimeMinutes}
-              onValueChange={setProposedTimeMinutes}
-              id="task_proposed_time"
-              label="Estimated time"
-            />
-            <DurationPicker
-              value={actualTimeMinutes}
-              onValueChange={setActualTimeMinutes}
-              id="task_actual_time"
-              label="Actual time"
-            />
-            <div className="grid max-w-md grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="start_date">Start date</Label>
+                <Label htmlFor="task_type" className="text-xs text-muted-foreground">
+                  Type
+                </Label>
+                <Select value={typeSlug} onValueChange={setTypeSlug}>
+                  <SelectTrigger id="task_type" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <TaskTermSelectItems terms={taskTypeTerms} />
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+              <TaskBentoPanelTitle icon={Calendar}>Schedule</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col space-y-3 px-5 pb-5 pt-0 text-sm">
+              <div>
+                <Label htmlFor="start_date" className="text-xs text-muted-foreground">
+                  Start
+                </Label>
                 <Input
                   id="start_date"
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="mt-1 w-40"
+                  className="mt-1 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="due">Due date</Label>
+                <Label htmlFor="due" className="text-xs text-muted-foreground">
+                  Due
+                </Label>
                 <Input
                   id="due"
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="mt-1 w-40"
+                  className="mt-1 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
                 />
               </div>
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : "Save changes"}
-              </Button>
-              <Button type="button" variant="outline" asChild>
-                <Link href={taskDetailHref}>Cancel</Link>
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <div>
+                <Label htmlFor="status" className="text-xs text-muted-foreground">
+                  Status
+                </Label>
+                <Select value={statusSlug} onValueChange={setStatusSlug}>
+                  <SelectTrigger id="status" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <TaskTermSelectItems terms={statusTerms} />
+                  </SelectContent>
+                </Select>
+                <ScheduleDueSubStatus dueDate={dueDate || null} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="min-w-0 h-full">
+            <TaskFollowersSection
+              taskId={task.id}
+              initialFollowers={assignees}
+              projectId={projectId}
+            />
+          </div>
+
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+              <TaskBentoPanelTitle icon={Paperclip}>Resources</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col px-5 pb-5 pt-0">
+              <p className="text-sm text-muted-foreground">No resources yet.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </form>
+
+      <TaskTimeLogsSection
+        taskId={task.id}
+        initialLogs={initialTimeLogs}
+        userLabels={timeLogUserLabels}
+        contactLabels={timeLogContactLabels}
+        taskStatusSlug={statusSlug}
+        onTaskStatusSlugChange={setStatusSlug}
+        estimatedMinutes={task.proposed_time}
+        canEditEstimate
+      />
+
+      <TaskThreadSection taskId={task.id} initialNotes={initialNotes} authorLabels={authorLabels} />
     </div>
   );
 }

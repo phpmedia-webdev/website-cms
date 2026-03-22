@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { MessageSquare } from "lucide-react";
 import type { CrmNote } from "@/lib/supabase/crm";
+import { avatarBgClass, initialsFromLabel } from "@/lib/tasks/display-helpers";
+import { cn } from "@/lib/utils";
 
 interface TaskThreadSectionProps {
   taskId: string;
@@ -17,7 +20,7 @@ interface TaskThreadSectionProps {
 function formatDate(s: string): string {
   try {
     return new Date(s).toLocaleString(undefined, {
-      dateStyle: "short",
+      dateStyle: "medium",
       timeStyle: "short",
     });
   } catch {
@@ -26,8 +29,7 @@ function formatDate(s: string): string {
 }
 
 /**
- * Task conversation (thread) section: list notes for this task and "Add reply" form.
- * Uses unified conversation_uid = task:taskId; author labels show handle when set.
+ * Task conversation: threaded-style list + add comment (crm_notes / task thread).
  */
 export function TaskThreadSection({
   taskId,
@@ -53,62 +55,80 @@ export function TaskThreadSection({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Failed to add reply");
+        setError(data.error ?? "Failed to add comment");
         return;
       }
       setNotes((prev) => [...prev, data]);
       setBody("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add reply");
+      setError(err instanceof Error ? err.message : "Failed to add comment");
     } finally {
       setSaving(false);
     }
   }
 
+  const sorted = [...notes].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+
   return (
-    <Card>
-      <CardHeader>
-        <h2 className="text-lg font-semibold">Thread</h2>
-        <p className="text-sm text-muted-foreground">
-          Conversation for this task (support ticket thread).
-        </p>
+    <Card variant="bento" className="task-bento-tile">
+      <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+        <h2 className="flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <MessageSquare className="h-4 w-4 text-foreground/70" aria-hidden />
+          Discussion ({notes.length})
+        </h2>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {notes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No replies yet. Add one below.</p>
+      <CardContent className="space-y-4 px-5 pb-5 pt-0">
+        {sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No comments yet.</p>
         ) : (
-          <ul className="space-y-3">
-            {notes.map((note) => (
-              <li
-                key={note.id}
-                className="rounded-md border bg-muted/30 p-3 text-sm"
-              >
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    {note.author_id ? authorLabels[note.author_id] ?? "User" : "User"}
-                  </span>
-                  <span>{formatDate(note.created_at)}</span>
-                </div>
-                <p className="mt-1 whitespace-pre-wrap">{note.body}</p>
-              </li>
-            ))}
+          <ul className="space-y-4">
+            {sorted.map((note) => {
+              const authorName = note.author_id ? authorLabels[note.author_id] ?? "User" : "User";
+              const seed = note.author_id ?? note.id;
+              return (
+                <li key={note.id} className="flex gap-3">
+                  <div
+                    className={cn(
+                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white",
+                      avatarBgClass(seed)
+                    )}
+                    aria-hidden
+                  >
+                    {initialsFromLabel(authorName)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
+                      <span className="text-sm font-semibold">{authorName}</span>
+                      <time className="text-xs text-muted-foreground" dateTime={note.created_at}>
+                        {formatDate(note.created_at)}
+                      </time>
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/90">{note.body}</p>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-2">
-          <Label htmlFor="task-reply-body">Add reply</Label>
+        <form onSubmit={handleSubmit} className="task-bento-inset space-y-2 border-0 p-4">
+          <Label htmlFor="task-reply-body" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Add a comment
+          </Label>
           <Textarea
             id="task-reply-body"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Type your reply…"
+            placeholder="Add a comment…"
             rows={3}
-            className="resize-none"
+            className="resize-none rounded-xl border-border/50 bg-background/80 backdrop-blur-sm"
             disabled={saving}
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={!body.trim() || saving}>
-            {saving ? "Sending…" : "Send reply"}
+            {saving ? "Posting…" : "Post comment"}
           </Button>
         </form>
       </CardContent>

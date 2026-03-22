@@ -82,8 +82,8 @@ When the developer is in learning mode or asks for explanation, provide feedback
 
 ## Changelog and MVT — assistant behavior
 
-- **Do not** edit `docs/changelog.md` or `docs/mvt.md` after every small or routine code change (e.g. layout/CSS tuning, column widths, copy tweaks, minor refactors with no new module boundary).
-- **Do** update them at **session wrap-up** (per `.cursor/rules/sessions.mdc`), when the **developer explicitly asks** for changelog or MVT updates, or when the change is **substantial** (new routes/modules, migrations/schema, security, releases, architecture shifts).
+- **`docs/changelog.md`:** **Do not** add or edit changelog entries after every task, commit, or mid-session change. **Do** write **one entry at session wrap-up** that **summarizes the session**, driven by **checked-off items in `sessionlog.md`** (see `.cursor/rules/sessions.mdc` — **Ending a work session**). Also update when the **developer explicitly asks** for a changelog note, or for a **release / deprecation** if applicable. Never treat “we finished something big” as a reason to add a changelog entry **during** the session unless the developer asked.
+- **`docs/mvt.md`:** **Do not** edit after every small or routine change. **Do** update at **session wrap-up** (batch with other docs), when the **developer explicitly asks**, or when the change is **substantial** (new routes/modules, migrations/schema, security-sensitive module boundaries, architecture shifts).
 - When you *do* update `mvt.md`, follow the **MVT** section above for *what* to record; only the *timing* is batched unless asked.
 
 ## Debug Code Guidelines
@@ -127,7 +127,7 @@ When the developer is in learning mode or asks for explanation, provide feedback
 - **Cursor rules (this project):**  
   `.cursor/rules/coding.mdc`, `.cursor/rules/sessions.mdc`, `.cursor/rules/supabase.mdc`, `.cursor/rules/Context7-MCP.md`
 - **Session workflow and docs:**  
-  **Read `.cursor/rules/sessions.mdc`** — defines how sessionlog, changelog, and planlog are used; **session start** (this checklist) and **session end** (review chat, mark off sessionlog, add dated changelog entry with Context for Next Session, remove completed items from sessionlog, sync planlog, commit and push). Following this at session end ensures work is fully and properly documented in the changelog.
+  **Read `.cursor/rules/sessions.mdc`** — defines how sessionlog, changelog, and planlog are used; **session start** (this checklist; **Next up** may hold a **verbatim** checkbox chunk copied from planlog for the active phase) and **session end** (review chat, mark off sessionlog, sync matching lines in planlog, add dated changelog entry with Context for Next Session, trim sessionlog working chunk, commit and push). Following this at session end ensures work is fully and properly documented in the changelog.
 - **Docs (root of `docs/`):**  
   `docs/prd.md`, `docs/prd-technical.md`, `docs/sessionlog.md`
 - **Changelog:**  

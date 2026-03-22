@@ -1,189 +1,170 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Trash2 } from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Trash2, Users } from "lucide-react";
+import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
+import {
+  DirectoryParticipantPicker,
+  ADMIN_PICKER_DROPDOWN_CLASS,
+  type DirectoryPickerRow,
+  parseDirectoryParticipantCompositeId,
+  toDirectoryParticipantCompositeId,
+} from "@/components/pickers";
+import { AssigneeListItem } from "@/components/crm/TaskAssigneesReadOnlyCard";
+import type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
 
-export interface TaskFollowerWithLabel {
-  id: string;
-  role: string;
-  contact_id: string | null;
-  user_id: string | null;
-  label: string;
-}
-
-/** Project member with label (from GET .../members?with_labels=1). */
-interface ProjectMemberWithLabel {
-  id: string;
-  project_id: string;
-  user_id: string | null;
-  contact_id: string | null;
-  role_term_id: string | null;
-  created_at: string;
-  label: string;
-  role_label: string | null;
-}
+export type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
 
 interface TaskFollowersSectionProps {
   taskId: string;
   initialFollowers: TaskFollowerWithLabel[];
-  /** When set, restrict "Add follower" to this project's members (team + contacts). */
+  /** Kept for call-site compatibility; assignees are chosen from tenant Directory (team + contacts). */
   projectId?: string | null;
+  /** Detail view: list only, no add/remove. */
+  readOnly?: boolean;
 }
 
-const ROLE_OPTIONS = [
-  { value: "follower", label: "Follower" },
-  { value: "responsible", label: "Responsible" },
-  { value: "creator", label: "Creator" },
-] as const;
-
-/** Contact search result from API. */
-interface ContactOption {
-  id: string;
-  email: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
+function followerCompositeId(f: TaskFollowerWithLabel): string | null {
+  if (f.user_id) return toDirectoryParticipantCompositeId("team_member", f.user_id);
+  if (f.contact_id) return toDirectoryParticipantCompositeId("crm_contact", f.contact_id);
+  return null;
 }
 
-function contactLabel(c: ContactOption): string {
-  if (c.full_name?.trim()) return c.full_name.trim();
-  const first = c.first_name?.trim() ?? "";
-  const last = c.last_name?.trim() ?? "";
-  const name = [first, last].filter(Boolean).join(" ");
-  if (name) return name;
-  return c.email ?? "Contact";
+function labelForCompositeId(rows: DirectoryPickerRow[], compositeId: string): string {
+  const parsed = parseDirectoryParticipantCompositeId(compositeId);
+  if (!parsed) return "Assignee";
+  const row = rows.find((r) => r.source_type === parsed.source_type && r.source_id === parsed.source_id);
+  return row?.display_label?.trim() || "Assignee";
 }
 
 /**
- * Task followers: list assignees (creator/responsible/follower) and add contact as follower.
- * Needed so task thread "Add reply" has a contact_id (from task_followers).
+ * Task assignees: avatar + name list; add via modal + Directory picker (team + contacts), same as calendar events.
  */
 export function TaskFollowersSection({
   taskId,
   initialFollowers,
-  projectId,
+  readOnly = false,
 }: TaskFollowersSectionProps) {
+  const router = useRouter();
   const [followers, setFollowers] = useState<TaskFollowerWithLabel[]>(initialFollowers);
-  const [role, setRole] = useState<"creator" | "responsible" | "follower">("follower");
-  const [contactSearch, setContactSearch] = useState("");
-  const [contactOptions, setContactOptions] = useState<ContactOption[]>([]);
-  const [contactSearching, setContactSearching] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [directoryRows, setDirectoryRows] = useState<DirectoryPickerRow[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryLoaded, setDirectoryLoaded] = useState(false);
+  const [modalSelection, setModalSelection] = useState<Set<string>>(() => new Set());
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [projectMembers, setProjectMembers] = useState<ProjectMemberWithLabel[]>([]);
-  const [projectMembersLoading, setProjectMembersLoading] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState("");
 
   useEffect(() => {
-    if (!projectId) return;
-    setProjectMembersLoading(true);
-    fetch(`/api/projects/${projectId}/members?with_labels=1`)
-      .then((r) => r.json())
-      .then((data) => (Array.isArray(data) ? data : []))
-      .then(setProjectMembers)
-      .catch(() => setProjectMembers([]))
-      .finally(() => setProjectMembersLoading(false));
-  }, [projectId]);
+    setFollowers(initialFollowers);
+  }, [initialFollowers]);
 
-  const searchContacts = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setContactOptions([]);
-      return;
+  const assignedCompositeIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const f of followers) {
+      const id = followerCompositeId(f);
+      if (id) s.add(id);
     }
-    setContactSearching(true);
-    try {
-      const res = await fetch(
-        `/api/crm/contacts/search?q=${encodeURIComponent(q.trim())}&limit=15`
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setContactOptions([]);
-        return;
-      }
-      setContactOptions(data.contacts ?? []);
-    } catch {
-      setContactOptions([]);
-    } finally {
-      setContactSearching(false);
-    }
-  }, []);
+    return s;
+  }, [followers]);
 
-  const handleAddContact = async (contactId: string) => {
+  const directoryRowsForPicker = useMemo(() => {
+    return directoryRows.filter((row) => {
+      if (row.source_type !== "team_member" && row.source_type !== "crm_contact") return false;
+      const id = toDirectoryParticipantCompositeId(row.source_type, row.source_id);
+      return !assignedCompositeIds.has(id);
+    });
+  }, [directoryRows, assignedCompositeIds]);
+
+  const loadDirectory = useCallback(() => {
+    if (directoryLoaded || directoryLoading) return;
+    setDirectoryLoading(true);
+    fetch("/api/directory?limit=5000")
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((res) => {
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        setDirectoryRows(rows as DirectoryPickerRow[]);
+        setDirectoryLoaded(true);
+      })
+      .catch(() => {
+        setDirectoryRows([]);
+        setDirectoryLoaded(true);
+      })
+      .finally(() => setDirectoryLoading(false));
+  }, [directoryLoaded, directoryLoading]);
+
+  const openAddModal = () => {
+    setError(null);
+    setModalSelection(new Set());
+    setModalOpen(true);
+    loadDirectory();
+  };
+
+  const addSelectedAssignees = async () => {
+    if (modalSelection.size === 0) return;
     setError(null);
     setAdding(true);
+    const added: TaskFollowerWithLabel[] = [];
+    const failures: string[] = [];
+
     try {
-      const res = await fetch(`/api/tasks/${taskId}/followers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, contact_id: contactId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Failed to add follower");
-        return;
+      for (const compositeId of modalSelection) {
+        if (assignedCompositeIds.has(compositeId)) continue;
+        const parsed = parseDirectoryParticipantCompositeId(compositeId);
+        if (!parsed) continue;
+        const body =
+          parsed.source_type === "team_member"
+            ? { role: "follower", user_id: parsed.source_id }
+            : { role: "follower", contact_id: parsed.source_id };
+
+        try {
+          const res = await fetch(`/api/tasks/${taskId}/followers`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            failures.push(`${labelForCompositeId(directoryRows, compositeId)}: ${data?.error ?? "failed"}`);
+            continue;
+          }
+          const label = labelForCompositeId(directoryRows, compositeId);
+          added.push({
+            id: data.id as string,
+            role: "follower",
+            user_id: parsed.source_type === "team_member" ? parsed.source_id : null,
+            contact_id: parsed.source_type === "crm_contact" ? parsed.source_id : null,
+            label,
+          });
+        } catch {
+          failures.push(labelForCompositeId(directoryRows, compositeId));
+        }
       }
-      const contact = contactOptions.find((c) => c.id === contactId);
-      const label = contact ? contactLabel(contact) : "Contact";
-      setFollowers((prev) => [
-        ...prev,
-        { id: data.id, role, contact_id: contactId, user_id: null, label },
-      ]);
-      setContactSearch("");
-      setContactOptions([]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add follower");
+
+      if (added.length > 0) {
+        setFollowers((prev) => [...prev, ...added]);
+        setModalSelection(new Set());
+        setModalOpen(false);
+        router.refresh();
+      }
+      if (failures.length > 0) {
+        setError(failures.slice(0, 3).join(" · ") + (failures.length > 3 ? "…" : ""));
+      }
     } finally {
       setAdding(false);
     }
   };
-
-  const handleAddProjectMember = async (member: ProjectMemberWithLabel) => {
-    setError(null);
-    setAdding(true);
-    try {
-      const body = member.user_id
-        ? { role, user_id: member.user_id }
-        : { role, contact_id: member.contact_id };
-      const res = await fetch(`/api/tasks/${taskId}/followers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Failed to add follower");
-        return;
-      }
-      setFollowers((prev) => [
-        ...prev,
-        { id: data.id, role, contact_id: member.contact_id, user_id: member.user_id, label: member.label },
-      ]);
-      setSelectedMemberId("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add follower");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const followerUserIds = new Set(followers.map((f) => f.user_id).filter(Boolean));
-  const followerContactIds = new Set(followers.map((f) => f.contact_id).filter(Boolean));
-  const addableProjectMembers = projectMembers.filter(
-    (m) =>
-      (m.user_id != null && !followerUserIds.has(m.user_id)) ||
-      (m.contact_id != null && !followerContactIds.has(m.contact_id))
-  );
 
   const handleRemove = async (followerId: string) => {
     setError(null);
@@ -199,136 +180,94 @@ export function TaskFollowersSection({
         return;
       }
       setFollowers((prev) => prev.filter((f) => f.id !== followerId));
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove");
     }
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <h2 className="text-lg font-semibold">Assignments</h2>
-        <p className="text-sm text-muted-foreground">
-          {projectId
-            ? "Add a project member (team or contact) as follower. Assignments are scoped to this project's members."
-            : "Add a contact as follower so the task thread can receive replies."}
-        </p>
+    <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+      <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+        <TaskBentoPanelTitle icon={Users}>Assignees</TaskBentoPanelTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex flex-1 flex-col space-y-4 px-5 pb-5 pt-0">
         {followers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No followers yet. Add one below.</p>
+          <p className="text-sm text-muted-foreground">No assignees yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {followers.map((f) => (
-              <li
+              <AssigneeListItem
                 key={f.id}
-                className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm"
-              >
-                <span>
-                  <span className="font-medium capitalize">{f.role}</span>
-                  <span className="text-muted-foreground"> — {f.label}</span>
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                  onClick={() => handleRemove(f.id)}
-                  aria-label="Remove follower"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </li>
+                follower={f}
+                showRole={false}
+                trailing={
+                  readOnly ? undefined : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemove(f.id)}
+                      aria-label="Remove assignee"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )
+                }
+              />
             ))}
           </ul>
         )}
 
-        <div className="space-y-2 border-t pt-4">
-          <Label>{projectId ? "Add follower (project member)" : "Add follower (contact)"}</Label>
-          <div className="flex flex-wrap items-end gap-2">
-            <Select
-              value={role}
-              onValueChange={(v) => setRole(v as "creator" | "responsible" | "follower")}
+        {!readOnly && (
+          <div className="mt-auto pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
+              onClick={openAddModal}
             >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {projectId ? (
-              <>
-                <Select
-                  value={selectedMemberId || "none"}
-                  onValueChange={(v) => setSelectedMemberId(v === "none" ? "" : v)}
-                  disabled={projectMembersLoading || adding}
-                >
-                  <SelectTrigger className="min-w-[200px]">
-                    <SelectValue placeholder={projectMembersLoading ? "Loading…" : "Select project member"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Select —</SelectItem>
-                    {addableProjectMembers.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.label}
-                        {m.role_label ? ` (${m.role_label})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={() => {
-                    const member = projectMembers.find((m) => m.id === selectedMemberId);
-                    if (member) handleAddProjectMember(member);
-                  }}
-                  disabled={!selectedMemberId || adding}
-                >
-                  {adding ? "Adding…" : "Add"}
-                </Button>
-              </>
-            ) : (
-              <div className="relative flex-1 min-w-[200px]">
-                <Input
-                  placeholder="Search contacts by name or email…"
-                  value={contactSearch}
-                  onChange={(e) => {
-                    setContactSearch(e.target.value);
-                    searchContacts(e.target.value);
-                  }}
-                  onFocus={() => contactSearch && searchContacts(contactSearch)}
-                  disabled={adding}
-                />
-                {contactOptions.length > 0 && (
-                  <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover py-1 shadow-md">
-                    {contactOptions.map((c) => (
-                      <li key={c.id}>
-                        <button
-                          type="button"
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-                          onClick={() => handleAddContact(c.id)}
-                          disabled={adding}
-                        >
-                          {contactLabel(c)}
-                          {c.email && (
-                            <span className="ml-2 text-muted-foreground">{c.email}</span>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+              Add Assignee
+            </Button>
+            {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
           </div>
-          {!projectId && contactSearching && (
-            <p className="text-xs text-muted-foreground">Searching…</p>
-          )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </div>
+        )}
+
+        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+          <DialogContent className="max-w-lg rounded-xl">
+            <DialogHeader>
+              <DialogTitle>Add assignees</DialogTitle>
+              <DialogDescription>
+                Search team members and contacts. Select one or more people, then save.
+              </DialogDescription>
+            </DialogHeader>
+            {directoryLoading ? (
+              <p className="text-sm text-muted-foreground">Loading directory…</p>
+            ) : (
+              <DirectoryParticipantPicker
+                directoryRows={directoryRowsForPicker}
+                selectedCompositeIds={modalSelection}
+                onSelectionChange={setModalSelection}
+                placeholder="Type to search team or contacts…"
+                className="max-w-none"
+                dropdownClassName={`${ADMIN_PICKER_DROPDOWN_CLASS} max-h-60`}
+              />
+            )}
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={() => setModalOpen(false)} disabled={adding}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void addSelectedAssignees()}
+                disabled={adding || modalSelection.size === 0 || directoryLoading}
+              >
+                {adding ? "Adding…" : `Add${modalSelection.size > 0 ? ` (${modalSelection.size})` : ""}`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
