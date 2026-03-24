@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { AutoSuggestMulti, type AutoSuggestOption } from "@/components/ui/auto-suggest-multi";
+import { AutoSuggestMulti, type AutoSuggestGroup } from "@/components/ui/auto-suggest-multi";
 import {
   DirectoryParticipantPicker,
   ADMIN_PICKER_DROPDOWN_CLASS,
@@ -12,8 +12,22 @@ import {
   toDirectoryParticipantCompositeId,
   parseDirectoryParticipantCompositeId,
 } from "@/components/pickers";
+import {
+  buildResourceAutoSuggestGroups,
+  parseCalendarResourceTypesPayload,
+  resourceTypeLabelMap,
+} from "@/lib/events/resource-picker-groups";
+import { ResourceAssignmentsRollupList } from "@/components/events/ResourceAssignmentsRollupList";
 
 export type PendingParticipant = { source_type: "crm_contact" | "team_member"; source_id: string };
+
+/** Draft row for event resources (applied when the event form is saved). */
+export type PendingResourceAssignment = {
+  resource_id: string;
+  bundle_instance_id: string | null;
+  /** Bundle definition id when rows came from one bundle apply; UI label only (stripped by PUT). */
+  source_bundle_id?: string | null;
+};
 
 interface Participant {
   id: string;
@@ -22,10 +36,18 @@ interface Participant {
   display_name: string | null;
 }
 
-interface Resource {
+interface RegistryResource {
   id: string;
   name: string;
   resource_type: string;
+  is_schedulable_calendar?: boolean;
+  archived_at?: string | null;
+}
+
+interface BundleListItem {
+  id: string;
+  name: string;
+  items: { resource_id: string }[];
 }
 
 export type ParticipantsSnapshotItem = { source_type: string; source_id: string };
@@ -37,10 +59,9 @@ interface EventParticipantsResourcesTabProps {
   pendingParticipants?: PendingParticipant[];
   /** Create mode: called when user adds/removes pending participants. */
   onPendingParticipantsChange?: (list: PendingParticipant[]) => void;
-  /** Create mode: selected resource ids (applied on event submit). */
-  pendingResourceIds?: string[];
-  /** Create mode: called when user adds/removes pending resources. */
-  onPendingResourceIdsChange?: (ids: string[]) => void;
+  /** Draft resource rows (create + edit): applied when the event form is saved. */
+  pendingResourceAssignments?: PendingResourceAssignment[];
+  onPendingResourceAssignmentsChange?: (rows: PendingResourceAssignment[]) => void;
   /** Called when the list of participants (to be saved) changes. Used for conflict check. */
   onParticipantsSnapshot?: (list: ParticipantsSnapshotItem[]) => void;
 }
@@ -49,16 +70,17 @@ export function EventParticipantsResourcesTab({
   eventId,
   pendingParticipants = [],
   onPendingParticipantsChange,
-  pendingResourceIds = [],
-  onPendingResourceIdsChange,
+  pendingResourceAssignments = [],
+  onPendingResourceAssignmentsChange,
   onParticipantsSnapshot,
 }: EventParticipantsResourcesTabProps) {
   const isCreateMode = !eventId;
 
   const [participantIds, setParticipantIds] = useState<string[]>([]);
-  const [resourceIds, setResourceIds] = useState<string[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [resources, setResources] = useState<Resource[]>([]);
+  const [registryResources, setRegistryResources] = useState<RegistryResource[]>([]);
+  const [bundles, setBundles] = useState<BundleListItem[]>([]);
+  const [resourceTypeLabels, setResourceTypeLabels] = useState<Map<string, string>>(() => new Map());
   /** Unified directory rows from GET /api/directory (contacts + team). */
   const [directoryRows, setDirectoryRows] = useState<
     { source_type: string; source_id: string; display_label: string; subtitle: string }[]
@@ -66,30 +88,44 @@ export function EventParticipantsResourcesTab({
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
 
-  const loadAssignments = useCallback(() => {
+  const loadParticipantAssignments = useCallback(() => {
     if (!eventId) return;
-    Promise.all([
-      fetch(`/api/events/${eventId}/participants`).then((r) => (r.ok ? r.json() : { data: [] })),
-      fetch(`/api/events/${eventId}/resources`).then((r) => (r.ok ? r.json() : { data: [] })),
-    ]).then(([pRes, rRes]) => {
-      setParticipantIds(pRes.data ?? []);
-      setResourceIds(rRes.data ?? []);
-    });
+    fetch(`/api/events/${eventId}/participants`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((pRes) => setParticipantIds(pRes.data ?? []));
   }, [eventId]);
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      isCreateMode ? Promise.resolve({ data: [] }) : fetch("/api/events/participants").then((r) => (r.ok ? r.json() : { data: [] })),
-      fetch("/api/events/resources").then((r) => (r.ok ? r.json() : { data: [] })),
+      isCreateMode
+        ? Promise.resolve({ data: [] })
+        : fetch("/api/events/participants").then((r) => (r.ok ? r.json() : { data: [] })),
+      fetch("/api/events/resources?context=calendar").then((r) => (r.ok ? r.json() : { data: [] })),
+      fetch("/api/events/bundles?context=calendar").then((r) => (r.ok ? r.json() : { data: [] })),
+      fetch("/api/settings/calendar/resource-types").then((r) => (r.ok ? r.json() : [])),
       fetch("/api/directory?limit=5000")
         .then((r) => (r.ok ? r.json() : { data: [] }))
         .catch(() => ({ data: [] })),
     ])
-      .then(([pData, rData, dirRes]) => {
+      .then(([pData, rData, bData, typesRes, dirRes]) => {
         if (!isCreateMode) setParticipants((pData?.data ?? []) as Participant[]);
-        const rawResources = rData && typeof rData === "object" && Array.isArray(rData.data) ? rData.data : Array.isArray(rData) ? rData : [];
-        setResources((rawResources ?? []) as Resource[]);
+        const rawResources =
+          rData && typeof rData === "object" && Array.isArray(rData.data)
+            ? rData.data
+            : Array.isArray(rData)
+              ? rData
+              : [];
+        setRegistryResources((rawResources ?? []) as RegistryResource[]);
+        const blist = Array.isArray(bData?.data) ? bData.data : [];
+        setBundles(
+          blist.map((b: BundleListItem) => ({
+            id: b.id,
+            name: b.name,
+            items: Array.isArray(b.items) ? b.items : [],
+          }))
+        );
+        setResourceTypeLabels(resourceTypeLabelMap(parseCalendarResourceTypesPayload(typesRes)));
         const rows = Array.isArray(dirRes?.data) ? dirRes.data : [];
         setDirectoryRows(rows);
       })
@@ -97,8 +133,8 @@ export function EventParticipantsResourcesTab({
   }, [isCreateMode]);
 
   useEffect(() => {
-    loadAssignments();
-  }, [loadAssignments]);
+    loadParticipantAssignments();
+  }, [loadParticipantAssignments]);
 
   useEffect(() => {
     if (!onParticipantsSnapshot) return;
@@ -154,7 +190,7 @@ export function EventParticipantsResourcesTab({
       body: JSON.stringify({ source_type: parsed.source_type, source_id: parsed.source_id }),
     })
       .then((r) => {
-        if (r.ok) loadAssignments();
+        if (r.ok) loadParticipantAssignments();
       })
       .finally(() => setAssigning(false));
   };
@@ -185,51 +221,111 @@ export function EventParticipantsResourcesTab({
       body: JSON.stringify({ participant_id: pid }),
     })
       .then((r) => {
-        if (r.ok) loadAssignments();
+        if (r.ok) loadParticipantAssignments();
       })
       .finally(() => setAssigning(false));
   };
 
-  const resourceOptions: AutoSuggestOption[] = resources.map((r) => ({
-    id: r.id,
-    label: `${r.name} (${r.resource_type})`,
-  }));
+  /** API returns `?context=calendar` — already filtered (183 + archive/retired). */
+  const resourceById = useMemo(
+    () => new Map(registryResources.map((r) => [r.id, r])),
+    [registryResources]
+  );
 
-  const selectedResourceIds = isCreateMode
-    ? new Set(pendingResourceIds)
-    : new Set(resourceIds);
-
-  const addResourceById = (resourceId: string) => {
-    if (!resourceId || !eventId) return;
-    setAssigning(true);
-    fetch(`/api/events/${eventId}/resources`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resource_id: resourceId }),
-    })
-      .then((r) => {
-        if (r.ok) loadAssignments();
-      })
-      .finally(() => setAssigning(false));
-  };
-
-  const removeResourceById = (resourceId: string) => {
-    if (isCreateMode && onPendingResourceIdsChange) {
-      onPendingResourceIdsChange(pendingResourceIds.filter((id) => id !== resourceId));
-      return;
+  const bundleMemberIds = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const b of bundles) {
+      m.set(
+        b.id,
+        b.items.map((i) => i.resource_id).filter(Boolean)
+      );
     }
-    if (!eventId) return;
-    setAssigning(true);
-    fetch(`/api/events/${eventId}/resources`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resource_id: resourceId }),
-    })
-      .then((r) => {
-        if (r.ok) loadAssignments();
-      })
-      .finally(() => setAssigning(false));
+    return m;
+  }, [bundles]);
+
+  const bundleNamesByDefinitionId = useMemo(
+    () => new Map(bundles.map((b) => [b.id, b.name])),
+    [bundles]
+  );
+
+  const resourcePickerGroups: AutoSuggestGroup[] = useMemo(
+    () =>
+      buildResourceAutoSuggestGroups(bundles, registryResources, resourceTypeLabels, {
+        bundles: "No bundles defined (Resource manager → Bundles).",
+        resources: "No schedulable resources.",
+      }),
+    [bundles, registryResources, resourceTypeLabels]
+  );
+
+  const selectedResourceCompositeIds = useMemo(
+    () => new Set(pendingResourceAssignments.map((a) => `resource:${a.resource_id}`)),
+    [pendingResourceAssignments]
+  );
+
+  const applyResourceSelectionChange = (next: Set<string>) => {
+    if (!onPendingResourceAssignmentsChange) return;
+    const prev = selectedResourceCompositeIds;
+    const added = [...next].filter((id) => !prev.has(id));
+    const removed = [...prev].filter((id) => !next.has(id));
+
+    let draft = [...pendingResourceAssignments];
+
+    for (const id of removed) {
+      if (!id.startsWith("resource:")) continue;
+      const rid = id.slice("resource:".length);
+      draft = draft.filter((r) => r.resource_id !== rid);
+    }
+
+    for (const id of added) {
+      if (id.startsWith("bundle:")) {
+        const bundleId = id.slice("bundle:".length);
+        const members = bundleMemberIds.get(bundleId) ?? [];
+        const instance =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        for (const rid of members) {
+          if (!resourceById.has(rid)) continue;
+          if (draft.some((r) => r.resource_id === rid)) continue;
+          draft.push({
+            resource_id: rid,
+            bundle_instance_id: instance,
+            source_bundle_id: bundleId,
+          });
+        }
+      } else if (id.startsWith("resource:")) {
+        const rid = id.slice("resource:".length);
+        if (!resourceById.has(rid)) continue;
+        if (!draft.some((r) => r.resource_id === rid)) {
+          draft.push({ resource_id: rid, bundle_instance_id: null });
+        }
+      }
+    }
+
+    onPendingResourceAssignmentsChange(draft);
   };
+
+  const removeBundleGroup = (bundleInstanceId: string) => {
+    if (!onPendingResourceAssignmentsChange) return;
+    onPendingResourceAssignmentsChange(
+      pendingResourceAssignments.filter((r) => r.bundle_instance_id !== bundleInstanceId)
+    );
+  };
+
+  const removeSingleResourceAssignment = (resourceId: string) => {
+    if (!onPendingResourceAssignmentsChange) return;
+    onPendingResourceAssignmentsChange(
+      pendingResourceAssignments.filter((r) => r.resource_id !== resourceId)
+    );
+  };
+
+  const resourceLabelFn = useCallback(
+    (id: string) => {
+      const n = resourceById.get(id)?.name?.trim();
+      return n || "Unknown resource";
+    },
+    [resourceById]
+  );
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -263,38 +359,43 @@ export function EventParticipantsResourcesTab({
 
       <div className="space-y-2">
         <Label className="text-sm">Resources</Label>
-        {isCreateMode && (
-          <p className="text-xs text-muted-foreground">
-            Selections will be applied when you save the event.
-          </p>
-        )}
-        {resourceOptions.length > 0 ? (
-          <AutoSuggestMulti
-            options={resourceOptions}
-            selectedIds={selectedResourceIds}
-            onSelectionChange={(nextIds) => {
-              if (isCreateMode && onPendingResourceIdsChange) {
-                onPendingResourceIdsChange([...nextIds]);
-              } else if (eventId) {
-                const prev = selectedResourceIds;
-                const added = [...nextIds].find((id) => !prev.has(id));
-                const removed = [...prev].find((id) => !nextIds.has(id));
-                if (added) addResourceById(added);
-                if (removed) removeResourceById(removed);
-              }
-            }}
-            placeholder="Type to search resources…"
-            label={undefined}
-            className={ADMIN_PICKER_FIELD_CLASS}
-            dropdownClassName={ADMIN_PICKER_DROPDOWN_CLASS}
-          />
+        <p className="text-xs text-muted-foreground">
+          Choose bundles or individual resources. Selections are applied when you save the event (draft
+          only until then).
+        </p>
+        {registryResources.length > 0 || bundles.length > 0 ? (
+          <>
+            <AutoSuggestMulti
+              groups={resourcePickerGroups}
+              selectedIds={selectedResourceCompositeIds}
+              onSelectionChange={applyResourceSelectionChange}
+              placeholder="Search bundles or resources…"
+              label={undefined}
+              className={ADMIN_PICKER_FIELD_CLASS}
+              dropdownClassName={ADMIN_PICKER_DROPDOWN_CLASS}
+            />
+            {onPendingResourceAssignmentsChange && pendingResourceAssignments.length > 0 ? (
+              <div className="rounded-md border border-border/50 bg-muted/20 px-2 py-2">
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assigned</p>
+                <ResourceAssignmentsRollupList
+                  assignments={pendingResourceAssignments}
+                  resourceLabel={resourceLabelFn}
+                  bundleNamesByDefinitionId={bundleNamesByDefinitionId}
+                  onRemoveResource={removeSingleResourceAssignment}
+                  onRemoveBundleInstance={removeBundleGroup}
+                  emptyMessage="No resources assigned."
+                />
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className="space-y-2 text-sm">
             <p className="text-muted-foreground">
-              No resources in the list yet. Add rooms, equipment, or video resources; they will then appear here for this event and apply when you save.
+              No schedulable resources or bundles yet. Add registry items and bundles in Resource
+              manager; they will appear here.
             </p>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/admin/events/resources">Add resources (Calendar → Resources)</Link>
+              <Link href="/admin/events/resources">Open Resource manager</Link>
             </Button>
           </div>
         )}

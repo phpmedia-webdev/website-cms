@@ -52,6 +52,8 @@ export interface SubNavItem {
   icon: LucideIcon;
   featureSlug?: string;
   adminOnly?: boolean;
+  /** Optional tooltip (e.g. clarify Resources vs Events). */
+  description?: string;
 }
 
 export const contentSubNav: SubNavItem[] = [
@@ -80,7 +82,14 @@ export const marketingSubNav: SubNavItem[] = [
 
 export const calendarSubNav: SubNavItem[] = [
   { name: "Events", href: "/admin/events", icon: Calendar, featureSlug: "events" },
-  { name: "Resources", href: "/admin/events/resources", icon: Box, featureSlug: "resources" },
+  {
+    name: "Resources",
+    href: "/admin/events/resources",
+    icon: Box,
+    featureSlug: "resources",
+    description:
+      "Master registry for calendar and tasks; pickers, bundles, usage analytics. Under Activities in the main nav.",
+  },
 ];
 
 /** Activities: Events, Tasks, Projects, Resources (replaces top-level Calendar and Projects). Phase 19. */
@@ -88,7 +97,14 @@ export const activitiesSubNav: SubNavItem[] = [
   { name: "Events", href: "/admin/events", icon: Calendar, featureSlug: "events" },
   { name: "Tasks", href: "/admin/projects/tasks", icon: ClipboardList, featureSlug: "projects" },
   { name: "Projects", href: "/admin/projects", icon: FolderKanban, featureSlug: "projects" },
-  { name: "Resources", href: "/admin/events/resources", icon: Box, featureSlug: "resources" },
+  {
+    name: "Resources",
+    href: "/admin/events/resources",
+    icon: Box,
+    featureSlug: "resources",
+    description:
+      "Master registry for calendar and tasks: rooms, equipment, etc. Used in event and task pickers and bundles. Analytics = time estimates. Future: richer inventory.",
+  },
 ];
 
 export const ecommerceSubNav: SubNavItem[] = [

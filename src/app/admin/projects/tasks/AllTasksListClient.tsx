@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, RotateCcw, Search } from "lucide-react";
+import { Filter, RotateCcw, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,8 +28,23 @@ import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
 import type { AdminTasksListBundle, TaskAssigneeListItem } from "@/lib/tasks/admin-task-list";
 import { TermBadge } from "@/components/taxonomy/TermBadge";
 import { normalizeHex } from "@/lib/event-type-colors";
+import { dueDateScheduleHint, initialsFromLabel } from "@/lib/tasks/display-helpers";
 import { taskTermForSlug } from "@/lib/tasks/merge-task-customizer-colors";
 import { taskDetailQuery } from "@/lib/tasks/task-detail-nav";
+import {
+  DEFAULT_ALL_TASKS_SORT,
+  PRESET_FLAT_DUE_SORT,
+  toggleAllTasksSort,
+  sortAllTasksForDisplay,
+  type AllTasksSortColumn,
+  type AllTasksSortState,
+  type AllTasksSortContext,
+} from "@/lib/tasks/all-tasks-sort";
+import {
+  TASK_STATUS_SLUG_COMPLETED,
+  isTaskStatusCompletedSlug,
+} from "@/lib/tasks/task-status-reserved";
+import { cn } from "@/lib/utils";
 
 export type TaskAssigneeItem = TaskAssigneeListItem;
 
@@ -69,12 +85,13 @@ const TASK_TYPE_SELECT_ALL = "__all_task_types__";
 const TASK_STATUS_SELECT_ALL = "__all_task_status__";
 
 /**
- * LOCKED — All Tasks toolbar search (do not change without explicit design review).
+ * All Tasks toolbar search — stronger border/background than default Input so the field reads clearly on the page.
  */
 const ALL_TASKS_TOOLBAR_SEARCH = {
   wrapper: "relative w-full min-w-0 md:min-w-[7rem] md:flex-1",
-  icon: "pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground",
-  input: "h-8 w-full min-w-0 pl-7 text-xs",
+  icon: "pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground/55 dark:text-foreground/50",
+  input:
+    "h-8 w-full min-w-0 border-2 border-border bg-card pl-7 text-xs text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:border-ring",
 } as const;
 
 /** Column widths (sum 100%). Tune here only. 17 / 12 / 15 / 12 / 12 / 10 / 10 / 12. */
@@ -89,8 +106,21 @@ const ALL_TASKS_TABLE_COL = {
   status: "w-[12%] min-w-0",
 } as const;
 
-const ALL_TASKS_TABLE_TH = "h-9 px-4 text-left font-medium";
 const ALL_TASKS_TABLE_TD = "p-3 align-top min-w-0";
+
+/** §1.3 toolbar presets — drive exclude_status_slugs / due_before on GET /api/tasks. */
+type TasksPresetId = "none" | "all_active" | "my_tasks" | "overdue";
+
+/** Default landing preset: incomplete tasks only; archived projects excluded server-side (**197**). */
+const DEFAULT_TASKS_PRESET: TasksPresetId = "all_active";
+
+/** Master reset → full **recap**: all statuses, still no archived-project tasks (**197**); sort due → title. */
+const RECAP_RESET_PRESET: TasksPresetId = "none";
+
+function localCalendarDateISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function buildTasksQuery(
   projectIds: Set<string>,
@@ -98,7 +128,8 @@ function buildTasksQuery(
   assigneeContactIds: Set<string>,
   phaseSlugs: Set<string>,
   taskTypeSlug: string | null,
-  taskStatusSlug: string | null
+  taskStatusSlug: string | null,
+  tasksPreset: TasksPresetId
 ): string {
   const q = new URLSearchParams();
   if (projectIds.size > 0) {
@@ -118,6 +149,16 @@ function buildTasksQuery(
   }
   if (taskStatusSlug != null && taskStatusSlug.trim() !== "") {
     q.set("status_slugs", taskStatusSlug.trim().toLowerCase());
+  }
+  if (
+    tasksPreset === "all_active" ||
+    tasksPreset === "my_tasks" ||
+    tasksPreset === "overdue"
+  ) {
+    q.set("exclude_status_slugs", TASK_STATUS_SLUG_COMPLETED);
+  }
+  if (tasksPreset === "overdue") {
+    q.set("due_before", localCalendarDateISO());
   }
   return q.toString();
 }
@@ -165,19 +206,18 @@ function isAdminTasksBundle(data: unknown): data is AdminTasksListBundle {
   );
 }
 
+/**
+ * Assignee column: overlapping circles (photo or initials), one per assignee up to `max`, then "+N" for the rest.
+ */
 function TaskAssigneeAvatars({ assignees }: { assignees: TaskAssigneeItem[] }) {
   const max = 3;
   const visible = assignees.slice(0, max);
   const overflow = assignees.length - visible.length;
-  function initials(label: string) {
-    const parts = label.trim().split(/\s+/).filter(Boolean);
-    if (parts.length >= 2)
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
-    return label.slice(0, 2).toUpperCase() || "?";
-  }
+  const allNames = assignees.map((a) => a.label).join(", ");
+
   if (visible.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex min-w-0 items-center gap-0.5" title={allNames}>
       <div className="flex -space-x-1.5">
         {visible.map((a) => (
           <span
@@ -188,12 +228,22 @@ function TaskAssigneeAvatars({ assignees }: { assignees: TaskAssigneeItem[] }) {
             {a.avatarUrl ? (
               <img src={a.avatarUrl} alt={a.label} className="h-full w-full object-cover" />
             ) : (
-              initials(a.label)
+              initialsFromLabel(a.label)
             )}
           </span>
         ))}
       </div>
-      {overflow > 0 && <span className="ml-1 text-xs text-muted-foreground">+</span>}
+      {overflow > 0 ? (
+        <span
+          className="shrink-0 text-xs tabular-nums text-muted-foreground"
+          title={`${overflow} more: ${assignees
+            .slice(max)
+            .map((x) => x.label)
+            .join(", ")}`}
+        >
+          +{overflow}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -208,6 +258,162 @@ function phaseTermForSlug(
 }
 
 type AssigneeOption = { kind: "user" | "contact"; id: string; label: string };
+
+const UNKNOWN_SORT_INDEX = 999_999;
+
+function AllTasksSortColumnHeader({
+  column,
+  label,
+  colClass,
+  sortState,
+  onToggleSort,
+  title: headerTitle,
+}: {
+  column: AllTasksSortColumn;
+  label: string;
+  colClass: string;
+  sortState: AllTasksSortState;
+  onToggleSort: (column: AllTasksSortColumn) => void;
+  title?: string;
+}) {
+  const active = sortState.column === column;
+  const ariaSort =
+    active && sortState.direction === "asc"
+      ? "ascending"
+      : active && sortState.direction === "desc"
+        ? "descending"
+        : "none";
+  const ariaLabel = active
+    ? `${label}, sorted ${sortState.direction === "asc" ? "ascending" : "descending"}. Click to reverse.`
+    : `${label}. Click to sort.`;
+  return (
+    <th scope="col" aria-sort={ariaSort} className={cn("p-0", colClass)}>
+      <button
+        type="button"
+        className={cn(
+          "flex h-9 w-full min-w-0 items-center gap-0.5 px-4 text-left text-sm font-medium",
+          "hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          active && "bg-muted/50"
+        )}
+        onClick={() => onToggleSort(column)}
+        title={headerTitle}
+        aria-label={ariaLabel}
+      >
+        <span className="min-w-0 truncate">{label}</span>
+        {active ? (
+          <span className="shrink-0 tabular-nums text-muted-foreground" aria-hidden>
+            {sortState.direction === "asc" ? "↑" : "↓"}
+          </span>
+        ) : null}
+      </button>
+    </th>
+  );
+}
+
+function AllTasksTableDataRow({
+  t,
+  phaseSlugByTaskId,
+  taskPhaseTerms,
+  taskTypeTerms,
+  statusTerms,
+  projectMap,
+  taskAssigneesMap,
+  taskTimeLogTotals,
+}: {
+  t: Task;
+  phaseSlugByTaskId: Record<string, string | null>;
+  taskPhaseTerms: StatusOrTypeTerm[];
+  taskTypeTerms: StatusOrTypeTerm[];
+  statusTerms: StatusOrTypeTerm[];
+  projectMap: Map<string, string>;
+  taskAssigneesMap: Record<string, TaskAssigneeItem[]>;
+  taskTimeLogTotals: Record<string, number>;
+}) {
+  const phaseTerm = taskTermForSlug(taskPhaseTerms, phaseSlugByTaskId[t.id] ?? null);
+  return (
+    <tr className="border-b hover:bg-muted/50">
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.title}`}>
+        <Link
+          href={`/admin/projects/${t.project_id}/tasks/${t.id}${taskDetailQuery("tasks")}`}
+          className="block break-words font-semibold text-primary hover:underline"
+        >
+          {t.title}
+        </Link>
+        <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{t.task_number}</div>
+      </td>
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.project}`}>
+        <Link
+          href={`/admin/projects/${t.project_id}`}
+          className="block truncate text-primary hover:underline"
+          title={projectMap.get(t.project_id) ?? undefined}
+        >
+          {projectMap.get(t.project_id) ?? t.project_id.slice(0, 8) + "…"}
+        </Link>
+      </td>
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.assignee}`}>
+        <TaskAssigneeAvatars assignees={taskAssigneesMap[t.id] ?? []} />
+      </td>
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.phase}`}>
+        <div className="min-w-0 max-w-full">
+          <TermBadge term={phaseTerm} />
+        </div>
+      </td>
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.type}`}>
+        <div className="min-w-0 max-w-full">
+          <TermBadge term={taskTypeTerms.find((s) => s.id === t.task_type_slug) ?? null} />
+        </div>
+      </td>
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.dueDate}`}>
+        {(() => {
+          /** Matches **Overdue** preset: completed tasks are excluded server-side — don’t style their due date as actionable overdue. */
+          const hint = isTaskStatusCompletedSlug(t.task_status_slug)
+            ? null
+            : dueDateScheduleHint(t.due_date);
+          const text = formatDate(t.due_date);
+          if (hint === null) {
+            return <span className="text-muted-foreground">{text}</span>;
+          }
+          if (hint === "overdue") {
+            return (
+              <span className="font-medium text-red-600 dark:text-red-500" title="Past due">
+                {text}
+              </span>
+            );
+          }
+          return (
+            <span
+              className="font-medium text-green-600 dark:text-green-500"
+              title="Due today or later"
+            >
+              {text}
+            </span>
+          );
+        })()}
+      </td>
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.progress}`}>
+        {(() => {
+          const estimated = t.proposed_time ?? 0;
+          const spent = taskTimeLogTotals[t.id] ?? 0;
+          if (estimated <= 0) return <span className="text-muted-foreground">—</span>;
+          const pct = Math.round((spent / estimated) * 100);
+          return (
+            <span
+              className={pct <= 100 ? "text-green-600 font-medium" : "text-red-600 font-medium"}
+              title={`${spent} min / ${estimated} min`}
+            >
+              {pct}%
+            </span>
+          );
+        })()}
+      </td>
+      <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.status}`}>
+        <div className="min-w-0 max-w-full">
+          <TermBadge term={statusTerms.find((s) => s.id === t.task_status_slug) ?? null} />
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 interface AllTasksListClientProps {
   initialProjects: Project[];
@@ -228,6 +434,8 @@ interface AllTasksListClientProps {
   initialPhaseSlugByTaskId: Record<string, string | null>;
   taskAssigneesMap: Record<string, TaskAssigneeItem[]>;
   taskTimeLogTotals: Record<string, number>;
+  /** Logged-in admin auth user id — **My tasks** preset uses `assignee_user_ids` (team assignee only). */
+  currentUserId: string;
 }
 
 export function AllTasksListClient({
@@ -246,6 +454,7 @@ export function AllTasksListClient({
   initialPhaseSlugByTaskId,
   taskAssigneesMap: initialAssigneesMap,
   taskTimeLogTotals: initialTimeTotals,
+  currentUserId,
 }: AllTasksListClientProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [taskAssigneesMap, setTaskAssigneesMap] = useState(initialAssigneesMap);
@@ -264,21 +473,29 @@ export function AllTasksListClient({
   /** Lowercased task status slug from Customizer (`task_status`); null = all statuses. */
   const [selectedTaskStatusSlug, setSelectedTaskStatusSlug] = useState<string | null>(null);
 
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [customFiltersOpen, setCustomFiltersOpen] = useState(false);
   const [projectDraftIds, setProjectDraftIds] = useState<Set<string>>(() => new Set());
   const [projectSearch, setProjectSearch] = useState("");
 
-  const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
   const [assigneeDraftUserIds, setAssigneeDraftUserIds] = useState<Set<string>>(() => new Set());
   const [assigneeDraftContactIds, setAssigneeDraftContactIds] = useState<Set<string>>(() => new Set());
   const [assigneeSearch, setAssigneeSearch] = useState("");
 
-  const [phasePickerOpen, setPhasePickerOpen] = useState(false);
   const [phaseDraftSlugs, setPhaseDraftSlugs] = useState<Set<string>>(() => new Set());
   const [phaseSearch, setPhaseSearch] = useState("");
 
+  /** Draft type/status inside Custom filters modal (applied on Apply). */
+  const [draftTaskTypeSlug, setDraftTaskTypeSlug] = useState<string | null>(null);
+  const [draftTaskStatusSlug, setDraftTaskStatusSlug] = useState<string | null>(null);
+
   /** Title substring filter (client-side on current API result); updates as you type. */
   const [titleSearchQuery, setTitleSearchQuery] = useState("");
+
+  /** Column sort (§1.2): client-side on filtered rows; default due ↑ (see `DEFAULT_ALL_TASKS_SORT`). */
+  const [sortState, setSortState] = useState<AllTasksSortState>(DEFAULT_ALL_TASKS_SORT);
+
+  /** §1.3 — drives `exclude_status_slugs` / `due_before` on the tasks API (migration **198**). */
+  const [tasksPreset, setTasksPreset] = useState<TasksPresetId>(DEFAULT_TASKS_PRESET);
 
   const [loading, setLoading] = useState(false);
 
@@ -308,8 +525,11 @@ export function AllTasksListClient({
     return sortedPickerProjects.filter((p) => p.name.toLowerCase().includes(q));
   }, [sortedPickerProjects, projectSearch]);
 
+  /** While Custom filters is open, assignee list follows project *draft* selection. */
+  const projectIdsForAssigneeScope = customFiltersOpen ? projectDraftIds : selectedProjectIds;
+
   const assigneeOptions = useMemo((): AssigneeOption[] => {
-    const ids = scopeProjectIdsForMembers(selectedProjectIds, pickerProjects);
+    const ids = scopeProjectIdsForMembers(projectIdsForAssigneeScope, pickerProjects);
     const seen = new Set<string>();
     const out: AssigneeOption[] = [];
     for (const pid of ids) {
@@ -343,7 +563,7 @@ export function AllTasksListClient({
     out.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
     return out;
   }, [
-    selectedProjectIds,
+    projectIdsForAssigneeScope,
     pickerProjects,
     membersByProject,
     assigneeUserDisplay,
@@ -375,20 +595,138 @@ export function AllTasksListClient({
     });
   }, [tasks, titleSearchQuery]);
 
+  const sortContext = useMemo((): AllTasksSortContext => {
+    const phaseSlugOrder = new Map<string, number>();
+    taskPhaseOptions.forEach((o, i) => phaseSlugOrder.set(normalizePhaseSlug(o.slug), i));
+
+    const typeSlugOrder = new Map<string, number>();
+    taskTypeOptions.forEach((o, i) => typeSlugOrder.set(normalizePhaseSlug(o.slug), i));
+
+    const statusSlugOrder = new Map<string, number>();
+    taskStatusOptions.forEach((o, i) => statusSlugOrder.set(normalizePhaseSlug(o.slug), i));
+
+    const typeIndexByTermId = new Map<string, number>();
+    for (const term of taskTypeTerms) {
+      const idx = typeSlugOrder.get(normalizePhaseSlug(term.slug));
+      typeIndexByTermId.set(term.id, idx !== undefined ? idx : UNKNOWN_SORT_INDEX);
+    }
+
+    const statusIndexByTermId = new Map<string, number>();
+    for (const term of statusTerms) {
+      const idx = statusSlugOrder.get(normalizePhaseSlug(term.slug));
+      statusIndexByTermId.set(term.id, idx !== undefined ? idx : UNKNOWN_SORT_INDEX);
+    }
+
+    return {
+      projectName: (t) => projectMap.get(t.project_id) ?? "",
+      phaseIndex: (t) => {
+        const raw = phaseSlugByTaskId[t.id] ?? t.task_phase_slug ?? "";
+        const s = String(raw).trim();
+        if (!s) return UNKNOWN_SORT_INDEX;
+        return phaseSlugOrder.get(normalizePhaseSlug(s)) ?? UNKNOWN_SORT_INDEX;
+      },
+      typeIndex: (t) => typeIndexByTermId.get(t.task_type_slug) ?? UNKNOWN_SORT_INDEX,
+      statusIndex: (t) => statusIndexByTermId.get(t.task_status_slug) ?? UNKNOWN_SORT_INDEX,
+      assigneeSortKey: (t) => {
+        const labels = (taskAssigneesMap[t.id] ?? [])
+          .map((a) => a.label)
+          .sort((x, y) => x.localeCompare(y, undefined, { sensitivity: "base" }));
+        return labels.join(", ").toLowerCase();
+      },
+      progressParts: (t) => {
+        const estimated = t.proposed_time ?? 0;
+        const spent = taskTimeLogTotals[t.id] ?? 0;
+        if (estimated <= 0) return { hasEstimate: false, pct: 0 };
+        return { hasEstimate: true, pct: Math.round((spent / estimated) * 100) };
+      },
+    };
+  }, [
+    projectMap,
+    taskPhaseOptions,
+    taskTypeOptions,
+    taskStatusOptions,
+    taskTypeTerms,
+    statusTerms,
+    phaseSlugByTaskId,
+    taskAssigneesMap,
+    taskTimeLogTotals,
+  ]);
+
+  const sortedDisplayTasks = useMemo(
+    () => sortAllTasksForDisplay(displayTasks, sortState, sortContext),
+    [displayTasks, sortState, sortContext]
+  );
+
+  /** When sorting by Project, tasks are already ordered by phase → due → title within each project; split for visual group headers. */
+  const projectSortGroups = useMemo(() => {
+    if (sortState.column !== "project") return null;
+    const list = sortedDisplayTasks;
+    if (list.length === 0) return [];
+    const groups: { projectId: string; tasks: Task[] }[] = [];
+    let currentId = list[0].project_id;
+    let bucket: Task[] = [list[0]];
+    for (let i = 1; i < list.length; i++) {
+      const t = list[i];
+      if (t.project_id === currentId) {
+        bucket.push(t);
+      } else {
+        groups.push({ projectId: currentId, tasks: bucket });
+        currentId = t.project_id;
+        bucket = [t];
+      }
+    }
+    groups.push({ projectId: currentId, tasks: bucket });
+    return groups;
+  }, [sortState.column, sortedDisplayTasks]);
+
   const hasActiveFilters =
     selectedProjectIds.size > 0 ||
     selectedAssigneeUserIds.size > 0 ||
     selectedAssigneeContactIds.size > 0 ||
     selectedPhaseSlugs.size > 0 ||
     selectedTaskTypeSlug != null ||
-    selectedTaskStatusSlug != null ||
-    titleSearchQuery.trim().length > 0;
+    selectedTaskStatusSlug != null;
+
+  const hasNonDefaultSort = useMemo(
+    () =>
+      sortState.column !== DEFAULT_ALL_TASKS_SORT.column ||
+      sortState.direction !== DEFAULT_ALL_TASKS_SORT.direction,
+    [sortState.column, sortState.direction]
+  );
+
+  /**
+   * Master reset → recap (`none` preset: include completed). Enabled when not already at that baseline
+   * or when filters / search / sort differ from default.
+   */
+  const hasAnythingToReset =
+    hasActiveFilters ||
+    titleSearchQuery.trim().length > 0 ||
+    tasksPreset !== RECAP_RESET_PRESET ||
+    hasNonDefaultSort;
+
+  /** Modal dimensions only (title search is separate — does not light the funnel). */
+  const customFilterDimensionsActive = useMemo(() => {
+    let n = 0;
+    if (selectedProjectIds.size > 0) n++;
+    if (selectedAssigneeUserIds.size + selectedAssigneeContactIds.size > 0) n++;
+    if (selectedPhaseSlugs.size > 0) n++;
+    if (selectedTaskTypeSlug != null) n++;
+    if (selectedTaskStatusSlug != null) n++;
+    return n;
+  }, [
+    selectedProjectIds,
+    selectedAssigneeUserIds,
+    selectedAssigneeContactIds,
+    selectedPhaseSlugs,
+    selectedTaskTypeSlug,
+    selectedTaskStatusSlug,
+  ]);
 
   const loadTasksFromQuery = useCallback(async (queryString: string) => {
     setLoading(true);
     try {
       const url = queryString ? `/api/tasks?${queryString}` : "/api/tasks";
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: "no-store" });
       const data: unknown = await res.json();
       if (!res.ok || !isAdminTasksBundle(data)) {
         return;
@@ -402,13 +740,131 @@ export function AllTasksListClient({
     }
   }, []);
 
-  const openProjectPicker = useCallback(() => {
-    setProjectDraftIds(new Set(selectedProjectIds));
-    setProjectSearch("");
-    setProjectPickerOpen(true);
-  }, [selectedProjectIds]);
+  const applyAllActivePreset = useCallback(async () => {
+    setTasksPreset("all_active");
+    setSortState(PRESET_FLAT_DUE_SORT);
+    const emptyUsers = new Set<string>();
+    const emptyContacts = new Set<string>();
+    setSelectedAssigneeUserIds(emptyUsers);
+    setSelectedAssigneeContactIds(emptyContacts);
+    const qs = buildTasksQuery(
+      selectedProjectIds,
+      emptyUsers,
+      emptyContacts,
+      selectedPhaseSlugs,
+      selectedTaskTypeSlug,
+      selectedTaskStatusSlug,
+      "all_active"
+    );
+    await loadTasksFromQuery(qs);
+  }, [
+    selectedProjectIds,
+    selectedPhaseSlugs,
+    selectedTaskTypeSlug,
+    selectedTaskStatusSlug,
+    loadTasksFromQuery,
+  ]);
 
-  const applyProjectPicker = useCallback(async () => {
+  const applyMyTasksPreset = useCallback(async () => {
+    if (!currentUserId) return;
+    setTasksPreset("my_tasks");
+    setSortState(PRESET_FLAT_DUE_SORT);
+    const nextU = new Set([currentUserId]);
+    setSelectedAssigneeUserIds(nextU);
+    setSelectedAssigneeContactIds(new Set());
+    const qs = buildTasksQuery(
+      selectedProjectIds,
+      nextU,
+      new Set(),
+      selectedPhaseSlugs,
+      selectedTaskTypeSlug,
+      selectedTaskStatusSlug,
+      "my_tasks"
+    );
+    await loadTasksFromQuery(qs);
+  }, [
+    currentUserId,
+    selectedProjectIds,
+    selectedPhaseSlugs,
+    selectedTaskTypeSlug,
+    selectedTaskStatusSlug,
+    loadTasksFromQuery,
+  ]);
+
+  const applyOverduePreset = useCallback(async () => {
+    setTasksPreset("overdue");
+    setSortState(PRESET_FLAT_DUE_SORT);
+    /** Do not AND with prior assignee selection (e.g. after **My tasks**) — overdue means all overdue in scope. */
+    const emptyUsers = new Set<string>();
+    const emptyContacts = new Set<string>();
+    setSelectedAssigneeUserIds(emptyUsers);
+    setSelectedAssigneeContactIds(emptyContacts);
+    const qs = buildTasksQuery(
+      selectedProjectIds,
+      emptyUsers,
+      emptyContacts,
+      selectedPhaseSlugs,
+      selectedTaskTypeSlug,
+      selectedTaskStatusSlug,
+      "overdue"
+    );
+    await loadTasksFromQuery(qs);
+  }, [
+    selectedProjectIds,
+    selectedPhaseSlugs,
+    selectedTaskTypeSlug,
+    selectedTaskStatusSlug,
+    loadTasksFromQuery,
+  ]);
+
+  /** Column sort clears preset **and** refetches without preset RPC flags (exclude / due_before). */
+  const onToggleSort = useCallback(
+    (column: AllTasksSortColumn) => {
+      setTasksPreset("none");
+      setSortState((s) => toggleAllTasksSort(s, column));
+      const qs = buildTasksQuery(
+        selectedProjectIds,
+        selectedAssigneeUserIds,
+        selectedAssigneeContactIds,
+        selectedPhaseSlugs,
+        selectedTaskTypeSlug,
+        selectedTaskStatusSlug,
+        "none"
+      );
+      void loadTasksFromQuery(qs);
+    },
+    [
+      selectedProjectIds,
+      selectedAssigneeUserIds,
+      selectedAssigneeContactIds,
+      selectedPhaseSlugs,
+      selectedTaskTypeSlug,
+      selectedTaskStatusSlug,
+      loadTasksFromQuery,
+    ]
+  );
+
+  const openCustomFilters = useCallback(() => {
+    setProjectDraftIds(new Set(selectedProjectIds));
+    setAssigneeDraftUserIds(new Set(selectedAssigneeUserIds));
+    setAssigneeDraftContactIds(new Set(selectedAssigneeContactIds));
+    setPhaseDraftSlugs(new Set(selectedPhaseSlugs));
+    setDraftTaskTypeSlug(selectedTaskTypeSlug);
+    setDraftTaskStatusSlug(selectedTaskStatusSlug);
+    setProjectSearch("");
+    setAssigneeSearch("");
+    setPhaseSearch("");
+    setCustomFiltersOpen(true);
+  }, [
+    selectedProjectIds,
+    selectedAssigneeUserIds,
+    selectedAssigneeContactIds,
+    selectedPhaseSlugs,
+    selectedTaskTypeSlug,
+    selectedTaskStatusSlug,
+  ]);
+
+  const applyCustomFilters = useCallback(async () => {
     const newProj = new Set(projectDraftIds);
     setSelectedProjectIds(newProj);
 
@@ -417,143 +873,54 @@ export function AllTasksListClient({
       scopeIds,
       membersByProject
     );
-    const nextU = new Set([...selectedAssigneeUserIds].filter((id) => allowedU.has(id)));
-    const nextC = new Set([...selectedAssigneeContactIds].filter((id) => allowedC.has(id)));
+    const nextU = new Set([...assigneeDraftUserIds].filter((id) => allowedU.has(id)));
+    const nextC = new Set([...assigneeDraftContactIds].filter((id) => allowedC.has(id)));
     setSelectedAssigneeUserIds(nextU);
     setSelectedAssigneeContactIds(nextC);
 
-    const qs = buildTasksQuery(
-      newProj,
-      nextU,
-      nextC,
-      selectedPhaseSlugs,
-      selectedTaskTypeSlug,
-      selectedTaskStatusSlug
-    );
+    const allowedPhases = new Set(taskPhaseOptions.map((o) => normalizePhaseSlug(o.slug)));
+    const nextPhase = new Set([...phaseDraftSlugs].filter((s) => allowedPhases.has(s)));
+    setSelectedPhaseSlugs(nextPhase);
+
+    const nextType =
+      draftTaskTypeSlug != null && String(draftTaskTypeSlug).trim() !== ""
+        ? draftTaskTypeSlug.trim().toLowerCase()
+        : null;
+    const nextStatus =
+      draftTaskStatusSlug != null && String(draftTaskStatusSlug).trim() !== ""
+        ? draftTaskStatusSlug.trim().toLowerCase()
+        : null;
+    setSelectedTaskTypeSlug(nextType);
+    setSelectedTaskStatusSlug(nextStatus);
+
+    let presetForQuery = tasksPreset;
+    if (tasksPreset === "my_tasks") {
+      const onlyMe =
+        currentUserId !== "" &&
+        nextU.size === 1 &&
+        nextU.has(currentUserId) &&
+        nextC.size === 0;
+      if (!onlyMe) presetForQuery = "all_active";
+    }
+
+    const qs = buildTasksQuery(newProj, nextU, nextC, nextPhase, nextType, nextStatus, presetForQuery);
     await loadTasksFromQuery(qs);
-    setProjectPickerOpen(false);
+    setTasksPreset(presetForQuery);
+    setCustomFiltersOpen(false);
   }, [
     projectDraftIds,
     pickerProjects,
     membersByProject,
-    selectedAssigneeUserIds,
-    selectedAssigneeContactIds,
-    selectedPhaseSlugs,
-    selectedTaskTypeSlug,
-    selectedTaskStatusSlug,
-    loadTasksFromQuery,
-  ]);
-
-  const openAssigneePicker = useCallback(() => {
-    setAssigneeDraftUserIds(new Set(selectedAssigneeUserIds));
-    setAssigneeDraftContactIds(new Set(selectedAssigneeContactIds));
-    setAssigneeSearch("");
-    setAssigneePickerOpen(true);
-  }, [selectedAssigneeUserIds, selectedAssigneeContactIds]);
-
-  const applyAssigneePicker = useCallback(async () => {
-    const nextU = new Set(assigneeDraftUserIds);
-    const nextC = new Set(assigneeDraftContactIds);
-    setSelectedAssigneeUserIds(nextU);
-    setSelectedAssigneeContactIds(nextC);
-    const qs = buildTasksQuery(
-      selectedProjectIds,
-      nextU,
-      nextC,
-      selectedPhaseSlugs,
-      selectedTaskTypeSlug,
-      selectedTaskStatusSlug
-    );
-    await loadTasksFromQuery(qs);
-    setAssigneePickerOpen(false);
-  }, [
     assigneeDraftUserIds,
     assigneeDraftContactIds,
-    selectedProjectIds,
-    selectedPhaseSlugs,
-    selectedTaskTypeSlug,
-    selectedTaskStatusSlug,
-    loadTasksFromQuery,
-  ]);
-
-  const openPhasePicker = useCallback(() => {
-    setPhaseDraftSlugs(new Set(selectedPhaseSlugs));
-    setPhaseSearch("");
-    setPhasePickerOpen(true);
-  }, [selectedPhaseSlugs]);
-
-  const applyPhasePicker = useCallback(async () => {
-    const allowed = new Set(taskPhaseOptions.map((o) => normalizePhaseSlug(o.slug)));
-    const next = new Set([...phaseDraftSlugs].filter((s) => allowed.has(s)));
-    setSelectedPhaseSlugs(next);
-    const qs = buildTasksQuery(
-      selectedProjectIds,
-      selectedAssigneeUserIds,
-      selectedAssigneeContactIds,
-      next,
-      selectedTaskTypeSlug,
-      selectedTaskStatusSlug
-    );
-    await loadTasksFromQuery(qs);
-    setPhasePickerOpen(false);
-  }, [
     phaseDraftSlugs,
     taskPhaseOptions,
-    selectedProjectIds,
-    selectedAssigneeUserIds,
-    selectedAssigneeContactIds,
-    selectedTaskTypeSlug,
-    selectedTaskStatusSlug,
+    draftTaskTypeSlug,
+    draftTaskStatusSlug,
+    tasksPreset,
+    currentUserId,
     loadTasksFromQuery,
   ]);
-
-  const onTaskTypeChange = useCallback(
-    async (value: string) => {
-      const next = value === TASK_TYPE_SELECT_ALL ? null : value;
-      setSelectedTaskTypeSlug(next);
-      const qs = buildTasksQuery(
-        selectedProjectIds,
-        selectedAssigneeUserIds,
-        selectedAssigneeContactIds,
-        selectedPhaseSlugs,
-        next,
-        selectedTaskStatusSlug
-      );
-      await loadTasksFromQuery(qs);
-    },
-    [
-      selectedProjectIds,
-      selectedAssigneeUserIds,
-      selectedAssigneeContactIds,
-      selectedPhaseSlugs,
-      selectedTaskStatusSlug,
-      loadTasksFromQuery,
-    ]
-  );
-
-  const onTaskStatusChange = useCallback(
-    async (value: string) => {
-      const next = value === TASK_STATUS_SELECT_ALL ? null : value;
-      setSelectedTaskStatusSlug(next);
-      const qs = buildTasksQuery(
-        selectedProjectIds,
-        selectedAssigneeUserIds,
-        selectedAssigneeContactIds,
-        selectedPhaseSlugs,
-        selectedTaskTypeSlug,
-        next
-      );
-      await loadTasksFromQuery(qs);
-    },
-    [
-      selectedProjectIds,
-      selectedAssigneeUserIds,
-      selectedAssigneeContactIds,
-      selectedPhaseSlugs,
-      selectedTaskTypeSlug,
-      loadTasksFromQuery,
-    ]
-  );
 
   const resetAllFilters = useCallback(async () => {
     setSelectedProjectIds(new Set());
@@ -563,40 +930,30 @@ export function AllTasksListClient({
     setSelectedTaskTypeSlug(null);
     setSelectedTaskStatusSlug(null);
     setTitleSearchQuery("");
-    await loadTasksFromQuery("");
+    /** Recap: `none` = no preset highlight + no `exclude_status_slugs` (includes completed). */
+    setTasksPreset(RECAP_RESET_PRESET);
+    setSortState(DEFAULT_ALL_TASKS_SORT);
+    const qs = buildTasksQuery(
+      new Set(),
+      new Set(),
+      new Set(),
+      new Set(),
+      null,
+      null,
+      RECAP_RESET_PRESET
+    );
+    await loadTasksFromQuery(qs);
   }, [loadTasksFromQuery]);
-
-  const projectButtonLabel =
-    selectedProjectIds.size === 0
-      ? "All projects"
-      : selectedProjectIds.size === 1
-        ? "1 project selected"
-        : `${selectedProjectIds.size} projects selected`;
-
-  const assigneePickCount = selectedAssigneeUserIds.size + selectedAssigneeContactIds.size;
-  const assigneeButtonLabel =
-    assigneePickCount === 0
-      ? "All assignees"
-      : assigneePickCount === 1
-        ? "1 assignee selected"
-        : `${assigneePickCount} assignees selected`;
-
-  const phasePickCount = selectedPhaseSlugs.size;
-  const phaseButtonLabel =
-    phasePickCount === 0
-      ? "All phases"
-      : phasePickCount === 1
-        ? "1 phase selected"
-        : `${phasePickCount} phases selected`;
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">All Tasks</h1>
 
       {/*
-        Toolbar: compact row; search = ALL_TASKS_TOOLBAR_SEARCH (locked constants).
+        Toolbar (sessionlog §1.1): single row — title search | §1.3 preset slot | Custom filters + reset.
+        Search = ALL_TASKS_TOOLBAR_SEARCH (contrast-tuned toolbar field).
       */}
-      <div className="flex w-full min-w-0 flex-col gap-2 md:flex-row md:flex-nowrap md:items-center md:gap-1">
+      <div className="flex w-full min-w-0 flex-col gap-2 md:flex-row md:flex-nowrap md:items-center md:gap-2">
         <div className={ALL_TASKS_TOOLBAR_SEARCH.wrapper}>
           <Search className={ALL_TASKS_TOOLBAR_SEARCH.icon} aria-hidden />
           <Input
@@ -610,128 +967,80 @@ export function AllTasksListClient({
           />
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-1 md:flex-nowrap md:shrink-0 md:gap-1">
+        <div className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center justify-center gap-1">
           <Button
             type="button"
-            variant="outline"
+            variant={tasksPreset === "all_active" ? "secondary" : "outline"}
             size="sm"
-            className="h-8 w-[7rem] shrink-0 justify-between gap-0.5 px-1.5 text-xs sm:w-[7.25rem] sm:px-2"
-            onClick={openProjectPicker}
+            className="h-8 shrink-0 px-2 text-xs"
             disabled={loading}
-            aria-expanded={projectPickerOpen}
-            aria-haspopup="dialog"
-            title={projectButtonLabel}
+            aria-pressed={tasksPreset === "all_active"}
+            onClick={() => void applyAllActivePreset()}
+            title="All incomplete tasks (Customizer status “completed” excluded). Tasks on archived projects are excluded (server). Sorted by due date, then title. Clears assignee filter; refine with Filters or search."
           >
-            <span className="min-w-0 truncate text-left">{projectButtonLabel}</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            All Active
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant={tasksPreset === "my_tasks" ? "secondary" : "outline"}
             size="sm"
-            className="h-8 w-[7rem] shrink-0 justify-between gap-0.5 px-1.5 text-xs sm:w-[7.25rem] sm:px-2"
-            onClick={openAssigneePicker}
-            disabled={loading || assigneeOptions.length === 0}
-            aria-expanded={assigneePickerOpen}
-            aria-haspopup="dialog"
-            title={assigneeButtonLabel}
+            className="h-8 shrink-0 px-2 text-xs"
+            disabled={loading || !currentUserId}
+            aria-pressed={tasksPreset === "my_tasks"}
+            onClick={() => void applyMyTasksPreset()}
+            title={
+              !currentUserId
+                ? "Sign in required"
+                : "Your tasks (team assignee via user id); excludes completed. Refine with Filters or search."
+            }
           >
-            <span className="min-w-0 truncate text-left">{assigneeButtonLabel}</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            My tasks
           </Button>
-
           <Button
             type="button"
-            variant="outline"
+            variant={tasksPreset === "overdue" ? "secondary" : "outline"}
             size="sm"
-            className="h-8 w-[7rem] shrink-0 justify-between gap-0.5 px-1.5 text-xs sm:w-[7.25rem] sm:px-2"
-            onClick={openPhasePicker}
-            disabled={loading || taskPhaseOptions.length === 0}
-            aria-expanded={phasePickerOpen}
-            aria-haspopup="dialog"
-            title={phaseButtonLabel}
+            className="h-8 shrink-0 px-2 text-xs"
+            disabled={loading}
+            aria-pressed={tasksPreset === "overdue"}
+            onClick={() => void applyOverduePreset()}
+            title="Incomplete tasks with due date before today (local calendar); status “completed” excluded. Clears assignee filter (e.g. after My tasks). Refine with Filters or search."
           >
-            <span className="min-w-0 truncate text-left">{phaseButtonLabel}</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            Overdue
           </Button>
+        </div>
 
-          <Select
-            value={selectedTaskTypeSlug ?? TASK_TYPE_SELECT_ALL}
-            onValueChange={(v) => void onTaskTypeChange(v)}
-            disabled={loading || taskTypeOptions.length === 0}
+        <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1 md:flex-nowrap">
+          <Button
+            type="button"
+            variant={customFilterDimensionsActive > 0 ? "secondary" : "outline"}
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-xs"
+            onClick={openCustomFilters}
+            disabled={loading}
+            aria-label="Custom filters"
+            aria-expanded={customFiltersOpen}
+            aria-haspopup="dialog"
+            aria-pressed={customFilterDimensionsActive > 0}
+            title="Projects, assignees, phase, type, and status"
           >
-            <SelectTrigger
-              className="h-8 w-[10.75rem] shrink-0 text-xs sm:w-[11.25rem]"
-              aria-label="Filter by task type"
-            >
-              <SelectValue
-                placeholder={
-                  taskTypeOptions.length === 0 ? "No task types in Customizer" : "Task type"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TASK_TYPE_SELECT_ALL}>
-                <span className="font-normal">All types</span>
-              </SelectItem>
-              {taskTypeOptions.map((o) => {
-                const v = normalizePhaseSlug(o.slug);
-                return (
-                  <SelectItem key={v} value={v}>
-                    <span className="flex items-center gap-2">
-                      <PhaseDot color={o.color} />
-                      {o.label}
-                    </span>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={selectedTaskStatusSlug ?? TASK_STATUS_SELECT_ALL}
-            onValueChange={(v) => void onTaskStatusChange(v)}
-            disabled={loading || taskStatusOptions.length === 0}
-          >
-            <SelectTrigger
-              className="h-8 w-[10.75rem] shrink-0 text-xs sm:w-[11.25rem]"
-              aria-label="Filter by task status"
-            >
-              <SelectValue
-                placeholder={
-                  taskStatusOptions.length === 0
-                    ? "No statuses in Customizer"
-                    : "Task status"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TASK_STATUS_SELECT_ALL}>
-                <span className="font-normal">All statuses</span>
-              </SelectItem>
-              {taskStatusOptions.map((o) => {
-                const v = normalizePhaseSlug(o.slug);
-                return (
-                  <SelectItem key={v} value={v}>
-                    <span className="flex items-center gap-2">
-                      <PhaseDot color={o.color} />
-                      {o.label}
-                    </span>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-
+            <Filter className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+            <span>Filters</span>
+            {customFilterDimensionsActive > 0 ? (
+              <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1 tabular-nums">
+                {customFilterDimensionsActive}
+              </Badge>
+            ) : null}
+          </Button>
           <Button
             type="button"
             variant="outline"
             size="icon"
             className="h-8 w-8 shrink-0"
             onClick={() => void resetAllFilters()}
-            disabled={loading || !hasActiveFilters}
-            aria-label="Reset all filters"
-            title="Reset all filters"
+            disabled={loading || !hasAnythingToReset}
+            aria-label="Reset to full recap: all tasks except archived projects, sorted by due date then title"
+            title="Recap view: clear filters and presets; show all tasks (including completed) except archived projects; sort due date then title"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
           </Button>
@@ -744,14 +1053,64 @@ export function AllTasksListClient({
             <table className="w-full table-fixed caption-bottom text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.title}`}>Title</th>
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.project}`}>Project</th>
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.assignee}`}>Assignee</th>
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.phase}`}>Phase</th>
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.type}`}>Type</th>
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.dueDate}`}>Due Date</th>
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.progress}`}>Progress</th>
-                  <th className={`${ALL_TASKS_TABLE_TH} ${ALL_TASKS_TABLE_COL.status}`}>Status</th>
+                  <AllTasksSortColumnHeader
+                    column="title"
+                    label="Title"
+                    colClass={ALL_TASKS_TABLE_COL.title}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                  />
+                  <AllTasksSortColumnHeader
+                    column="project"
+                    label="Project"
+                    colClass={ALL_TASKS_TABLE_COL.project}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                    title="Grouped by project; under each project: phase order, then due date, then title. Click Project to reverse project order."
+                  />
+                  <AllTasksSortColumnHeader
+                    column="assignee"
+                    label="Assignee"
+                    colClass={ALL_TASKS_TABLE_COL.assignee}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                  />
+                  <AllTasksSortColumnHeader
+                    column="phase"
+                    label="Phase"
+                    colClass={ALL_TASKS_TABLE_COL.phase}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                  />
+                  <AllTasksSortColumnHeader
+                    column="type"
+                    label="Type"
+                    colClass={ALL_TASKS_TABLE_COL.type}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                  />
+                  <AllTasksSortColumnHeader
+                    column="dueDate"
+                    label="Due Date"
+                    colClass={ALL_TASKS_TABLE_COL.dueDate}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                    title="Ascending: earliest due first; no due date last. Same calendar due: title A→Z, then task number."
+                  />
+                  <AllTasksSortColumnHeader
+                    column="progress"
+                    label="Progress"
+                    colClass={ALL_TASKS_TABLE_COL.progress}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                  />
+                  <AllTasksSortColumnHeader
+                    column="status"
+                    label="Status"
+                    colClass={ALL_TASKS_TABLE_COL.status}
+                    sortState={sortState}
+                    onToggleSort={onToggleSort}
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -768,75 +1127,55 @@ export function AllTasksListClient({
                       search field.
                     </td>
                   </tr>
-                ) : (
-                  displayTasks.map((t) => {
-                    const phaseTerm = taskTermForSlug(taskPhaseTerms, phaseSlugByTaskId[t.id] ?? null);
-                    return (
-                      <tr key={t.id} className="border-b hover:bg-muted/50">
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.title}`}>
+                ) : projectSortGroups != null ? (
+                  projectSortGroups.map((g) => (
+                    <Fragment key={g.projectId}>
+                      <tr className="border-t-2 border-border bg-muted/50">
+                        <th
+                          colSpan={8}
+                          scope="colgroup"
+                          className="px-4 py-2 text-left align-middle text-sm font-semibold text-foreground"
+                        >
                           <Link
-                            href={`/admin/projects/${t.project_id}/tasks/${t.id}${taskDetailQuery("tasks")}`}
-                            className="block break-words font-semibold text-primary hover:underline"
+                            href={`/admin/projects/${g.projectId}`}
+                            className="hover:underline"
                           >
-                            {t.title}
+                            {projectMap.get(g.projectId) ?? g.projectId.slice(0, 8) + "…"}
                           </Link>
-                          <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                            {t.task_number}
-                          </div>
-                        </td>
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.project}`}>
-                          <Link
-                            href={`/admin/projects/${t.project_id}`}
-                            className="block truncate text-primary hover:underline"
-                            title={projectMap.get(t.project_id) ?? undefined}
-                          >
-                            {projectMap.get(t.project_id) ?? t.project_id.slice(0, 8) + "…"}
-                          </Link>
-                        </td>
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.assignee}`}>
-                          <TaskAssigneeAvatars assignees={taskAssigneesMap[t.id] ?? []} />
-                        </td>
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.phase}`}>
-                          <div className="min-w-0 max-w-full">
-                            <TermBadge term={phaseTerm} />
-                          </div>
-                        </td>
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.type}`}>
-                          <div className="min-w-0 max-w-full">
-                            <TermBadge
-                              term={taskTypeTerms.find((s) => s.id === t.task_type_slug) ?? null}
-                            />
-                          </div>
-                        </td>
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.dueDate} text-muted-foreground`}>
-                          {formatDate(t.due_date)}
-                        </td>
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.progress}`}>
-                          {(() => {
-                            const estimated = t.proposed_time ?? 0;
-                            const spent = taskTimeLogTotals[t.id] ?? 0;
-                            if (estimated <= 0) return <span className="text-muted-foreground">—</span>;
-                            const pct = Math.round((spent / estimated) * 100);
-                            return (
-                              <span
-                                className={
-                                  pct <= 100 ? "text-green-600 font-medium" : "text-red-600 font-medium"
-                                }
-                                title={`${spent} min / ${estimated} min`}
-                              >
-                                {pct}%
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.status}`}>
-                          <div className="min-w-0 max-w-full">
-                            <TermBadge term={statusTerms.find((s) => s.id === t.task_status_slug) ?? null} />
-                          </div>
-                        </td>
+                          <span className="ml-2 font-normal text-muted-foreground">
+                            ({g.tasks.length} {g.tasks.length === 1 ? "task" : "tasks"})
+                          </span>
+                        </th>
                       </tr>
-                    );
-                  })
+                      {g.tasks.map((t) => (
+                        <AllTasksTableDataRow
+                          key={t.id}
+                          t={t}
+                          phaseSlugByTaskId={phaseSlugByTaskId}
+                          taskPhaseTerms={taskPhaseTerms}
+                          taskTypeTerms={taskTypeTerms}
+                          statusTerms={statusTerms}
+                          projectMap={projectMap}
+                          taskAssigneesMap={taskAssigneesMap}
+                          taskTimeLogTotals={taskTimeLogTotals}
+                        />
+                      ))}
+                    </Fragment>
+                  ))
+                ) : (
+                  sortedDisplayTasks.map((t) => (
+                    <AllTasksTableDataRow
+                      key={t.id}
+                      t={t}
+                      phaseSlugByTaskId={phaseSlugByTaskId}
+                      taskPhaseTerms={taskPhaseTerms}
+                      taskTypeTerms={taskTypeTerms}
+                      statusTerms={statusTerms}
+                      projectMap={projectMap}
+                      taskAssigneesMap={taskAssigneesMap}
+                      taskTimeLogTotals={taskTimeLogTotals}
+                    />
+                  ))
                 )}
               </tbody>
             </table>
@@ -844,279 +1183,354 @@ export function AllTasksListClient({
         </CardContent>
       </Card>
 
-      <Dialog open={projectPickerOpen} onOpenChange={setProjectPickerOpen}>
-        <DialogContent className="flex max-h-[min(90vh,36rem)] max-w-lg flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>Projects</DialogTitle>
+      <Dialog open={customFiltersOpen} onOpenChange={setCustomFiltersOpen}>
+        <DialogContent className="flex max-h-[min(92vh,42rem)] max-w-lg flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 space-y-2 border-b px-6 py-4 text-left">
+            <DialogTitle>Custom filters</DialogTitle>
             <DialogDescription>
-              Active projects only (excludes archived and completed or closed statuses). Choose one or more, or
-              clear and save to show tasks from all projects.
+              Narrow the task list. <strong>Apply</strong> loads tasks from the server (same query params as
+              before). <strong>My tasks</strong> / <strong>Overdue</strong> in the toolbar stack with these
+              filters. Title search stays in the toolbar and filters the current rows only. Tasks on{" "}
+              <strong>archived</strong> projects are excluded (server-side).
             </DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder="Search projects…"
-            value={projectSearch}
-            onChange={(e) => setProjectSearch(e.target.value)}
-            aria-label="Search projects"
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={loading || sortedPickerProjects.length === 0}
-              onClick={() => setProjectDraftIds(new Set(sortedPickerProjects.map((p) => p.id)))}
-            >
-              Select all
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={loading}
-              onClick={() => setProjectDraftIds(new Set())}
-            >
-              Clear
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-md border p-2">
-            {sortedPickerProjects.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">No active projects.</p>
-            ) : filteredProjects.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">No matches.</p>
-            ) : (
-              <ul className="space-y-1">
-                {filteredProjects.map((p) => (
-                  <li key={p.id}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60">
-                      <Checkbox
-                        checked={projectDraftIds.has(p.id)}
-                        onCheckedChange={(checked) => {
-                          setProjectDraftIds((prev) => {
-                            const next = new Set(prev);
-                            if (checked === true) next.add(p.id);
-                            else next.delete(p.id);
-                            return next;
-                          });
-                        }}
-                        aria-label={p.name}
-                      />
-                      <span className="min-w-0 flex-1 text-sm">{p.name}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setProjectPickerOpen(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void applyProjectPicker()} disabled={loading}>
-              {loading ? "Loading…" : "Done"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={assigneePickerOpen} onOpenChange={setAssigneePickerOpen}>
-        <DialogContent className="flex max-h-[min(90vh,36rem)] max-w-lg flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>Assignees</DialogTitle>
-            <DialogDescription>
-              Project members (team or clients) from{" "}
-              {selectedProjectIds.size === 0
-                ? "all active projects"
-                : selectedProjectIds.size === 1
-                  ? "the selected project"
-                  : "the selected projects"}
-              . Changing the project filter above updates who appears here; selections that are no longer in
-              scope are cleared when you save projects.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="Search assignees…"
-            value={assigneeSearch}
-            onChange={(e) => setAssigneeSearch(e.target.value)}
-            aria-label="Search assignees"
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={loading || assigneeOptions.length === 0}
-              onClick={() => {
-                const u = new Set<string>();
-                const c = new Set<string>();
-                for (const o of assigneeOptions) {
-                  if (o.kind === "user") u.add(o.id);
-                  else c.add(o.id);
-                }
-                setAssigneeDraftUserIds(u);
-                setAssigneeDraftContactIds(c);
-              }}
-            >
-              Select all
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={loading}
-              onClick={() => {
-                setAssigneeDraftUserIds(new Set());
-                setAssigneeDraftContactIds(new Set());
-              }}
-            >
-              Clear
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-md border p-2">
-            {assigneeOptions.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                No project members in the current scope.
+          <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-6 py-4">
+            <section className="space-y-3" aria-labelledby="all-tasks-filters-projects-heading">
+              <h3 id="all-tasks-filters-projects-heading" className="text-sm font-semibold tracking-tight">
+                Projects
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Active projects only (excludes archived and completed or closed statuses). Clear selection to
+                include all listed projects.
               </p>
-            ) : filteredAssignees.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">No matches.</p>
-            ) : (
-              <ul className="space-y-1">
-                {filteredAssignees.map((o) => {
-                  const checked =
-                    o.kind === "user"
-                      ? assigneeDraftUserIds.has(o.id)
-                      : assigneeDraftContactIds.has(o.id);
-                  return (
-                    <li key={`${o.kind}:${o.id}`}>
-                      <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(ch) => {
-                            if (o.kind === "user") {
-                              setAssigneeDraftUserIds((prev) => {
+              <Input
+                placeholder="Search projects…"
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                aria-label="Search projects"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={loading || sortedPickerProjects.length === 0}
+                  onClick={() => setProjectDraftIds(new Set(sortedPickerProjects.map((p) => p.id)))}
+                >
+                  Select all
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={loading}
+                  onClick={() => setProjectDraftIds(new Set())}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-md border p-2">
+                {sortedPickerProjects.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">No active projects.</p>
+                ) : filteredProjects.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">No matches.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {filteredProjects.map((p) => (
+                      <li key={p.id}>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60">
+                          <Checkbox
+                            checked={projectDraftIds.has(p.id)}
+                            onCheckedChange={(checked) => {
+                              setProjectDraftIds((prev) => {
                                 const next = new Set(prev);
-                                if (ch === true) next.add(o.id);
-                                else next.delete(o.id);
+                                if (checked === true) next.add(p.id);
+                                else next.delete(p.id);
                                 return next;
                               });
-                            } else {
-                              setAssigneeDraftContactIds((prev) => {
-                                const next = new Set(prev);
-                                if (ch === true) next.add(o.id);
-                                else next.delete(o.id);
-                                return next;
-                              });
-                            }
-                          }}
-                          aria-label={o.label}
-                        />
-                        <span className="min-w-0 flex-1 text-sm">{o.label}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {o.kind === "user" ? "Team" : "Client"}
+                            }}
+                            aria-label={p.name}
+                          />
+                          <span className="min-w-0 flex-1 text-sm">{p.name}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3" aria-labelledby="all-tasks-filters-assignees-heading">
+              <h3 id="all-tasks-filters-assignees-heading" className="text-sm font-semibold tracking-tight">
+                Assignees
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Project members (team or clients) from{" "}
+                {projectDraftIds.size === 0
+                  ? "all active projects in the list above"
+                  : projectDraftIds.size === 1
+                    ? "the selected project"
+                    : "the projects selected above"}
+                . Changing <strong>Projects</strong> updates who appears here. Apply removes assignees outside
+                the new project scope.
+              </p>
+              <Input
+                placeholder="Search assignees…"
+                value={assigneeSearch}
+                onChange={(e) => setAssigneeSearch(e.target.value)}
+                aria-label="Search assignees"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={loading || assigneeOptions.length === 0}
+                  onClick={() => {
+                    const u = new Set<string>();
+                    const c = new Set<string>();
+                    for (const o of assigneeOptions) {
+                      if (o.kind === "user") u.add(o.id);
+                      else c.add(o.id);
+                    }
+                    setAssigneeDraftUserIds(u);
+                    setAssigneeDraftContactIds(c);
+                  }}
+                >
+                  Select all
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={loading}
+                  onClick={() => {
+                    setAssigneeDraftUserIds(new Set());
+                    setAssigneeDraftContactIds(new Set());
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-md border p-2">
+                {assigneeOptions.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                    No project members in the current scope.
+                  </p>
+                ) : filteredAssignees.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">No matches.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {filteredAssignees.map((o) => {
+                      const checked =
+                        o.kind === "user"
+                          ? assigneeDraftUserIds.has(o.id)
+                          : assigneeDraftContactIds.has(o.id);
+                      return (
+                        <li key={`${o.kind}:${o.id}`}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(ch) => {
+                                if (o.kind === "user") {
+                                  setAssigneeDraftUserIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (ch === true) next.add(o.id);
+                                    else next.delete(o.id);
+                                    return next;
+                                  });
+                                } else {
+                                  setAssigneeDraftContactIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (ch === true) next.add(o.id);
+                                    else next.delete(o.id);
+                                    return next;
+                                  });
+                                }
+                              }}
+                              aria-label={o.label}
+                            />
+                            <span className="min-w-0 flex-1 text-sm">{o.label}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {o.kind === "user" ? "Team" : "Client"}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3" aria-labelledby="all-tasks-filters-phase-heading">
+              <h3 id="all-tasks-filters-phase-heading" className="text-sm font-semibold tracking-tight">
+                Phase
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                From <strong>Settings → Customizer → Task phases</strong>. Clear to include all phases.
+              </p>
+              <Input
+                placeholder="Search phases…"
+                value={phaseSearch}
+                onChange={(e) => setPhaseSearch(e.target.value)}
+                aria-label="Search phases"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={loading || taskPhaseOptions.length === 0}
+                  onClick={() =>
+                    setPhaseDraftSlugs(new Set(taskPhaseOptions.map((o) => normalizePhaseSlug(o.slug))))
+                  }
+                >
+                  Select all
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={loading}
+                  onClick={() => setPhaseDraftSlugs(new Set())}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-md border p-2">
+                {taskPhaseOptions.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                    No task phases in Customizer. Add rows under scope{" "}
+                    <code className="text-xs">task_phase</code>.
+                  </p>
+                ) : filteredPhaseOptions.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">No matches.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {filteredPhaseOptions.map((o) => {
+                      const key = normalizePhaseSlug(o.slug);
+                      return (
+                        <li key={key}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60">
+                            <Checkbox
+                              checked={phaseDraftSlugs.has(key)}
+                              onCheckedChange={(ch) => {
+                                setPhaseDraftSlugs((prev) => {
+                                  const next = new Set(prev);
+                                  if (ch === true) next.add(key);
+                                  else next.delete(key);
+                                  return next;
+                                });
+                              }}
+                              aria-label={o.label}
+                            />
+                            <PhaseDot color={o.color} />
+                            <span className="min-w-0 flex-1 text-sm">{o.label}</span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3" aria-labelledby="all-tasks-filters-type-heading">
+              <h3 id="all-tasks-filters-type-heading" className="text-sm font-semibold tracking-tight">
+                Type
+              </h3>
+              <Select
+                value={draftTaskTypeSlug ?? TASK_TYPE_SELECT_ALL}
+                onValueChange={(v) =>
+                  setDraftTaskTypeSlug(v === TASK_TYPE_SELECT_ALL ? null : v)
+                }
+                disabled={loading || taskTypeOptions.length === 0}
+              >
+                <SelectTrigger
+                  className="h-9 w-full text-xs"
+                  aria-label="Filter by task type"
+                >
+                  <SelectValue
+                    placeholder={
+                      taskTypeOptions.length === 0 ? "No task types in Customizer" : "Task type"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TASK_TYPE_SELECT_ALL}>
+                    <span className="font-normal">All types</span>
+                  </SelectItem>
+                  {taskTypeOptions.map((o) => {
+                    const v = normalizePhaseSlug(o.slug);
+                    return (
+                      <SelectItem key={v} value={v}>
+                        <span className="flex items-center gap-2">
+                          <PhaseDot color={o.color} />
+                          {o.label}
                         </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </section>
+
+            <section className="space-y-3" aria-labelledby="all-tasks-filters-status-heading">
+              <h3 id="all-tasks-filters-status-heading" className="text-sm font-semibold tracking-tight">
+                Status
+              </h3>
+              <Select
+                value={draftTaskStatusSlug ?? TASK_STATUS_SELECT_ALL}
+                onValueChange={(v) =>
+                  setDraftTaskStatusSlug(v === TASK_STATUS_SELECT_ALL ? null : v)
+                }
+                disabled={loading || taskStatusOptions.length === 0}
+              >
+                <SelectTrigger
+                  className="h-9 w-full text-xs"
+                  aria-label="Filter by task status"
+                >
+                  <SelectValue
+                    placeholder={
+                      taskStatusOptions.length === 0
+                        ? "No statuses in Customizer"
+                        : "Task status"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TASK_STATUS_SELECT_ALL}>
+                    <span className="font-normal">All statuses</span>
+                  </SelectItem>
+                  {taskStatusOptions.map((o) => {
+                    const v = normalizePhaseSlug(o.slug);
+                    return (
+                      <SelectItem key={v} value={v}>
+                        <span className="flex items-center gap-2">
+                          <PhaseDot color={o.color} />
+                          {o.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </section>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="shrink-0 gap-2 border-t bg-background px-6 py-4 sm:justify-end">
             <Button
               type="button"
               variant="outline"
-              onClick={() => setAssigneePickerOpen(false)}
+              onClick={() => setCustomFiltersOpen(false)}
               disabled={loading}
             >
               Cancel
             </Button>
-            <Button type="button" onClick={() => void applyAssigneePicker()} disabled={loading}>
-              {loading ? "Loading…" : "Done"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={phasePickerOpen} onOpenChange={setPhasePickerOpen}>
-        <DialogContent className="flex max-h-[min(90vh,36rem)] max-w-lg flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>Task phases</DialogTitle>
-            <DialogDescription>
-              Options come from <strong>Settings → Customizer → Task phases</strong> (slug must match a task
-              phase category in taxonomy). Select one or more, or clear to include all phases.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="Search phases…"
-            value={phaseSearch}
-            onChange={(e) => setPhaseSearch(e.target.value)}
-            aria-label="Search phases"
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={loading || taskPhaseOptions.length === 0}
-              onClick={() =>
-                setPhaseDraftSlugs(
-                  new Set(taskPhaseOptions.map((o) => normalizePhaseSlug(o.slug)))
-                )
-              }
-            >
-              Select all
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={loading}
-              onClick={() => setPhaseDraftSlugs(new Set())}
-            >
-              Clear
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-md border p-2">
-            {taskPhaseOptions.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                No task phases in Customizer. Add rows under scope <code className="text-xs">task_phase</code>.
-              </p>
-            ) : filteredPhaseOptions.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">No matches.</p>
-            ) : (
-              <ul className="space-y-1">
-                {filteredPhaseOptions.map((o) => {
-                  const key = normalizePhaseSlug(o.slug);
-                  return (
-                    <li key={key}>
-                      <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60">
-                        <Checkbox
-                          checked={phaseDraftSlugs.has(key)}
-                          onCheckedChange={(ch) => {
-                            setPhaseDraftSlugs((prev) => {
-                              const next = new Set(prev);
-                              if (ch === true) next.add(key);
-                              else next.delete(key);
-                              return next;
-                            });
-                          }}
-                          aria-label={o.label}
-                        />
-                        <PhaseDot color={o.color} />
-                        <span className="min-w-0 flex-1 text-sm">{o.label}</span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPhasePickerOpen(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void applyPhasePicker()} disabled={loading}>
-              {loading ? "Loading…" : "Done"}
+            <Button type="button" onClick={() => void applyCustomFilters()} disabled={loading}>
+              {loading ? "Loading…" : "Apply"}
             </Button>
           </DialogFooter>
         </DialogContent>

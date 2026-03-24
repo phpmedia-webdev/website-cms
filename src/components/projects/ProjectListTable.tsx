@@ -49,21 +49,43 @@ interface ProjectListTableProps {
   projects: ProjectListRow[];
 }
 
+/** `table-fixed` column widths (%), sum 100. */
+const COL = {
+  title: "w-[27%]",
+  type: "w-[10%]",
+  client: "w-[12%]",
+  members: "w-[13%]",
+  dueDate: "w-[10%]",
+  progress: "w-[15%]",
+  status: "w-[13%]",
+} as const;
+
+const TD = "p-4 align-middle min-w-0";
+
 export function ProjectListTable({ projects }: ProjectListTableProps) {
   return (
     <Card>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full caption-bottom text-sm">
+          <table className="w-full table-fixed caption-bottom text-sm">
+            <colgroup>
+              <col className={COL.title} />
+              <col className={COL.type} />
+              <col className={COL.client} />
+              <col className={COL.members} />
+              <col className={COL.dueDate} />
+              <col className={COL.progress} />
+              <col className={COL.status} />
+            </colgroup>
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="h-10 px-4 text-left font-medium">Project title</th>
-                <th className="h-10 px-4 text-left font-medium">Proposed End Date</th>
-                <th className="h-10 px-4 text-left font-medium">Project client</th>
-                <th className="h-10 px-4 text-left font-medium">Project status</th>
-                <th className="h-10 px-4 text-left font-medium">Project members</th>
-                <th className="h-10 px-4 text-left font-medium">Project progress</th>
-                <th className="h-10 px-4 text-left font-medium">Project type</th>
+                <th className="h-10 min-w-0 px-4 text-left font-medium">Title</th>
+                <th className="h-10 min-w-0 px-4 text-center font-medium">Type</th>
+                <th className="h-10 min-w-0 px-4 text-left font-medium">Client</th>
+                <th className="h-10 min-w-0 px-4 text-left font-medium">Members</th>
+                <th className="h-10 min-w-0 px-4 text-left font-medium">Due Date</th>
+                <th className="h-10 min-w-0 px-4 text-left font-medium">Progress</th>
+                <th className="h-10 min-w-0 px-4 text-left font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -76,29 +98,24 @@ export function ProjectListTable({ projects }: ProjectListTableProps) {
               ) : (
                 projects.map((project) => (
                   <tr key={project.id} className="border-b hover:bg-muted/50 align-middle">
-                    <td className="p-4">
-                      <div className="flex items-start gap-2">
-                        <span
-                          className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full border border-background"
-                          style={{
-                            backgroundColor: project.projectTypeTerm?.color ?? "hsl(var(--muted-foreground))",
-                          }}
-                        />
-                        <div className="min-w-0">
-                          <Link
-                            href={`/admin/projects/${project.id}`}
-                            className="font-medium text-primary hover:underline break-words"
-                          >
-                            {project.name}
-                          </Link>
-                          {project.archivedAt && (
-                            <div className="text-xs text-muted-foreground">Archived</div>
-                          )}
-                        </div>
+                    <td className={TD}>
+                      <div className="min-w-0 overflow-hidden">
+                        <Link
+                          href={`/admin/projects/${project.id}`}
+                          className="block max-w-full truncate font-medium text-primary hover:underline"
+                          title={project.name}
+                        >
+                          {project.name}
+                        </Link>
+                        {project.archivedAt && (
+                          <div className="text-xs text-muted-foreground">Archived</div>
+                        )}
                       </div>
                     </td>
-                    <td className="p-4 text-muted-foreground">{formatDate(project.proposedEndDate)}</td>
-                    <td className="p-4">
+                    <td className={`${TD} text-center`}>
+                      <TermBadge term={project.projectTypeTerm} />
+                    </td>
+                    <td className={TD}>
                       {project.client ? (
                         project.client.href ? (
                         <Link
@@ -138,17 +155,17 @@ export function ProjectListTable({ projects }: ProjectListTableProps) {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="p-4">
-                      <TermBadge term={project.statusTerm} />
-                    </td>
-                    <td className="p-4">
+                    <td className={TD}>
                       <ProjectMemberAvatars members={project.members} />
                     </td>
-                    <td className="p-4">
-                      <ProjectProgressSegments segments={project.progressSegments} className="min-w-[180px]" />
+                    <td className={`${TD} whitespace-nowrap text-muted-foreground`}>
+                      {formatDate(project.proposedEndDate)}
                     </td>
-                    <td className="p-4">
-                      <TermBadge term={project.projectTypeTerm} />
+                    <td className={TD}>
+                      <ProjectProgressSegments segments={project.progressSegments} />
+                    </td>
+                    <td className={`${TD} text-center`}>
+                      <TermBadge term={project.statusTerm} />
                     </td>
                   </tr>
                 ))

@@ -188,14 +188,14 @@ export function TaskFollowersSection({
 
   return (
     <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-      <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+      <CardHeader className="task-bento-card-header">
         <TaskBentoPanelTitle icon={Users}>Assignees</TaskBentoPanelTitle>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col space-y-4 px-5 pb-5 pt-0">
+      <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2">
         {followers.length === 0 ? (
           <p className="text-sm text-muted-foreground">No assignees yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {followers.map((f) => (
               <AssigneeListItem
                 key={f.id}
@@ -221,7 +221,7 @@ export function TaskFollowersSection({
         )}
 
         {!readOnly && (
-          <div className="mt-auto pt-2">
+          <div className="mt-auto pt-1">
             <Button
               type="button"
               variant="outline"

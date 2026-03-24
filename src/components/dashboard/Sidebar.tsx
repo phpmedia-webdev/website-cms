@@ -1052,17 +1052,38 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
                     const isSubActive = pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
                     const SubIcon = sub.icon;
                     return hasSubEffective ? (
-                      <Link key={sub.href} href={sub.href} className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors", isSubActive ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        title={sub.description}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                          isSubActive
+                            ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
                     ) : hasSubInDisplay ? (
-                      <Link key={sub.href} href={sub.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left" title="Gated for this site (you have access as superadmin)">
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground opacity-40 hover:opacity-60"
+                        title="Gated for this site (you have access as superadmin)"
+                      >
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </Link>
                     ) : (
-                      <button key={sub.href} type="button" onClick={() => router.push(UPGRADE_PATH)} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Not included in your plan. Request support.">
+                      <button
+                        key={sub.href}
+                        type="button"
+                        onClick={() => router.push(UPGRADE_PATH)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground opacity-50 hover:opacity-70"
+                        title="Not included in your plan. Request support."
+                      >
                         <SubIcon className="h-4 w-4" />
                         {sub.name}
                       </button>

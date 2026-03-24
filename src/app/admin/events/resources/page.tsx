@@ -1,38 +1,37 @@
-import Link from "next/link";
-import { getResources } from "@/lib/supabase/participants-resources";
+import {
+  getResourcesAdmin,
+  listResourceBundlesWithItems,
+} from "@/lib/supabase/participants-resources";
 import { getCalendarResourceTypes } from "@/lib/supabase/settings";
-import { ResourcesListClient } from "@/components/events/ResourcesListClient";
-import { ArrowLeft } from "lucide-react";
+import { ResourceManagerClient } from "@/components/events/ResourcesListClient";
 
 /**
- * Calendar → Resources: list and manage bookable resources (rooms, equipment, video).
+ * Resource manager: registry (`resources`, migration 183 fields) + bundles (`resource_bundles` / items).
  */
 export default async function EventsResourcesPage() {
-  const [resources, resourceTypes] = await Promise.all([
-    getResources().catch(() => []),
+  const [resources, resourceTypes, bundles] = await Promise.all([
+    getResourcesAdmin().catch(() => []),
     getCalendarResourceTypes(),
+    listResourceBundlesWithItems().catch(() => []),
   ]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/admin/events"
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Calendar
-        </Link>
-      </div>
       <div>
-        <h1 className="text-3xl font-bold">Resources</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage rooms, equipment, and video resources for calendar events
+        <h1 className="text-3xl font-bold">Resource manager</h1>
+        <p className="text-muted-foreground mt-2 max-w-3xl">
+          <strong>Resources</strong> is the master registry for anything you attach to <strong>events</strong> and{" "}
+          <strong>tasks</strong> (pickers on event and task forms). Define <strong>bundles</strong> here for
+          one-click multi-assign. <strong>Analytics</strong> tab shows estimated minutes from event durations and
+          task time logs (methodology on the tab). Inventory-style fields (costs, serials, etc.) support future
+          asset management. Also under <strong>Activities</strong> in the sidebar (hover <strong>Resources</strong>{" "}
+          for a short summary).
         </p>
       </div>
-      <ResourcesListClient
+      <ResourceManagerClient
         initialResources={resources}
         initialResourceTypes={resourceTypes}
+        initialBundles={bundles}
       />
     </div>
   );

@@ -50,6 +50,18 @@ export async function getTenantUserByAuthUserId(authUserId: string): Promise<Ten
   return data as TenantUser;
 }
 
+/** Batch by Supabase auth `user_id` (one row per auth user in typical setups). */
+export async function getTenantUsersByAuthUserIds(authUserIds: string[]): Promise<TenantUser[]> {
+  if (authUserIds.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase.from("tenant_users").select("*").in("user_id", authUserIds);
+  if (error) {
+    console.error("getTenantUsersByAuthUserIds:", error);
+    return [];
+  }
+  return (data as TenantUser[]) ?? [];
+}
+
 export async function getTenantUserByEmail(email: string): Promise<TenantUser | null> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase

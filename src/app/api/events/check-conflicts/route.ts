@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
-import { getParticipantConflicts } from "@/lib/supabase/events";
+import { getParticipantConflicts, getResourceConflicts } from "@/lib/supabase/events";
 import { ensureParticipant } from "@/lib/supabase/participants-resources";
 import { withRateLimit } from "@/lib/api/middleware";
 
@@ -28,6 +28,11 @@ async function postHandler(request: Request) {
     const start_date = typeof body?.start_date === "string" ? body.start_date : "";
     const end_date = typeof body?.end_date === "string" ? body.end_date : "";
     const rawParticipants = Array.isArray(body?.participants) ? body.participants : [];
+    const rawResourceIds = Array.isArray(body?.resource_ids) ? body.resource_ids : [];
+    const resource_ids = rawResourceIds
+      .filter((x: unknown) => typeof x === "string")
+      .map((x: string) => x.trim())
+      .filter(Boolean);
     const exclude_event_id =
       typeof body?.exclude_event_id === "string" && body.exclude_event_id
         ? body.exclude_event_id
@@ -65,13 +70,14 @@ async function postHandler(request: Request) {
       }
     }
 
-    const conflicts = await getParticipantConflicts(
-      start,
-      end,
-      participantIds,
-      exclude_event_id
-    );
-    return NextResponse.json({ conflicts });
+    const [conflicts, resource_conflicts] = await Promise.all([
+      getParticipantConflicts(start, end, participantIds, exclude_event_id),
+      getResourceConflicts(start, end, resource_ids, exclude_event_id),
+    ]);
+    return NextResponse.json({
+      conflicts,
+      resource_conflicts,
+    });
   } catch (error) {
     console.error("POST /api/events/check-conflicts error:", error);
     return NextResponse.json(

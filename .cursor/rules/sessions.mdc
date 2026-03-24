@@ -65,21 +65,21 @@ These files live in the root of `docs/`.
 
 #### `docs/sessionlog.md` — Session continuity
 
-- **Purpose:** Handoff for the next session and **active working checklist** for the current sprint chunk.
-- **Planlog vs sessionlog:** `planlog.md` is the **canonical** backlog (phases, full lists; items are **never deleted**, only checked off). `sessionlog.md` holds a **verbatim working copy** of the **one chunk** you are executing now (see below)—so you can check boxes iteratively without scrolling the whole planlog.
-- **Verbatim chunk rule (Next up):** At **session start** (or when switching focus), **copy into `sessionlog` → Next up** the relevant checkbox block(s) from `planlog` **word-for-word**—same headings, sub-bullets, and `- [ ]` / `- [x]` lines. Example: working on Directory + messaging → paste **Phase 18C** bullets from planlog under **Next up**. Do **not** paraphrase step text; keep checkboxes aligned with planlog.
-- **Stay in sync:** When you check off an item in `sessionlog`, check off the **matching** line in `planlog` (same item). Prefer updating planlog **as you go** or at least at **session end**—the two files must agree.
-- **Session end / cleanup:** After syncing completions to planlog and writing the changelog, **trim `sessionlog`:** remove completed lines from the working chunk **or** replace the whole **Next up** verbatim block with the **next** chunk from planlog. Avoid stale duplicates; only the **current** sprint chunk should live verbatim in sessionlog (plus short pointers for what comes later).
-- **Contents:** Short intro, **Next up** (verbatim chunk + optional 1-line focus), backlog pointers, reference one-liners. Context for changelog comes from completed sessionlog items.
-- **Update when:** Start of session (paste/adjust Next up chunk). During session (check boxes; sync planlog). End of session (final sync, changelog, trim sessionlog).
-- **Cross-reference:** Planlog is source of truth for full phases; sessionlog mirrors one chunk; changelog receives completed items at session end.
+- **Purpose:** Handoff for the next session and **active working checklist** through **MVP / fork-ready** delivery.
+- **Planlog vs sessionlog:** `planlog.md` is the **canonical** backlog (phases, full lists; items are **never deleted**, only checked off). `sessionlog.md` holds the **MVP completion** checklist (**§ 1–5**: Tasks/Projects, Resources picklist, Messaging/notifications, Shared identity UX, Pre-fork review) plus pointers to planlog for drill-down. **Post-MVP** work stays **only** in planlog.
+- **Stay in sync:** When you check off an item in `sessionlog`, check off the **matching** line(s) in `planlog` (same work, phase bullets). Prefer updating planlog **as you go** or at least at **session end**—the two files must agree on what’s done.
+- **Optional verbatim slice:** For a deep dive on one phase only, you may temporarily paste a **short** checkbox block from planlog into session notes or the chat; the **durable** session checklist remains the MVP sections in `sessionlog.md`.
+- **Session end / cleanup:** After syncing planlog and writing the changelog, you may **leave** checked `[x]` lines in sessionlog (progress visible) or collapse completed sub-bullets if the file grows—**do not** remove the five MVP section headings until MVP ships.
+- **Contents:** Intro, **MVP completion** §1–5, **Post-MVP** pointer to planlog, reference table. Changelog “what we did” lists items completed this session (from sessionlog + chat).
+- **Update when:** Session start (read sessionlog; note focus). During session (check boxes; sync planlog). End of session (final sync, changelog).
+- **Cross-reference:** Planlog **MVP completion track** table links to sessionlog; changelog receives completed items at session end.
 
 ### Documentation principles
 
 **Separation of concerns**
 
 - **Planning vs. history:** `planlog.md` = what we plan; `changelog.md` = what we did (+ context for next session).
-- **Session handoff:** `sessionlog.md` = focus + **verbatim planlog chunk** under Next up (working checklist); trim completed chunk after sync. Session context lives in changelog.
+- **Session handoff:** `sessionlog.md` = **MVP completion** checklist (§1–5) + sync to planlog. Session context lives in changelog.
 - **Spec vs. history:** `prd.md` = what the system is; `changelog.md` = how we got here.
 - **Structure vs. content:** `.cursor/rules/sessions.mdc` = how docs are organized; other docs = content.
 
@@ -117,7 +117,7 @@ A developer typically starts a new chat when context becomes too large, to preve
    - **Source of “what we did”:** **List each and every checked-off item** from `sessionlog.md` for this session (and anything completed in the session that belonged in sessionlog but was not yet written there — reconcile honestly). Copy or summarize every completed item into the **Changes** or **Completed** section. Do not collapse into a single vague line like "Phase 2 complete" — list the actual items so the changelog is the durable record.
    - **Create the "Context for Next Session"** section at the top of the entry: current state, what is ready to test, where to continue, key files. This is the handoff for the next session.
    - Include key files and any important code/behavior changes.
-4. **Trim** `docs/sessionlog.md`: remove **completed** lines from the verbatim **Next up** chunk and/or replace that chunk with the **next** planlog slice. Sessionlog should not hold an outdated duplicate of the whole phase—only the **current** working chunk (see Verbatim chunk rule).
+4. **Optional trim** `docs/sessionlog.md`: keep **MVP §1–5** structure; you may remove or compress **completed** sub-bullets if clutter, or leave `[x]` for visibility. Post-MVP items belong in planlog only.
 5. Update `prd.md` if architecture or specs changed.
 6. Pause and allow developer to review update to documents.
 7. **Build check before push:** Run `pnpm run build` (or rely on the pre-push hook). If the build fails, fix type/lint errors before pushing to avoid failed Vercel deploys. Optional: run `pnpm run setup-git-hooks` once to install a pre-push hook that runs the build automatically.

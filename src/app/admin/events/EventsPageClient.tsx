@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Event } from "@/lib/supabase/events";
 import { eventIdForEdit } from "@/lib/recurrence";
+import { buildCalendarEventHoverText } from "@/lib/events/calendar-event-hover";
 import type { View } from "react-big-calendar";
 import { RotateCcw } from "lucide-react";
 
@@ -72,6 +73,7 @@ export function EventsPageClient({
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [eventParticipantMap, setEventParticipantMap] = useState<Map<string, Set<string>>>(new Map());
   const [eventResourceMap, setEventResourceMap] = useState<Map<string, Set<string>>>(new Map());
+  const [resourceNamesByEvent, setResourceNamesByEvent] = useState<Record<string, string[]>>({});
 
   const [myViewEnabled, setMyViewEnabled] = useState(false);
   const [myParticipantId, setMyParticipantId] = useState<string | null>(null);
@@ -160,13 +162,10 @@ export function EventsPageClient({
   }, []);
 
   useEffect(() => {
-    const needAssignments =
-      myViewEnabled ||
-      filterParticipantIds.size > 0 ||
-      filterResourceIds.size > 0;
-    if (events.length === 0 || !needAssignments) {
+    if (events.length === 0) {
       setEventParticipantMap(new Map());
       setEventResourceMap(new Map());
+      setResourceNamesByEvent({});
       return;
     }
     // Use real event IDs only: recurring events have synthetic ids (realId--timestamp); assignments are stored per real event
@@ -178,16 +177,19 @@ export function EventsPageClient({
         const rMap = new Map<string, Set<string>>();
         const pa = (data?.participantAssignments ?? {}) as Record<string, string[]>;
         const ra = (data?.resourceAssignments ?? {}) as Record<string, string[]>;
+        const namesBy = (data?.resourceNamesByEvent ?? {}) as Record<string, string[]>;
         Object.entries(pa).forEach(([eid, arr]) => pMap.set(eid, new Set(arr)));
         Object.entries(ra).forEach(([eid, arr]) => rMap.set(eid, new Set(arr)));
         setEventParticipantMap(pMap);
         setEventResourceMap(rMap);
+        setResourceNamesByEvent(namesBy);
       })
       .catch(() => {
         setEventParticipantMap(new Map());
         setEventResourceMap(new Map());
+        setResourceNamesByEvent({});
       });
-  }, [events, myViewEnabled, filterParticipantIds.size, filterResourceIds.size]);
+  }, [events]);
 
   const { categories, tags } = useMemo(
     () => getTermsForContentSection(terms, configs, "event"),
@@ -331,6 +333,17 @@ export function EventsPageClient({
       filterResourceIds,
     ]
   );
+
+  /** Native `title` hover for month / week / day / agenda (per occurrence id + resource names from assignments API). */
+  const eventHoverDetailByEventId = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const e of filteredEvents) {
+      const realId = eventIdForEdit(e.id);
+      const names = resourceNamesByEvent[realId] ?? [];
+      out[e.id] = buildCalendarEventHoverText(e, names);
+    }
+    return out;
+  }, [filteredEvents, resourceNamesByEvent]);
 
   const handleResetFilters = useCallback(() => {
     setSearch("");
@@ -535,6 +548,7 @@ export function EventsPageClient({
           onViewChange={setView}
           onRangeChange={handleRangeChange}
           height={calendarHeight}
+          eventHoverDetailByEventId={eventHoverDetailByEventId}
         />
       </div>
     </div>

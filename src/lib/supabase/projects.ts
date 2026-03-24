@@ -88,6 +88,16 @@ export interface ListTasksFilters {
   phase_slugs?: string[] | null;
   assignee_user_ids?: string[] | null;
   assignee_contact_ids?: string[] | null;
+  /**
+   * Lowercased task_status slugs to **exclude** (AND NOT IN). All Tasks presets: hide `completed`.
+   * Requires migration `198_get_tasks_dynamic_preset_filters.sql`.
+   */
+  exclude_status_slugs?: string[] | null;
+  /**
+   * Keep tasks with `due_date IS NOT NULL` and `due_date < due_before` (date only, exclusive).
+   * Use client **local calendar** `YYYY-MM-DD` for “today” when implementing overdue lists.
+   */
+  due_before?: string | null;
 }
 
 export interface ProjectInsert {
@@ -509,6 +519,8 @@ export async function removeProjectMember(
 /**
  * List tasks via public.get_tasks_dynamic (Customizer slug filters).
  * Requires migration `187_tasks_customizer_slugs.sql` (replaces term-id filters from 185/186).
+ * Excludes tasks on archived projects (`197_get_tasks_dynamic_exclude_archived_projects.sql`).
+ * Optional exclude / due-before filters: `198_get_tasks_dynamic_preset_filters.sql`.
  */
 export async function listTasks(
   filters: ListTasksFilters = {},
@@ -524,6 +536,11 @@ export async function listTasks(
     return norm.length > 0 ? norm : null;
   };
 
+  const dueBefore =
+    filters.due_before != null && String(filters.due_before).trim() !== ""
+      ? String(filters.due_before).trim().slice(0, 10)
+      : null;
+
   const { data, error } = await supabase.rpc("get_tasks_dynamic", {
     schema_name: schemaName,
     project_ids: pack(filters.project_ids ?? null),
@@ -532,6 +549,8 @@ export async function listTasks(
     phase_slugs: packSlugs(filters.phase_slugs ?? null),
     assignee_user_ids: pack(filters.assignee_user_ids ?? null),
     assignee_contact_ids: pack(filters.assignee_contact_ids ?? null),
+    exclude_status_slugs: packSlugs(filters.exclude_status_slugs ?? null),
+    due_before: dueBefore,
   });
   if (error) {
     const e = error as { message?: string; details?: string; hint?: string; code?: string };

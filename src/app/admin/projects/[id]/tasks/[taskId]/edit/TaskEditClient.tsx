@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Calendar, LayoutGrid, Paperclip } from "lucide-react";
@@ -27,6 +27,7 @@ import { TaskFollowersSection } from "@/components/crm/TaskFollowersSection";
 import { TaskTimeLogsSection } from "@/components/crm/TaskTimeLogsSection";
 import { TaskThreadSection } from "@/components/crm/TaskThreadSection";
 import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
+import { TaskResourcesSection } from "@/components/tasks/TaskResourcesSection";
 import { ScheduleDueSubStatus } from "@/components/tasks/ScheduleDueSubStatus";
 import {
   ADMIN_TASKS_LIST_PATH,
@@ -34,9 +35,13 @@ import {
   type TaskDetailFrom,
 } from "@/lib/tasks/task-detail-nav";
 import type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
+import {
+  replaceTaskResourceAssignments,
+  type TaskResourceAssignmentDraft,
+} from "@/lib/tasks/task-resources-api";
 
 const SELECT_TRIGGER_CLASS =
-  "mt-1 rounded-xl border-border/60 bg-background/90 shadow-sm backdrop-blur-sm";
+  "mt-0.5 rounded-xl border-border/60 bg-background/90 shadow-sm backdrop-blur-sm";
 
 function dateInputValue(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -118,6 +123,52 @@ export function TaskEditClient({
   const [dueDate, setDueDate] = useState(dateInputValue(task.due_date));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingResourceAssignments, setPendingResourceAssignments] = useState<
+    TaskResourceAssignmentDraft[]
+  >([]);
+
+  /** Load resource assignments into draft (applied on Save with PUT). */
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/tasks/${task.id}/resources`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.resolve({})))
+      .then(
+        (j: {
+          data?: Array<{
+            resource_id?: string;
+            bundle_instance_id?: string | null;
+          }>;
+        }) => {
+          if (cancelled) return;
+          const raw = j?.data;
+          if (!Array.isArray(raw)) {
+            setPendingResourceAssignments([]);
+            return;
+          }
+          const rows: TaskResourceAssignmentDraft[] = raw
+            .filter(
+              (x): x is { resource_id: string; bundle_instance_id?: string | null } =>
+                x != null &&
+                typeof x === "object" &&
+                typeof (x as { resource_id?: string }).resource_id === "string"
+            )
+            .map((x) => ({
+              resource_id: String(x.resource_id).trim(),
+              bundle_instance_id:
+                typeof x.bundle_instance_id === "string" && x.bundle_instance_id.trim()
+                  ? x.bundle_instance_id.trim()
+                  : null,
+            }));
+          setPendingResourceAssignments(rows);
+        }
+      )
+      .catch(() => {
+        if (!cancelled) setPendingResourceAssignments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [task.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,6 +203,16 @@ export function TaskEditClient({
         setError(data?.error ?? "Failed to update task");
         return;
       }
+      try {
+        await replaceTaskResourceAssignments(task.id, pendingResourceAssignments);
+      } catch (resErr) {
+        setError(
+          resErr instanceof Error
+            ? resErr.message
+            : "Task saved but resource assignments failed. Try saving again."
+        );
+        return;
+      }
       router.push(taskDetailHref);
       router.refresh();
     } catch (err) {
@@ -162,13 +223,13 @@ export function TaskEditClient({
   };
 
   return (
-    <div className="task-bento-page mx-auto max-w-7xl space-y-5 pb-10 md:space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="task-bento-page mx-auto max-w-7xl space-y-3 pb-6 md:space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Edit task</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Edit task</h1>
           <Link
             href={backHref}
-            className="mt-2 inline-block text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            className="mt-1 inline-block text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             {backLabel}
           </Link>
@@ -195,9 +256,9 @@ export function TaskEditClient({
         </div>
       </div>
 
-      <form id="task-edit-form" onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
-        <section className="task-bento-hero border-0 p-6 sm:p-8">
-          <div className="flex flex-wrap items-center gap-4">
+      <form id="task-edit-form" onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
+        <section className="task-bento-hero border-0 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="task-bento-chip shrink-0" title="Task reference (cannot be changed)">
               {task.task_number}
             </div>
@@ -207,10 +268,10 @@ export function TaskEditClient({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Task title"
               aria-label="Task title"
-              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-2xl font-semibold leading-tight tracking-tight text-foreground shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xl font-semibold leading-tight tracking-tight text-foreground shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-2xl"
             />
           </div>
-          <div className="mt-4">
+          <div className="mt-2">
             <Label htmlFor="task-edit-description" className="sr-only">
               Description
             </Label>
@@ -219,19 +280,19 @@ export function TaskEditClient({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
-              rows={4}
-              className="min-h-[5rem] resize-y rounded-xl border-border/50 bg-background/40 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 shadow-sm backdrop-blur-sm focus-visible:ring-1"
+              rows={3}
+              className="min-h-[3.75rem] resize-y rounded-xl border-border/50 bg-background/40 text-sm leading-snug text-foreground placeholder:text-muted-foreground/60 shadow-sm backdrop-blur-sm focus-visible:ring-1"
             />
           </div>
-          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+          {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
         </section>
 
-        <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4 lg:grid-rows-1">
+        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 md:gap-3.5 lg:grid-cols-4 lg:grid-rows-1">
           <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-            <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+            <CardHeader className="task-bento-card-header">
               <TaskBentoPanelTitle icon={LayoutGrid}>Phase &amp; Type</TaskBentoPanelTitle>
             </CardHeader>
-            <CardContent className="flex flex-1 flex-col space-y-3 px-5 pb-5 pt-0">
+            <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2">
               <div>
                 <Label htmlFor="task_phase" className="text-xs text-muted-foreground">
                   Phase
@@ -266,10 +327,10 @@ export function TaskEditClient({
           </Card>
 
           <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-            <CardHeader className="space-y-1 px-5 pb-2 pt-5">
-              <TaskBentoPanelTitle icon={Calendar}>Schedule</TaskBentoPanelTitle>
+            <CardHeader className="task-bento-card-header">
+              <TaskBentoPanelTitle icon={Calendar}>Schedule and Status</TaskBentoPanelTitle>
             </CardHeader>
-            <CardContent className="flex flex-1 flex-col space-y-3 px-5 pb-5 pt-0 text-sm">
+            <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2 text-sm">
               <div>
                 <Label htmlFor="start_date" className="text-xs text-muted-foreground">
                   Start
@@ -279,7 +340,7 @@ export function TaskEditClient({
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="mt-1 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
+                  className="mt-0.5 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
                 />
               </div>
               <div>
@@ -291,7 +352,7 @@ export function TaskEditClient({
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="mt-1 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
+                  className="mt-0.5 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
                 />
               </div>
               <div>
@@ -320,11 +381,17 @@ export function TaskEditClient({
           </div>
 
           <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-            <CardHeader className="space-y-1 px-5 pb-2 pt-5">
-              <TaskBentoPanelTitle icon={Paperclip}>Resources</TaskBentoPanelTitle>
+            <CardHeader className="task-bento-card-header">
+              <TaskBentoPanelTitle icon={Paperclip}>Assigned resources</TaskBentoPanelTitle>
             </CardHeader>
-            <CardContent className="flex flex-1 flex-col px-5 pb-5 pt-0">
-              <p className="text-sm text-muted-foreground">No resources yet.</p>
+            <CardContent className="task-bento-card-content flex flex-1 flex-col">
+              <TaskResourcesSection
+                taskId={task.id}
+                projectId={projectId}
+                canManage
+                pendingResourceAssignments={pendingResourceAssignments}
+                onPendingResourceAssignmentsChange={setPendingResourceAssignments}
+              />
             </CardContent>
           </Card>
         </div>

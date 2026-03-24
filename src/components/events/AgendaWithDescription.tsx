@@ -126,11 +126,20 @@ export default function AgendaWithDescription(props: AgendaWithDescriptionProps)
         onDoubleClickEvent?.(event, e);
       };
 
+      const rowHoverTitle =
+        event &&
+        typeof event === "object" &&
+        "hoverDetail" in event &&
+        typeof (event as { hoverDetail?: unknown }).hoverDetail === "string"
+          ? String((event as { hoverDetail: string }).hoverDetail).trim() || undefined
+          : undefined;
+
       return (
         <tr
           key={`${dayKey}_${idx}`}
           className={cn(userProps.className, rowTone)}
           style={userProps.style}
+          title={rowHoverTitle}
           onClick={rowClick}
           onDoubleClick={rowDblClick}
         >

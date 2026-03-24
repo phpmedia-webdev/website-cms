@@ -19,11 +19,11 @@ export function AssigneeListItem({
   showRole?: boolean;
 }) {
   return (
-    <li className="flex items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-2.5">
+    <li className="flex items-center justify-between gap-1.5">
+      <div className="flex min-w-0 items-center gap-2">
         <div
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white",
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white",
             avatarBgClass(follower.id)
           )}
           aria-hidden
@@ -49,14 +49,14 @@ export function AssigneeListItem({
 export function TaskAssigneesDetailCard({ followers }: { followers: TaskFollowerWithLabel[] }) {
   return (
     <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-      <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+      <CardHeader className="task-bento-card-header">
         <TaskBentoPanelTitle icon={Users}>Assignees</TaskBentoPanelTitle>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col px-5 pb-5 pt-0">
+      <CardContent className="task-bento-card-content flex flex-1 flex-col">
         {followers.length === 0 ? (
           <p className="text-sm text-muted-foreground">No Assignees Yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {followers.map((f) => (
               <AssigneeListItem key={f.id} follower={f} showRole={false} />
             ))}
@@ -82,7 +82,7 @@ export function TaskAssigneesReadOnlyCard({
 }) {
   return (
     <Card variant="bento" className="task-bento-tile">
-      <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+      <CardHeader className="task-bento-card-header">
         <TaskBentoPanelTitle icon={Users}>Assignees</TaskBentoPanelTitle>
         <p className="text-xs text-muted-foreground leading-snug">
           Add or remove people on{" "}
@@ -95,11 +95,11 @@ export function TaskAssigneesReadOnlyCard({
           .
         </p>
       </CardHeader>
-      <CardContent className="px-5 pb-5 pt-0">
+      <CardContent className="task-bento-card-content">
         {followers.length === 0 ? (
           <p className="text-sm text-muted-foreground">No assignees yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {followers.map((f) => (
               <AssigneeListItem key={f.id} follower={f} />
             ))}

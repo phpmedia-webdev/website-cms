@@ -27,6 +27,7 @@ import {
   type TaskDetailFrom,
 } from "@/lib/tasks/task-detail-nav";
 import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
+import { TaskResourcesSection } from "@/components/tasks/TaskResourcesSection";
 import { ScheduleDueSubStatus } from "@/components/tasks/ScheduleDueSubStatus";
 
 function contactDisplayName(c: {
@@ -128,13 +129,13 @@ export default async function TaskDetailPage({
   const editHref = `/admin/projects/${projectId}/tasks/${taskId}/edit${fromQuery}`;
 
   return (
-    <div className="task-bento-page mx-auto max-w-7xl space-y-5 pb-10 md:space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="task-bento-page mx-auto max-w-7xl space-y-3 pb-6 md:space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Task Detail View</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Task Detail View</h1>
           <Link
             href={backHref}
-            className="mt-2 inline-block text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            className="mt-1 inline-block text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             {backLabel}
           </Link>
@@ -149,50 +150,50 @@ export default async function TaskDetailPage({
       </div>
 
       {/* Hero — primary bento tile */}
-      <section className="task-bento-hero border-0 p-6 sm:p-8">
-        <div className="flex flex-wrap items-center gap-4">
+      <section className="task-bento-hero border-0 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div
             className="task-bento-chip shrink-0"
             title="Task reference for support and linking"
           >
             {task.task_number}
           </div>
-          <h1 className="min-w-0 flex-1 text-2xl font-semibold leading-tight tracking-tight text-foreground">
+          <h1 className="min-w-0 flex-1 text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
             {task.title}
           </h1>
         </div>
         {task.description?.trim() ? (
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+          <p className="mt-2 text-sm leading-snug text-muted-foreground whitespace-pre-wrap">
             {task.description}
           </p>
         ) : (
-          <p className="mt-4 text-sm italic text-muted-foreground">No description.</p>
+          <p className="mt-2 text-sm italic text-muted-foreground">No description.</p>
         )}
       </section>
 
       {/* Four equal meta panels (1 col → 2×2 → 4×1) */}
-      <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4 lg:grid-rows-1">
+      <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 md:gap-3.5 lg:grid-cols-4 lg:grid-rows-1">
         <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-          <CardHeader className="space-y-1 px-5 pb-2 pt-5">
+          <CardHeader className="task-bento-card-header">
             <TaskBentoPanelTitle icon={LayoutGrid}>Phase &amp; Type</TaskBentoPanelTitle>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col space-y-3 px-5 pb-5 pt-0">
+          <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2">
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">Phase</p>
+              <p className="mb-1 text-xs text-muted-foreground">Phase</p>
               <TermBadge term={phaseTerm} />
             </div>
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">Type</p>
+              <p className="mb-1 text-xs text-muted-foreground">Type</p>
               <TermBadge term={typeTerm} />
             </div>
           </CardContent>
         </Card>
 
         <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-          <CardHeader className="space-y-1 px-5 pb-2 pt-5">
-            <TaskBentoPanelTitle icon={Calendar}>Schedule</TaskBentoPanelTitle>
+          <CardHeader className="task-bento-card-header">
+            <TaskBentoPanelTitle icon={Calendar}>Schedule and Status</TaskBentoPanelTitle>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col space-y-3 px-5 pb-5 pt-0 text-sm">
+          <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Start</p>
               <p className="mt-0.5 font-mono text-sm font-medium tabular-nums">
@@ -218,11 +219,11 @@ export default async function TaskDetailPage({
         </div>
 
         <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-          <CardHeader className="space-y-1 px-5 pb-2 pt-5">
-            <TaskBentoPanelTitle icon={Paperclip}>Resources</TaskBentoPanelTitle>
+          <CardHeader className="task-bento-card-header">
+            <TaskBentoPanelTitle icon={Paperclip}>Assigned resources</TaskBentoPanelTitle>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col px-5 pb-5 pt-0">
-            <p className="text-sm text-muted-foreground">No resources yet.</p>
+          <CardContent className="task-bento-card-content flex flex-1 flex-col">
+            <TaskResourcesSection taskId={taskId} canManage={false} />
           </CardContent>
         </Card>
       </div>

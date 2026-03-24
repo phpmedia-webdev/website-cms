@@ -240,8 +240,8 @@ export function TaskTimeLogsSection({
 
   return (
     <Card variant="bento" className="task-bento-tile">
-      <CardHeader className="space-y-1 px-5 pb-2 pt-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <CardHeader className="task-bento-card-header">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             <Clock className="h-4 w-4 text-foreground/70" aria-hidden />
             Time tracking
@@ -286,8 +286,8 @@ export function TaskTimeLogsSection({
           </p>
         )}
       </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <CardContent className="task-bento-card-content space-y-3">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="min-w-[9rem] space-y-1.5">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estimated</p>
             {canEditEstimate ? (
@@ -366,7 +366,7 @@ export function TaskTimeLogsSection({
         {quickAddOpen && (
           <form
             onSubmit={handleAdd}
-            className="task-bento-inset space-y-3 border-0 p-4"
+            className="task-bento-inset space-y-2 border-0 p-3"
             aria-label="Quick log time"
           >
             <p className="text-sm font-medium">Quick entry</p>
@@ -419,10 +419,10 @@ export function TaskTimeLogsSection({
               const label = whoLabel(log, userLabels, contactLabels);
               const key = whoKey(log);
               return (
-                <li key={log.id} className="flex items-start gap-3 p-3 text-sm">
+                <li key={log.id} className="flex items-start gap-2 p-2 text-sm">
                   <div
                     className={cn(
-                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white",
+                      "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white",
                       avatarBgClass(key)
                     )}
                     aria-hidden

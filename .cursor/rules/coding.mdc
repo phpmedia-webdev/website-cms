@@ -39,6 +39,7 @@ alwaysApply: true
 
 ## SQL Scripts (Supabase / Migrations)
 - **Always fully explain the script** before or when delivering it: what it does, which objects it changes, and why (e.g. "adds column X so that …", "drops function Y because return type changed").
+- **Manual SQL callout (required):** When you add or change a migration under `supabase/migrations/`, **explicitly tell the user** they must run it (Supabase Dashboard → SQL Editor) — use a clear label such as **Manual SQL — you need to run:** and the file path. This project does not auto-apply migrations on deploy from these files alone.
 - **Do NOT run the script without permission.** Never execute migrations or ad-hoc SQL (e.g. `supabase db push`, `psql`, or pasting into SQL Editor) unless the user explicitly asks to run it. Deliver the script and explanation; the user runs it (or explicitly approves running it).
 - **Running migrations:** If the user approves, Cursor may run `supabase db push` (or `supabase db reset` / `supabase migration up` for local) in the terminal. Prefer migration-based workflow over one-off SQL execution.
 
@@ -76,9 +77,9 @@ When the developer is in learning mode or asks for explanation, provide feedback
 ## MVT (Module Version Tracker)
 
 - **Location:** `docs/mvt.md` — the Module Version Tracker and code sitemap for this app. It travels with the repo; every fork has its own copy.
-- **Purpose:** (1) At-a-glance module versions and status; (2) high-level folder structure / code sitemap for quickly locating code (e.g. for hand tweaks); (3) per-module boundaries (code paths, folder structure), data/schema (tables, migrations, RPCs), and prerequisites for drop-and-replace updates.
-- **When to update:** When adding, renaming, or significantly changing a module (new or removed routes, components, or lib under that feature), update the relevant module section in `docs/mvt.md`: version if appropriate, folder structure / code paths, and data/schema/prerequisites if migrations or dependencies changed.
-- **Structure:** Keep the document’s sections — at-a-glance table, code sitemap (high-level tree), per-module sections with Version, Folder structure, Data/schema, Prerequisites. See `docs/mvt.md` for the current structure and conventions.
+- **Purpose:** (1) At-a-glance module versions and status; (2) high-level folder structure / code sitemap for quickly locating code (e.g. for hand tweaks); (3) per-module boundaries (code paths, folder structure), data/schema (tables, migrations, RPCs), and prerequisites for drop-and-replace updates; (4) **fork deployment & donor integration** — CMS-first launch vs public design porting from `docs/donor-code/`, plus **module surface tier** (public vs admin vs shared-critical).
+- **When to update:** When adding, renaming, or significantly changing a module (new or removed routes, components, or lib under that feature), update the relevant module section in `docs/mvt.md`: version if appropriate, folder structure / code paths, and data/schema/prerequisites if migrations or dependencies changed. Also update **Fork deployment** (migrations-through, donor path, porting checklist) and **shared-critical** paths when deployment or blast-radius files change.
+- **Structure:** Keep the document’s sections — fork deployment & donor integration, module surface tier, at-a-glance table, code sitemap (high-level tree), per-module sections with Version, Folder structure, Data/schema, Prerequisites, shared/cross-cutting. See `docs/mvt.md` for the current structure and conventions.
 
 ## Changelog and MVT — assistant behavior
 
@@ -127,7 +128,7 @@ When the developer is in learning mode or asks for explanation, provide feedback
 - **Cursor rules (this project):**  
   `.cursor/rules/coding.mdc`, `.cursor/rules/sessions.mdc`, `.cursor/rules/supabase.mdc`, `.cursor/rules/Context7-MCP.md`
 - **Session workflow and docs:**  
-  **Read `.cursor/rules/sessions.mdc`** — defines how sessionlog, changelog, and planlog are used; **session start** (this checklist; **Next up** may hold a **verbatim** checkbox chunk copied from planlog for the active phase) and **session end** (review chat, mark off sessionlog, sync matching lines in planlog, add dated changelog entry with Context for Next Session, trim sessionlog working chunk, commit and push). Following this at session end ensures work is fully and properly documented in the changelog.
+  **Read `.cursor/rules/sessions.mdc`** — defines how sessionlog, changelog, and planlog are used; **session start** (this checklist; **`sessionlog.md`** = **MVP completion** §1–5 + pointers to planlog) and **session end** (review chat, mark off sessionlog, sync matching lines in planlog, add dated changelog entry with Context for Next Session, optional trim of completed MVP bullets, commit and push). Following this at session end ensures work is fully and properly documented in the changelog.
 - **Docs (root of `docs/`):**  
   `docs/prd.md`, `docs/prd-technical.md`, `docs/sessionlog.md`
 - **Changelog:**  

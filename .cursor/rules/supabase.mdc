@@ -17,7 +17,12 @@ alwaysApply: true
 - **Do not use Supabase CLI for migrations.** Run SQL manually.
 - **Where:** Supabase Dashboard → SQL Editor.
 - **How:** Copy the contents of each migration file from `supabase/migrations/` (in filename order: 023, 024, …, 052, 053, etc.) and paste into the SQL Editor, then Run. Run one migration at a time, or batch in order if you prefer.
-- When adding new migrations: (1) List `supabase/migrations/` to find the latest numeric prefix (e.g. 053), increment by one (054). (2) Create the file as `XXX_description.sql`. (3) In the **top comment header** of the script, include a line: `-- File: XXX_description.sql` so you can scan Supabase SQL Editor run history and match by filename. (4) Direct the user: "Copy the contents of `supabase/migrations/XXX_name.sql` and run in Supabase SQL Editor."
+- When adding new migrations: (1) List `supabase/migrations/` to find the latest numeric prefix (e.g. 053), increment by one (054). (2) Create the file as `XXX_description.sql`. (3) In the **top comment header** of the script, include a line: `-- File: XXX_description.sql` so you can scan Supabase SQL Editor run history and match by filename. (4) Add a **visible banner** in the header (comment block) such as: `MANUAL SQL — YOU MUST RUN THIS` + “Copy → SQL Editor → Run” + what breaks if they skip it. (5) In the **chat reply**, use a labeled callout the developer cannot miss, e.g. **Manual SQL — you need to run:** `supabase/migrations/XXX_name.sql` in Supabase SQL Editor (paste full file, Run). Repeat in `docs/sessionlog.md` if that file tracks pending DBA steps.
+
+## Assistant: always call out manual runs
+
+- Whenever a session **adds or meaningfully changes** a file under `supabase/migrations/`, tell the user **in the response** that the DB is unchanged until they run the script. Do not rely only on inline code comments.
+- Prefer the exact filename path so they can open it from the repo.
 
 ## Database security at session end (wrap-up)
 

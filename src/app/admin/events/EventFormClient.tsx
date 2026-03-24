@@ -32,6 +32,7 @@ import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssi
 import {
   EventParticipantsResourcesTab,
   type PendingParticipant,
+  type PendingResourceAssignment,
   type ParticipantsSnapshotItem,
 } from "@/components/events/EventParticipantsResourcesTab";
 import { getMediaWithVariants } from "@/lib/supabase/media";
@@ -157,7 +158,9 @@ export function EventFormClient({
   const [taxonomyCategoryIds, setTaxonomyCategoryIds] = useState<Set<string>>(new Set());
   const [taxonomyTagIds, setTaxonomyTagIds] = useState<Set<string>>(new Set());
   const [pendingParticipants, setPendingParticipants] = useState<PendingParticipant[]>([]);
-  const [pendingResourceIds, setPendingResourceIds] = useState<string[]>([]);
+  const [pendingResourceAssignments, setPendingResourceAssignments] = useState<
+    PendingResourceAssignment[]
+  >([]);
 
   const [recurrencePreset, setRecurrencePreset] = useState<RecurrencePreset>("none");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<string | null>(null);
@@ -186,6 +189,16 @@ export function EventFormClient({
   const [showConflictDialog, setShowConflictDialog] = useState(false);
   const [conflictList, setConflictList] = useState<
     { eventId: string; title: string; start_date: string; end_date: string }[]
+  >([]);
+  const [resourceConflictList, setResourceConflictList] = useState<
+    {
+      eventId: string;
+      title: string;
+      start_date: string;
+      end_date: string;
+      resource_id: string;
+      resource_name: string;
+    }[]
   >([]);
 
   const [projectId, setProjectId] = useState<string | null>(
@@ -237,6 +250,46 @@ export function EventFormClient({
       return () => clearTimeout(id);
     }
   }, [event, coverImageUrls]);
+
+  /** Load resource assignments into draft when editing (applied on Save with PUT). */
+  useEffect(() => {
+    if (!event?.id) {
+      setPendingResourceAssignments([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/events/${event.id}/resources`)
+      .then((r) => (r.ok ? r.json() : Promise.resolve({})))
+      .then((j: { data?: { assignments?: unknown[] } }) => {
+        if (cancelled) return;
+        const raw = j?.data?.assignments;
+        if (!Array.isArray(raw)) {
+          setPendingResourceAssignments([]);
+          return;
+        }
+        const rows: PendingResourceAssignment[] = raw
+          .filter(
+            (x): x is { resource_id: string; bundle_instance_id?: string | null } =>
+              x != null &&
+              typeof x === "object" &&
+              typeof (x as { resource_id?: string }).resource_id === "string"
+          )
+          .map((x) => ({
+            resource_id: String(x.resource_id).trim(),
+            bundle_instance_id:
+              typeof x.bundle_instance_id === "string" && x.bundle_instance_id.trim()
+                ? x.bundle_instance_id.trim()
+                : null,
+          }));
+        setPendingResourceAssignments(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setPendingResourceAssignments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [event?.id]);
 
   useEffect(() => {
     fetch("/api/settings/customizer?scope=event_type")
@@ -370,10 +423,14 @@ export function EventFormClient({
     };
 
     try {
-      if (
+      const conflictResourceIds = [
+        ...new Set(pendingResourceAssignments.map((a) => a.resource_id).filter(Boolean)),
+      ];
+      const runSchedulingConflictCheck =
         !skipConflictCheckRef.current &&
-        participantsForConflictCheck.length > 0
-      ) {
+        (participantsForConflictCheck.length > 0 || conflictResourceIds.length > 0);
+
+      if (runSchedulingConflictCheck) {
         const conflictRes = await fetch("/api/events/check-conflicts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -381,6 +438,7 @@ export function EventFormClient({
             start_date: startISO,
             end_date: endISO,
             participants: participantsForConflictCheck,
+            resource_ids: conflictResourceIds,
             exclude_event_id: event?.id ?? undefined,
           }),
         });
@@ -388,8 +446,12 @@ export function EventFormClient({
         const conflicts = Array.isArray(conflictData?.conflicts)
           ? conflictData.conflicts
           : [];
-        if (conflicts.length > 0) {
+        const resource_conflicts = Array.isArray(conflictData?.resource_conflicts)
+          ? conflictData.resource_conflicts
+          : [];
+        if (conflicts.length > 0 || resource_conflicts.length > 0) {
           setConflictList(conflicts);
+          setResourceConflictList(resource_conflicts);
           setShowConflictDialog(true);
           setSaving(false);
           return;
@@ -432,12 +494,14 @@ export function EventFormClient({
             body: JSON.stringify({ source_type: p.source_type, source_id: p.source_id }),
           });
         }
-        for (const resourceId of pendingResourceIds) {
-          await fetch(`/api/events/${eventId}/resources`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ resource_id: resourceId }),
-          });
+        const resPut = await fetch(`/api/events/${eventId}/resources`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assignments: pendingResourceAssignments }),
+        });
+        if (!resPut.ok) {
+          const errBody = await resPut.json().catch(() => ({}));
+          throw new Error(errBody.error ?? "Failed to save resource assignments");
         }
       }
       if (!isEdit && eventId) {
@@ -1014,8 +1078,8 @@ export function EventFormClient({
                   eventId={event?.id}
                   pendingParticipants={pendingParticipants}
                   onPendingParticipantsChange={setPendingParticipants}
-                  pendingResourceIds={pendingResourceIds}
-                  onPendingResourceIdsChange={setPendingResourceIds}
+                  pendingResourceAssignments={pendingResourceAssignments}
+                  onPendingResourceAssignmentsChange={setPendingResourceAssignments}
                   onParticipantsSnapshot={setParticipantsForConflictCheck}
                 />
               </TabsContent>
@@ -1060,27 +1124,59 @@ export function EventFormClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+      <Dialog
+        open={showConflictDialog}
+        onOpenChange={(open) => {
+          setShowConflictDialog(open);
+          if (!open) setResourceConflictList([]);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Participant conflict</DialogTitle>
+            <DialogTitle>Scheduling conflict</DialogTitle>
             <DialogDescription>
-              Some participants are already in other events during this time. Save anyway?
+              {conflictList.length > 0 && resourceConflictList.length > 0
+                ? "Some participants or exclusive resources overlap other events in this time range. Save anyway?"
+                : conflictList.length > 0
+                  ? "Some participants are already in other events during this time. Save anyway?"
+                  : "Some exclusive resources are already booked on other events during this time. Save anyway?"}
             </DialogDescription>
           </DialogHeader>
-          <ul className="text-sm list-disc list-inside space-y-1 max-h-48 overflow-auto">
-            {conflictList.map((c) => (
-              <li key={`${c.eventId}-${c.start_date}`}>
-                {c.title} — {new Date(c.start_date).toLocaleString()} to{" "}
-                {new Date(c.end_date).toLocaleString()}
-              </li>
-            ))}
-          </ul>
+          {conflictList.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Participants</p>
+              <ul className="max-h-40 list-inside list-disc space-y-1 overflow-auto text-sm">
+                {conflictList.map((c) => (
+                  <li key={`p-${c.eventId}-${c.start_date}`}>
+                    {c.title} — {new Date(c.start_date).toLocaleString()} to{" "}
+                    {new Date(c.end_date).toLocaleString()}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {resourceConflictList.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Exclusive resources</p>
+              <ul className="max-h-40 list-inside list-disc space-y-1 overflow-auto text-sm">
+                {resourceConflictList.map((c) => (
+                  <li key={`r-${c.eventId}-${c.resource_id}-${c.start_date}`}>
+                    <span className="font-medium">{c.resource_name}</span> — conflicts with{" "}
+                    {c.title} ({new Date(c.start_date).toLocaleString()} –{" "}
+                    {new Date(c.end_date).toLocaleString()})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => setShowConflictDialog(false)}
+              onClick={() => {
+                setShowConflictDialog(false);
+                setResourceConflictList([]);
+              }}
             >
               Cancel
             </Button>
@@ -1089,6 +1185,7 @@ export function EventFormClient({
               onClick={() => {
                 skipConflictCheckRef.current = true;
                 setShowConflictDialog(false);
+                setResourceConflictList([]);
                 formRef.current?.requestSubmit();
               }}
             >

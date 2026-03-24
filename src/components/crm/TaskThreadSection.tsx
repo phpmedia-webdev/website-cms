@@ -73,25 +73,25 @@ export function TaskThreadSection({
 
   return (
     <Card variant="bento" className="task-bento-tile">
-      <CardHeader className="space-y-1 px-5 pb-2 pt-5">
-        <h2 className="flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          <MessageSquare className="h-4 w-4 text-foreground/70" aria-hidden />
+      <CardHeader className="task-bento-card-header">
+        <h2 className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <MessageSquare className="h-3.5 w-3.5 text-foreground/70" aria-hidden />
           Discussion ({notes.length})
         </h2>
       </CardHeader>
-      <CardContent className="space-y-4 px-5 pb-5 pt-0">
+      <CardContent className="task-bento-card-content space-y-2.5">
         {sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">No comments yet.</p>
         ) : (
-          <ul className="space-y-4">
+          <ul className="space-y-2.5">
             {sorted.map((note) => {
               const authorName = note.author_id ? authorLabels[note.author_id] ?? "User" : "User";
               const seed = note.author_id ?? note.id;
               return (
-                <li key={note.id} className="flex gap-3">
+                <li key={note.id} className="flex gap-2">
                   <div
                     className={cn(
-                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white",
+                      "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white",
                       avatarBgClass(seed)
                     )}
                     aria-hidden
@@ -113,7 +113,7 @@ export function TaskThreadSection({
           </ul>
         )}
 
-        <form onSubmit={handleSubmit} className="task-bento-inset space-y-2 border-0 p-4">
+        <form onSubmit={handleSubmit} className="task-bento-inset space-y-1.5 border-0 p-3">
           <Label htmlFor="task-reply-body" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Add a comment
           </Label>
@@ -122,7 +122,7 @@ export function TaskThreadSection({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder="Add a comment…"
-            rows={3}
+            rows={2}
             className="resize-none rounded-xl border-border/50 bg-background/80 backdrop-blur-sm"
             disabled={saving}
           />

@@ -15,6 +15,10 @@ import {
 import { AutoSuggestMulti } from "@/components/ui/auto-suggest-multi";
 import { TaxonomyMultiSelect, type TaxonomyMultiSelectOption } from "@/components/media/TaxonomyMultiSelect";
 import { ProjectEventLinkCombobox } from "@/components/events/ProjectEventLinkCombobox";
+import {
+  parseCalendarResourceTypesPayload,
+  resourceTypeLabelMap,
+} from "@/lib/events/resource-picker-groups";
 
 export interface EventsFilterBarProps {
   search: string;
@@ -90,6 +94,7 @@ export function EventsFilterBar({
   const [modalResourceIds, setModalResourceIds] = useState<Set<string>>(new Set());
   const [participants, setParticipants] = useState<ParticipantOption[]>([]);
   const [resources, setResources] = useState<ResourceOption[]>([]);
+  const [resourceTypeLabels, setResourceTypeLabels] = useState<Map<string, string>>(() => new Map());
   const [directoryRows, setDirectoryRows] = useState<DirectoryRow[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
 
@@ -100,14 +105,18 @@ export function EventsFilterBar({
       setModalLoading(true);
       Promise.all([
         fetch("/api/events/participants").then((r) => (r.ok ? r.json() : { data: [] })),
-        fetch("/api/events/resources").then((r) => (r.ok ? r.json() : { data: [] })),
+        fetch("/api/events/resources?context=calendar").then((r) =>
+          r.ok ? r.json() : { data: [] }
+        ),
+        fetch("/api/settings/calendar/resource-types").then((r) => (r.ok ? r.json() : [])),
         fetch("/api/directory?limit=5000")
           .then((r) => (r.ok ? r.json() : { data: [] }))
           .catch(() => ({ data: [] })),
       ])
-        .then(([pData, rData, dirRes]) => {
+        .then(([pData, rData, typesRes, dirRes]) => {
           setParticipants((pData?.data ?? []) as ParticipantOption[]);
           setResources((rData?.data ?? []) as ResourceOption[]);
+          setResourceTypeLabels(resourceTypeLabelMap(parseCalendarResourceTypesPayload(typesRes)));
           const rows = Array.isArray(dirRes?.data) ? dirRes.data : [];
           setDirectoryRows(rows as DirectoryRow[]);
         })
@@ -160,11 +169,15 @@ export function EventsFilterBar({
 
   const resourceOptions = useMemo(
     () =>
-      resources.map((r) => ({
-        id: r.id,
-        label: `${r.name} (${r.resource_type})`,
-      })),
-    [resources]
+      resources.map((r) => {
+        const typeLabel = resourceTypeLabels.get(r.resource_type)?.trim() || r.resource_type;
+        return {
+          id: r.id,
+          label: `${r.name} (${typeLabel})`,
+          searchText: `${r.name} ${r.resource_type} ${typeLabel}`,
+        };
+      }),
+    [resources, resourceTypeLabels]
   );
 
   const magOptions: TaxonomyMultiSelectOption[] = filterMemberships.map((m) => ({

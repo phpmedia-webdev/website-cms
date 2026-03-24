@@ -1,6 +1,6 @@
 # Plan Log
 
-This document tracks planned work and remaining tasks for the Website-CMS project. For session continuity (current focus, next up), see [sessionlog.md](./sessionlog.md).
+This document tracks planned work and remaining tasks for the Website-CMS project. For **MVP-through-fork** handoff and the active checklist, see [sessionlog.md](./sessionlog.md) — **MVP completion**.
 
 **Performance:** Document any feature that may slow the system (extra DB/API calls, sync on high-traffic paths). See [prd.md](./prd.md) — Performance (Speed).
 
@@ -23,6 +23,31 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - **Cursor session docs:** `.cursor/rules/sessions.mdc` + `.cursor/rules/coding.mdc` — **changelog** updates batched at **session wrap-up** (or explicit ask / release), not after every edit.
 - **Phase 18C planning (Directory + messages/notifications):** Full checklist under **Phase 18C** below + [prd-technical § Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging); **design locks** done — implementation (migrations, APIs, UI) remains open.
 - **Number sequences (migration 194):** `number_sequences.sequence_year` (UTC); `get_next_invoice_order_number` and `tasks_assign_task_number` reset the `NNNNN` segment to `start_number` when the UTC calendar year changes (Jan 1 UTC). Formats `INV-YYYY-NNNNN` / `TASK-YYYY-NNNNN`. Run SQL in Supabase SQL Editor per tenant schema.
+
+---
+
+## MVP completion track (fork-ready)
+
+**Primary checklist:** [sessionlog.md](./sessionlog.md) — sections **1–5** (Tasks/Projects, Resources picklist, Messaging/notifications + `crm_notes` cutover, Shared identity UX, Pre-fork review). Check boxes there each session; sync matching phase bullets below.
+
+| Sessionlog section | Planlog / docs |
+|--------------------|----------------|
+| 1. Tasks & Projects | Phase **19**; optional Directory line in Phase **18C** (project members) |
+| 2. Resources | Phase **21**; [sessionlog §2](./sessionlog.md) **§2.1–2.7**; **MVP-if-time** [picker hints](#event-resource-picker--mvp-if-time-permits) (ghost + busy exclusive) |
+| 3. Messaging & notifications | Phase **18C**; [reference/messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) |
+| 4. Shared identity UX | Phase **00** (Shared identity UX bullets) |
+| 5. Pre-fork | Code Review & Modular Alignment; Performance & Caching; Phase **00** setup/deploy; **[mvt.md](./mvt.md)** — Fork deployment & donor integration + module surface tier + shared-critical paths aligned to current app |
+
+### Event resource picker — MVP if time permits
+
+Proactive hints so users see **availability before save** (not only after **409** / conflict dialog). **Server** enforcement on **`event_resources`** stays mandatory (races, recurrence). **Ship one or both** when schedule allows before fork MVP; check boxes here when done.
+
+- [ ] **Unavailable / ghost (overlap):** When event draft **start/end** are set, extend picker option model + API (e.g. `unavailableResourceIds`) for resources that overlap other **`event_resources`** in that window (broader than exclusives-only).
+- [ ] **Busy exclusive (dim / label):** When draft times are set, dim or label **exclusive** resources already booked in the window — debounced **`POST /api/events/check-conflicts`** or a slim read-only endpoint.
+
+**Ref:** [event-resource-conflicts.md](./reference/event-resource-conflicts.md). Implementation detail also tracked under [Phase 21](#phase-21-asset--resource-management) (picker APIs + `check-conflicts`).
+
+**Post-MVP** items remain in the phase sections below (e.g. Phase **20** calendar, Phase **21** full asset manager, Phase **22** accounting, analytics).
 
 ---
 
@@ -322,7 +347,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 - [ ] **Performance:** Indexes on underlying tables; avoid N+1; document cost in planlog Performance note if hot path.
 - [ ] **Fork note:** Custom pickers must not drop enumeration-safe patterns from PRD (Directory is admin/authenticated use).
 
-**Messages & notifications (two logical stores, one UI tab)** — GPUM and admin both use a single **“Messages and notifications”** surface; merged API normalizes rows. Internal CRM-only notes may remain **`crm_notes`** or move to timeline with `visibility = admin_only` (see design lock).
+**Messages & notifications (two logical stores, one UI tab)** — GPUM and admin both use a single **“Messages and notifications”** surface; merged API normalizes rows. **MVP target:** former contact notes → **`contact_notifications_timeline`**; conversation-shaped traffic → **threads**; **`crm_notes`** deprecated for migrated types after cutover/backfill ([sessionlog.md](./sessionlog.md) § **3**).
 
 - [x] **Design lock (prd-technical):** [§ Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging) — table roles, column lists, enums (`kind`, `visibility`, `thread_type`), UI filter mapping, MAG rules, pruning/idempotency, RLS requirements, cutover vs `crm_notes`, edge-case defaults.
 - [x] **Schema — contact notifications timeline:** Tenant table **`contact_notifications_timeline`** — migration **`190_contact_notifications_timeline.sql`** (`recipient_user_id`, indexes, partial unique `source_event`). **Run in Supabase SQL Editor** per tenant DB after 189. (Name avoids confusion with calendar `events`.)
@@ -363,6 +388,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
   - [x] **Admin UI — projects list:** Filters (status, taxonomy, search). Columns: name, status, dates, MAG, potential_sales. Show archived toggle.
   - [x] **Admin UI — projects list (refresh):** Table: title + project-type color dot, Proposed End Date, client (contact/org link + avatar), status pill, member avatars (contact/team), task-segment progress bar (done/overdue/todo/cancelled), project type. Batch server data (members, tasks, contacts, orgs, profiles); include_archived filter. Migration 172 adds avatar_url to crm_contacts and organizations (tenant schema).
   - [x] **Admin UI — project detail:** Header (name, description, status, timeline, potential_sales, MAG), tasks list or Kanban, linked events/orders/links. Edit, Archive/Restore.
+  - [x] **Admin UI — project detail (layout refresh, Mar 2026):** Donor-style overview + stat cards; tabs Tasks · Events · Transactions · Attachments (Attachments shell); Activities breadcrumb; **`ProjectDetailClient.tsx`** — see changelog **2026-03-23 22:50 CT**.
   - [x] **Admin UI — project create/edit:** Form: name, description, status, proposed start/end, potential_sales, required_mag_id, taxonomy (categories/tags).
   - [x] **Admin UI — tasks:** Add/edit task (title, description, status/type/phase via **Customizer slugs**, **priority** via taxonomy, due_date, proposed/actual time, creator, responsible, followers). Project task list + All Tasks use slug-backed filters/badges. Optional Kanban deferred.
   - [x] **Migration 187 — task Customizer slugs:** `187_tasks_customizer_slugs.sql`; RPC `get_tasks_dynamic` / `get_task_by_id_dynamic` slug columns + text[] filters. Run in SQL Editor per tenant.
@@ -414,7 +440,7 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 ### Phase 20: Calendar — reminders & personal ICS feeds
 
-**Status:** Planned. Detailed steps and architecture: [sessionlog.md](./sessionlog.md) — section **Calendar: reminders & personal ICS feeds (planned)**. **Note:** Creator auto-added as event participant on `POST /api/events` is already done (see changelog 2026-03-19); supports My View and personal-feed queries.
+**Status:** Planned. Steps are listed in **Phase 20** below (schema, API, ICS, personal feed, tokens, notifications, cron). **Note:** Creator auto-added as event participant on `POST /api/events` is already done (see changelog 2026-03-19); supports My View and personal-feed queries.
 
 - [ ] **Schema:** `events.reminder_minutes_before`; `event_reminder_deliveries`; `calendar_feed_tokens` (hashed token, optional JSON filters); RLS; indexes for cron and lookups. Migration with `-- File:` header; run in Supabase SQL Editor.
 - [ ] **API & form:** Reminder field on event create/update; types in `events.ts`; `EventFormClient` UI.
@@ -427,15 +453,25 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 ### Phase 21: Asset / Resource Management
 
-**Status:** Planned. Single `resources` table as lightweight **asset registry** + **schedulability** flags; Customizer remains **resource_type** (slug, label, color). **Derived usage** from `event_resources` + event times; extend with **task_resources** + task time when PM module is ready. Full step plan: [sessionlog.md](./sessionlog.md) — **Asset / Resource Management (planned)**.
+**Status:** Planned. Single `resources` table as **asset registry** + **183** schedulability flags (`is_schedulable_calendar`, `is_schedulable_tasks`); Customizer **`resource_type`** (slug, label, color). **Bundles** (UI term) = virtual **`resource_bundles`** + **`resource_bundle_items`**; apply expands to **`event_resources`** / **`task_resources`**. **Time attribution** = event intervals + task total at completion (see sessionlog). **Step plan (MVP):** [sessionlog.md](./sessionlog.md) § **2** — **§2.1–2.7** (picker, bundles, picker eligibility, usage segments, conflicts, `/admin/events/resources`, task bento).
 
 - [x] **Schema:** Migration `183_resources_asset_and_scheduling.sql` on tenant `resources` — schedulability flags, `asset_status` + `archived_at`, inventory + financial fields (USD-only, non-negative costs). RLS unchanged.
-- [ ] **API:** Extend resources CRUD; optional `for_picker` / filter schedulable-only for calendar.
-- [ ] **UI — inventory:** `ResourcesListClient` + dialog — asset fields, flags, type color chip from Customizer.
-- [ ] **Usage:** `GET .../resources/usage` + Activities/Resources page — date presets, sortable table, optional charts.
-- [ ] **MVP — Task UI Resources bento tile:** Minimal **`task_resources`** (junction + list on task detail/edit) and picker from **`resources`** registry so the **Resources** card replaces “No resources yet.” — **next** for task UI after current bento work.
-- [ ] **Tasks follow-on (full):** `task_resources` + picker + union usage API + project rollup (extends MVP above).
-- [ ] **Docs:** `mvt.md`, `prd-technical.md`.
+- [x] **Schema — bundles:** `resource_bundles`, `resource_bundle_items`; **`bundle_instance_id`** on **`event_resources`** + **`task_resources`** for rolled-up UI (migration **`195_task_resources_resource_bundles.sql`**). **Applied on tenant** (SQL Editor — no errors).
+- [x] **Schema — task_resources:** Junction `task_id` + `resource_id` + optional `bundle_instance_id`; RLS + grants; RPC **`get_task_resources_dynamic`** (migration **195**). **Applied on tenant.**
+- [x] **Read path — 195:** Public RPCs (`get_event_resources_dynamic` / `get_events_resources_bulk` incl. **`bundle_instance_id`**, `get_task_resources_dynamic`, `get_resource_bundles_dynamic`, `get_resource_bundle_items_dynamic`) + **`src/lib/supabase/participants-resources.ts`** helpers (assign/unassign, bundle instance remove).
+- [ ] **Schema — usage (optional MVP slice):** `resource_usage_*` segments (resource_id, source event/task, minutes, …) + rebuild hooks.
+- [x] **API — task_resources (REST):** **`GET/POST/DELETE /api/tasks/[id]/resources`** — enriched list (`name`, `resource_type`, `bundle_instance_id`); POST optional `bundle_instance_id`; DELETE by `resource_id` or `bundle_instance_id` (admin + task exists). Client: **`src/lib/tasks/task-resources-api.ts`**, UI: **`TaskResourcesSection`**.
+- [x] **API — bundles (REST):** `GET/POST /api/events/bundles`; `GET/PUT/DELETE /api/events/bundles/[id]`; `POST/DELETE /api/events/bundles/[id]/items` (member resources).
+- [x] **API — picker lists (183):** **`GET /api/events/resources`** + **`GET /api/events/bundles`** — optional **`?context=calendar|task`** (archive/retired + schedulability); omit context = full registry for Resource manager. **`participants-resources.ts`**: `getResourcesAdminForPicker`, `listResourceBundlesWithItemsForPicker`.
+- [x] **API — resource conflicts (events):** **`getResourceConflicts`** + **`POST /api/events/check-conflicts`** (`resource_ids` / `resource_conflicts`); **`PUT`/`POST` `/api/events/[id]/resources`** **409** when **exclusive** resource overlaps another event. **Docs:** [event-resource-conflicts.md](./reference/event-resource-conflicts.md).
+- [x] **API — get_resources_dynamic / registry reads:** Migration **196** — `get_resources_dynamic(schema_name, picker_context)` (`NULL` = full registry; `calendar` \| `task` = same filter rules as REST + **`resourcePassesPickerContext`**). App **`getResources()`** delegates to **`getResourcesAdmin()`** (no stale RPC-only catalog). **Applied on tenant** (`196_get_resources_dynamic_picker_alignment.sql`); run on any fork/schema not yet migrated.
+- [x] **UI — picker (events + tasks):** Grouped **Bundles** then **Resources** (`AutoSuggestMulti` groups); **`bundle:`** / **`resource:`** composite ids; Customizer **type labels** via **`resource-picker-groups.ts`** + **`/api/settings/calendar/resource-types`**. **MVP-if-time — proactive hints** (ghost/overlap + busy exclusive): [Event resource picker — MVP if time permits](#event-resource-picker--mvp-if-time-permits) (check boxes there).
+- [x] **UI — bundle rollup (§2.2):** **`ResourceAssignmentsRollupList`** on event form + task bento/modal; **`source_bundle_id`** on draft rows for bundle title (not persisted; API strips).
+- [x] **UI — admin Resource management:** `/admin/events/resources` — **`ResourceManagerClient`**: **Resources** tab (registry + **183** scheduling flags, asset status, archive) + **Bundles** tab (CRUD + members); `GET /api/events/resources` uses **`getResourcesAdmin`** (full row).
+- [x] **UI — task bento (structure):** **`TaskResourcesSection`** — grouped picker, §2.2 rollup, **`PUT`** on save; see [sessionlog §2.7](./sessionlog.md).
+- [x] **UI — usage (MVP preview):** Resource manager **Analytics** tab; **`GET /api/events/resources/usage`** (dynamic estimates, filters). **Docs:** [resource-time-attribution.md](./reference/resource-time-attribution.md). **Follow-on:** charts, presets, persisted **`resource_usage_*`** if needed.
+- [ ] **Tasks follow-on (full):** Union usage API + project rollup (extends MVP above).
+- [ ] **Docs:** Keep `mvt.md` Events/Resources notes in sync; `prd-technical.md` when schema/API stabilizes.
 
 ### Phase 22: Accounting module
 

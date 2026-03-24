@@ -11,6 +11,139 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For session 
 
 ## [Unreleased]
 
+### 2026-03-23 22:50 CT — Session wrap: project detail layout; All Tasks §1.1–1.3 + RPC presets; projects list
+
+- **Context for Next Session:** **Manual SQL:** Run **`197_get_tasks_dynamic_exclude_archived_projects.sql`** and **`198_get_tasks_dynamic_preset_filters.sql`** in Supabase SQL Editor if any fork/env is missing them; then clear/update the outstanding line in [sessionlog.md](./sessionlog.md) (§1.3 / Manual SQL). **QA:** Sessionlog §1.3 preset + reset behaviors with real data. **Next product:** Wire **Attachments** on project detail (currently placeholder); §3 messaging / planlog picker MVP-if-time. **Key files:** `ProjectDetailClient.tsx`, `AllTasksListClient.tsx`, `all-tasks-sort.ts`, `admin-task-list.ts`, `api/tasks/route.ts`, `ProjectListTable.tsx`, `supabase/migrations/197_*.sql`, `198_*.sql`.
+- **Completed:**
+  - **Admin project detail (`ProjectDetailClient.tsx`):** Donor-style layout reimplemented under `src/` (no donor imports): `max-w-6xl` overview — id snippet, status/type badges, client, description, 4-card stats (type/start/end/est.), logged time + utilization, task progress bar + `ProjectProgressSegments`, team chips, footer (time bar, potential sales, MAG); breadcrumb **Activities / Projects / Project detail**; disabled **Share** / **More** placeholders; **Radix Tabs**: Tasks, Events, Transactions, **Attachments** (empty-state copy for later wiring); taxonomy assignment card kept below overview; existing task/event/transaction data paths unchanged.
+  - **All Tasks (`AllTasksListClient`, `tasks/page.tsx`, `GET /api/tasks`, `admin-task-list.ts`, `all-tasks-sort.ts`):** §1.1 unified **Custom filters** modal + single-row toolbar (funnel state, title search does not light funnel); §1.2 sortable column headers + **Project** grouped sort; §1.3 presets **All Active** (SSR `exclude_status_slugs`), **My tasks**, **Overdue** (`due_before`) + master reset; **`get_tasks_dynamic`** — migration **197** (exclude tasks in archived projects), **198** (`exclude_status_slugs`, `due_before`).
+  - **Projects list (`ProjectsListClient`, `ProjectListTable`, `ProjectProgressSegments`):** Toolbar/table aligned with All Tasks styling; column order and widths; title truncate; centered type/status; progress segments.
+  - **Docs / rules:** `sessionlog.md`, `planlog.md`, `mvt.md` synced; `.cursor/rules` (coding, sessions, supabase) updates bundled with this commit where modified.
+
+### 2026-03-23 17:48 CT — Calendar hover tooltips (time, location, resources on admin)
+
+- **Context for Next Session:** Admin **Calendar Events** and **public** events page use **native browser `title` tooltips** on all views (month, week, day, agenda + month popup). Admin tooltips include **assigned resource names** from **`GET /api/events/assignments`** (`resourceNamesByEvent`). **Next:** §3 messaging or planlog picker MVP-if-time. **Key files:** `EventsCalendar.tsx`, `AgendaWithDescription.tsx`, `EventsPageClient.tsx`, `PublicCalendarPageClient.tsx`, `api/events/assignments/route.ts`, `lib/events/calendar-event-hover.ts`.
+- **Completed:**
+  - **`GET /api/events/assignments`:** Response adds **`resourceNamesByEvent`** (sorted labels; uses **`getResourcesAdmin`** for ids in range).
+  - **`buildCalendarEventHoverText`:** Shared formatter; **` · `**-joined single line (Windows `title` often drops lines after `\n`).
+  - **`EventsCalendar`:** `eventHoverDetailByEventId` prop, **`hoverDetail`** on **`RBCEvent`**, **`tooltipAccessor`** → RBC **`EventCell`** `.rbc-event-content` `title` (fixes month/week/day only showing event title; `eventPropGetter.title` is ignored by RBC).
+  - **Agenda:** **`title` on `<tr>`** + event component `title` (forked agenda path).
+  - **Admin:** Always fetch assignments when events loaded (powers filters + tooltips). **Public:** hover uses same formatter without resources (no private assignment API).
+  - **`mvt.md`:** Calendar hover note under Events.
+
+### 2026-03-23 17:20 CT — §2.3: align resource catalog with REST picker rules (196 + getResources)
+
+- **Context for Next Session:** Resources **§2.3** follow-on **done**; migration **196** **applied on tenant** (SQL Editor). **Next:** **§3** messaging or planlog picker MVP-if-time. **Key files:** `196_get_resources_dynamic_picker_alignment.sql`, `participants-resources.ts`, `api/tasks/[id]/resources/route.ts`, `sessionlog.md` §2.3, `mvt.md`. **Other forks:** run **196** when not yet applied.
+- **Completed:**
+  - **`getResources()`:** Uses **`getResourcesAdmin()`** (tenant table) instead of unfiltered **`get_resources_dynamic`** RPC — same columns as Resource manager / REST registry.
+  - **Migration 196:** **`get_resources_dynamic(schema_name, picker_context)`** — `NULL` = full registry; **`calendar`** \| **`task`** = filters aligned with app (`archived_at`, not **retired**, schedulability flags). **Applied on tenant** (confirm other envs as needed).
+  - **Task resources GET:** Enrichment catalog via **`getResourcesAdmin()`**.
+  - **Docs:** `sessionlog.md` §2.3 checked; `planlog.md` Phase 21 API bullet; `mvt.md` migrations + RPC note.
+
+### 2026-03-23 17:05 CT — Docs: event picker ghost + busy hints → planlog MVP-if-time
+
+- **Context for Next Session:** **§2.1** shipped picker items stay checked; **ghost/overlap** + **busy exclusive** proactive hints live under **planlog** [Event resource picker — MVP if time permits](./planlog.md#event-resource-picker--mvp-if-time-permits) for fork MVP when time allows. **Next:** **§2.3** `get_resources_dynamic` follow-on, **§3** messaging, or picker UX from planlog. **Key files:** `docs/planlog.md`, `docs/sessionlog.md` §2.1/Next, `docs/reference/event-resource-conflicts.md`.
+- **Completed:**
+  - **`planlog.md`:** New **### Event resource picker — MVP if time permits** (two checkboxes); MVP table row **2. Resources** links it; Phase **21** points there (removed duplicate busy-only bullet).
+  - **`sessionlog.md`:** §2.1 ghost checkbox removed; MVP-if-time pointer + **Next (Resources MVP)** updated.
+  - **`event-resource-conflicts.md`:** Deferred note covers both hints + planlog anchor.
+
+### 2026-03-23 16:49 CT — §2.4 + §2.6: time-attribution doc, Resources sidebar tooltip, copy
+
+- **Context for Next Session:** Resources **§2.4** / **§2.6** checklist items closed with **docs + UX**. **Next:** **§2.1** ghost picker, **§2.3** RPC follow-on, or **§3** messaging. **Key files:** `docs/reference/resource-time-attribution.md`, `sidebar-config.ts`, `Sidebar.tsx`, `events/resources/page.tsx`, `sessionlog.md` §2.
+- **Completed:**
+  - **`resource-time-attribution.md`:** Events (expanded occurrences, equal split, rounding) + tasks (logs in range ÷ current assignments); deferred snapshot / persisted usage.
+  - **Sidebar:** **`SubNavItem.description`**; **Activities → Resources** tooltip; effective links use `title={description}`.
+  - **Resource manager page:** Intro copy (registry, pickers, bundles, Analytics, Activities location).
+  - **Docs:** `sessionlog.md` §2.4/2.6, `planlog.md`, `mvt.md`.
+
+### 2026-03-23 16:39 CT — Docs: event resource conflicts reference; defer picker busy state
+
+- **Context for Next Session:** **§2.5** conflict behavior is documented in **`docs/reference/event-resource-conflicts.md`**. **Picker busy/dim** for exclusives → **planlog** Phase 21 follow-on (removed from **sessionlog** §2.5). **Next:** **§2.4** / **§2.6** / **§3** per sessionlog.
+- **Completed:**
+  - **`event-resource-conflicts.md`:** When checks run, dialog vs **409** payload, exclusive vs non-exclusive, recurrence, related files; deferred picker note.
+  - **`sessionlog.md`:** §2.5 enriched + link to reference; optional picker bullet removed; **Next** + Reference table + quick refs.
+  - **`planlog.md`:** New **Follow-on — event resource picker busy state**; UI picker bullet disambiguated (§2.1 ghost vs busy exclusive).
+
+### 2026-03-23 16:28 CT — §2.5 exclusive resource overlap / conflict check (events)
+
+- **Context for Next Session:** **§2.5** save-time + API enforcement for **exclusive** **`resources`** is done. **Next:** **§2.4** attribution notes, **§2.6** sidebar copy, or **§3** messaging backlog. **Key files:** `events.ts` (`getResourceConflicts`), `check-conflicts/route.ts`, `EventFormClient.tsx`, `api/events/[id]/resources/route.ts`. **Docs:** see **2026-03-23 16:39 CT** — [event-resource-conflicts.md](./reference/event-resource-conflicts.md).
+- **Completed:**
+  - **`getResourceConflicts`:** Overlap with expanded calendar events; **`is_exclusive !== false`** only; uses **`getEventsResourceAssignments`** + **`getResourcesAdmin`**.
+  - **`POST /api/events/check-conflicts`:** Optional **`resource_ids`**; response **`resource_conflicts`** (parallel to participant **`conflicts`**).
+  - **`EventFormClient`:** Runs check when there are resource assignments and/or participants; **Scheduling conflict** dialog lists both.
+  - **`PUT` / `POST` `/api/events/[id]/resources`:** **409** + **`resource_conflicts`** body on exclusive double-book.
+  - **Docs:** `sessionlog.md` §2.5, `planlog.md` Phase 21 API bullet.
+
+### 2026-03-23 16:14 CT — §2.2 bundle rollup list (events + tasks)
+
+- **Context for Next Session:** **§2.2** rolled-up **Assigned** UI is in place. **Next:** **§2.5** availability + conflict check on save (and optional picker ghost), or **§2.4** attribution documentation. **Key files:** `ResourceAssignmentsRollupList.tsx`, `EventParticipantsResourcesTab.tsx`, `TaskResourcesSection.tsx`, `task-resources-api.ts` (draft `source_bundle_id`).
+- **Completed:**
+  - **`ResourceAssignmentsRollupList`:** One collapsible group per **`bundle_instance_id`**; **Remove bundle** / per-resource remove; singles as flat rows; **`variant="compact"`** for task tile.
+  - **Draft field `source_bundle_id`:** Set when applying a bundle from picker (client-only label → bundle definition name); PUT routes unchanged (strip extra keys).
+  - **Events:** **Assigned** panel under resource picker on participants/resources tab.
+  - **Tasks:** Bento + **Modify resources** modal use the same rollup + grouped picker.
+  - **Docs:** `sessionlog.md` §2.2, `planlog.md`, `mvt.md`.
+
+### 2026-03-23 16:03 CT — §2.1 resource picker: Customizer type labels (shared helper)
+
+- **Context for Next Session:** **§2.1** core items done (groups, composite ids, Customizer labels). **Optional:** §2.1 ghost/unavailable in event picker when start/end known (**§2.5**). **Next:** **§2.2** — rolled-up **`bundle_instance_id`** rows (collapse/expand), parity event vs task. **Key files:** `resource-picker-groups.ts`, `EventParticipantsResourcesTab.tsx`, `TaskResourcesSection.tsx`, `EventsFilterBar.tsx`.
+- **Completed:**
+  - **`src/lib/events/resource-picker-groups.ts`:** `buildResourceAutoSuggestGroups`, `parseCalendarResourceTypesPayload`, `resourceTypeLabelMap` — picker option labels use **Customizer** `resource_type` **label**, search matches slug + label.
+  - **Event / task resource pickers** + **events filter** modal: parallel fetch **`GET /api/settings/calendar/resource-types`**.
+  - **Docs:** `sessionlog.md` §2.1 (checked), §2.7 copy; **`mvt.md`** Events lib path.
+
+### 2026-03-23 15:54 CT — §2.3 picker eligibility verified; next = §2.1 grouped picker
+
+- **Context for Next Session:** **§2.3** (183 + archive/retired + `?context=calendar|task`) is **done and manually verified** (archived row hidden in pickers). **Next Resources MVP slice:** **§2.1** — grouped **Bundles** / **Resources** picker (`AutoSuggestMulti` groups), **`bundle:<id>`** / **`resource:<id>`** composite IDs; then **§2.2** bundle apply + rolled-up **`bundle_instance_id`** UX. **Key files:** `EventParticipantsResourcesTab.tsx`, `TaskResourcesSection.tsx`, `DirectoryParticipantPicker.tsx` (pattern), `participants-resources.ts`.
+- **Completed:**
+  - **Manual QA:** Archive on **`resources`** → row no longer appears in event/task resource pickers (expected **`archived_at`** filter via picker APIs).
+  - **Docs:** `sessionlog.md` §2.3 QA bullet + **Next** pointer to §2.1 / §2.2.
+
+### 2026-03-23 12:15 CT — Resource manager Analytics tab + dynamic usage API
+
+- **Context for Next Session:** Tune copy/UX on **Analytics** (date semantics UTC vs local if needed); add charts or CSV export if desired; **picker** work for events/tasks remains. **Key files:** `resource-usage-analytics.ts`, `/api/events/resources/usage`, `ResourceUsageAnalyticsTab.tsx`.
+- **Completed:**
+  - **`computeResourceUsageAnalytics`:** Events via **`getEvents`** (recurrence expanded) × duration ÷ **`event_resources`** count; tasks via **`task_time_logs`** (`log_date` in range) ÷ **`task_resources`** count; merge + sort + methodology string.
+  - **`GET /api/events/resources/usage`:** Query `from`, `to` (YYYY-MM-DD), optional `resource_type`, `resource_id`, `limit` (admin).
+  - **`ResourceUsageAnalyticsTab`:** Filters + **Run report** + table (events / tasks / total minutes); warning if task logs unavailable.
+  - **`ResourceManagerClient`:** Third tab **Analytics**.
+  - **Docs:** `mvt.md`, `planlog.md`, `sessionlog.md` §2.4 usage bullet.
+
+### 2026-03-23 11:57 CT — Resource manager: registry + bundles UI, getResourcesAdmin, bundle APIs
+
+- **Context for Next Session:** **Grouped picker** on events/tasks (Bundles then Resources) + optional **`bundle_instance_id`** on assign; filter registry by **183** flags in picker API if needed. **Key files:** `ResourceManagerClient`, `ResourcesRegistryTab`, `BundlesTab`, `participants-resources.ts` (bundles + `getResourcesAdmin`), `/api/events/bundles/**`.
+- **Completed:**
+  - **`getResourcesAdmin`:** Reads **`resources`** with **183** columns for admin/API list; **`GET /api/events/resources`** returns full rows; **`GET/PUT …/resources/[id]`** use same.
+  - **Registry UI:** Table columns **Calendar / Tasks / Status / Archived**; create/edit dialog for **scheduling flags**, **asset status**, **archived** (edit).
+  - **Bundle REST:** `GET/POST /api/events/bundles`, `GET/PUT/DELETE /api/events/bundles/[id]`, `POST/DELETE …/items` — lib: **`listResourceBundlesWithItems`**, **`createResourceBundle`**, **`updateResourceBundle`**, **`deleteResourceBundle`**, **`addResourceBundleItem`**, **`removeResourceBundleItem`**.
+  - **`ResourceManagerClient`:** Tabs **Resources** | **Bundles**; shared registry state for bundle member picker; **`ResourcesListClient`** re-exports from `resource-manager/`.
+  - **Docs:** planlog Phase 21 (bundle API + admin UI checked), sessionlog §2.6, mvt.
+
+### 2026-03-23 11:42 CT — Task resources REST + bento shell (no picker yet)
+
+- **Context for Next Session:** **Grouped Bundles + Resources picker** on task/event surfaces; **`POST`** may pass **`bundle_instance_id`** when applying a bundle; **bundle CRUD** REST for **`/admin/events/resources`** if desired before picker. **Key files:** `src/app/api/tasks/[id]/resources/route.ts`, `TaskResourcesSection.tsx`, `task-resources-api.ts`, `participants-resources.ts`, [sessionlog §2](./sessionlog.md).
+- **Completed:**
+  - **`GET/POST/DELETE /api/tasks/[id]/resources`** — admin gate (same pattern as **`/api/tasks/[id]/followers`**); GET returns assignments enriched with resource **name** / **type**; POST **`resource_id`** + optional **`bundle_instance_id`**; DELETE by **`resource_id`** or **`bundle_instance_id`**.
+  - **`src/lib/tasks/task-resources-api.ts`** — client fetch helpers + **`TaskResourceAssignmentDto`** (shared type for API route import).
+  - **`TaskResourcesSection`** — task detail (**read-only** remove) + edit (**remove** / **remove bundle**); placeholder copy for picker; link to edit from detail.
+  - **Docs:** **`docs/planlog.md`** Phase 21 (API task_resources + UI bento structure checked); **`docs/sessionlog.md`** §2.7; **`docs/mvt.md`** sitemap + Events note.
+
+### 2026-03-23 11:30 CT — Resources schema 195: task_resources, resource_bundles, bundle_instance_id, RPCs + lib
+
+- **Context for Next Session:** Migration **195** **applied on tenant** (SQL Editor — no errors). **Next:** `GET/POST/DELETE` **REST** APIs for **`task_resources`**; wire **Resources** bento to assign/list; grouped picker (Bundles + Resources); optional extend **`get_resources_dynamic`** for calendar/task flag filters. **Key files:** `195_task_resources_resource_bundles.sql`, `src/lib/supabase/participants-resources.ts`, `docs/planlog.md` Phase 21, `docs/sessionlog.md` §2.
+- **Completed:**
+  - **Migration `195_task_resources_resource_bundles.sql`:** **`task_resources`** (`task_id`, `resource_id`, optional **`bundle_instance_id`**, RLS + grants); **`resource_bundles`** + **`resource_bundle_items`**; **`event_resources.bundle_instance_id`** (nullable); indexes + comments.
+  - **Tenant apply:** Script run in **Supabase SQL Editor** without errors (confirm RPCs in Studio if needed).
+  - **RPCs (public):** **`get_event_resources_dynamic`** / **`get_events_resources_bulk`** now return **`bundle_instance_id`**; new **`get_task_resources_dynamic`**, **`get_resource_bundles_dynamic`**, **`get_resource_bundle_items_dynamic`**; `NOTIFY pgrst, 'reload schema'`.
+  - **`src/lib/supabase/participants-resources.ts`:** **`getEventResourceRows`**, **`getTaskResourceRows`** / **`getTaskResourceIds`**, **`getResourceBundles`**, **`getResourceBundleItems`**; **`assignResourceToEvent`** optional **`bundleInstanceId`**; **`assignResourceToTask`** / unassign + **`unassignBundleInstanceFromEvent|Task`**.
+  - **Docs:** **`docs/planlog.md`** Phase 21 — schema + read-path + tenant apply; **`docs/mvt.md`** Events tables/RPCs; **`docs/sessionlog.md`** §2.2 terminology + §2.7 (migration applied + lib; APIs/UI open).
+
+### 2026-03-23 11:33 CT — Docs: Phase 21 / sessionlog checkoffs after 195 applied
+
+- **Context for Next Session:** Same as **11:30** entry above (REST APIs for task resources → bento).
+- **Completed:** **`docs/sessionlog.md`** §2.2 **Terminology** checked; §2.7 notes tenant apply; **`docs/planlog.md`** Phase 21 — **Read path — 195** checked; bundle/task schema bullets note **Applied on tenant.**
+
 ### 2026-03-21 22:06 CT — Task detail & edit: bento UI, time tracking, assignees (Directory), schedule hint, mark complete
 
 - **Context for Next Session:** Task **detail** and **edit** share the bento layout (hero, Phase & Type, Schedule, Assignees, Resources placeholder, time logs, thread). **Next priority for task UI:** ship an **MVP `task_resources` / resources integration** so the **Resources** bento tile is real (list + assign from registry)—see [planlog.md](./planlog.md) **Phase 21** (Tasks follow-on + new MVP bullet). Reserved status slugs for mark-complete: `in_progress` / `completed` in Customizer. **Key files:** `src/app/admin/projects/[id]/tasks/[taskId]/page.tsx`, `.../edit/TaskEditClient.tsx`, `src/components/crm/TaskTimeLogsSection.tsx`, `TaskFollowersSection.tsx`, `TaskAssigneesReadOnlyCard.tsx`, `ScheduleDueSubStatus.tsx`, `TaskBentoPanelTitle.tsx`, `src/lib/tasks/task-status-reserved.ts`, `src/lib/tasks/display-helpers.ts`, `src/app/globals.css` (`.task-bento-chip`, `.task-bento-primary-btn`).

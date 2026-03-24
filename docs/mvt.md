@@ -1,12 +1,102 @@
 # MVT — Module Version Tracker
 
-**Purpose:** (1) At-a-glance module versions and status for this fork. (2) High-level folder structure and code sitemap so you can quickly locate code (e.g. for hand tweaks). (3) Per-module boundaries, data/schema (tables, migrations, RPCs), and prerequisites — so when you drop-and-replace a module you know what code to replace and what to run or depend on.
+**Purpose:**
 
-**Travels with:** This file lives in the repo; every fork has its own copy. Update when you add, rename, or significantly change a module.
+1. **Versions & status** — At-a-glance module versions for this fork.
+2. **Code sitemap** — Where code lives so you can find or hand-tweak it quickly.
+3. **Module boundaries** — Data/schema (tables, migrations, RPCs) and prerequisites when drop-and-replacing a module.
+4. **Fork deployment & donor integration** — How this repo lines up with **CMS backend** (Supabase, env, admin) vs **client public design** ported from **donor reference** (`docs/donor-code/`). Use this to run **CMS-first** launches while design is finalized separately, then port UI into `src/app/(public)/` incrementally.
+
+**Travels with:** This file lives in the repo; **every fork has its own copy**. Update when modules change **and** when deployment / porting / migration state changes. The **template** repo may keep placeholder rows; **client forks** fill in site-specific fields.
 
 **Dashboard version (parsed for admin dashboard):**
-**Last updated:** 2026-03-12
+**Last updated:** 2026-03-24
 **App Version:** 1.0 Stable
+
+---
+
+## Fork deployment & donor integration
+
+**Why:** `website-cms` is the **full base app** (public + admin + API). Public marketing pages are often built in **V0 / external Next** first — keep that output as **donor reference** under `docs/donor-code/` (not routed until ported). This section tracks **backend readiness**, **donor location**, and **porting progress** so operators and AI agents share one checklist.
+
+**Recommended workflow**
+
+| Phase | What |
+|--------|------|
+| **A — CMS trunk** | Deploy this app; configure env, tenant schema, run migrations (SQL Editor order); verify `/admin` and core backend. |
+| **B — Design parallel** | Client / V0 site stays in **donor** tree or external repo; no requirement to merge until ready. |
+| **C — Port** | Copy donor pages/components into `src/app/(public)/` and `src/components/public/` **route-by-route**; merge **one** root `layout` + **one** `middleware` with CMS; run `pnpm run build` after each slice. |
+| **D — Media** | Move static `/public` assets into **Media Library**; update components to CMS URLs / shortcodes as documented below. |
+
+**Do not** expect donor folders to run inside Next automatically — they are **reference** until code lives under `src/`.
+
+### Site / deployment record
+
+*Template repo:* use placeholders or “N/A — template”. **Client forks:** replace with real values. **No secrets** (no service role, DB password, JWT secret).
+
+| Field | Value / notes |
+|--------|----------------|
+| Client / site label | |
+| Primary domain | |
+| Vercel project (name or link) | |
+| Supabase project ref | Dashboard → Project Settings → Reference ID only |
+| Tenant schema (`NEXT_PUBLIC_CLIENT_SCHEMA`) | |
+| **Migrations applied through** | e.g. `194_...sql` (match SQL Editor run order) |
+| Admin smoke (login → dashboard) | ☐ |
+| **Donor design path** | e.g. `docs/donor-code/...` |
+| Donor scope | home only / full site / key pages / components only |
+| Media strategy | static `/public` / in progress / **media library** |
+| Notes | |
+
+**Detailed env + provisioning:** [tenant-site-setup-checklist.md](./tenant-site-setup-checklist.md)
+
+### Public porting checklist (donor → live `src/`)
+
+Check off as each slice is merged and builds green.
+
+- [ ] Single **root** `layout` + **`middleware`** aligned with CMS (no duplicate app roots from donor).
+- [ ] **Tailwind / globals** — one design token source; resolve donor vs CMS `globals.css` conflicts.
+- [ ] **Homepage** `/`
+- [ ] **Marketing / static routes** (list routes here as you port: e.g. `/about`, `/services`)
+- [ ] **Dynamic / CMS routes** — `[slug]`, blog, forms, gallery, events (as needed)
+- [ ] **Header / footer / nav** — wired to CMS or site metadata where applicable
+- [ ] **Images** — critical paths moved to Media Library (or documented exceptions)
+
+### Shared-critical paths (public + admin blast radius)
+
+Any change here needs **extra review** and **public smoke** before production merge. See [sessionlog.md](./sessionlog.md) §5.
+
+| Path | Why |
+|------|-----|
+| `middleware.ts` | Runs before most requests |
+| `src/app/layout.tsx` (root) | Whole app shell |
+| `src/app/(public)/layout.tsx` | Public shell |
+| `src/lib/supabase/client.ts` and SSR/auth session helpers | All server data access |
+| `src/lib/site-mode.ts` | Coming soon / standby / gating |
+| `src/app/globals.css`, `tailwind.config.*` | Global styles |
+
+---
+
+## Module surface tier (public vs admin)
+
+Use this with the **At a glance** table. **Tier** = who a regression hurts first; some modules touch both surfaces.
+
+| Module | Tier | Notes |
+|--------|------|--------|
+| **Public** | Public-critical | `src/app/(public)/`, `components/public/` — visitors |
+| **Content** | Mixed | Public render + admin editor |
+| **Media** | Shared-critical | Storage URLs on public pages + admin library |
+| **Galleries** | Mixed | Public gallery pages + admin |
+| **Events** | Mixed | Public calendar + admin |
+| **Forms** | Mixed | Public submit + admin builder |
+| **Shop / Ecommerce** | Mixed | Public cart/checkout + admin products/orders |
+| **Members** | Mixed | `/members/*` GPUM + admin membership |
+| **CRM** | Admin-only* | *GPUM-facing surfaces use APIs; primary UI is admin |
+| **Projects / Tasks** | Admin-only | Admin PM; member GPUM scope per planlog |
+| **Settings / Customizer** | Admin-only | Tenant configuration |
+| **Superadmin** | Admin-only | Cross-tenant |
+| **Auth / MFA** | Shared-critical | Login flows + admin session |
+| **RAG Knowledge Export** | Admin-only | Admin dashboard + API; optional training flag on content |
 
 ---
 
@@ -24,6 +114,7 @@
 | Auth / MFA  | 1.0     | Stable   |
 | Superadmin  | 1.0     | Stable   |
 | Public      | 1.0     | Stable   |
+| Projects / Tasks | 1.0 | Stable   |
 | RAG Knowledge Export | 1.0 | Stable   |
 
 ---
@@ -55,7 +146,7 @@ src/
 │   │   ├── forms/             # Form list, [id], submissions
 │   │   ├── galleries/         # List, [id], new
 │   │   ├── media/
-│   │   ├── projects/          # projects list/detail, All tasks, task new/detail/edit (edit mirrors detail bento layout + time log + thread); task_number TASK-YYYY-NNNNN (193+194: NNNNN resets Jan 1 UTC)
+│   │   ├── projects/          # projects list (`ProjectsListClient` + `ProjectListTable` — toolbar aligned with All Tasks; column widths/order; progress segments), **detail** (`[id]/ProjectDetailClient.tsx` — donor-style overview: stats, utilization, task progress, team; breadcrumb Activities/Projects; **Tabs** Tasks · Events · Transactions · Attachments placeholder; Share/More disabled), **All tasks** (`tasks/AllTasksListClient.tsx` — §1.1 Custom filters modal; §1.2 sort + Project group headers; §1.3 presets + **197/198** RPC; SSR matches **All Active**; master reset → recap), task new/detail/edit (bento: Resources → TaskResourcesSection); task_number TASK-YYYY-NNNNN (193+194)
 │   │   ├── settings/          # general, style, colors, fonts, content-types, content-fields, taxonomy, crm, customizer (tabs: CRM, Events, Tasks, Projects, Resources, Content), events/EventsSettingsClient, security, profile, users
 │   │   ├── super/             # Tenant sites, tenant users, roles, code-library, integrations
 │   │   ├── support/
@@ -66,7 +157,7 @@ src/
 │       ├── auth/
 │       ├── rag/               # knowledge (GET ?part=N) — RAG Knowledge Export
 │       ├── crm/               # contacts, custom-fields, forms, lists, mags, memberships, export, bulk-*, taxonomy/bulk
-│       ├── events/             # route, [id], participants, resources, public, ics, check-conflicts
+│       ├── events/             # route, [id], participants, resources (+ **usage** analytics), **bundles** (+ [id], [id]/items), public, ics, check-conflicts
 │       ├── forms/[formId]/submit/
 │       ├── ecommerce/         # products ([id]/sync-stripe, [id]/link-stripe), orders, orders/[id], orders/metrics, subscriptions, stripe-drift, stripe-drift/import, stripe-drift/bulk-import, stripe-drift/update, stripe-sync-customers, stripe-sync-orders, woo-sync, woo-sync/csv, import-orders, export/orders, export/formats
 │       ├── galleries/         # route, [id], items, mags, public, styles
@@ -75,6 +166,7 @@ src/
 │       ├── shop/              # cart, cart/count, cart/items, products, products/[slug], checkout, checkout/validate-code, order-lookup, download
 │       ├── posts/
 │       ├── settings/           # team, site-mode, snippets, crm (contact-statuses, note-types), calendar, site-metadata
+│       ├── tasks/              # **GET /** admin bundle (`get_tasks_dynamic` — **197** archived projects; **198** `exclude_status_slugs` + `due_before` for All Tasks presets), [id] (GET/PUT/DELETE), [id]/followers, [id]/time-logs, [id]/notes, **[id]/resources** (GET/POST/DELETE — task_resources)
 │       └── webhooks/          # stripe (checkout, subscription, invoice)
 ├── components/
 │   ├── admin/                 # AdminLayoutWrapper, FeatureGuard
@@ -85,14 +177,14 @@ src/
 │   ├── dashboard/             # Sidebar, StatsCard
 │   ├── design-system/         # DesignSystemProvider
 │   ├── editor/                 # RichTextEditor, RichTextDisplay, GalleryPickerModal, ContentWithGalleries
-│   ├── events/                 # EventsCalendar, EventFormClient, EventsFilterBar, EventParticipantsResourcesTab, ResourcesListClient
+│   ├── events/                 # EventsCalendar, EventFormClient, EventsFilterBar, EventParticipantsResourcesTab, resource-manager (ResourceManagerClient, ResourceUsageAnalyticsTab, …)
 │   ├── forms/                  # FormEditor, FormSubmissionsTable
 │   ├── galleries/              # GalleryEditor, GalleryMediaPicker, DisplayStyleModal
 │   ├── media/                  # MediaLibrary, ImageList, ImageUpload, ImagePreviewModal, MediaFilterBar, TaxonomyMultiSelect, etc.
 │   ├── public/                 # GalleryEmbed, GalleryGrid, GalleryRenderer, GalleryPreviewModal, PublicHeaderAuth, PublicContentRenderer, ComingSoonSnippetView, blocks/, sections/
 │   ├── settings/               # ColorsSettings, PaletteLibrary, FontsSettings, DesignSystemSettings, TaxonomySettings, ContentTypesBoard, ContentFieldsBoard, ProfileSettingsContent, SettingsUsersContent, etc.
 │   ├── superadmin/             # IntegrationsManager, RolesManager, TenantFeaturesManager, TenantSiteModeCard, ViewAsCard, EditTenantAssignmentModal, RelatedTenantUsersClient
-│   ├── tasks/                  # TaskBentoPanelTitle (shared task detail/edit bento headers); TaskTermSelectItems
+│   ├── tasks/                  # TaskBentoPanelTitle, TaskResourcesSection (picker: calendar-schedulable OR task-schedulable; modal UX), TaskTermSelectItems
 │   ├── taxonomy/               # TaxonomyAssignment, TaxonomyAssignmentForContent, TermBadge (rounded-md chip, truncates in tables)
 │   ├── site/                   # Experiments (README)
 │   └── ui/                     # shadcn primitives (button, card, dialog, input, select, etc.)
@@ -105,7 +197,8 @@ src/
 │   ├── media/                  # image-optimizer, storage
 │   ├── shop/                   # cart, cart-cookie, orders, order-address, order-download-links, order-email, coupon, payment-to-mag, viewer (products), stripe-drift, stripe-customers-sync, stripe-orders-sync, woo-commerce-sync, import-orders-csv, export-orders, subscriptions, subscription-email, download-token
 │   ├── shortcodes/             # gallery.ts
-│   ├── tasks/                  # customizer-task-terms (task status/type/phase from Customizer only); merge-task-customizer-colors (projects etc.)
+│   ├── tasks/                  # customizer-task-terms, merge-task-customizer-colors, **task-resources-api** (client fetch helpers for /api/tasks/[id]/resources)
+│   ├── resources/              # **resource-usage-analytics** (dynamic event + task usage estimates for admin)
 │   ├── supabase/               # client, content, crm, crm-taxonomy, events, galleries, galleries-server, media, settings, color-palettes, taxonomy, code-snippets, tenant-sites, tenant-users, feature-registry, profiles, members, licenses, migrations, schema, users, integrations, projects
 │   ├── design-system.ts
 │   ├── site-mode.ts
@@ -247,18 +340,20 @@ When you drop a new version of a module, replace the listed code paths and run t
   src/app/(public)/events/      # Public calendar, PublicCalendarPageClient
   src/app/api/events/            # route, [id], participants, resources, public, ics, check-conflicts, assignments
   src/app/api/directory/         # GET — unified CRM + team picker (Phase 18C)
-  src/components/events/        # EventsCalendar, AgendaWithDescription, EventFormClient, EventsFilterBar, EventParticipantsResourcesTab, ResourcesListClient
+  src/components/events/        # EventsCalendar, AgendaWithDescription, EventFormClient, EventsFilterBar, EventParticipantsResourcesTab, ResourceAssignmentsRollupList, resource-manager (ResourceManagerClient, ResourcesRegistryTab, BundlesTab)
   src/lib/supabase/events.ts
   src/lib/supabase/directory.ts  # searchDirectoryEntries → get_directory_search_dynamic
   src/lib/supabase/participants-resources.ts
+  src/lib/events/resource-picker-groups.ts   # Bundles/Resources AutoSuggest groups + Customizer type labels
   src/lib/recurrence.ts
   src/lib/recurrenceForm.ts
   ```
 - **Data / schema:**
-  - **Tables (client schema):** events, event_exceptions, event_participants, event_resources, participants, resources (or equivalent).
-  - **Migrations:** 095–101 (events tables, RPCs, cover_image, link_url, participants/resources RPCs, resource_types).
-  - **RPCs (public):** get_events_dynamic, get_resources_dynamic, get_participants_dynamic, get_event_participants_dynamic, get_event_resources_dynamic, get_events_participants_bulk, get_events_resources_bulk (see 100); **get_directory_search_dynamic** (migrations **188** + **189** — Directory picker; team-first sort).
+  - **Tables (client schema):** events, event_exceptions, event_participants, event_resources (incl. **`bundle_instance_id`** after **195**), task_resources, resource_bundles, resource_bundle_items, participants, resources (or equivalent).
+  - **Migrations:** 095–101 (events tables, RPCs, cover_image, link_url, participants/resources RPCs, resource_types); **183** (resource schedulability + asset fields); **195** (`task_resources`, bundles, `bundle_instance_id` on event/task assignments, RPC updates — run in SQL Editor); **196** (`get_resources_dynamic` + optional **`picker_context`** aligned with **`?context=calendar|task`** — run in SQL Editor).
+  - **RPCs (public):** get_events_dynamic, **get_resources_dynamic(schema_name, picker_context)** (NULL = registry; calendar \| task = picker filter — **196**), get_participants_dynamic, get_event_participants_dynamic, **get_event_resources_dynamic** / **get_events_resources_bulk** (return **`bundle_instance_id`** after **195**), get_events_participants_bulk; **get_task_resources_dynamic**, **get_resource_bundles_dynamic**, **get_resource_bundle_items_dynamic** (**195**); **get_directory_search_dynamic** (**188** + **189**).
 - **API behavior:** `POST /api/events` assigns the authenticated creator to the new event as a `team_member` participant (`ensureParticipant` + `assignParticipantToEvent` in `route.ts`); assignment failure does not fail the create.
+- **Resources (MVP plan):** Registry + `event_resources`; **`task_resources`** + **`GET/POST/PUT/DELETE /api/tasks/[id]/resources`** (enriched list; **PUT** replaces assignments on task save); admin hub **`/admin/events/resources`** (tabs: Resources, Bundles, **Analytics**); **`GET /api/events/resources`** / **`GET /api/events/bundles`** — optional **`?context=calendar|task`** for picker rows (**183** + archive/retired); **`POST /api/events/check-conflicts`** — optional **`resource_ids`**; **`getResourceConflicts`** (**exclusive** `resources` vs overlapping events); **`GET /api/events/resources/usage`** + **`resource-usage-analytics.ts`** — see [resource-time-attribution.md](./reference/resource-time-attribution.md); **Activities → Resources** sidebar tooltip (`sidebar-config` **`description`**). Picker UX — [sessionlog.md](./sessionlog.md) § **2**. **Calendar hover:** admin + public — native **`title`** on events (month/week/day/agenda); admin includes **Resources:** line via **`GET /api/events/assignments`** **`resourceNamesByEvent`** + `calendar-event-hover.ts`.
 - **Prerequisites:** Auth; Settings (calendar resource types in customizer); CRM (for participant type crm_contact).
 
 ---
@@ -366,3 +461,5 @@ When you drop a new version of a module, replace the listed code paths and run t
 
 - **Paths:** `src/components/ui/` (shadcn), `src/components/admin/` (AdminLayoutWrapper, FeatureGuard), `src/components/dashboard/` (Sidebar), `middleware.ts`, `src/lib/api/`, `src/types/`. Keep shared code minimal and stable.
 - When updating a module, avoid changing shared code unless the change is required for that module; prefer module-local changes.
+- **Donor code:** `docs/donor-code/` — reference snapshots for AI / human porting; not part of the runtime app until merged into `src/`. See **Fork deployment & donor integration** above.
+- **Pre-fork / MVP alignment:** [sessionlog.md](./sessionlog.md) §5 — keep this MVT section accurate as the template approaches fork-ready MVP.

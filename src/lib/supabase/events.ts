@@ -6,7 +6,11 @@
 import { createServerSupabaseClient } from "./client";
 import { getClientSchema } from "./schema";
 import { expandRecurringEvents, getOccurrencesInRange, eventIdForEdit } from "@/lib/recurrence";
-import { getEventsParticipantAssignments } from "./participants-resources";
+import {
+  getEventsParticipantAssignments,
+  getEventsResourceAssignments,
+  getResourcesAdmin,
+} from "./participants-resources";
 
 const EVENTS_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -431,6 +435,89 @@ export async function getParticipantConflicts(
         title: ev.title,
         start_date: ev.start_date,
         end_date: ev.end_date,
+      });
+    }
+  }
+  return conflicts;
+}
+
+/**
+ * Conflict check for **exclusive** resources: other events (or recurring occurrences) overlapping
+ * [startDate, endDate] that already assign any of the given resource ids. Non-exclusive resources
+ * (`is_exclusive === false`) are ignored. Unknown resource ids are treated as exclusive (safe default).
+ */
+export interface ResourceConflict {
+  eventId: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  resource_id: string;
+  resource_name: string;
+}
+
+export async function getResourceConflicts(
+  startDate: Date,
+  endDate: Date,
+  resourceIds: string[],
+  excludeEventId?: string | null,
+  schema?: string
+): Promise<ResourceConflict[]> {
+  const uniqueIds = [...new Set(resourceIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+
+  const schemaName = schema ?? EVENTS_SCHEMA;
+  const adminResources = await getResourcesAdmin(schemaName);
+  const adminById = new Map(adminResources.map((r) => [r.id, r]));
+
+  const exclusiveRequested = new Set<string>();
+  const idToName = new Map<string, string>();
+  for (const id of uniqueIds) {
+    const meta = adminById.get(id);
+    idToName.set(id, meta?.name?.trim() || "Resource");
+    if (!meta) {
+      exclusiveRequested.add(id);
+      continue;
+    }
+    if (meta.is_exclusive !== false) {
+      exclusiveRequested.add(id);
+    }
+  }
+
+  if (exclusiveRequested.size === 0) return [];
+
+  const events = await getEvents(startDate, endDate, schemaName);
+  const realIds = [...new Set(events.map((e) => eventIdForEdit(e.id)))].filter(
+    (id) => id !== excludeEventId
+  );
+  if (realIds.length === 0) return [];
+
+  const resourceMap = await getEventsResourceAssignments(realIds, schemaName);
+  const conflicts: ResourceConflict[] = [];
+  const startMs = startDate.getTime();
+  const endMs = endDate.getTime();
+  const seen = new Set<string>();
+
+  for (const ev of events) {
+    const realId = eventIdForEdit(ev.id);
+    if (realId === excludeEventId) continue;
+    const assigned = resourceMap.get(realId);
+    if (!assigned || assigned.size === 0) continue;
+    const evStart = new Date(ev.start_date).getTime();
+    const evEnd = new Date(ev.end_date).getTime();
+    if (evStart >= endMs || evEnd <= startMs) continue;
+
+    for (const rid of exclusiveRequested) {
+      if (!assigned.has(rid)) continue;
+      const key = `${realId}:${rid}:${ev.start_date}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      conflicts.push({
+        eventId: realId,
+        title: ev.title,
+        start_date: ev.start_date,
+        end_date: ev.end_date,
+        resource_id: rid,
+        resource_name: idToName.get(rid) ?? "Resource",
       });
     }
   }

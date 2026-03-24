@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
-import { getResources, updateResource, deleteResource } from "@/lib/supabase/participants-resources";
+import { getResourcesAdmin, updateResource, deleteResource } from "@/lib/supabase/participants-resources";
 import type { ResourceUpdate } from "@/lib/supabase/participants-resources";
 import { getCalendarResourceTypes } from "@/lib/supabase/settings";
 import { withRateLimit } from "@/lib/api/middleware";
@@ -27,7 +27,7 @@ async function getHandler(
   if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Resource ID required" }, { status: 400 });
-  const resources = await getResources();
+  const resources = await getResourcesAdmin();
   const resource = resources.find((r) => r.id === id);
   if (!resource) return NextResponse.json({ error: "Resource not found" }, { status: 404 });
   return NextResponse.json({ data: resource });
@@ -55,6 +55,21 @@ async function putHandler(
   }
   if (body?.metadata !== undefined) input.metadata = body.metadata;
   if (typeof body?.is_exclusive === "boolean") input.is_exclusive = body.is_exclusive;
+  if (typeof body?.is_schedulable_calendar === "boolean") {
+    input.is_schedulable_calendar = body.is_schedulable_calendar;
+  }
+  if (typeof body?.is_schedulable_tasks === "boolean") {
+    input.is_schedulable_tasks = body.is_schedulable_tasks;
+  }
+  if (typeof body?.asset_status === "string") {
+    const s = body.asset_status.trim();
+    if (["active", "maintenance", "retired"].includes(s)) input.asset_status = s;
+  }
+  if (body?.archived_at === null) {
+    input.archived_at = null;
+  } else if (typeof body?.archived_at === "string" && body.archived_at.trim()) {
+    input.archived_at = body.archived_at.trim();
+  }
   const result = await updateResource(id, input);
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 500 });
   return NextResponse.json({ data: { ok: true } });

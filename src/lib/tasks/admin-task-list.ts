@@ -11,9 +11,13 @@ import {
   type Task,
   type Project,
 } from "@/lib/supabase/projects";
+import { getDisplayLabelForUser } from "@/lib/blog-comments/author-name";
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
+import { getTenantUsersByAuthUserIds } from "@/lib/supabase/tenant-users";
 import { getClientSchema } from "@/lib/supabase/schema";
+import type { Profile } from "@/types/profiles";
+import type { TenantUser } from "@/types/tenant-users";
 
 export interface TaskAssigneeListItem {
   id: string;
@@ -33,6 +37,51 @@ const EXCLUDED_PROJECT_STATUS_SLUGS = new Set(["completed", "closed"]);
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v && v.trim()))));
+}
+
+/**
+ * Same priority as `getDisplayLabelForUser`, but batched (profiles + tenant_users).
+ * Remaining ids fall back to per-user resolution (Auth metadata / email).
+ */
+/** Display names for task assignee chips / filters; matches task detail (`getDisplayLabelForUser`) priority. */
+export async function resolveAssigneeLabelsForUserIds(userIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (userIds.length === 0) return out;
+
+  const [profiles, tenantUsers] = await Promise.all([
+    getProfilesByUserIds(userIds),
+    getTenantUsersByAuthUserIds(userIds),
+  ]);
+  const profileByUserId = new Map(profiles.map((p) => [p.user_id, p]));
+  const tenantByAuthId = new Map<string, TenantUser>();
+  for (const tu of tenantUsers) {
+    if (tu.user_id) tenantByAuthId.set(tu.user_id, tu);
+  }
+
+  const needFallback: string[] = [];
+
+  for (const uid of userIds) {
+    const p: Profile | undefined = profileByUserId.get(uid);
+    const tu: TenantUser | undefined = tenantByAuthId.get(uid);
+    const handle = p?.handle?.trim();
+    const tuName = tu?.display_name?.trim();
+    const tuEmail = tu?.email?.trim();
+    const displayName = p?.display_name?.trim();
+    const label = handle || tuName || tuEmail || displayName || "";
+    if (label) out.set(uid, label);
+    else needFallback.push(uid);
+  }
+
+  if (needFallback.length > 0) {
+    await Promise.all(
+      needFallback.map(async (uid) => {
+        const resolved = (await getDisplayLabelForUser(uid)).trim();
+        out.set(uid, resolved || "User");
+      })
+    );
+  }
+
+  return out;
 }
 
 /** Projects eligible for default task list: not archived, status slug not completed/closed. */
@@ -75,9 +124,10 @@ export async function getAdminTasksListBundle(
 
   const userIds = uniqueStrings(followers.map((f) => f.user_id));
   const contactIds = uniqueStrings(followers.map((f) => f.contact_id));
-  const [profiles, contacts] = await Promise.all([
+  const [profiles, contacts, userLabelById] = await Promise.all([
     getProfilesByUserIds(userIds),
     contactIds.length > 0 ? getContactsByIds(contactIds) : Promise.resolve([]),
+    resolveAssigneeLabelsForUserIds(userIds),
   ]);
   const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
@@ -92,7 +142,7 @@ export async function getAdminTasksListBundle(
     };
     if (f.user_id) {
       const p = profileMap.get(f.user_id);
-      item.label = p?.display_name ?? p?.user_id ?? f.user_id.slice(0, 8);
+      item.label = userLabelById.get(f.user_id) ?? "User";
       item.avatarUrl = p?.avatar_url ?? null;
     } else if (f.contact_id) {
       const c = contactMap.get(f.contact_id);

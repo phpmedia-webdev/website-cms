@@ -107,6 +107,10 @@ export interface RBCEvent {
   displayColor?: string;
   /** Plain or HTML description (agenda column strips tags for display) */
   description?: string | null;
+  /** Full native tooltip (time, location, resources) — admin calendar */
+  hoverDetail?: string | null;
+  /** Same as hoverDetail when set; else title — for `tooltipAccessor` */
+  tooltip?: string;
 }
 
 /** Month: color chip + truncated title (one line). Agenda: chip + title (row tone = past/today/future in CSS). */
@@ -118,13 +122,12 @@ function CalendarEventContent(props: {
   const currentView = useContext(CalendarViewContext);
   const { event, title } = props;
   const color = event.displayColor ?? DEFAULT_EVENT_TYPE_COLOR;
+  /* Do not set `title` on inner nodes — browser uses the innermost titled element; short title would win over
+     `.rbc-event-content`'s full tooltip from `tooltipAccessor` (month/week/day + popup). Agenda uses `<tr title>`. */
 
   if (currentView === "month") {
     return (
-      <span
-        className="rbc-event-month-inner flex min-w-0 max-w-full items-center gap-1.5"
-        title={title}
-      >
+      <span className="rbc-event-month-inner flex min-w-0 max-w-full items-center gap-1.5">
         <span
           className="size-2 shrink-0 rounded-full border border-black/15 dark:border-white/20"
           style={{ backgroundColor: color }}
@@ -145,9 +148,7 @@ function CalendarEventContent(props: {
           style={{ backgroundColor: color }}
           aria-hidden
         />
-        <span className="min-w-0 shrink truncate text-left" title={title}>
-          {title}
-        </span>
+        <span className="min-w-0 shrink truncate text-left">{title}</span>
       </span>
     );
   }
@@ -166,8 +167,13 @@ function dayRangeHeaderFormat(
   return `${startStr} – ${endStr}`;
 }
 
-function toRBCEvent(ev: Event, colorMap: Record<string, string>): RBCEvent {
+function toRBCEvent(
+  ev: Event,
+  colorMap: Record<string, string>,
+  hoverDetail?: string | null
+): RBCEvent {
   const displayColor = resolveEventTypeColor(ev.event_type, colorMap);
+  const tip = hoverDetail?.trim() ? hoverDetail.trim() : undefined;
   return {
     start: new Date(ev.start_date),
     end: new Date(ev.end_date),
@@ -176,6 +182,9 @@ function toRBCEvent(ev: Event, colorMap: Record<string, string>): RBCEvent {
     eventTypeSlug: ev.event_type ?? undefined,
     displayColor,
     description: ev.description,
+    hoverDetail: tip,
+    /** RBC `tooltipAccessor` default reads `title`; we set `tooltipAccessor` to prefer `hoverDetail` / this field. */
+    tooltip: tip ?? ev.title,
   };
 }
 
@@ -191,6 +200,8 @@ export interface EventsCalendarProps {
   height?: number;
   /** When set, called instead of navigating to admin edit (e.g. for public calendar detail). */
   onSelectEvent?: (event: RBCEvent) => void;
+  /** Keyed by calendar event `id` (includes recurrence instance ids). Native hover for all views. */
+  eventHoverDetailByEventId?: Record<string, string>;
 }
 
 export function EventsCalendar({
@@ -203,11 +214,15 @@ export function EventsCalendar({
   onRangeChange,
   height = 500,
   onSelectEvent: onSelectEventProp,
+  eventHoverDetailByEventId,
 }: EventsCalendarProps) {
   const router = useRouter();
   const rbcEvents = useMemo(
-    () => events.map((ev) => toRBCEvent(ev, eventTypeColors)),
-    [events, eventTypeColors]
+    () =>
+      events.map((ev) =>
+        toRBCEvent(ev, eventTypeColors, eventHoverDetailByEventId?.[ev.id])
+      ),
+    [events, eventTypeColors, eventHoverDetailByEventId]
   );
 
   const viewsConfig = useMemo(
@@ -242,6 +257,10 @@ export function EventsCalendar({
     color: "inherit",
   } satisfies CSSProperties;
 
+  /**
+   * RBC applies only `className` + `style` from here onto `.rbc-event`.
+   * The visible browser tooltip on `.rbc-event-content` comes from `tooltipAccessor` (default was `title` field).
+   */
   const eventPropGetter = useCallback(
     (ev: RBCEvent) => {
       if (view === "month") {
@@ -268,6 +287,14 @@ export function EventsCalendar({
     },
     [view]
   );
+
+  /**
+   * RBC EventCell sets `title` on `.rbc-event-content` from this accessor (default was event.title only).
+   */
+  const tooltipAccessor = useCallback((event: object) => {
+    const e = event as RBCEvent;
+    return (e.hoverDetail?.trim() || e.tooltip?.trim() || e.title || "").trim();
+  }, []);
 
   const components = useMemo(
     () => ({
@@ -330,6 +357,7 @@ export function EventsCalendar({
           onRangeChange={handleRangeChange}
           onSelectEvent={handleSelectEvent}
           eventPropGetter={eventPropGetter}
+          tooltipAccessor={tooltipAccessor}
           views={viewsConfig as import("react-big-calendar").ViewsProps<RBCEvent, object>}
           components={components as unknown as import("react-big-calendar").Components<RBCEvent, object>}
           formats={{

@@ -59,9 +59,9 @@ export function ProjectProgressSegments({
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex min-w-0 items-center gap-2">
       {bar}
-      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+      <span className="shrink-0 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
         {total === 0 ? "No tasks" : `${completed}/${total} (${pct}%)`}
       </span>
     </div>

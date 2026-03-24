@@ -6,8 +6,11 @@ import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms
 import {
   filterActiveProjectsForTaskList,
   getAdminTasksListBundle,
+  resolveAssigneeLabelsForUserIds,
   type AdminTasksListBundle,
 } from "@/lib/tasks/admin-task-list";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { TASK_STATUS_SLUG_COMPLETED } from "@/lib/tasks/task-status-reserved";
 import { AllTasksListClient } from "./AllTasksListClient";
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
@@ -22,6 +25,8 @@ const EMPTY_BUNDLE: AdminTasksListBundle = {
 };
 
 export default async function AdminAllTasksPage() {
+  const user = await getCurrentUser();
+
   let projects: Awaited<ReturnType<typeof listProjects>> = [];
   let bundle = EMPTY_BUNDLE;
   let czTaskType: Awaited<ReturnType<typeof getCustomizerOptions>> = [];
@@ -31,7 +36,9 @@ export default async function AdminAllTasksPage() {
   try {
     [projects, bundle, czTaskType, czTaskStatus, czTaskPhase, projectStatusTerms] = await Promise.all([
       listProjects({ include_archived: true }),
-      getAdminTasksListBundle({}),
+      getAdminTasksListBundle({
+        exclude_status_slugs: [TASK_STATUS_SLUG_COMPLETED],
+      }),
       getCustomizerOptions("task_type"),
       getCustomizerOptions("task_status"),
       getCustomizerOptions("task_phase"),
@@ -66,15 +73,18 @@ export default async function AdminAllTasksPage() {
       : [];
   const assigneeUserIds = uniqueStrings(assigneeMemberRows.map((m) => m.user_id));
   const assigneeContactIds = uniqueStrings(assigneeMemberRows.map((m) => m.contact_id));
-  const [assigneeProfiles, assigneeContacts] = await Promise.all([
+  const [assigneeProfiles, assigneeContacts, assigneeUserLabels] = await Promise.all([
     getProfilesByUserIds(assigneeUserIds),
     assigneeContactIds.length > 0 ? getContactsByIds(assigneeContactIds) : Promise.resolve([]),
+    resolveAssigneeLabelsForUserIds(assigneeUserIds),
   ]);
+  const assigneeProfileByUserId = new Map(assigneeProfiles.map((p) => [p.user_id, p]));
   const assigneeUserDisplay: Record<string, { label: string; avatarUrl: string | null }> = {};
-  for (const p of assigneeProfiles) {
-    assigneeUserDisplay[p.user_id] = {
-      label: (p.display_name ?? p.user_id).trim() || p.user_id.slice(0, 8),
-      avatarUrl: p.avatar_url ?? null,
+  for (const uid of assigneeUserIds) {
+    const p = assigneeProfileByUserId.get(uid);
+    assigneeUserDisplay[uid] = {
+      label: assigneeUserLabels.get(uid) ?? "User",
+      avatarUrl: p?.avatar_url ?? null,
     };
   }
   const assigneeContactDisplay: Record<string, { label: string; avatarUrl: string | null }> = {};
@@ -130,6 +140,7 @@ export default async function AdminAllTasksPage() {
       initialPhaseSlugByTaskId={phaseSlugByTaskId}
       taskAssigneesMap={taskAssigneesMap}
       taskTimeLogTotals={taskTimeLogTotals}
+      currentUserId={user?.id ?? ""}
     />
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import type { View } from "react-big-calendar";
 import { format } from "date-fns";
 import type { Event } from "@/lib/supabase/events";
 import { EventsCalendar } from "@/components/events/EventsCalendar";
+import { buildCalendarEventHoverText } from "@/lib/events/calendar-event-hover";
 import {
   Dialog,
   DialogContent,
@@ -104,6 +105,14 @@ export function PublicCalendarPageClient() {
       ? `${window.location.origin}/api/events/ics`
       : "/api/events/ics";
 
+  const eventHoverDetailByEventId = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const e of events) {
+      out[e.id] = buildCalendarEventHoverText(e, []);
+    }
+    return out;
+  }, [events]);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -134,6 +143,7 @@ export function PublicCalendarPageClient() {
             onViewChange={setView}
             onRangeChange={handleRangeChange}
             height={calendarHeight}
+            eventHoverDetailByEventId={eventHoverDetailByEventId}
             onSelectEvent={(rbcEvent) => {
               if (rbcEvent.id) setSelectedEventId(String(rbcEvent.id));
             }}

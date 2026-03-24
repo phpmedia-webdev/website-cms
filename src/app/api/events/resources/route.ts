@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClientSSR } from "@/lib/supabase/client";
-import { getResources, createResource } from "@/lib/supabase/participants-resources";
+import {
+  getResourcesAdmin,
+  getResourcesAdminForPicker,
+  createResource,
+  type ResourcePickerContext,
+} from "@/lib/supabase/participants-resources";
 import type { ResourceInsert } from "@/lib/supabase/participants-resources";
 import { getCalendarResourceTypes } from "@/lib/supabase/settings";
 import { withRateLimit } from "@/lib/api/middleware";
@@ -17,13 +22,28 @@ async function requireAdmin() {
 
 /**
  * GET /api/events/resources
- * List all resources. Admin only.
+ * List resources. Admin only.
+ *
+ * Query: `context` — omit = full registry (Resource manager). `calendar` | `task` = picker lists only
+ * rows allowed for that surface (migration 183: `is_schedulable_*`, not archived, not retired).
  */
-async function getHandler() {
+async function getHandler(request: Request) {
   try {
     const authErr = await requireAdmin();
     if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
-    const resources = await getResources();
+    const { searchParams } = new URL(request.url);
+    const raw = searchParams.get("context")?.trim().toLowerCase() ?? "";
+    let resources;
+    if (!raw) {
+      resources = await getResourcesAdmin();
+    } else if (raw === "calendar" || raw === "task") {
+      resources = await getResourcesAdminForPicker(raw as ResourcePickerContext);
+    } else {
+      return NextResponse.json(
+        { error: "Invalid context. Use calendar, task, or omit for full registry." },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ data: resources });
   } catch (error) {
     console.error("GET /api/events/resources error:", error);
@@ -51,11 +71,23 @@ async function postHandler(request: Request) {
         { status: 400 }
       );
     }
+    const assetStatusRaw = typeof body?.asset_status === "string" ? body.asset_status.trim() : "";
+    const allowedStatus = ["active", "maintenance", "retired"] as const;
+    const asset_status =
+      assetStatusRaw && (allowedStatus as readonly string[]).includes(assetStatusRaw)
+        ? assetStatusRaw
+        : "active";
+
     const input: ResourceInsert = {
       name,
-      resource_type: resource_type as ResourceInsert["resource_type"],
+      resource_type,
       metadata: body?.metadata ?? null,
       is_exclusive: typeof body?.is_exclusive === "boolean" ? body.is_exclusive : true,
+      is_schedulable_calendar:
+        typeof body?.is_schedulable_calendar === "boolean" ? body.is_schedulable_calendar : true,
+      is_schedulable_tasks:
+        typeof body?.is_schedulable_tasks === "boolean" ? body.is_schedulable_tasks : true,
+      asset_status,
     };
     const result = await createResource(input);
     if ("error" in result) return NextResponse.json({ error: result.error }, { status: 500 });
