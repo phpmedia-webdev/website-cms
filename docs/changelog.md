@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-For planned work and backlog items, see [planlog.md](./planlog.md). For session continuity (current focus, next up), see [sessionlog.md](./sessionlog.md).
+For planned work and backlog items, see [planlog.md](./planlog.md). For **open** MVP items (fork-ready handoff), see [sessionlog.md](./sessionlog.md); completed work is checkmarked in planlog and recorded here.
 
 ## [Unreleased]
 

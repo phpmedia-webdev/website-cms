@@ -32,7 +32,7 @@ These files live in the root of `docs/`.
 - **Format:** [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), [Semantic Versioning](https://semver.org/spec/v2.0.0.html), reverse chronological, date-stamped `YYYY-MM-DD`.
 - **Contents:** Completed changes, version releases, bug fixes, new features, breaking changes, deprecations, security updates.
 - **Writing style:** Concise. What changed, not how. Key files only. Minimal code. **Always include a "Context for Next Session" section** at the top of each entry (current state, what’s ready to test, where to continue, key files, important decisions).
-- **When to write (frequency):** **One changelog entry at the end of each developer-declared work session**, not after every task, commit, or mid-session “move.” The entry **summarizes the session**: list what was completed, using **checked-off items from `sessionlog.md`** (and session chat as needed). Do **not** append a new changelog heading after each incremental edit or isolated doc tweak. Exceptions: **release or deprecation** (may warrant its own entry), or the developer **explicitly** asks for a changelog update mid-session.
+- **When to write (frequency):** **One changelog entry at the end of each developer-declared work session**, not after every task, commit, or mid-session “move.” The entry **summarizes the session**: list what was completed, using **planlog check-offs** (and **`sessionlog.md` removals** / session chat as needed). Do **not** append a new changelog heading after each incremental edit or isolated doc tweak. Exceptions: **release or deprecation** (may warrant its own entry), or the developer **explicitly** asks for a changelog update mid-session.
 - **Changelog pattern:**
   - Entry format: `### YYYY-MM-DD HH:MM CT - Description` (24-hour, Central Time).
   - Version format: `## [VERSION] - YYYY-MM-DD`.
@@ -65,21 +65,21 @@ These files live in the root of `docs/`.
 
 #### `docs/sessionlog.md` — Session continuity
 
-- **Purpose:** Handoff for the next session and **active working checklist** through **MVP / fork-ready** delivery.
-- **Planlog vs sessionlog:** `planlog.md` is the **canonical** backlog (phases, full lists; items are **never deleted**, only checked off). `sessionlog.md` holds the **MVP completion** checklist (**§ 1–5**: Tasks/Projects, Resources picklist, Messaging/notifications, Shared identity UX, Pre-fork review) plus pointers to planlog for drill-down. **Post-MVP** work stays **only** in planlog.
-- **Stay in sync:** When you check off an item in `sessionlog`, check off the **matching** line(s) in `planlog` (same work, phase bullets). Prefer updating planlog **as you go** or at least at **session end**—the two files must agree on what’s done.
-- **Optional verbatim slice:** For a deep dive on one phase only, you may temporarily paste a **short** checkbox block from planlog into session notes or the chat; the **durable** session checklist remains the MVP sections in `sessionlog.md`.
-- **Session end / cleanup:** After syncing planlog and writing the changelog, you may **leave** checked `[x]` lines in sessionlog (progress visible) or collapse completed sub-bullets if the file grows—**do not** remove the five MVP section headings until MVP ships.
-- **Contents:** Intro, **MVP completion** §1–5, **Post-MVP** pointer to planlog, reference table. Changelog “what we did” lists items completed this session (from sessionlog + chat).
-- **Update when:** Session start (read sessionlog; note focus). During session (check boxes; sync planlog). End of session (final sync, changelog).
-- **Cross-reference:** Planlog **MVP completion track** table links to sessionlog; changelog receives completed items at session end.
+- **Purpose:** Handoff for the next session and **MVP open-items checklist** through **fork-ready** delivery (unchecked work only).
+- **Planlog vs sessionlog:** `planlog.md` is the **canonical** backlog (phases, full lists; items are **never deleted**, only checked off when done). **`sessionlog.md` lists only what is still open** for MVP §1–5; **completed** MVP work is marked `[x]` in `planlog` phase sections and summarized in `changelog.md`. **Post-MVP** work stays **only** in planlog.
+- **Stay in sync:** When you finish something in sessionlog, **remove that line from sessionlog** (or replace with a planlog-only bullet) and **check the matching line(s) in planlog**. New open work can be added to sessionlog **and** mirrored as a `[ ]` line in planlog if it belongs to a phase.
+- **Optional verbatim slice:** You may paste a **short** checkbox block from planlog into session notes or the chat; durable tracking stays in planlog + sessionlog open list.
+- **Session end / cleanup:** Sync planlog checkboxes for all work completed this session; trim sessionlog so it stays **open-only**; changelog lists what shipped (from planlog + chat).
+- **Contents:** Intro, Manual SQL outstanding, **shipped** pointer table, **open** MVP §1–5, Post-MVP pointer, reference table.
+- **Update when:** Session start (read sessionlog for open focus; scan planlog for phase context). During session (complete work → update planlog + shrink sessionlog). End of session (changelog).
+- **Cross-reference:** Planlog **MVP completion track** table describes how sessionlog and planlog relate; changelog receives completed items at session end.
 
 ### Documentation principles
 
 **Separation of concerns**
 
 - **Planning vs. history:** `planlog.md` = what we plan; `changelog.md` = what we did (+ context for next session).
-- **Session handoff:** `sessionlog.md` = **MVP completion** checklist (§1–5) + sync to planlog. Session context lives in changelog.
+- **Session handoff:** `sessionlog.md` = **MVP open items** (§1–5); `planlog.md` = phased backlog + **checked-off** completed work. Session context lives in changelog.
 - **Spec vs. history:** `prd.md` = what the system is; `changelog.md` = how we got here.
 - **Structure vs. content:** `.cursor/rules/sessions.mdc` = how docs are organized; other docs = content.
 
@@ -110,14 +110,14 @@ A developer typically starts a new chat when context becomes too large, to preve
 
 ### Ending a work session
 
-1. **Review the session chat history** and **mark off** all completed items in `docs/sessionlog.md` (check the boxes for everything done this session).
-2. **Sync** those completions to `docs/planlog.md` — check off the same items there. Do not delete items from planlog.
+1. **Review the session chat history** and **check off** completed work in `docs/planlog.md` (phase bullets). Do not delete items from planlog.
+2. **Trim `docs/sessionlog.md`** — remove lines for work now done (sessionlog is **open-only**); update **Manual SQL** outstanding if migrations were applied.
 3. **Add one changelog entry** in `docs/changelog.md` for **this session** (not one entry per task or per edit — **one consolidated summary per session**):
    - **CHANGELOG DATE (mandatory):** The entry heading must use format `### YYYY-MM-DD HH:MM CT — Brief title`. **Source of date/time:** (A) If the developer announced the current session date at session start in this conversation, use that date and time (or the **last** such announcement if multiple). (B) If no session date was announced, **you must run** `powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm CT'"` and use the output. **Never** use: user_info “Today’s date”, dates from other changelog entries, or any date from context—only developer-announced session date or the result of the Get-Date command. Multiple **sessions** in a day → **separate entries** at each session’s wrap-up (different times), not an entry after every change within a session.
-   - **Source of “what we did”:** **List each and every checked-off item** from `sessionlog.md` for this session (and anything completed in the session that belonged in sessionlog but was not yet written there — reconcile honestly). Copy or summarize every completed item into the **Changes** or **Completed** section. Do not collapse into a single vague line like "Phase 2 complete" — list the actual items so the changelog is the durable record.
+   - **Source of “what we did”:** **List each item** checked off in **planlog** this session (and session chat for anything not yet in planlog — reconcile honestly). Copy or summarize into **Changes** / **Completed**. Do not collapse into a single vague line like "Phase 2 complete" — list the actual items so the changelog is the durable record.
    - **Create the "Context for Next Session"** section at the top of the entry: current state, what is ready to test, where to continue, key files. This is the handoff for the next session.
    - Include key files and any important code/behavior changes.
-4. **Optional trim** `docs/sessionlog.md`: keep **MVP §1–5** structure; you may remove or compress **completed** sub-bullets if clutter, or leave `[x]` for visibility. Post-MVP items belong in planlog only.
+4. **Confirm** `docs/sessionlog.md` has **no `[x]` MVP checklist** — only unchecked open work (and Manual SQL notes). Post-MVP items belong in planlog only.
 5. Update `prd.md` if architecture or specs changed.
 6. Pause and allow developer to review update to documents.
 7. **Build check before push:** Run `pnpm run build` (or rely on the pre-push hook). If the build fails, fix type/lint errors before pushing to avoid failed Vercel deploys. Optional: run `pnpm run setup-git-hooks` once to install a pre-push hook that runs the build automatically.

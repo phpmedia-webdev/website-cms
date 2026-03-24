@@ -1,6 +1,6 @@
 # Plan Log
 
-This document tracks planned work and remaining tasks for the Website-CMS project. For **MVP-through-fork** handoff and the active checklist, see [sessionlog.md](./sessionlog.md) — **MVP completion**.
+This document tracks planned work and remaining tasks for the Website-CMS project. For **MVP-through-fork** handoff, see [sessionlog.md](./sessionlog.md) — **open items only**; completed MVP work is checkmarked in the phase sections below and in [changelog.md](./changelog.md).
 
 **Performance:** Document any feature that may slow the system (extra DB/API calls, sync on high-traffic paths). See [prd.md](./prd.md) — Performance (Speed).
 
@@ -28,15 +28,15 @@ This document tracks planned work and remaining tasks for the Website-CMS projec
 
 ## MVP completion track (fork-ready)
 
-**Primary checklist:** [sessionlog.md](./sessionlog.md) — sections **1–5** (Tasks/Projects, Resources picklist, Messaging/notifications + `crm_notes` cutover, Shared identity UX, Pre-fork review). Check boxes there each session; sync matching phase bullets below.
+**Open items:** [sessionlog.md](./sessionlog.md) — sections **1–5** (unchecked only). **Completed** MVP work: check boxes **below** in phases **00**, **18C**, **19**, **21**, etc., and record sessions in [changelog.md](./changelog.md). When you finish something listed in sessionlog, remove it there and check the matching bullet here (or add a bullet here if the work was sessionlog-only).
 
 | Sessionlog section | Planlog / docs |
 |--------------------|----------------|
-| 1. Tasks & Projects | Phase **19**; optional Directory line in Phase **18C** (project members) |
-| 2. Resources | Phase **21**; [sessionlog §2](./sessionlog.md) **§2.1–2.7**; **MVP-if-time** [picker hints](#event-resource-picker--mvp-if-time-permits) (ghost + busy exclusive) |
-| 3. Messaging & notifications | Phase **18C**; [reference/messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) |
+| 1. Tasks & Projects (open) | Phase **19** (+ QA bullet below); optional Directory in Phase **18C** |
+| 2. Resources | **No sessionlog lines** when Phase **21** MVP slice is done; **MVP-if-time** [picker hints](#event-resource-picker--mvp-if-time-permits) |
+| 3. Messaging & notifications | Phase **18C**; [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) |
 | 4. Shared identity UX | Phase **00** (Shared identity UX bullets) |
-| 5. Pre-fork | Code Review & Modular Alignment; Performance & Caching; Phase **00** setup/deploy; **[mvt.md](./mvt.md)** — Fork deployment & donor integration + module surface tier + shared-critical paths aligned to current app |
+| 5. Pre-fork | Code Review & Modular Alignment; Performance & Caching; Phase **00** setup/deploy; **[mvt.md](./mvt.md)** |
 
 ### Event resource picker — MVP if time permits
 
@@ -347,7 +347,7 @@ Proactive hints so users see **availability before save** (not only after **409*
 - [ ] **Performance:** Indexes on underlying tables; avoid N+1; document cost in planlog Performance note if hot path.
 - [ ] **Fork note:** Custom pickers must not drop enumeration-safe patterns from PRD (Directory is admin/authenticated use).
 
-**Messages & notifications (two logical stores, one UI tab)** — GPUM and admin both use a single **“Messages and notifications”** surface; merged API normalizes rows. **MVP target:** former contact notes → **`contact_notifications_timeline`**; conversation-shaped traffic → **threads**; **`crm_notes`** deprecated for migrated types after cutover/backfill ([sessionlog.md](./sessionlog.md) § **3**).
+**Messages & notifications (two logical stores, one UI tab)** — GPUM and admin both use a single **“Messages and notifications”** surface; merged API normalizes rows. **MVP target:** former contact notes → **`contact_notifications_timeline`**; conversation-shaped traffic → **threads**; **`crm_notes`** deprecated for migrated types after cutover/backfill (open checklist: [sessionlog.md](./sessionlog.md) — **§3**).
 
 - [x] **Design lock (prd-technical):** [§ Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging) — table roles, column lists, enums (`kind`, `visibility`, `thread_type`), UI filter mapping, MAG rules, pruning/idempotency, RLS requirements, cutover vs `crm_notes`, edge-case defaults.
 - [x] **Schema — contact notifications timeline:** Tenant table **`contact_notifications_timeline`** — migration **`190_contact_notifications_timeline.sql`** (`recipient_user_id`, indexes, partial unique `source_event`). **Run in Supabase SQL Editor** per tenant DB after 189. (Name avoids confusion with calendar `events`.)
@@ -389,8 +389,11 @@ Proactive hints so users see **availability before save** (not only after **409*
   - [x] **Admin UI — projects list (refresh):** Table: title + project-type color dot, Proposed End Date, client (contact/org link + avatar), status pill, member avatars (contact/team), task-segment progress bar (done/overdue/todo/cancelled), project type. Batch server data (members, tasks, contacts, orgs, profiles); include_archived filter. Migration 172 adds avatar_url to crm_contacts and organizations (tenant schema).
   - [x] **Admin UI — project detail:** Header (name, description, status, timeline, potential_sales, MAG), tasks list or Kanban, linked events/orders/links. Edit, Archive/Restore.
   - [x] **Admin UI — project detail (layout refresh, Mar 2026):** Donor-style overview + stat cards; tabs Tasks · Events · Transactions · Attachments (Attachments shell); Activities breadcrumb; **`ProjectDetailClient.tsx`** — see changelog **2026-03-23 22:50 CT**.
+  - [ ] **Admin UI — project detail Attachments:** Replace placeholder tab with uploads or document links (schema/API TBD).
   - [x] **Admin UI — project create/edit:** Form: name, description, status, proposed start/end, potential_sales, required_mag_id, taxonomy (categories/tags).
   - [x] **Admin UI — tasks:** Add/edit task (title, description, status/type/phase via **Customizer slugs**, **priority** via taxonomy, due_date, proposed/actual time, creator, responsible, followers). Project task list + All Tasks use slug-backed filters/badges. Optional Kanban deferred.
+  - [x] **Admin UI — All Tasks (§1.1–1.3, Mar 2026):** Single-row toolbar + unified **Custom filters** modal (Projects, Assignees, Phase, Type, Status); funnel badge for active modal dimensions (not title search); presets **All Active** (default, SSR `exclude_status_slugs`) / **My tasks** / **Overdue** (`due_before`) + master reset (↺); sortable column headers + **Project** group headers (`all-tasks-sort.ts`, client-side sort). **`get_tasks_dynamic`:** migrations **197** (tasks in archived projects excluded), **198** (`exclude_status_slugs`, `due_before`). See changelog **2026-03-23 22:50 CT**.
+  - [ ] **QA — All Tasks (manual):** Default paint; preset + modal narrow results; **Overdue** + title search; column sort shows completed when preset cleared; **All Active** hides completed again; master reset → full recap + cleared search/filters.
   - [x] **Migration 187 — task Customizer slugs:** `187_tasks_customizer_slugs.sql`; RPC `get_tasks_dynamic` / `get_task_by_id_dynamic` slug columns + text[] filters. Run in SQL Editor per tenant.
   - [ ] **Admin UI — time tracking:** Task proposed_time, actual_time; optional punch-style entries UI.
   - [x] **Admin UI — archive/restore:** Buttons; list hides archived by default.
@@ -453,7 +456,7 @@ Proactive hints so users see **availability before save** (not only after **409*
 
 ### Phase 21: Asset / Resource Management
 
-**Status:** Planned. Single `resources` table as **asset registry** + **183** schedulability flags (`is_schedulable_calendar`, `is_schedulable_tasks`); Customizer **`resource_type`** (slug, label, color). **Bundles** (UI term) = virtual **`resource_bundles`** + **`resource_bundle_items`**; apply expands to **`event_resources`** / **`task_resources`**. **Time attribution** = event intervals + task total at completion (see sessionlog). **Step plan (MVP):** [sessionlog.md](./sessionlog.md) § **2** — **§2.1–2.7** (picker, bundles, picker eligibility, usage segments, conflicts, `/admin/events/resources`, task bento).
+**Status:** Planned. Single `resources` table as **asset registry** + **183** schedulability flags (`is_schedulable_calendar`, `is_schedulable_tasks`); Customizer **`resource_type`** (slug, label, color). **Bundles** (UI term) = virtual **`resource_bundles`** + **`resource_bundle_items`**; apply expands to **`event_resources`** / **`task_resources`**. **Time attribution** = event intervals + task time logs (see [resource-time-attribution.md](./reference/resource-time-attribution.md)). **MVP slice** = checked bullets below (picker, bundles, conflicts, Resource manager, task bento, usage API).
 
 - [x] **Schema:** Migration `183_resources_asset_and_scheduling.sql` on tenant `resources` — schedulability flags, `asset_status` + `archived_at`, inventory + financial fields (USD-only, non-negative costs). RLS unchanged.
 - [x] **Schema — bundles:** `resource_bundles`, `resource_bundle_items`; **`bundle_instance_id`** on **`event_resources`** + **`task_resources`** for rolled-up UI (migration **`195_task_resources_resource_bundles.sql`**). **Applied on tenant** (SQL Editor — no errors).
@@ -468,7 +471,7 @@ Proactive hints so users see **availability before save** (not only after **409*
 - [x] **UI — picker (events + tasks):** Grouped **Bundles** then **Resources** (`AutoSuggestMulti` groups); **`bundle:`** / **`resource:`** composite ids; Customizer **type labels** via **`resource-picker-groups.ts`** + **`/api/settings/calendar/resource-types`**. **MVP-if-time — proactive hints** (ghost/overlap + busy exclusive): [Event resource picker — MVP if time permits](#event-resource-picker--mvp-if-time-permits) (check boxes there).
 - [x] **UI — bundle rollup (§2.2):** **`ResourceAssignmentsRollupList`** on event form + task bento/modal; **`source_bundle_id`** on draft rows for bundle title (not persisted; API strips).
 - [x] **UI — admin Resource management:** `/admin/events/resources` — **`ResourceManagerClient`**: **Resources** tab (registry + **183** scheduling flags, asset status, archive) + **Bundles** tab (CRUD + members); `GET /api/events/resources` uses **`getResourcesAdmin`** (full row).
-- [x] **UI — task bento (structure):** **`TaskResourcesSection`** — grouped picker, §2.2 rollup, **`PUT`** on save; see [sessionlog §2.7](./sessionlog.md).
+- [x] **UI — task bento (structure):** **`TaskResourcesSection`** — grouped picker, bundle rollup, **`PUT`** on save (task detail/edit).
 - [x] **UI — usage (MVP preview):** Resource manager **Analytics** tab; **`GET /api/events/resources/usage`** (dynamic estimates, filters). **Docs:** [resource-time-attribution.md](./reference/resource-time-attribution.md). **Follow-on:** charts, presets, persisted **`resource_usage_*`** if needed.
 - [ ] **Tasks follow-on (full):** Union usage API + project rollup (extends MVP above).
 - [ ] **Docs:** Keep `mvt.md` Events/Resources notes in sync; `prd-technical.md` when schema/API stabilizes.
@@ -528,7 +531,7 @@ Planned steps to reduce sluggishness and improve public-site load times. See PRD
 
 ## Backlog (post-MVP)
 
-Sessionlog backlog items; confirmed post-MVP. No change needed for MVP assessment.
+Confirmed post-MVP items; [sessionlog.md](./sessionlog.md) **Post-MVP** points here. No change needed for MVP assessment.
 
 - [ ] Anychat, VBout, PHP-Auth audit logging, superadmin add/delete user (see planlog Phase 00 / Phase 12 as applicable)
 - [ ] **Banners** — A programmable display block that can show HTML5 content on a schedule. Usually at top of home page.
