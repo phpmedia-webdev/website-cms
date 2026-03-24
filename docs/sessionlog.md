@@ -14,6 +14,7 @@
 
 **Outstanding (delete each line after you run on every tenant schema that needs it):**
 
+- **`200_projects_project_number.sql`** — `projects.project_number` PROJ-YYYY-NNNNN + project list/detail RPCs.
 - **`198_get_tasks_dynamic_preset_filters.sql`** — All Tasks presets (`exclude_status_slugs`, `due_before`).
 - **`197_get_tasks_dynamic_exclude_archived_projects.sql`** — exclude tasks whose **project** is archived (confirm applied everywhere).
 
@@ -38,9 +39,9 @@ Use order **1 → 5** where dependencies apply (e.g. task threads depend on Phas
 
 - [ ] **GPUM (if in MVP):** Member-area **Projects**, **Tasks**, **Support tickets** per [planlog Phase 19](./planlog.md#phase-19-project-management-module) — or **defer** and document in planlog.
 - [ ] **Phase 19 items you still want before fork:** e.g. support project naming / type, **`project_id` on invoices**, punch-style time UI — keep as [planlog](./planlog.md) checkboxes and work them here when in scope.
-- [ ] **Directory (optional):** Align project **add member** with `GET /api/directory` where it reduces duplicate fetches ([planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications)).
+- [x] **Directory (optional):** Align project **add member** with `GET /api/directory` where it reduces duplicate fetches ([planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications)).
 - [ ] **Project detail — Attachments tab:** Replace placeholder with file uploads or linked documents (schema/API TBD).
-- [ ] **QA — All Tasks:** Full manual pass: default paint; preset + modal filters; **Overdue** + title search; column sort vs completed visibility; master reset (↺) recap.
+- [x] **QA — All Tasks:** Full manual pass: default paint; preset + modal filters; **Overdue** + title search; column sort vs completed visibility; master reset (↺) recap.
 
 ### 2. Resources
 
@@ -102,6 +103,40 @@ Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get
 
 ---
 
+## Accounting (planned module — lightweight financials)
+
+**Goal:** Track **money in** + **money out** and project-level margin — **not** a full GL/accounting module. See discussion in recent chat (income SSOT, orders vs invoices, off-Stripe receipts, labor rate).
+
+### Review plan — what we need
+
+| Area | Intent |
+|------|--------|
+| **`payments`** (canonical **income** / cash-in) | **Single table** as SSOT for reporting: each row = one **received** amount. Link **`contact_id`** (who paid — optional but recommended for CRM). Link **`project_id`** for profitability. **Stripe:** `order_id` and/or `invoice_id` nullable FKs + `stripe_*` ids for idempotency (avoid double rows). **Off-Stripe (cash, Venmo, check, wire):** rows with **no** order/invoice, method + note. **Rule:** define whether rows are **only** manual/off-Stripe + **view/RPC unions** paid `orders`, or **backfill** every paid order into `payments` — pick one to avoid double-counting. |
+| **`expenses`** (ledger) | **amount**, **currency**, **incurred_at**, **description**, **vendor** (text or FK later), **`project_id`** (nullable = overhead), **category** via **Customizer** slug (e.g. `expense_category`), optional **receipt_url**, audit fields. |
+| **Projects** | **`labor_rate_per_hour`** (numeric, nullable) × **logged time** (existing time logs) = internal labor cost in margin. |
+| **Reporting** | RPC or SQL view: **project income** = sum(`payments` for project) + **expense** sum + **labor**; **contact** = filter `payments` by `contact_id`. Document **no double count** with raw `orders` if union is used. |
+| **Admin nav** | New section or sub-nav: **“Accounting”** or **“Financials”** (label TBD) — e.g. routes under `/admin/accounting/...` for **Payments** (list, add manual), **Expenses**, optional **Project P&L** summary. Wire **`sidebar-config.ts`** + **feature registry** gate if needed. |
+| **RLS** | Policies consistent with project + CRM admin access. |
+
+### Things easy to overlook (decide in design)
+
+- **Refunds / chargebacks** — negative amount or separate `payment_adjustments` (defer if v1 is gross-only).
+- **Multi-currency** — store currency per row; FX to base currency deferred or manual.
+- **Paid manual invoice** — today creates **both** `invoices` and **`orders`**; `payments` must reference **one** economic event (usually `order_id` after webhook, or invoice-only rule).
+- **Backfill** — existing tenants: script or optional migration from paid `orders` into `payments`.
+- **MVT / prd-technical** — short **Income rules** subsection when implemented.
+
+### Open checklist (Accounting)
+
+- [ ] Lock **SSOT strategy** (physical `payments` for all vs `payments` for manual + union of `orders`).
+- [ ] Migration(s): `payments`, `expenses`, `projects.labor_rate_per_hour` (names TBD); RLS; **Manual SQL** callout in chat + sessionlog.
+- [ ] Server lib + API routes (admin).
+- [ ] UI: Accounting nav + pages; project detail may embed summary widget.
+- [ ] Feature slug + sidebar accordion (pattern: `sidebar-config.ts`, `Sidebar.tsx`).
+- [ ] **Next:** phased **step plan** (tasks file or planlog subsection) after review.
+
+---
+
 ## Post-MVP
 
 All **future** work: [planlog.md](./planlog.md) — Phase **20**, **21** follow-on, **22**, analytics, shortcodes, RAG, etc.
@@ -120,3 +155,4 @@ All **future** work: [planlog.md](./planlog.md) — Phase **20**, **21** follow-
 | Resource time attribution | [reference/resource-time-attribution.md](./reference/resource-time-attribution.md) |
 | Public vs admin module map | [mvt.md](./mvt.md) |
 | Tenant fork setup | [tenant-site-setup-checklist.md](./tenant-site-setup-checklist.md) |
+| **Accounting** (planned: payments, expenses, labor rate, nav) | This file — **§ Accounting (planned module)** |

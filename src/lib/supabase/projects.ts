@@ -1,11 +1,13 @@
 /**
  * Projects and tasks (Phase 19 Project Management).
- * Reads via RPC; writes via .schema().from(). Auto-extends project end when task due_date > project proposed_end_date.
+ * Reads via RPC; writes via .schema().from(). Auto-extends project due_date when task due_date > project due_date.
  */
 
 import { createServerSupabaseClient } from "./client";
 import { getClientSchema } from "./schema";
 import { shouldIncludeProjectForEventLink } from "@/lib/projects/project-status-for-event-link";
+import { getCustomizerOptions, type CustomizerOptionRowServer } from "@/lib/supabase/settings";
+import { normalizeHex } from "@/lib/event-type-colors";
 
 const PROJECTS_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -28,12 +30,18 @@ export function formatMinutesAsHoursMinutes(totalMinutes: number | null | undefi
 
 export interface Project {
   id: string;
+  /**
+   * Human-readable reference (PROJ-YYYY-NNNNN; NNNNN resets each UTC calendar year — migration **200**).
+   * Until migration 200 is applied, RPC rows may omit this; use `projectDisplayRef` for UI.
+   */
+  project_number?: string | null;
   name: string;
   description: string | null;
   status_term_id: string;
   project_type_term_id: string | null;
-  proposed_start_date: string | null;
-  proposed_end_date: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  completed_date: string | null;
   /** Estimated total time in minutes (for progress vs logged time). */
   proposed_time: number | null;
   end_date_extended: boolean;
@@ -45,6 +53,29 @@ export interface Project {
   created_at: string;
   updated_at: string;
   created_by: string | null;
+}
+
+/**
+ * Value for the admin projects list “Due date” column: **`projects.due_date`** (migration **199**).
+ * If the tenant RPC still returns the legacy column, falls back to **`proposed_end_date`** until SQL is applied.
+ */
+/** Shown in admin UI when `project_number` is not yet backfilled (pre–migration 200). */
+export function projectDisplayRef(project: Pick<Project, "id" | "project_number">): string {
+  const n = project.project_number?.trim();
+  if (n) return n;
+  return `${project.id.slice(0, 8)}…`;
+}
+
+export function projectDueDateForAdminList(project: unknown): string | null {
+  if (!project || typeof project !== "object") return null;
+  const p = project as Record<string, unknown>;
+  const pick = (key: string): string | null => {
+    const v = p[key];
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s.length > 0 ? s : null;
+  };
+  return pick("due_date") ?? pick("proposed_end_date");
 }
 
 export interface Task {
@@ -102,11 +133,14 @@ export interface ListTasksFilters {
 
 export interface ProjectInsert {
   name: string;
+  /** Optional import; normally assigned by DB trigger (PROJ-YYYY-NNNNN). */
+  project_number?: string | null;
   description?: string | null;
   status_term_id?: string | null;
   project_type_term_id?: string | null;
-  proposed_start_date?: string | null;
-  proposed_end_date?: string | null;
+  start_date?: string | null;
+  due_date?: string | null;
+  completed_date?: string | null;
   /** Estimated time in minutes. */
   proposed_time?: number | null;
   potential_sales?: number | null;
@@ -121,8 +155,9 @@ export interface ProjectUpdate {
   description?: string | null;
   status_term_id?: string | null;
   project_type_term_id?: string | null;
-  proposed_start_date?: string | null;
-  proposed_end_date?: string | null;
+  start_date?: string | null;
+  due_date?: string | null;
+  completed_date?: string | null;
   proposed_time?: number | null;
   potential_sales?: number | null;
   required_mag_id?: string | null;
@@ -266,11 +301,15 @@ export async function createProject(
   }
   const payload: Record<string, unknown> = {
     name: input.name.trim(),
+    ...(input.project_number != null && String(input.project_number).trim() !== ""
+      ? { project_number: String(input.project_number).trim() }
+      : {}),
     description: input.description ?? null,
     status_term_id: statusTermId,
     project_type_term_id: input.project_type_term_id ?? null,
-    proposed_start_date: input.proposed_start_date ?? null,
-    proposed_end_date: input.proposed_end_date ?? null,
+    start_date: input.start_date ?? null,
+    due_date: input.due_date ?? null,
+    completed_date: input.completed_date ?? null,
     proposed_time: input.proposed_time ?? null,
     potential_sales: input.potential_sales ?? null,
     required_mag_id: input.required_mag_id ?? null,
@@ -348,10 +387,9 @@ export async function updateProject(
   if (input.status_term_id !== undefined) payload.status_term_id = input.status_term_id;
   if (input.project_type_term_id !== undefined)
     payload.project_type_term_id = input.project_type_term_id;
-  if (input.proposed_start_date !== undefined)
-    payload.proposed_start_date = input.proposed_start_date;
-  if (input.proposed_end_date !== undefined)
-    payload.proposed_end_date = input.proposed_end_date;
+  if (input.start_date !== undefined) payload.start_date = input.start_date;
+  if (input.due_date !== undefined) payload.due_date = input.due_date;
+  if (input.completed_date !== undefined) payload.completed_date = input.completed_date;
   if (input.proposed_time !== undefined) payload.proposed_time = input.proposed_time;
   if (input.potential_sales !== undefined)
     payload.potential_sales = input.potential_sales;
@@ -807,6 +845,84 @@ export const getProjectStatusTerms = (schema?: string) =>
   getTermsForSection("project_status", schema);
 export const getProjectTypeTerms = (schema?: string) =>
   getTermsForSection("project_type", schema);
+
+/**
+ * Overlay Customizer (scope `project_status`) labels and colors onto taxonomy terms by slug.
+ */
+function applyCustomizerLabelsToProjectStatusTerms(
+  taxonomyTerms: StatusOrTypeTerm[],
+  czRows: CustomizerOptionRowServer[]
+): StatusOrTypeTerm[] {
+  const czBySlug = new Map<string, CustomizerOptionRowServer>();
+  for (const r of czRows) {
+    const s = String(r.slug ?? "").trim().toLowerCase();
+    if (s) czBySlug.set(s, r);
+  }
+  return taxonomyTerms.map((term) => {
+    const cz = czBySlug.get(term.slug.trim().toLowerCase());
+    if (!cz) return term;
+    const name =
+      cz.label != null && String(cz.label).trim() ? String(cz.label).trim() : term.name;
+    const rawColor = cz.color != null ? String(cz.color).trim() : "";
+    const color = rawColor ? normalizeHex(rawColor) : term.color;
+    return { ...term, name, color };
+  });
+}
+
+/** One row for the admin projects list status filter (Customizer scope `project_status`, ordered by `display_order`). */
+export interface ProjectStatusFilterOption {
+  slug: string;
+  label: string;
+  color: string | null;
+}
+
+/**
+ * Build status filter dropdown options from Customizer only (all rows, in list order).
+ * Filtering compares `projects.status_term_id` → taxonomy term slug to `slug` (so customizer and taxonomy can diverge;
+ * unmapped slugs still appear and match projects only when taxonomy has the same slug).
+ */
+export function projectStatusFilterOptionsFromCustomizerRows(
+  czRows: CustomizerOptionRowServer[]
+): ProjectStatusFilterOption[] {
+  const seen = new Set<string>();
+  const out: ProjectStatusFilterOption[] = [];
+  for (const row of czRows) {
+    const slug = String(row.slug ?? "").trim().toLowerCase();
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    const label =
+      row.label != null && String(row.label).trim() ? String(row.label).trim() : slug;
+    const rawColor = row.color != null ? String(row.color).trim() : "";
+    const color = rawColor ? normalizeHex(rawColor) : null;
+    out.push({ slug, label, color });
+  }
+  return out;
+}
+
+/** Load project status for admin projects list: filter options = Customizer rows; row badges = taxonomy + customizer overlay. */
+export async function getAdminProjectStatusTermsForList(schema?: string): Promise<{
+  statusFilterOptions: ProjectStatusFilterOption[];
+  displayById: Map<string, StatusOrTypeTerm>;
+}> {
+  const schemaName = schema ?? getClientSchema();
+  const [czRows, taxonomyTerms] = await Promise.all([
+    getCustomizerOptions("project_status", schemaName),
+    getProjectStatusTerms(schemaName),
+  ]);
+  const displayTerms = applyCustomizerLabelsToProjectStatusTerms(taxonomyTerms, czRows);
+  const displayById = new Map(displayTerms.map((t) => [t.id, t]));
+  let statusFilterOptions = projectStatusFilterOptionsFromCustomizerRows(czRows);
+  if (statusFilterOptions.length === 0 && taxonomyTerms.length > 0) {
+    statusFilterOptions = [...taxonomyTerms]
+      .sort((a, b) => a.slug.localeCompare(b.slug))
+      .map((t) => ({
+        slug: t.slug.trim().toLowerCase(),
+        label: t.name,
+        color: t.color,
+      }));
+  }
+  return { statusFilterOptions, displayById };
+}
 export const getProjectRoleTerms = (schema?: string) =>
   getTermsForSection("project_roles", schema);
 
@@ -868,8 +984,8 @@ export async function getTermNameById(
 }
 
 /**
- * If task due_date > project proposed_end_date, set project end_date_extended = true
- * and optionally update project proposed_end_date to the task due_date.
+ * If task due_date > project due_date, set project end_date_extended = true
+ * and optionally update project due_date to the task due_date.
  */
 async function maybeExtendProjectEndDate(
   projectId: string,
@@ -878,9 +994,9 @@ async function maybeExtendProjectEndDate(
 ): Promise<void> {
   if (!dueDate) return;
   const project = await getProjectById(projectId, schemaName);
-  if (!project?.proposed_end_date) return;
+  if (!project?.due_date) return;
   const due = new Date(dueDate);
-  const end = new Date(project.proposed_end_date);
+  const end = new Date(project.due_date);
   if (due <= end) return;
   const supabase = createServerSupabaseClient();
   await supabase
@@ -888,13 +1004,13 @@ async function maybeExtendProjectEndDate(
     .from("projects")
     .update({
       end_date_extended: true,
-      proposed_end_date: dueDate,
+      due_date: dueDate,
       updated_at: new Date().toISOString(),
     })
     .eq("id", projectId);
 }
 
-/** Create a task. Auto-extends project proposed_end_date when task due_date > project proposed_end_date. */
+/** Create a task. Auto-extends project due_date when task due_date > project due_date. */
 export async function createTask(
   input: TaskInsert,
   schema?: string
@@ -954,7 +1070,7 @@ export async function createTask(
   return { id: data.id, task_number: data.task_number as string };
 }
 
-/** Update a task. Auto-extends project when due_date is extended past project proposed_end_date. */
+/** Update a task. Auto-extends project when due_date is extended past project due_date. */
 export async function updateTask(
   id: string,
   input: TaskUpdate,

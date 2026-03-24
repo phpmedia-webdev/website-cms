@@ -81,8 +81,9 @@ export async function POST(request: Request) {
       status_term_id: typeof body.status_term_id === "string" ? body.status_term_id : undefined,
       project_type_term_id:
         typeof body.project_type_term_id === "string" ? body.project_type_term_id : undefined,
-      proposed_start_date: body.proposed_start_date ?? undefined,
-      proposed_end_date: body.proposed_end_date ?? undefined,
+      start_date: body.start_date ?? undefined,
+      due_date: body.due_date ?? undefined,
+      completed_date: body.completed_date ?? undefined,
       proposed_time: typeof body.proposed_time === "number" ? body.proposed_time : undefined,
       potential_sales: typeof body.potential_sales === "number" ? body.potential_sales : undefined,
       required_mag_id: body.required_mag_id ?? undefined,

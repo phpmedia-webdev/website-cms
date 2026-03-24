@@ -129,9 +129,10 @@ export default async function TaskDetailPage({
   const editHref = `/admin/projects/${projectId}/tasks/${taskId}/edit${fromQuery}`;
 
   return (
-    <div className="task-bento-page mx-auto max-w-7xl space-y-3 pb-6 md:space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+    <div className="mx-auto max-w-7xl pb-6">
+      {/* Page chrome: outside bento “stage” (task-bento-page) */}
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3 px-3 sm:mb-4 sm:px-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Task Detail View</h1>
           <Link
             href={backHref}
@@ -145,10 +146,11 @@ export default async function TaskDetailPage({
           className="task-bento-primary-btn shrink-0 rounded-xl border border-white/60 bg-primary/95 backdrop-blur-sm transition-[box-shadow,transform] hover:bg-primary active:scale-[0.98]"
           asChild
         >
-          <Link href={editHref}>Edit task</Link>
+          <Link href={editHref}>Edit Task</Link>
         </Button>
       </div>
 
+      <div className="task-bento-page space-y-3 md:space-y-4">
       {/* Hero — primary bento tile */}
       <section className="task-bento-hero border-0 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -238,6 +240,7 @@ export default async function TaskDetailPage({
       />
 
       <TaskThreadSection taskId={taskId} initialNotes={notes} authorLabels={authorLabels} />
+      </div>
     </div>
   );
 }

@@ -33,8 +33,8 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
   const [description, setDescription] = useState("");
   const [statusTermId, setStatusTermId] = useState<string>(defaultStatusId);
   const [projectTypeTermId, setProjectTypeTermId] = useState<string>("");
-  const [proposedStartDate, setProposedStartDate] = useState("");
-  const [proposedEndDate, setProposedEndDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(null);
   const [potentialSales, setPotentialSales] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -77,8 +77,8 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
           description: description.trim() || undefined,
           status_term_id: statusTermId || undefined,
           project_type_term_id: projectTypeTermId || undefined,
-          proposed_start_date: proposedStartDate || undefined,
-          proposed_end_date: proposedEndDate || undefined,
+          start_date: startDate || undefined,
+          due_date: dueDate || undefined,
           proposed_time: proposedTimeMinutes ?? undefined,
           potential_sales: potentialSales ? parseFloat(potentialSales) : undefined,
         }),
@@ -182,22 +182,22 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
             />
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="start">Proposed start date</Label>
+                <Label htmlFor="start">Start date</Label>
                 <Input
                   id="start"
                   type="date"
-                  value={proposedStartDate}
-                  onChange={(e) => setProposedStartDate(e.target.value)}
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="end">Proposed end date</Label>
+                <Label htmlFor="due">Due date</Label>
                 <Input
-                  id="end"
+                  id="due"
                   type="date"
-                  value={proposedEndDate}
-                  onChange={(e) => setProposedEndDate(e.target.value)}
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
                   className="mt-1"
                 />
               </div>

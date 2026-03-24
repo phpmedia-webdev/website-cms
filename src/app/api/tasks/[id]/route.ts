@@ -1,6 +1,6 @@
 /**
  * GET /api/tasks/[id] — Get task (admin).
- * PUT /api/tasks/[id] — Update task (admin). Auto-extends project end when due_date > project proposed_end_date.
+ * PUT /api/tasks/[id] — Update task (admin). Auto-extends project due_date when task due_date > project due_date.
  * DELETE /api/tasks/[id] — Delete task (admin).
  */
 

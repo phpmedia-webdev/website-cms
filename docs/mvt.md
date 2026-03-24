@@ -41,7 +41,7 @@
 | Vercel project (name or link) | |
 | Supabase project ref | Dashboard → Project Settings → Reference ID only |
 | Tenant schema (`NEXT_PUBLIC_CLIENT_SCHEMA`) | |
-| **Migrations applied through** | e.g. `194_...sql` (match SQL Editor run order) |
+| **Migrations applied through** | e.g. `200_...sql` (match SQL Editor run order); **199** = project dates + RPCs; **200** = `project_number` PROJ-YYYY-NNNNN + RPCs |
 | Admin smoke (login → dashboard) | ☐ |
 | **Donor design path** | e.g. `docs/donor-code/...` |
 | Donor scope | home only / full site / key pages / components only |
@@ -146,7 +146,7 @@ src/
 │   │   ├── forms/             # Form list, [id], submissions
 │   │   ├── galleries/         # List, [id], new
 │   │   ├── media/
-│   │   ├── projects/          # projects list (`ProjectsListClient` + `ProjectListTable` — toolbar aligned with All Tasks; column widths/order; progress segments), **detail** (`[id]/ProjectDetailClient.tsx` — donor-style overview: stats, utilization, task progress, team; breadcrumb Activities/Projects; **Tabs** Tasks · Events · Transactions · Attachments placeholder; Share/More disabled), **All tasks** (`tasks/AllTasksListClient.tsx` — §1.1 Custom filters modal; §1.2 sort + Project group headers; §1.3 presets + **197/198** RPC; SSR matches **All Active**; master reset → recap), task new/detail/edit (bento: Resources → TaskResourcesSection); task_number TASK-YYYY-NNNNN (193+194)
+│   │   ├── projects/          # projects list (`ProjectsListClient` + `ProjectListTable` — toolbar aligned with All Tasks; column widths/order; progress segments), **detail** (`[id]/ProjectDetailClient.tsx` — overview: `projectDisplayRef` PROJ-YYYY-NNNNN **200** / UUID fallback; Type **TermBadge**; **Client | Team** (large client, team pills, no taxonomy on detail); time + mock profitability; task progress; **Tabs** Tasks · Events · Transactions · Attachments), **edit** (`[id]/edit/ProjectEditClient.tsx` — mandatory client + Client & members 25%/75%), **All tasks** (`tasks/AllTasksListClient.tsx` — §1.1 Custom filters modal; §1.2 sort + Project group headers; §1.3 presets + **197/198** RPC; SSR matches **All Active**; master reset → recap), task new/detail/edit (bento: Resources → TaskResourcesSection); task_number TASK-YYYY-NNNNN (193+194)
 │   │   ├── settings/          # general, style, colors, fonts, content-types, content-fields, taxonomy, crm, customizer (tabs: CRM, Events, Tasks, Projects, Resources, Content), events/EventsSettingsClient, security, profile, users
 │   │   ├── super/             # Tenant sites, tenant users, roles, code-library, integrations
 │   │   ├── support/

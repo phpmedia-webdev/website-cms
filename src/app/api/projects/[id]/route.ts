@@ -75,10 +75,9 @@ export async function PUT(
     if (body?.status_term_id !== undefined) input.status_term_id = body.status_term_id;
     if (body?.project_type_term_id !== undefined)
       input.project_type_term_id = body.project_type_term_id;
-    if (body?.proposed_start_date !== undefined)
-      input.proposed_start_date = body.proposed_start_date;
-    if (body?.proposed_end_date !== undefined)
-      input.proposed_end_date = body.proposed_end_date;
+    if (body?.start_date !== undefined) input.start_date = body.start_date;
+    if (body?.due_date !== undefined) input.due_date = body.due_date;
+    if (body?.completed_date !== undefined) input.completed_date = body.completed_date;
     if (body?.proposed_time !== undefined) input.proposed_time = body.proposed_time;
     if (body?.potential_sales !== undefined)
       input.potential_sales = body.potential_sales;

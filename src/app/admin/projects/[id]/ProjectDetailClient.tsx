@@ -12,33 +12,28 @@ import {
   Pencil,
   Archive,
   ArchiveRestore,
+  Banknote,
   Calendar,
   CalendarDays,
   CheckCircle2,
   CheckSquare,
+  CircleDollarSign,
   Clock,
   Hash,
-  MoreHorizontal,
   Paperclip,
+  Percent,
   Receipt,
-  Share2,
   Tag,
   TrendingUp,
-  Users,
 } from "lucide-react";
 import type { Event } from "@/lib/supabase/events";
 import type { Project, Task, ProjectMember } from "@/lib/supabase/projects";
 import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
-import { formatMinutesAsHoursMinutes } from "@/lib/supabase/projects";
+import { formatMinutesAsHoursMinutes, projectDisplayRef } from "@/lib/supabase/projects";
 import type { OrderRow } from "@/lib/shop/orders";
 import type { InvoiceRow } from "@/lib/shop/invoices";
-import type { TaxonomyTermDisplay } from "@/lib/supabase/taxonomy";
-import { cn } from "@/lib/utils";
 import { EventsCalendar } from "@/components/events/EventsCalendar";
-import { ProjectProgressSegments, type ProjectProgressSegment } from "@/components/projects/ProjectProgressSegments";
-import { TaxonomyChips } from "@/components/taxonomy/TaxonomyChips";
 import { TermBadge } from "@/components/taxonomy/TermBadge";
-import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
 
 function formatDate(s: string | null): string {
   if (!s) return "—";
@@ -49,45 +44,6 @@ function formatDate(s: string | null): string {
   }
 }
 
-/** Progress bar: logged / estimated. Greyed 0% when no estimate; bar fill capped at 100%. */
-function ProjectProgressBar({
-  loggedMinutes,
-  estimatedMinutes,
-}: {
-  loggedMinutes: number;
-  estimatedMinutes: number | null;
-}) {
-  const hasEstimate = estimatedMinutes != null && estimatedMinutes > 0;
-  const pct = hasEstimate
-    ? Math.round((loggedMinutes / estimatedMinutes) * 100)
-    : 0;
-  const barPct = hasEstimate ? Math.min(100, pct) : 0;
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        className={cn(
-          "h-2 flex-1 max-w-[120px] rounded-full overflow-hidden",
-          hasEstimate ? "bg-muted" : "bg-muted opacity-60"
-        )}
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={hasEstimate ? undefined : 100}
-        aria-label="Project time progress"
-      >
-        <div
-          className={cn(
-            "h-full rounded-full transition-all",
-            hasEstimate ? "bg-primary" : "bg-muted-foreground/40"
-          )}
-          style={{ width: `${barPct}%` }}
-        />
-      </div>
-      <span className="text-xs text-muted-foreground tabular-nums">{pct}%</span>
-    </div>
-  );
-}
-
 interface ProjectDetailClientProps {
   project: Project;
   initialTasks: Task[];
@@ -96,13 +52,13 @@ interface ProjectDetailClientProps {
   projectTotal: number;
   /** Total minutes logged across all tasks in this project (time logs). */
   projectTimeLogMinutes: number;
-  projectTaxonomy: { categories: TaxonomyTermDisplay[]; tags: TaxonomyTermDisplay[] };
+  /** Resolved client label when project has contact_id or client_organization_id. */
+  clientDisplayName: string | null;
   projectStatusTerms: StatusOrTypeTerm[];
   projectTypeTerms: StatusOrTypeTerm[];
   taskStatusTerms: StatusOrTypeTerm[];
   taskTypeTerms: StatusOrTypeTerm[];
   initialProjectEvents: Event[];
-  clientDisplayName: string | null;
   initialProjectMembers: (ProjectMember & { label: string; role_label: string | null })[];
   projectRoleTerms: StatusOrTypeTerm[];
 }
@@ -139,13 +95,12 @@ export function ProjectDetailClient({
   initialInvoices,
   projectTotal,
   projectTimeLogMinutes,
-  projectTaxonomy,
+  clientDisplayName,
   projectStatusTerms,
   projectTypeTerms,
   taskStatusTerms,
   taskTypeTerms,
   initialProjectEvents,
-  clientDisplayName,
   initialProjectMembers,
   projectRoleTerms: _projectRoleTerms,
 }: ProjectDetailClientProps) {
@@ -238,8 +193,6 @@ export function ProjectDetailClient({
     project.project_type_term_id != null
       ? projectTypeTerms.find((t) => t.id === project.project_type_term_id) ?? null
       : null;
-  const typeLabel = typeTerm?.name?.trim() || "—";
-
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter(
     (t) => (t.task_status_slug ?? "").trim().toLowerCase() === "done"
@@ -248,87 +201,73 @@ export function ProjectDetailClient({
 
   const estimatedMinutes = project.proposed_time ?? null;
   const hasBudget = estimatedMinutes != null && estimatedMinutes > 0;
-  const utilizationPct = hasBudget
-    ? Math.min(100, Math.round((projectTimeLogMinutes / estimatedMinutes) * 100))
-    : 0;
 
-  const progressSegments: ProjectProgressSegment[] = (() => {
-    const now = Date.now();
-    return tasks.map((task): ProjectProgressSegment => {
-      const slug = (task.task_status_slug ?? "").trim().toLowerCase();
-      const isDone = slug === "done";
-      const isCancelled = slug === "cancelled";
-      const overdue =
-        !isDone &&
-        !isCancelled &&
-        !!task.due_date &&
-        new Date(task.due_date).getTime() < now;
-      return {
-        id: task.id,
-        state: isDone ? "done" : overdue ? "overdue" : isCancelled ? "cancelled" : "todo",
-      };
-    });
-  })();
+  // MOCK — wire to Accounting (payments, expenses, margin) later
+  const mockProfitabilityIncome = 12500;
+  const mockProfitabilityExpense = 7800;
+  const mockProfitabilityMarginPct =
+    mockProfitabilityIncome > 0
+      ? Math.round(
+          ((mockProfitabilityIncome - mockProfitabilityExpense) / mockProfitabilityIncome) * 100
+        )
+      : 0;
+  const mockFmtUsd = (n: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  /** MOCK — replace with `projects.labor_rate_per_hour` (or similar) × logged hours */
+  const mockLaborRatePerHourUsd = 85;
+  const mockLaborEstimateUsd = (projectTimeLogMinutes / 60) * mockLaborRatePerHourUsd;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      {/* Top bar: Activities → Projects → detail; back + placeholder actions */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" asChild className="-ml-2">
-            <Link href="/admin/projects">
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              All projects
-            </Link>
-          </Button>
-          <span className="hidden text-muted-foreground sm:inline" aria-hidden>
-            /
-          </span>
-          <p className="text-xs text-muted-foreground sm:ml-0">
-            <span className="font-medium text-foreground/80">Activities</span>
-            <span className="mx-1.5 text-muted-foreground/70">/</span>
-            <Link href="/admin/projects" className="hover:text-foreground hover:underline">
-              Projects
-            </Link>
-            <span className="mx-1.5 text-muted-foreground/70">/</span>
-            <span className="truncate">Project detail</span>
-          </p>
+      {/* Page chrome — match task detail (`tasks/[taskId]/page.tsx`): outside overview card */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Project Detail</h1>
+          <Link
+            href="/admin/projects"
+            className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+            Back to all projects
+          </Link>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0 text-muted-foreground"
-            disabled
-            aria-label="Share (not wired yet)"
-            title="Share — coming soon"
-          >
-            <Share2 className="h-4 w-4" />
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={toggleArchive} disabled={busy}>
+            {isArchived ? (
+              <>
+                <ArchiveRestore className="h-4 w-4 mr-1" aria-hidden />
+                Restore
+              </>
+            ) : (
+              <>
+                <Archive className="h-4 w-4 mr-1" aria-hidden />
+                Archive
+              </>
+            )}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0 text-muted-foreground"
-            disabled
-            aria-label="More actions (not wired yet)"
-            title="More — coming soon"
-          >
-            <MoreHorizontal className="h-4 w-4" />
+          <Button size="sm" className="shrink-0" asChild>
+            <Link href={`/admin/projects/${project.id}/edit`}>
+              <Pencil className="h-4 w-4 mr-1" aria-hidden />
+              Edit
+            </Link>
           </Button>
         </div>
       </div>
 
       {/* Overview (donor-style hero; wired to current project data) */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col gap-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex flex-row flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground">
-                <Hash className="size-3 shrink-0" aria-hidden />
-                <span className="truncate" title={project.id}>
-                  {project.id.slice(0, 8)}…
+              <span className="inline-flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                <Hash className="size-4 shrink-0" aria-hidden />
+                <span className="truncate" title={projectDisplayRef(project)}>
+                  {projectDisplayRef(project)}
                 </span>
               </span>
               {isArchived ? (
@@ -337,90 +276,232 @@ export function ProjectDetailClient({
                 </span>
               ) : null}
             </div>
-            <h1 className="text-balance text-2xl font-bold leading-tight tracking-tight">
-              {project.name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <TermBadge term={projectStatusTerms.find((t) => t.id === project.status_term_id)} />
-              {typeTerm ? <TermBadge term={typeTerm} /> : null}
+            <div className="flex flex-col gap-1">
+              <h1 className="text-balance text-2xl font-bold leading-tight tracking-tight">
+                {project.name}
+              </h1>
+              <div className="min-h-[calc(theme(fontSize.sm)*theme(lineHeight.relaxed)*3)]">
+                {project.description ? (
+                  <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                    {project.description}
+                  </p>
+                ) : (
+                  <p className="text-sm italic text-muted-foreground">No description yet.</p>
+                )}
+              </div>
             </div>
-            {clientDisplayName ? (
-              <p className="text-sm text-muted-foreground">
-                Client: <span className="text-foreground">{clientDisplayName}</span>
-              </p>
-            ) : null}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/admin/projects/${project.id}/edit`}>
-                <Pencil className="h-4 w-4 mr-1" />
-                Edit
-              </Link>
+          <div className="flex shrink-0 flex-col items-center gap-1.5 self-start text-center">
+            <span className="font-mono text-sm text-muted-foreground">Status</span>
+            <TermBadge
+              term={projectStatusTerms.find((t) => t.id === project.status_term_id)}
+              className="text-base px-4 py-2 font-semibold leading-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 gap-y-1 md:grid-cols-4">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground md:col-span-1">
+                Client
+              </span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground md:col-span-3">
+                Team
+              </span>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 self-start sm:self-auto" asChild>
+              <Link href={`/admin/projects/${project.id}/edit`}>Manage members</Link>
             </Button>
-            <Button variant="outline" size="sm" onClick={toggleArchive} disabled={busy}>
-              {isArchived ? (
+          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-4 md:items-start md:gap-4">
+            <div className="flex min-w-0 flex-col items-center gap-2 text-center md:col-span-1 md:items-start md:text-left">
+              {clientDisplayName ? (
                 <>
-                  <ArchiveRestore className="h-4 w-4 mr-1" />
-                  Restore
+                  <span
+                    className="flex size-20 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xl font-semibold text-primary"
+                    title={clientDisplayName}
+                  >
+                    {initials(clientDisplayName)}
+                  </span>
+                  <p
+                    className="w-full min-w-0 text-sm font-semibold leading-tight text-foreground md:max-w-full"
+                    title={clientDisplayName}
+                  >
+                    <span className="block truncate">{clientDisplayName}</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {project.client_organization_id ? "Organization" : "Contact"}
+                  </p>
                 </>
               ) : (
                 <>
-                  <Archive className="h-4 w-4 mr-1" />
-                  Archive
+                  <span className="flex size-20 shrink-0 items-center justify-center rounded-full bg-muted/50 text-sm font-medium text-muted-foreground">
+                    —
+                  </span>
+                  <p className="text-sm text-muted-foreground">No client assigned</p>
+                  <p className="text-xs text-muted-foreground">
+                    Set a client when you{" "}
+                    <Link
+                      href={`/admin/projects/${project.id}/edit`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      manage members
+                    </Link>
+                    .
+                  </p>
                 </>
               )}
-            </Button>
-            <Button size="sm" asChild>
-              <Link href={`/admin/projects/${project.id}/tasks/new`}>Add task</Link>
-            </Button>
+            </div>
+            <div className="min-w-0 md:col-span-3">
+              <div className="flex flex-wrap gap-2">
+                {(() => {
+                  const primaryContactId = project.contact_id;
+                  const teamOnlyMembers = primaryContactId
+                    ? projectMembers.filter((m) => m.contact_id !== primaryContactId)
+                    : projectMembers;
+                  if (teamOnlyMembers.length === 0) {
+                    return (
+                      <span className="text-sm text-muted-foreground">
+                        {primaryContactId
+                          ? "No additional team members yet."
+                          : "No members yet."}
+                      </span>
+                    );
+                  }
+                  return teamOnlyMembers.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center gap-2 rounded-full border border-border/80 bg-muted/30 py-1 pl-1 pr-3"
+                    >
+                      <span
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary"
+                        title={m.label}
+                      >
+                        {initials(m.label)}
+                      </span>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate text-xs font-semibold leading-none">{m.label}</span>
+                        {m.role_label ? (
+                          <span className="mt-0.5 text-[10px] leading-none text-muted-foreground">
+                            {m.role_label}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
           </div>
         </div>
 
-        {project.description ? (
-          <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-            {project.description}
-          </p>
-        ) : (
-          <p className="text-sm italic text-muted-foreground">No description yet.</p>
-        )}
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <OverviewStatCard icon={Tag} label="Type" value={typeLabel} />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="rounded-xl border border-border/80 bg-muted/30 p-4 flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Tag className="size-3.5 shrink-0" aria-hidden />
+              <span className="text-xs font-medium uppercase tracking-wide">Type</span>
+            </div>
+            {typeTerm ? (
+              <TermBadge
+                term={typeTerm}
+                className="w-fit text-base px-4 py-2 font-semibold leading-none"
+              />
+            ) : (
+              <p className="text-foreground font-semibold text-base leading-tight">—</p>
+            )}
+          </div>
           <OverviewStatCard
             icon={Calendar}
-            label="Start"
-            value={formatDate(project.proposed_start_date)}
+            label="Start date"
+            value={formatDate(project.start_date)}
           />
           <OverviewStatCard
             icon={Calendar}
-            label="End"
-            value={formatDate(project.proposed_end_date)}
-            sub={project.end_date_extended ? "End date extended" : undefined}
+            label="Due date"
+            value={formatDate(project.due_date)}
+            sub={project.end_date_extended ? "Due date extended" : undefined}
           />
           <OverviewStatCard
-            icon={Clock}
-            label="Est. time"
-            value={formatMinutesAsHoursMinutes(project.proposed_time)}
+            icon={Calendar}
+            label="Completed"
+            value={formatDate(project.completed_date)}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <OverviewStatCard
-            icon={Clock}
-            label="Logged time"
-            value={formatMinutesAsHoursMinutes(projectTimeLogMinutes)}
-            sub={
-              hasBudget
-                ? `of ${formatMinutesAsHoursMinutes(estimatedMinutes)} estimated`
-                : "No estimate set"
-            }
-          />
-          <OverviewStatCard
-            icon={TrendingUp}
-            label="Utilization"
-            value={hasBudget ? `${utilizationPct}%` : "—"}
-            sub={hasBudget ? "of budget consumed" : "Set estimated time to track"}
-          />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+          <div className="rounded-xl border border-border/80 bg-muted/30 p-4">
+            <div className="grid grid-cols-1 gap-4 border-border/60 sm:grid-cols-3 sm:gap-4 sm:divide-x sm:divide-border/60">
+              <div className="flex min-w-0 flex-col gap-1 sm:pr-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Clock className="size-3.5 shrink-0" aria-hidden />
+                  <span className="text-xs font-medium uppercase tracking-wide">Planned time</span>
+                </div>
+                <p className="text-base font-semibold leading-tight text-foreground tabular-nums">
+                  {formatMinutesAsHoursMinutes(project.proposed_time)}
+                </p>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1 sm:px-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Clock className="size-3.5 shrink-0" aria-hidden />
+                  <span className="text-xs font-medium uppercase tracking-wide">Logged time</span>
+                </div>
+                <p className="text-base font-semibold leading-tight text-foreground tabular-nums">
+                  {formatMinutesAsHoursMinutes(projectTimeLogMinutes)}
+                </p>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {hasBudget
+                    ? `of ${formatMinutesAsHoursMinutes(estimatedMinutes)} planned`
+                    : "No plan set"}
+                </p>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1 sm:pl-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Banknote className="size-3.5 shrink-0" aria-hidden />
+                  <span className="text-xs font-medium uppercase tracking-wide">Labor estimate</span>
+                </div>
+                <p className="text-base font-semibold leading-tight text-foreground tabular-nums">
+                  {mockFmtUsd(mockLaborEstimateUsd)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/80 bg-muted/30 p-4">
+            <div className="mb-2 flex items-center gap-2 text-muted-foreground">
+              <CircleDollarSign className="size-4 shrink-0" aria-hidden />
+              <span className="text-xs font-medium uppercase tracking-wide">Profitability</span>
+              <span className="text-[10px] font-normal normal-case text-muted-foreground/80">(mock)</span>
+            </div>
+            <div className="grid grid-cols-1 gap-3 border-border/60 sm:grid-cols-3 sm:gap-3 sm:divide-x sm:divide-border/60">
+              <div className="flex min-w-0 flex-col gap-0.5 sm:pr-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <TrendingUp className="size-3.5 shrink-0" aria-hidden />
+                  <span className="text-xs font-medium uppercase tracking-wide">Income</span>
+                </div>
+                <p className="text-base font-semibold leading-none text-foreground tabular-nums">
+                  {mockFmtUsd(mockProfitabilityIncome)}
+                </p>
+              </div>
+              <div className="flex min-w-0 flex-col gap-0.5 sm:px-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Receipt className="size-3.5 shrink-0" aria-hidden />
+                  <span className="text-xs font-medium uppercase tracking-wide">Expense</span>
+                </div>
+                <p className="text-base font-semibold leading-none text-foreground tabular-nums">
+                  {mockFmtUsd(mockProfitabilityExpense)}
+                </p>
+              </div>
+              <div className="flex min-w-0 flex-col gap-0.5 sm:pl-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Percent className="size-3.5 shrink-0" aria-hidden />
+                  <span className="text-xs font-medium uppercase tracking-wide">Margin</span>
+                </div>
+                <p className="text-base font-semibold leading-none text-foreground tabular-nums">
+                  {mockProfitabilityMarginPct}%
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -444,101 +525,8 @@ export function ProjectDetailClient({
               aria-label="Tasks completed"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-xs text-muted-foreground">By task</span>
-            <ProjectProgressSegments segments={progressSegments} className="min-w-[140px] max-w-full flex-1" />
-          </div>
         </div>
-
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-              <Users className="size-4 text-primary shrink-0" aria-hidden />
-              Team
-            </div>
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/admin/projects/${project.id}/edit`}>Manage members</Link>
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {projectMembers.length === 0 ? (
-              <span className="text-sm text-muted-foreground">
-                No members yet. Edit project to add client and members.
-              </span>
-            ) : (
-              projectMembers.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center gap-2 rounded-full border border-border/80 bg-muted/30 py-1 pl-1 pr-3"
-                >
-                  <span
-                    className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary"
-                    title={m.label}
-                  >
-                    {initials(m.label)}
-                  </span>
-                  <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-xs font-semibold leading-none">{m.label}</span>
-                    {m.role_label ? (
-                      <span className="mt-0.5 text-[10px] leading-none text-muted-foreground">
-                        {m.role_label}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border pt-4 text-xs text-muted-foreground sm:grid-cols-4">
-          <div>
-            <span className="block font-medium text-foreground/80">Time vs estimate</span>
-            <ProjectProgressBar
-              loggedMinutes={projectTimeLogMinutes}
-              estimatedMinutes={project.proposed_time ?? null}
-            />
-          </div>
-          <div>
-            <span className="font-medium text-foreground/80">Potential sales</span>
-            <p className="tabular-nums">
-              {project.potential_sales != null
-                ? Number(project.potential_sales).toLocaleString()
-                : "—"}
-            </p>
-          </div>
-          <div className="sm:col-span-2">
-            <span className="font-medium text-foreground/80">MAG</span>
-            <p className="font-mono text-[11px]">{project.required_mag_id ?? "—"}</p>
-          </div>
-        </div>
-
-        {(projectTaxonomy.categories.length > 0 || projectTaxonomy.tags.length > 0) && (
-          <div className="border-t border-border pt-4">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Categories & tags
-            </span>
-            <TaxonomyChips categories={projectTaxonomy.categories} tags={projectTaxonomy.tags} />
-          </div>
-        )}
       </section>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <h2 className="text-lg font-medium">Categories & tags</h2>
-          <p className="text-sm text-muted-foreground">Assign taxonomy for this project.</p>
-        </CardHeader>
-        <CardContent>
-          <TaxonomyAssignmentForContent
-            contentId={project.id}
-            contentTypeSlug="project"
-            section="project"
-            sectionLabel="Projects"
-            compact
-            onSaved={() => router.refresh()}
-          />
-        </CardContent>
-      </Card>
 
       {/* Donor-aligned tabs: Tasks | Events | Transactions | Attachments */}
       <Card className="overflow-hidden shadow-sm">

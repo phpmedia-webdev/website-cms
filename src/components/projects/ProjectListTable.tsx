@@ -23,11 +23,13 @@ export interface ProjectListRow {
   id: string;
   name: string;
   archivedAt: string | null;
-  proposedEndDate: string | null;
+  dueDate: string | null;
   statusTerm: ProjectListTerm | null;
   projectTypeTerm: ProjectListTerm | null;
   client: ProjectListClientInfo | null;
   members: ProjectMemberAvatarItem[];
+  /** Team `user_id`s on `project_members` (for “My projects” preset). */
+  memberUserIds: string[];
   progressSegments: ProjectProgressSegment[];
 }
 
@@ -159,7 +161,7 @@ export function ProjectListTable({ projects }: ProjectListTableProps) {
                       <ProjectMemberAvatars members={project.members} />
                     </td>
                     <td className={`${TD} whitespace-nowrap text-muted-foreground`}>
-                      {formatDate(project.proposedEndDate)}
+                      {formatDate(project.dueDate)}
                     </td>
                     <td className={TD}>
                       <ProjectProgressSegments segments={project.progressSegments} />

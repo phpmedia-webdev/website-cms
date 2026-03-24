@@ -1,29 +1,46 @@
-import { listProjects, getProjectStatusTerms, getProjectTypeTerms, listProjectMembersByProjectIds, listTasksByProjectIds } from "@/lib/supabase/projects";
+import {
+  listProjects,
+  getAdminProjectStatusTermsForList,
+  getProjectTypeTerms,
+  listProjectMembersByProjectIds,
+  listTasksByProjectIds,
+  projectDueDateForAdminList,
+} from "@/lib/supabase/projects";
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getOrganizationsByIds } from "@/lib/supabase/organizations";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { ProjectsListClient } from "./ProjectsListClient";
-import type { ProjectListRow, ProjectListTerm } from "@/components/projects/ProjectListTable";
+import type { ProjectListRow } from "@/components/projects/ProjectListTable";
+import type { ProjectStatusFilterOption } from "@/lib/supabase/projects";
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value && value.trim()))));
 }
 
-function toTerm(term: { id: string; name: string; slug: string; color: string | null } | undefined): ProjectListTerm | null {
+function toTerm(term: { id: string; name: string; slug: string; color: string | null } | undefined) {
   if (!term) return null;
   return { id: term.id, name: term.name, slug: term.slug, color: term.color };
 }
 
 export default async function AdminProjectsPage() {
+  const user = await getCurrentUser();
+  const currentUserId = user?.id ?? null;
+
   let projects: Awaited<ReturnType<typeof listProjects>> = [];
-  let statusTerms: Awaited<ReturnType<typeof getProjectStatusTerms>> = [];
+  let statusFilterOptions: ProjectStatusFilterOption[] = [];
+  let statusDisplayById: Awaited<ReturnType<typeof getAdminProjectStatusTermsForList>>["displayById"] = new Map();
   let typeTerms: Awaited<ReturnType<typeof getProjectTypeTerms>> = [];
   try {
-    [projects, statusTerms, typeTerms] = await Promise.all([
+    const [proj, adminStatus, types] = await Promise.all([
       listProjects({ include_archived: true }),
-      getProjectStatusTerms(),
+      getAdminProjectStatusTermsForList(),
       getProjectTypeTerms(),
     ]);
+    projects = proj;
+    statusFilterOptions = adminStatus.statusFilterOptions;
+    statusDisplayById = adminStatus.displayById;
+    typeTerms = types;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Error loading projects:", msg);
@@ -47,7 +64,7 @@ export default async function AdminProjectsPage() {
   const contactMap = new Map<string, (typeof contacts)[number]>(contacts.map((contact) => [contact.id, contact]));
   const organizationMap = new Map(organizations.map((org) => [org.id, org]));
   const profileMap = new Map(profiles.map((profile) => [profile.user_id, profile]));
-  const statusMap = new Map(statusTerms.map((term) => [term.id, term]));
+  const statusMap = statusDisplayById;
   const typeMap = new Map(typeTerms.map((term) => [term.id, term]));
   const tasksByProject = new Map<string, Awaited<ReturnType<typeof listTasksByProjectIds>>>();
   for (const task of tasks) {
@@ -83,7 +100,13 @@ export default async function AdminProjectsPage() {
           }
         : null;
 
-    const members = (membersByProject.get(project.id) ?? []).map((member) => {
+    const rawMembers = membersByProject.get(project.id) ?? [];
+    const memberUserIds = [
+      ...new Set(
+        rawMembers.map((m) => m.user_id).filter((id): id is string => Boolean(id && id.trim()))
+      ),
+    ];
+    const members = rawMembers.map((member) => {
       if (member.contact_id) {
         const contactMember = contactMap.get(member.contact_id);
         return {
@@ -122,14 +145,21 @@ export default async function AdminProjectsPage() {
       id: project.id,
       name: project.name,
       archivedAt: project.archived_at,
-      proposedEndDate: project.proposed_end_date,
+      dueDate: projectDueDateForAdminList(project),
       statusTerm,
       projectTypeTerm: typeTerm,
       client,
       members,
+      memberUserIds,
       progressSegments,
     } satisfies ProjectListRow;
   });
 
-  return <ProjectsListClient initialRows={rows} statusTerms={statusTerms.map((term) => toTerm(term)).filter((term): term is ProjectListTerm => term != null)} />;
+  return (
+    <ProjectsListClient
+      initialRows={rows}
+      statusFilterOptions={statusFilterOptions}
+      currentUserId={currentUserId}
+    />
+  );
 }

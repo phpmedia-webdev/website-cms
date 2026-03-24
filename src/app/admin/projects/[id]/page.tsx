@@ -10,7 +10,6 @@ import {
 } from "@/lib/supabase/projects";
 import { getCustomizerOptions } from "@/lib/supabase/settings";
 import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms";
-import { getTaxonomyTermsForContentDisplay } from "@/lib/supabase/taxonomy";
 import { listOrders } from "@/lib/shop/orders";
 import { listInvoices } from "@/lib/shop/invoices";
 import { listEventsByProjectId } from "@/lib/supabase/events";
@@ -32,7 +31,6 @@ export default async function AdminProjectDetailPage({
     projectInvoices,
     projectEvents,
     projectTimeLogMinutes,
-    projectTaxonomy,
     projectStatusTerms,
     projectTypeTerms,
     czTaskStatus,
@@ -46,7 +44,6 @@ export default async function AdminProjectDetailPage({
     listInvoices({ project_id: id, limit: 100 }),
     listEventsByProjectId(id),
     getProjectTimeLogTotalMinutes(id),
-    getTaxonomyTermsForContentDisplay(id, "project"),
     getProjectStatusTerms(),
     getProjectTypeTerms(),
     getCustomizerOptions("task_status"),
@@ -58,8 +55,6 @@ export default async function AdminProjectDetailPage({
   const taskTypeTerms = statusTermsFromCustomizerRows(czTaskType);
   if (!project) notFound();
 
-  const projectTotal = projectOrders.reduce((sum, o) => sum + Number(o.total), 0);
-
   let clientDisplayName: string | null = null;
   if (project.contact_id) {
     const contact = await getContactById(project.contact_id);
@@ -68,6 +63,8 @@ export default async function AdminProjectDetailPage({
     const org = await getOrganizationById(project.client_organization_id);
     clientDisplayName = org?.name ?? project.client_organization_id;
   }
+
+  const projectTotal = projectOrders.reduce((sum, o) => sum + Number(o.total), 0);
 
   const membersWithLabels = await Promise.all(
     projectMembers.map(async (m) => {
@@ -97,12 +94,11 @@ export default async function AdminProjectDetailPage({
       initialProjectEvents={projectEvents}
       projectTotal={projectTotal}
       projectTimeLogMinutes={projectTimeLogMinutes}
-      projectTaxonomy={projectTaxonomy}
+      clientDisplayName={clientDisplayName}
       projectStatusTerms={projectStatusTerms}
       projectTypeTerms={projectTypeTerms}
       taskStatusTerms={taskStatusTerms}
       taskTypeTerms={taskTypeTerms}
-      clientDisplayName={clientDisplayName}
       initialProjectMembers={membersWithLabels}
       projectRoleTerms={projectRoleTerms}
     />

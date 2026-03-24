@@ -11,6 +11,23 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For **open**
 
 ## [Unreleased]
 
+### 2026-03-24 16:29 CT — Project detail & edit: client/team layout, mandatory client, detail cleanup
+
+- **Context for Next Session:** **Manual SQL** unchanged — still run outstanding migrations listed in [sessionlog.md](./sessionlog.md) (**200**, **198**, **197**, **199** if any env behind). **Test:** Admin project **detail** — Client | Team column layout, **Manage members** link, pills, no taxonomy block; **edit** — cannot save without client; **Set client** + **Add member** (team/contact). **New project** can still be created without client; first **edit** save enforces client. **Next:** Attachments tab (sessionlog §1); Accounting module notes in sessionlog; optional **new project** flow to require or prompt for client.
+- **Completed:**
+  - **`ProjectEditClient.tsx`:** **Client & members** — 25% / 75% grid; **Set client** dialog (contact or organization; org optional bulk-add contacts); **Add member** limited to **team** + **CRM contact**; **Save** blocked until `contact_id` or `client_organization_id` is set; removed standalone **Clear client**; primary contact excluded from “additional members” list when client is a contact.
+  - **`ProjectDetailClient.tsx` + `[id]/page.tsx`:** **Client | Team** header (**Client** / **Team** labels + **Manage members**); borderless two-column content; large client initials circle + truncated name + Contact/Organization hint; team uses existing **pill** styling; `clientDisplayName` resolved on server; primary contact hidden from team column when client is contact; removed **Utilization** overview stat; removed **Categories & tags** from detail (chips + assignment card) and dropped `getTaxonomyTermsForContentDisplay` for this page; earlier layout items retained (e.g. Type **TermBadge**, team block under description).
+  - **`page.tsx` (detail):** Restored `getOrganizationById` / `getContactById` for client label only where needed.
+  - **Docs:** [planlog.md](./planlog.md) Phase 19 (project UI members/client/edit bullets), [mvt.md](./mvt.md) projects tree line.
+
+### 2026-03-24 13:19 CT — Projects schema: `start_date`, `due_date`, `completed_date` (migration 199)
+
+- **Context for Next Session:** **Manual SQL — you need to run:** `supabase/migrations/199_projects_start_due_completed_dates.sql` in Supabase SQL Editor (per tenant schema; replace `website_cms_template_dev` if needed). Until applied, `listProjects` / `getProjectById` RPC shape and inserts/updates expect the **new** column names and will fail against old DBs. Remove the **199** line from [sessionlog.md](./sessionlog.md) when done on all envs.
+- **Completed:**
+  - **DB (`199_projects_start_due_completed_dates.sql`):** Rename `projects.proposed_start_date` → `start_date`, `proposed_end_date` → `due_date`; add nullable `completed_date`; replace partial indexes; `get_projects_dynamic` / `get_project_by_id_dynamic` return `start_date`, `due_date`, `completed_date`.
+  - **App:** `Project` / insert / update / `createProject` / `updateProject` / task auto-extend uses `due_date`; REST `POST/PUT` bodies use `start_date`, `due_date`, `completed_date`; admin new/edit/detail + projects list row field `dueDate`; preset copy references due date.
+  - **Docs:** [planlog.md](./planlog.md) Phase 19 schema bullets, [sessionlog.md](./sessionlog.md) Manual SQL outstanding.
+
 ### 2026-03-23 22:50 CT — Session wrap: project detail layout; All Tasks §1.1–1.3 + RPC presets; projects list
 
 - **Context for Next Session:** **Manual SQL:** Run **`197_get_tasks_dynamic_exclude_archived_projects.sql`** and **`198_get_tasks_dynamic_preset_filters.sql`** in Supabase SQL Editor if any fork/env is missing them; then clear/update the outstanding line in [sessionlog.md](./sessionlog.md) (§1.3 / Manual SQL). **QA:** Sessionlog §1.3 preset + reset behaviors with real data. **Next product:** Wire **Attachments** on project detail (currently placeholder); §3 messaging / planlog picker MVP-if-time. **Key files:** `ProjectDetailClient.tsx`, `AllTasksListClient.tsx`, `all-tasks-sort.ts`, `admin-task-list.ts`, `api/tasks/route.ts`, `ProjectListTable.tsx`, `supabase/migrations/197_*.sql`, `198_*.sql`.

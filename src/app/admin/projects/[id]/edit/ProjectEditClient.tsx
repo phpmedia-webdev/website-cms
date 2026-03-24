@@ -39,7 +39,8 @@ interface ProjectEditClientProps {
   initialProjectMembers: (ProjectMember & { label: string; role_label: string | null })[];
 }
 
-type AddMemberType = "client_contact" | "client_org" | "team" | "contact";
+type AddMemberType = "team" | "contact";
+type SetClientKind = "contact" | "organization";
 
 interface OrgOption {
   id: string;
@@ -82,8 +83,9 @@ export function ProjectEditClient({
   const [projectTypeTermId, setProjectTypeTermId] = useState(
     project.project_type_term_id ?? ""
   );
-  const [proposedStartDate, setProposedStartDate] = useState(toInputDate(project.proposed_start_date));
-  const [proposedEndDate, setProposedEndDate] = useState(toInputDate(project.proposed_end_date));
+  const [startDate, setStartDate] = useState(toInputDate(project.start_date));
+  const [dueDate, setDueDate] = useState(toInputDate(project.due_date));
+  const [completedDate, setCompletedDate] = useState(toInputDate(project.completed_date));
   const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(
     project.proposed_time ?? null
   );
@@ -94,31 +96,47 @@ export function ProjectEditClient({
   const [error, setError] = useState<string | null>(null);
   const [projectMembers, setProjectMembers] = useState(initialProjectMembers);
   const [clientName, setClientName] = useState(clientDisplayName);
+  const [clientContactId, setClientContactId] = useState<string | null>(project.contact_id);
+  const [clientOrgId, setClientOrgId] = useState<string | null>(project.client_organization_id);
 
   useEffect(() => {
     setProjectMembers(initialProjectMembers);
     setClientName(clientDisplayName);
-  }, [initialProjectMembers, clientDisplayName]);
+    setClientContactId(project.contact_id);
+    setClientOrgId(project.client_organization_id);
+  }, [initialProjectMembers, clientDisplayName, project.contact_id, project.client_organization_id]);
+
+  const [setClientOpen, setSetClientOpen] = useState(false);
+  const [setClientKind, setSetClientKind] = useState<SetClientKind>("contact");
+  const [setClientContactSearch, setSetClientContactSearch] = useState("");
+  const [setClientContacts, setSetClientContacts] = useState<ContactOption[]>([]);
+  const [setClientContactsLoading, setSetClientContactsLoading] = useState(false);
+  const [setClientSelectedContactId, setSetClientSelectedContactId] = useState("");
+  const [setClientSelectedOrgId, setSetClientSelectedOrgId] = useState("");
+  const [setClientOrgContacts, setSetClientOrgContacts] = useState<ContactOption[]>([]);
+  const [setClientExistingMemberContactIds, setSetClientExistingMemberContactIds] = useState<
+    Set<string>
+  >(new Set());
+  const [setClientSelectedOrgContactIds, setSetClientSelectedOrgContactIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [setClientBusy, setSetClientBusy] = useState(false);
+  const [setClientOrgContactsLoading, setSetClientOrgContactsLoading] = useState(false);
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
-  const [addMemberType, setAddMemberType] = useState<AddMemberType>("contact");
+  const [addMemberType, setAddMemberType] = useState<AddMemberType>("team");
   const [contactSearch, setContactSearch] = useState("");
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState("");
   const [organizations, setOrganizations] = useState<OrgOption[]>([]);
-  const [selectedOrgId, setSelectedOrgId] = useState("");
   const [teamUsers, setTeamUsers] = useState<TeamUserOption[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [addMemberRoleTermId, setAddMemberRoleTermId] = useState("");
-  const [orgContacts, setOrgContacts] = useState<ContactOption[]>([]);
-  const [existingMemberContactIds, setExistingMemberContactIds] = useState<Set<string>>(new Set());
-  const [selectedOrgContactIds, setSelectedOrgContactIds] = useState<Set<string>>(new Set());
   const [addMemberBusy, setAddMemberBusy] = useState(false);
-  const [orgContactsLoading, setOrgContactsLoading] = useState(false);
 
   useEffect(() => {
-    if (!addMemberOpen) return;
+    if (!addMemberOpen && !setClientOpen) return;
     fetch("/api/crm/organizations")
       .then((r) => r.json())
       .then((data) => {
@@ -127,23 +145,25 @@ export function ProjectEditClient({
         }
       })
       .catch(() => {});
-    fetch("/api/settings/team")
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data?.users)) {
-          setTeamUsers(
-            data.users.map((u: { user_id: string; display_name: string | null }) => ({
-              user_id: u.user_id,
-              display_name: u.display_name ?? null,
-            }))
-          );
-        } else setTeamUsers([]);
-      })
-      .catch(() => setTeamUsers([]));
-  }, [addMemberOpen]);
+    if (addMemberOpen) {
+      fetch("/api/settings/team")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data?.users)) {
+            setTeamUsers(
+              data.users.map((u: { user_id: string; display_name: string | null }) => ({
+                user_id: u.user_id,
+                display_name: u.display_name ?? null,
+              }))
+            );
+          } else setTeamUsers([]);
+        })
+        .catch(() => setTeamUsers([]));
+    }
+  }, [addMemberOpen, setClientOpen]);
 
   useEffect(() => {
-    if (addMemberType !== "contact" && addMemberType !== "client_contact") return;
+    if (!addMemberOpen || addMemberType !== "contact") return;
     setContactsLoading(true);
     const q = contactSearch.trim() || " ";
     fetch(`/api/crm/contacts/search?q=${encodeURIComponent(q)}&limit=50`)
@@ -164,15 +184,36 @@ export function ProjectEditClient({
   }, [addMemberOpen, addMemberType, contactSearch]);
 
   useEffect(() => {
-    if (addMemberType !== "client_org" || !selectedOrgId) return;
-    setOrgContactsLoading(true);
+    if (!setClientOpen || setClientKind !== "contact") return;
+    setSetClientContactsLoading(true);
+    const q = setClientContactSearch.trim() || " ";
+    fetch(`/api/crm/contacts/search?q=${encodeURIComponent(q)}&limit=50`)
+      .then((r) => r.json())
+      .then((data) => {
+        setSetClientContacts(
+          Array.isArray(data.contacts)
+            ? data.contacts.map((c: { id: string; full_name: string | null; email: string | null }) => ({
+                id: c.id,
+                full_name: c.full_name ?? null,
+                email: c.email ?? null,
+              }))
+            : []
+        );
+      })
+      .catch(() => setSetClientContacts([]))
+      .finally(() => setSetClientContactsLoading(false));
+  }, [setClientOpen, setClientKind, setClientContactSearch]);
+
+  useEffect(() => {
+    if (!setClientOpen || setClientKind !== "organization" || !setClientSelectedOrgId) return;
+    setSetClientOrgContactsLoading(true);
     Promise.all([
-      fetch(`/api/crm/organizations/${selectedOrgId}/contacts`).then((r) => r.json()),
+      fetch(`/api/crm/organizations/${setClientSelectedOrgId}/contacts`).then((r) => r.json()),
       fetch(`/api/projects/${project.id}/members`).then((r) => r.json()),
     ])
       .then(([contactsRes, membersRes]) => {
         const list = Array.isArray(contactsRes.contacts) ? contactsRes.contacts : [];
-        setOrgContacts(
+        setSetClientOrgContacts(
           list.map((c: { id: string; full_name: string | null; email: string | null }) => ({
             id: c.id,
             full_name: c.full_name ?? null,
@@ -185,18 +226,18 @@ export function ProjectEditClient({
             .map((m: { contact_id: string | null }) => m.contact_id)
             .filter((id: string | null): id is string => id != null)
         );
-        setExistingMemberContactIds(contactIds);
-        setSelectedOrgContactIds(
+        setSetClientExistingMemberContactIds(contactIds);
+        setSetClientSelectedOrgContactIds(
           new Set(list.map((c: { id: string }) => c.id).filter((id: string) => !contactIds.has(id)))
         );
       })
       .catch(() => {
-        setOrgContacts([]);
-        setExistingMemberContactIds(new Set());
-        setSelectedOrgContactIds(new Set());
+        setSetClientOrgContacts([]);
+        setSetClientExistingMemberContactIds(new Set());
+        setSetClientSelectedOrgContactIds(new Set());
       })
-      .finally(() => setOrgContactsLoading(false));
-  }, [addMemberType, selectedOrgId, project.id]);
+      .finally(() => setSetClientOrgContactsLoading(false));
+  }, [setClientOpen, setClientKind, setClientSelectedOrgId, project.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,6 +245,10 @@ export function ProjectEditClient({
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Name is required.");
+      return;
+    }
+    if (!clientContactId && !clientOrgId) {
+      setError("A client (contact or organization) is required. Set the client in the Members section below.");
       return;
     }
     setSubmitting(true);
@@ -216,8 +261,9 @@ export function ProjectEditClient({
           description: description.trim() || null,
           status_term_id: statusTermId,
           project_type_term_id: projectTypeTermId || null,
-          proposed_start_date: proposedStartDate || null,
-          proposed_end_date: proposedEndDate || null,
+          start_date: startDate || null,
+          due_date: dueDate || null,
+          completed_date: completedDate || null,
           proposed_time: proposedTimeMinutes ?? null,
           potential_sales: potentialSales ? parseFloat(potentialSales) : null,
         }),
@@ -236,21 +282,11 @@ export function ProjectEditClient({
     }
   };
 
-  const clearClient = async () => {
-    const res = await fetch(`/api/projects/${project.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact_id: null, client_organization_id: null }),
-    });
-    if (res.ok) {
-      setClientName(null);
-      router.refresh();
-    }
-  };
-
-  const addableOrgContacts = orgContacts.filter((c) => !existingMemberContactIds.has(c.id));
-  const toggleOrgContact = (id: string) => {
-    setSelectedOrgContactIds((prev) => {
+  const setClientAddableOrgContacts = setClientOrgContacts.filter(
+    (c) => !setClientExistingMemberContactIds.has(c.id)
+  );
+  const toggleSetClientOrgContact = (id: string) => {
+    setSetClientSelectedOrgContactIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -258,44 +294,76 @@ export function ProjectEditClient({
     });
   };
 
-  const runAddMember = async () => {
-    setAddMemberBusy(true);
+  const runApplySetClient = async () => {
+    setSetClientBusy(true);
     try {
-      if (addMemberType === "client_contact" && selectedContactId) {
-        await fetch(`/api/projects/${project.id}`, {
+      if (setClientKind === "contact" && setClientSelectedContactId) {
+        const putRes = await fetch(`/api/projects/${project.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contact_id: selectedContactId, client_organization_id: null }),
+          body: JSON.stringify({
+            contact_id: setClientSelectedContactId,
+            client_organization_id: null,
+          }),
         });
-        await fetch(`/api/projects/${project.id}/members`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contact_id: selectedContactId, role_term_id: addMemberRoleTermId || null }),
-        });
-        setClientName(contacts.find((c) => c.id === selectedContactId)?.full_name ?? selectedContactId);
-        setAddMemberOpen(false);
+        if (!putRes.ok) return;
+        const label =
+          setClientContacts.find((c) => c.id === setClientSelectedContactId)?.full_name ??
+          setClientContacts.find((c) => c.id === setClientSelectedContactId)?.email ??
+          setClientSelectedContactId;
+        setClientName(label);
+        setClientContactId(setClientSelectedContactId);
+        setClientOrgId(null);
+        const alreadyMember = projectMembers.some(
+          (m) => m.contact_id === setClientSelectedContactId
+        );
+        if (!alreadyMember) {
+          await fetch(`/api/projects/${project.id}/members`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contact_id: setClientSelectedContactId, role_term_id: null }),
+          });
+        }
+        setSetClientOpen(false);
         router.refresh();
         return;
       }
-      if (addMemberType === "client_org" && selectedOrgId) {
-        await fetch(`/api/projects/${project.id}`, {
+      if (setClientKind === "organization" && setClientSelectedOrgId) {
+        const putRes = await fetch(`/api/projects/${project.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contact_id: null, client_organization_id: selectedOrgId }),
+          body: JSON.stringify({
+            contact_id: null,
+            client_organization_id: setClientSelectedOrgId,
+          }),
         });
-        setClientName(organizations.find((o) => o.id === selectedOrgId)?.name ?? selectedOrgId);
-        const toAdd = addableOrgContacts.filter((c) => selectedOrgContactIds.has(c.id));
+        if (!putRes.ok) return;
+        const orgName =
+          organizations.find((o) => o.id === setClientSelectedOrgId)?.name ?? setClientSelectedOrgId;
+        setClientName(orgName);
+        setClientContactId(null);
+        setClientOrgId(setClientSelectedOrgId);
+        const toAdd = setClientAddableOrgContacts.filter((c) =>
+          setClientSelectedOrgContactIds.has(c.id)
+        );
         for (const c of toAdd) {
           await fetch(`/api/projects/${project.id}/members`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contact_id: c.id, role_term_id: addMemberRoleTermId || null }),
+            body: JSON.stringify({ contact_id: c.id, role_term_id: null }),
           });
         }
-        setAddMemberOpen(false);
+        setSetClientOpen(false);
         router.refresh();
-        return;
       }
+    } finally {
+      setSetClientBusy(false);
+    }
+  };
+
+  const runAddMember = async () => {
+    setAddMemberBusy(true);
+    try {
       if (addMemberType === "team" && selectedUserId) {
         const res = await fetch(`/api/projects/${project.id}/members`, {
           method: "POST",
@@ -324,6 +392,10 @@ export function ProjectEditClient({
     }
   };
 
+  const additionalMembers = projectMembers.filter(
+    (m) => !(clientContactId != null && m.contact_id === clientContactId)
+  );
+
   function initials(label: string): string {
     const parts = label.trim().split(/\s+/).filter(Boolean);
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
@@ -343,17 +415,21 @@ export function ProjectEditClient({
   };
 
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild>
-        <Link href={`/admin/projects/${project.id}`}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to project
-        </Link>
-      </Button>
+    <div className="mx-auto max-w-6xl space-y-6">
+      {/* Page chrome — match task edit (`TaskEditClient`): outside form card */}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Project Detail</h1>
+        <Button variant="ghost" size="sm" asChild className="mt-1 -ml-2">
+          <Link href={`/admin/projects/${project.id}`}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to project
+          </Link>
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>
-          <h1 className="text-xl font-semibold">Edit project</h1>
+          <h2 className="text-lg font-semibold">Edit project</h2>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
@@ -420,24 +496,34 @@ export function ProjectEditClient({
               id="proposed_time"
               label="Estimated time"
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <Label htmlFor="start">Proposed start date</Label>
+                <Label htmlFor="start">Start date</Label>
                 <Input
                   id="start"
                   type="date"
-                  value={proposedStartDate}
-                  onChange={(e) => setProposedStartDate(e.target.value)}
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="end">Proposed end date</Label>
+                <Label htmlFor="due">Due date</Label>
                 <Input
-                  id="end"
+                  id="due"
                   type="date"
-                  value={proposedEndDate}
-                  onChange={(e) => setProposedEndDate(e.target.value)}
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="completed">Completed date</Label>
+                <Input
+                  id="completed"
+                  type="date"
+                  value={completedDate}
+                  onChange={(e) => setCompletedDate(e.target.value)}
                   className="mt-1"
                 />
               </div>
@@ -480,231 +566,382 @@ export function ProjectEditClient({
 
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">Members</h2>
-            <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
-              <DialogTrigger asChild>
-                <Button type="button" size="sm" variant="outline">
-                  <UserPlus className="h-4 w-4 mr-1" />
-                  Add member
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Add project member</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 overflow-auto min-h-0">
-                  <div>
-                    <Label className="text-sm">Add as</Label>
-                    <Select
-                      value={addMemberType}
-                      onValueChange={(v) => {
-                        setAddMemberType(v as AddMemberType);
-                        setSelectedContactId("");
-                        setSelectedOrgId("");
-                        setSelectedUserId("");
-                        setSelectedOrgContactIds(new Set());
-                      }}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="client_contact">Client (Contact)</SelectItem>
-                        <SelectItem value="client_org">Client (Organization)</SelectItem>
-                        <SelectItem value="team">Team member</SelectItem>
-                        <SelectItem value="contact">Contact (member only)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-sm">Role (optional)</Label>
-                    <Select
-                      value={addMemberRoleTermId || "none"}
-                      onValueChange={(v) => setAddMemberRoleTermId(v === "none" ? "" : v)}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="None" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— None —</SelectItem>
-                        {projectRoleTerms.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {(addMemberType === "client_contact" || addMemberType === "contact") && (
+          <h2 className="text-lg font-medium">Client & members</h2>
+          <p className="text-sm text-muted-foreground">
+            Set one client (contact or organization), then add team users or other contacts as additional members.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-4 md:items-start md:gap-4">
+            <div className="md:col-span-1 flex min-w-0 flex-col gap-3 rounded-xl border border-border/80 bg-muted/20 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Client <span className="text-destructive">*</span>
+                </Label>
+              </div>
+              {clientName ? (
+                <div className="flex min-w-0 flex-col items-center gap-2 text-center">
+                  <span
+                    className="flex size-20 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xl font-semibold text-primary"
+                    title={clientName}
+                  >
+                    {initials(clientName)}
+                  </span>
+                  <p className="w-full min-w-0 text-sm font-semibold leading-tight text-foreground truncate">
+                    {clientName}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {clientOrgId ? "Organization" : "Contact"}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <span className="flex size-20 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/40 text-muted-foreground text-xs">
+                    —
+                  </span>
+                  <p className="text-xs text-muted-foreground">Required to save the project</p>
+                </div>
+              )}
+              <Dialog
+                open={setClientOpen}
+                onOpenChange={(open) => {
+                  setSetClientOpen(open);
+                  if (open) {
+                    if (clientOrgId) {
+                      setSetClientKind("organization");
+                      setSetClientSelectedOrgId(clientOrgId);
+                      setSetClientSelectedContactId("");
+                    } else {
+                      setSetClientKind("contact");
+                      setSetClientSelectedContactId(clientContactId ?? "");
+                      setSetClientSelectedOrgId("");
+                    }
+                    setSetClientContactSearch("");
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button type="button" size="sm" variant="outline" className="w-full">
+                    {clientName ? "Change client" : "Set client"}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+                  <DialogHeader>
+                    <DialogTitle>Set project client</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 overflow-auto min-h-0">
                     <div>
-                      <Label className="text-sm">Contact</Label>
-                      <Input
-                        placeholder="Search contacts…"
-                        value={contactSearch}
-                        onChange={(e) => setContactSearch(e.target.value)}
-                        className="mt-1"
-                      />
+                      <Label className="text-sm">Client type</Label>
                       <Select
-                        value={selectedContactId || "none"}
-                        onValueChange={(v) => setSelectedContactId(v === "none" ? "" : v)}
-                        disabled={contactsLoading}
+                        value={setClientKind}
+                        onValueChange={(v) => {
+                          setSetClientKind(v as SetClientKind);
+                          setSetClientSelectedContactId("");
+                          setSetClientSelectedOrgId("");
+                          setSetClientSelectedOrgContactIds(new Set());
+                        }}
                       >
-                        <SelectTrigger className="mt-2">
-                          <SelectValue placeholder={contactsLoading ? "Loading…" : "Select contact"} />
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">— Select —</SelectItem>
-                          {contacts.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.full_name || c.email || c.id}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="contact">Contact</SelectItem>
+                          <SelectItem value="organization">Organization</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
+                    {setClientKind === "contact" && (
+                      <div>
+                        <Label className="text-sm">Contact</Label>
+                        <Input
+                          placeholder="Search contacts…"
+                          value={setClientContactSearch}
+                          onChange={(e) => setSetClientContactSearch(e.target.value)}
+                          className="mt-1"
+                        />
+                        <Select
+                          value={setClientSelectedContactId || "none"}
+                          onValueChange={(v) => setSetClientSelectedContactId(v === "none" ? "" : v)}
+                          disabled={setClientContactsLoading}
+                        >
+                          <SelectTrigger className="mt-2">
+                            <SelectValue
+                              placeholder={setClientContactsLoading ? "Loading…" : "Select contact"}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— Select —</SelectItem>
+                            {setClientContacts.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.full_name || c.email || c.id}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {setClientKind === "organization" && (
+                      <div className="space-y-2">
+                        <Label className="text-sm">Organization</Label>
+                        <Select
+                          value={setClientSelectedOrgId || "none"}
+                          onValueChange={(v) => setSetClientSelectedOrgId(v === "none" ? "" : v)}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Select organization" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— Select —</SelectItem>
+                            {organizations.map((o) => (
+                              <SelectItem key={o.id} value={o.id}>
+                                {o.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {setClientSelectedOrgId ? (
+                          <div>
+                            <Label className="text-sm">Add org contacts as members (optional)</Label>
+                            <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                              {setClientOrgContactsLoading ? (
+                                <p className="text-sm text-muted-foreground">Loading…</p>
+                              ) : setClientOrgContacts.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                  No contacts in this organization.
+                                </p>
+                              ) : (
+                                setClientOrgContacts.map((c) => {
+                                  const isExisting = setClientExistingMemberContactIds.has(c.id);
+                                  const isSelected = setClientSelectedOrgContactIds.has(c.id);
+                                  return (
+                                    <label
+                                      key={c.id}
+                                      className={cn(
+                                        "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm",
+                                        isExisting && "cursor-not-allowed opacity-60"
+                                      )}
+                                    >
+                                      <Checkbox
+                                        checked={isExisting ? false : isSelected}
+                                        disabled={isExisting}
+                                        onCheckedChange={() =>
+                                          !isExisting && toggleSetClientOrgContact(c.id)
+                                        }
+                                      />
+                                      <span className="truncate">
+                                        {c.full_name || c.email || c.id}
+                                        {isExisting ? " (already member)" : ""}
+                                      </span>
+                                    </label>
+                                  );
+                                })
+                              )}
+                            </div>
+                            <div className="mt-1 flex gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs"
+                                onClick={() =>
+                                  setSetClientSelectedOrgContactIds(
+                                    new Set(setClientAddableOrgContacts.map((c) => c.id))
+                                  )
+                                }
+                              >
+                                Select all
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => setSetClientSelectedOrgContactIds(new Set())}
+                              >
+                                Deselect all
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      onClick={() => void runApplySetClient()}
+                      disabled={
+                        setClientBusy ||
+                        (setClientKind === "contact" && !setClientSelectedContactId) ||
+                        (setClientKind === "organization" && !setClientSelectedOrgId)
+                      }
+                    >
+                      {setClientBusy ? "Saving…" : "Save client"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
 
-                  {addMemberType === "client_org" && (
-                    <div className="space-y-2">
-                      <Label className="text-sm">Organization</Label>
-                      <Select value={selectedOrgId || "none"} onValueChange={(v) => setSelectedOrgId(v === "none" ? "" : v)}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select organization" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">— Select —</SelectItem>
-                          {organizations.map((o) => (
-                            <SelectItem key={o.id} value={o.id}>
-                              {o.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedOrgId && (
+            <div className="md:col-span-3 flex min-w-0 flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Additional members
+                  </span>
+                  <p className="text-sm text-muted-foreground">
+                    Team users and contacts (client contact is managed in the left column).
+                  </p>
+                </div>
+                <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button" size="sm" variant="outline">
+                      <UserPlus className="h-4 w-4 mr-1" />
+                      Add member
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>Add project member</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 overflow-auto min-h-0">
+                      <div>
+                        <Label className="text-sm">Add as</Label>
+                        <Select
+                          value={addMemberType}
+                          onValueChange={(v) => {
+                            setAddMemberType(v as AddMemberType);
+                            setSelectedContactId("");
+                            setSelectedUserId("");
+                          }}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="team">Team member</SelectItem>
+                            <SelectItem value="contact">Contact</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-sm">Role (optional)</Label>
+                        <Select
+                          value={addMemberRoleTermId || "none"}
+                          onValueChange={(v) => setAddMemberRoleTermId(v === "none" ? "" : v)}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="None" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— None —</SelectItem>
+                            {projectRoleTerms.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {addMemberType === "contact" && (
                         <div>
-                          <Label className="text-sm">Add org contacts as members (optional)</Label>
-                          <div className="border rounded-md p-2 space-y-1 max-h-40 overflow-y-auto mt-1">
-                            {orgContactsLoading ? (
-                              <p className="text-sm text-muted-foreground">Loading…</p>
-                            ) : orgContacts.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">No contacts in this organization.</p>
-                            ) : (
-                              orgContacts.map((c) => {
-                                const isExisting = existingMemberContactIds.has(c.id);
-                                const isSelected = selectedOrgContactIds.has(c.id);
-                                return (
-                                  <label
-                                    key={c.id}
-                                    className={cn(
-                                      "flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer text-sm",
-                                      isExisting && "opacity-60 cursor-not-allowed"
-                                    )}
-                                  >
-                                    <Checkbox
-                                      checked={isExisting ? false : isSelected}
-                                      disabled={isExisting}
-                                      onCheckedChange={() => !isExisting && toggleOrgContact(c.id)}
-                                    />
-                                    <span className="truncate">
-                                      {c.full_name || c.email || c.id}
-                                      {isExisting && " (already member)"}
-                                    </span>
-                                  </label>
-                                );
-                              })
-                            )}
-                          </div>
-                          <div className="flex gap-1 mt-1">
-                            <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setSelectedOrgContactIds(new Set(addableOrgContacts.map((c) => c.id)))}>
-                              Select all
-                            </Button>
-                            <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setSelectedOrgContactIds(new Set())}>
-                              Deselect all
-                            </Button>
-                          </div>
+                          <Label className="text-sm">Contact</Label>
+                          <Input
+                            placeholder="Search contacts…"
+                            value={contactSearch}
+                            onChange={(e) => setContactSearch(e.target.value)}
+                            className="mt-1"
+                          />
+                          <Select
+                            value={selectedContactId || "none"}
+                            onValueChange={(v) => setSelectedContactId(v === "none" ? "" : v)}
+                            disabled={contactsLoading}
+                          >
+                            <SelectTrigger className="mt-2">
+                              <SelectValue placeholder={contactsLoading ? "Loading…" : "Select contact"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— Select —</SelectItem>
+                              {contacts.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.full_name || c.email || c.id}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       )}
-                    </div>
-                  )}
 
-                  {addMemberType === "team" && (
-                    <div>
-                      <Label className="text-sm">Team member</Label>
-                      <Select value={selectedUserId || "none"} onValueChange={(v) => setSelectedUserId(v === "none" ? "" : v)}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select user" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">— Select —</SelectItem>
-                          {teamUsers.map((u) => (
-                            <SelectItem key={u.user_id} value={u.user_id}>
-                              {u.display_name || u.user_id}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                      {addMemberType === "team" && (
+                        <div>
+                          <Label className="text-sm">Team member</Label>
+                          <Select
+                            value={selectedUserId || "none"}
+                            onValueChange={(v) => setSelectedUserId(v === "none" ? "" : v)}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Select user" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— Select —</SelectItem>
+                              {teamUsers.map((u) => (
+                                <SelectItem key={u.user_id} value={u.user_id}>
+                                  {u.display_name || u.user_id}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                  <Button
-                    onClick={runAddMember}
-                    disabled={
-                      addMemberBusy ||
-                      (addMemberType === "client_contact" && !selectedContactId) ||
-                      (addMemberType === "client_org" && !selectedOrgId) ||
-                      (addMemberType === "team" && !selectedUserId) ||
-                      (addMemberType === "contact" && !selectedContactId)
-                    }
-                  >
-                    {addMemberBusy ? "Adding…" : "Add"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {clientName != null && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Client:</span>
-              <span>{clientName}</span>
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={clearClient}>
-                Clear
-              </Button>
+                      <Button
+                        type="button"
+                        onClick={() => void runAddMember()}
+                        disabled={
+                          addMemberBusy ||
+                          (addMemberType === "team" && !selectedUserId) ||
+                          (addMemberType === "contact" && !selectedContactId)
+                        }
+                      >
+                        {addMemberBusy ? "Adding…" : "Add"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {additionalMembers.length === 0 ? (
+                  <span className="text-sm text-muted-foreground">No additional members yet.</span>
+                ) : (
+                  additionalMembers.map((m) => (
+                    <div
+                      key={m.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 py-0.5 pl-1 pr-2 text-sm"
+                    >
+                      <span
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-medium text-primary"
+                        title={m.label}
+                      >
+                        {initials(m.label)}
+                      </span>
+                      <span className="max-w-[180px] truncate">{m.label}</span>
+                      {m.role_label ? (
+                        <span className="text-xs text-muted-foreground">({m.role_label})</span>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={() => removeMember(m.id)}
+                        aria-label="Remove member"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          )}
-          <div className="flex flex-wrap gap-2 items-center">
-            {projectMembers.length === 0 ? (
-              <span className="text-sm text-muted-foreground">No members yet.</span>
-            ) : (
-              projectMembers.map((m) => (
-                <div
-                  key={m.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 pl-1 pr-2 py-0.5 text-sm"
-                >
-                  <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-medium text-primary"
-                    title={m.label}
-                  >
-                    {initials(m.label)}
-                  </span>
-                  <span className="truncate max-w-[120px]">{m.label}</span>
-                  {m.role_label && <span className="text-muted-foreground text-xs">({m.role_label})</span>}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 shrink-0"
-                    onClick={() => removeMember(m.id)}
-                    aria-label="Remove member"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))
-            )}
           </div>
         </CardContent>
       </Card>
