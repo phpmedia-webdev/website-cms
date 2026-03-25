@@ -42,8 +42,8 @@ export interface Project {
   start_date: string | null;
   due_date: string | null;
   completed_date: string | null;
-  /** Estimated total time in minutes (for progress vs logged time). */
-  proposed_time: number | null;
+  /** Planned time in minutes (DB column; UI may show task rollup instead). */
+  planned_time: number | null;
   end_date_extended: boolean;
   potential_sales: number | null;
   required_mag_id: string | null;
@@ -92,7 +92,7 @@ export interface Task {
   /** Settings → Customizer scope `task_phase`. */
   task_phase_slug: string;
   priority_term_id: string;
-  proposed_time: number | null;
+  planned_time: number | null;
   actual_time: number | null;
   due_date: string | null;
   start_date: string | null;
@@ -141,8 +141,8 @@ export interface ProjectInsert {
   start_date?: string | null;
   due_date?: string | null;
   completed_date?: string | null;
-  /** Estimated time in minutes. */
-  proposed_time?: number | null;
+  /** Planned time in minutes. */
+  planned_time?: number | null;
   potential_sales?: number | null;
   required_mag_id?: string | null;
   contact_id?: string | null;
@@ -158,7 +158,7 @@ export interface ProjectUpdate {
   start_date?: string | null;
   due_date?: string | null;
   completed_date?: string | null;
-  proposed_time?: number | null;
+  planned_time?: number | null;
   potential_sales?: number | null;
   required_mag_id?: string | null;
   contact_id?: string | null;
@@ -174,7 +174,7 @@ export interface TaskInsert {
   task_type_slug?: string | null;
   task_phase_slug?: string | null;
   priority_term_id?: string | null;
-  proposed_time?: number | null;
+  planned_time?: number | null;
   actual_time?: number | null;
   due_date?: string | null;
   start_date?: string | null;
@@ -189,11 +189,32 @@ export interface TaskUpdate {
   task_type_slug?: string | null;
   task_phase_slug?: string | null;
   priority_term_id?: string | null;
-  proposed_time?: number | null;
+  planned_time?: number | null;
   actual_time?: number | null;
   due_date?: string | null;
   start_date?: string | null;
   responsible_id?: string | null;
+}
+
+/** Until `202_rpc_planned_time_column.sql`, RPC rows may still use `proposed_time`. */
+function rpcPlannedMinutes(row: Record<string, unknown>): number | null {
+  if (typeof row.planned_time === "number") return row.planned_time;
+  if (typeof row.proposed_time === "number") return row.proposed_time;
+  return null;
+}
+
+function normalizeTaskFromRpc(row: unknown): Task {
+  const r = row as Record<string, unknown>;
+  const normalized = { ...r, planned_time: rpcPlannedMinutes(r) } as Record<string, unknown>;
+  delete normalized.proposed_time;
+  return normalized as unknown as Task;
+}
+
+function normalizeProjectFromRpc(row: unknown): Project {
+  const r = row as Record<string, unknown>;
+  const normalized = { ...r, planned_time: rpcPlannedMinutes(r) } as Record<string, unknown>;
+  delete normalized.proposed_time;
+  return normalized as unknown as Project;
 }
 
 /** List projects. Taxonomy filtering can be applied in app via taxonomy_relationships. */
@@ -213,7 +234,7 @@ export async function listProjects(
     console.error("listProjects error:", error);
     throw error;
   }
-  return (data ?? []) as Project[];
+  return (data ?? []).map(normalizeProjectFromRpc);
 }
 
 /** Minimal project row for linking an event (excludes complete/archived status slugs; see project-status-for-event-link). */
@@ -280,8 +301,9 @@ export async function getProjectById(
     console.error("getProjectById error:", error);
     throw error;
   }
-  const rows = (data ?? []) as Project[];
-  return rows[0] ?? null;
+  const rows = (data ?? []) as unknown[];
+  const first = rows[0];
+  return first != null ? normalizeProjectFromRpc(first) : null;
 }
 
 /** Create a project. */
@@ -310,7 +332,7 @@ export async function createProject(
     start_date: input.start_date ?? null,
     due_date: input.due_date ?? null,
     completed_date: input.completed_date ?? null,
-    proposed_time: input.proposed_time ?? null,
+    planned_time: input.planned_time ?? null,
     potential_sales: input.potential_sales ?? null,
     required_mag_id: input.required_mag_id ?? null,
     contact_id: input.contact_id ?? null,
@@ -390,7 +412,7 @@ export async function updateProject(
   if (input.start_date !== undefined) payload.start_date = input.start_date;
   if (input.due_date !== undefined) payload.due_date = input.due_date;
   if (input.completed_date !== undefined) payload.completed_date = input.completed_date;
-  if (input.proposed_time !== undefined) payload.proposed_time = input.proposed_time;
+  if (input.planned_time !== undefined) payload.planned_time = input.planned_time;
   if (input.potential_sales !== undefined)
     payload.potential_sales = input.potential_sales;
   if (input.required_mag_id !== undefined)
@@ -601,7 +623,7 @@ export async function listTasks(
     );
     throw error;
   }
-  return (data ?? []) as Task[];
+  return (data ?? []).map(normalizeTaskFromRpc);
 }
 
 /** Get a single task by ID. */
@@ -619,8 +641,9 @@ export async function getTaskById(
     console.error("getTaskById error:", error);
     throw error;
   }
-  const rows = (data ?? []) as Task[];
-  return rows[0] ?? null;
+  const rows = (data ?? []) as unknown[];
+  const first = rows[0];
+  return first != null ? normalizeTaskFromRpc(first) : null;
 }
 
 /** Task follower (creator, responsible, or follower). Exactly one of user_id or contact_id. */
@@ -1045,7 +1068,7 @@ export async function createTask(
     task_type_slug: taskTypeSlug,
     task_phase_slug: taskPhaseSlug,
     priority_term_id: priorityTermId,
-    proposed_time: input.proposed_time ?? null,
+    planned_time: input.planned_time ?? null,
     actual_time: input.actual_time ?? null,
     due_date: input.due_date ?? null,
     start_date: input.start_date ?? null,
@@ -1101,8 +1124,7 @@ export async function updateTask(
         : DEFAULT_TASK_PHASE_SLUG;
   if (input.priority_term_id !== undefined)
     payload.priority_term_id = input.priority_term_id;
-  if (input.proposed_time !== undefined)
-    payload.proposed_time = input.proposed_time;
+  if (input.planned_time !== undefined) payload.planned_time = input.planned_time;
   if (input.actual_time !== undefined) payload.actual_time = input.actual_time;
   if (input.due_date !== undefined) payload.due_date = input.due_date;
   if (input.start_date !== undefined) payload.start_date = input.start_date;

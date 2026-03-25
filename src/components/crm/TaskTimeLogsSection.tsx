@@ -42,10 +42,10 @@ interface TaskTimeLogsSectionProps {
   taskStatusSlug: string | null | undefined;
   /** After status PUT succeeds (e.g. sync Schedule Status select on task edit). */
   onTaskStatusSlugChange?: (slug: string) => void;
-  /** Estimated minutes (task proposed_time) for progress bar; omit when unknown */
-  estimatedMinutes?: number | null;
-  /** When true, show a button + modal to update estimated time (task edit). Detail view: false. */
-  canEditEstimate?: boolean;
+  /** Planned minutes (task planned/proposed time) for progress bar; omit when unknown */
+  plannedMinutes?: number | null;
+  /** When true, show a button + modal to update planned time (task edit). Detail view: false. */
+  canEditPlanned?: boolean;
 }
 
 function whoLabel(log: TaskTimeLog, userLabels: Record<string, string>, contactLabels: Record<string, string>): string {
@@ -63,7 +63,7 @@ function whoKey(log: TaskTimeLog): string {
 }
 
 /** Positive minutes used for progress bar; null/0 = no estimate set. */
-function effectiveEstimatedMinutes(raw: number | null | undefined): number | null {
+function effectivePlannedMinutes(raw: number | null | undefined): number | null {
   if (raw == null || !Number.isFinite(raw) || raw <= 0) return null;
   return Math.round(raw);
 }
@@ -75,11 +75,11 @@ export function TaskTimeLogsSection({
   contactLabels,
   taskStatusSlug,
   onTaskStatusSlugChange,
-  estimatedMinutes,
-  canEditEstimate = false,
+  plannedMinutes,
+  canEditPlanned = false,
 }: TaskTimeLogsSectionProps) {
   const [logs, setLogs] = useState<TaskTimeLog[]>(initialLogs);
-  const [estimated, setEstimated] = useState<number | null>(() => effectiveEstimatedMinutes(estimatedMinutes ?? null));
+  const [planned, setPlanned] = useState<number | null>(() => effectivePlannedMinutes(plannedMinutes ?? null));
 
   const [logDate, setLogDate] = useState(() => {
     const d = new Date();
@@ -91,10 +91,10 @@ export function TaskTimeLogsSection({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
-  const [estimateModalOpen, setEstimateModalOpen] = useState(false);
-  const [estimateDraft, setEstimateDraft] = useState<number | null>(null);
-  const [estimateSaving, setEstimateSaving] = useState(false);
-  const [estimateError, setEstimateError] = useState<string | null>(null);
+  const [plannedModalOpen, setPlannedModalOpen] = useState(false);
+  const [plannedDraft, setPlannedDraft] = useState<number | null>(null);
+  const [plannedSaving, setPlannedSaving] = useState(false);
+  const [plannedError, setPlannedError] = useState<string | null>(null);
 
   const [completeSaving, setCompleteSaving] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
@@ -106,46 +106,74 @@ export function TaskTimeLogsSection({
   }, [initialLogs]);
 
   useEffect(() => {
-    setEstimated(effectiveEstimatedMinutes(estimatedMinutes ?? null));
-  }, [estimatedMinutes]);
+    setPlanned(effectivePlannedMinutes(plannedMinutes ?? null));
+  }, [plannedMinutes]);
 
   const totalMinutes = logs.reduce((sum, l) => sum + (l.minutes ?? 0), 0);
-  const estimatedForBar = estimated;
-  const progressPct =
-    estimatedForBar != null && estimatedForBar > 0
-      ? Math.min(100, Math.round((totalMinutes / estimatedForBar) * 100))
-      : null;
-  const overEstimate =
-    estimatedForBar != null && estimatedForBar > 0 && totalMinutes > estimatedForBar;
+  const plannedForBar = planned;
+  const hasPlannedTime = plannedForBar != null && plannedForBar > 0;
+  const markCompleteChecked = isTaskStatusCompletedSlug(taskStatusSlug);
+  /** Logged minutes strictly over planned (used for over-budget styling). */
+  const loggedOverPlanned = hasPlannedTime && totalMinutes > plannedForBar;
+  /** Uncapped vs planned (All Tasks list); complete + under/at budget shows 100% in UI, not raw. */
+  const rawProgressPct = hasPlannedTime
+    ? Math.round((totalMinutes / plannedForBar) * 100)
+    : 0;
+  const barWidthPct = markCompleteChecked ? 100 : hasPlannedTime ? Math.min(100, rawProgressPct) : 100;
 
-  const openEstimateModal = () => {
-    setEstimateError(null);
-    setEstimateDraft(estimated ?? null);
-    setEstimateModalOpen(true);
+  const progressLabelText = !hasPlannedTime
+    ? markCompleteChecked
+      ? "Complete"
+      : "No planned time"
+    : markCompleteChecked && !loggedOverPlanned
+      ? "100%"
+      : `${rawProgressPct}%`;
+
+  const progressLabelClass = !hasPlannedTime
+    ? "text-foreground"
+    : markCompleteChecked
+      ? loggedOverPlanned
+        ? "text-red-600 dark:text-red-500"
+        : "text-green-600 dark:text-green-500"
+      : rawProgressPct > 100
+        ? "text-red-600 dark:text-red-500"
+        : "text-green-600 dark:text-green-500";
+
+  const progressBarFillClass =
+    !hasPlannedTime && !markCompleteChecked
+      ? "bg-muted-foreground/30"
+      : loggedOverPlanned
+        ? "bg-gradient-to-b from-destructive to-destructive/80 shadow-[inset_0_1px_0_0_hsl(0_0%_100%_/_0.35)]"
+        : "task-bento-progress-fill";
+
+  const openPlannedModal = () => {
+    setPlannedError(null);
+    setPlannedDraft(planned ?? null);
+    setPlannedModalOpen(true);
   };
 
-  const saveEstimate = async () => {
-    setEstimateError(null);
-    setEstimateSaving(true);
+  const savePlanned = async () => {
+    setPlannedError(null);
+    setPlannedSaving(true);
     try {
-      const proposed_time = estimateDraft != null && estimateDraft > 0 ? estimateDraft : null;
+      const planned_time = plannedDraft != null && plannedDraft > 0 ? plannedDraft : null;
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposed_time }),
+        body: JSON.stringify({ planned_time }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setEstimateError(typeof data?.error === "string" ? data.error : "Failed to save estimate");
+        setPlannedError(typeof data?.error === "string" ? data.error : "Failed to save planned time");
         return;
       }
-      setEstimated(effectiveEstimatedMinutes(proposed_time ?? undefined));
-      setEstimateModalOpen(false);
+      setPlanned(effectivePlannedMinutes(planned_time ?? undefined));
+      setPlannedModalOpen(false);
       router.refresh();
     } catch (e) {
-      setEstimateError(e instanceof Error ? e.message : "Failed to save estimate");
+      setPlannedError(e instanceof Error ? e.message : "Failed to save planned time");
     } finally {
-      setEstimateSaving(false);
+      setPlannedSaving(false);
     }
   };
 
@@ -209,10 +237,8 @@ export function TaskTimeLogsSection({
     (a, b) => new Date(b.log_date).getTime() - new Date(a.log_date).getTime()
   );
 
-  const estimatedDisplay =
-    estimated != null ? formatMinutesAsHrsMin(estimated) : null;
-
-  const markCompleteChecked = isTaskStatusCompletedSlug(taskStatusSlug);
+  const plannedDisplay =
+    planned != null ? formatMinutesAsHrsMin(planned) : null;
 
   const handleMarkCompleteChange = async (checked: boolean) => {
     const nextSlug = checked ? TASK_STATUS_SLUG_COMPLETED : TASK_STATUS_SLUG_IN_PROGRESS;
@@ -289,19 +315,19 @@ export function TaskTimeLogsSection({
       <CardContent className="task-bento-card-content space-y-3">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="min-w-[9rem] space-y-1.5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estimated</p>
-            {canEditEstimate ? (
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Planned</p>
+            {canEditPlanned ? (
               <Button
                 type="button"
                 variant="outline"
                 className="h-auto min-h-10 w-full max-w-[220px] justify-center rounded-xl border-border/60 bg-background/90 px-4 py-2 text-left font-semibold tabular-nums shadow-sm backdrop-blur-sm sm:w-auto"
-                onClick={openEstimateModal}
+                onClick={openPlannedModal}
               >
-                {estimatedDisplay ?? "Set estimated time"}
+                {plannedDisplay ?? "Set planned time"}
               </Button>
             ) : (
               <p className="text-sm font-semibold tabular-nums text-foreground">
-                {estimatedDisplay ?? "—"}
+                {plannedDisplay ?? "—"}
               </p>
             )}
           </div>
@@ -311,53 +337,46 @@ export function TaskTimeLogsSection({
               {formatMinutesAsHrsMin(totalMinutes)}
             </p>
           </div>
-          {progressPct != null && (
-            <div className="min-w-[min(100%,280px)] flex-1 sm:pb-0.5">
-              <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                <span>Progress</span>
-                <span className="font-medium text-foreground">{progressPct}%</span>
-              </div>
-              <div className="task-bento-progress-track">
-                <div
-                  className={cn(
-                    "h-full rounded-full bg-gradient-to-b transition-all",
-                    overEstimate
-                      ? "from-destructive to-destructive/80 shadow-[inset_0_1px_0_0_hsl(0_0%_100%_/_0.35)]"
-                      : "task-bento-progress-fill"
-                  )}
-                  style={{ width: `${Math.min(100, progressPct)}%` }}
-                />
-              </div>
+          <div className="min-w-[min(100%,280px)] flex-1 sm:pb-0.5">
+            <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+              <span>Progress</span>
+              <span className={cn("font-medium", progressLabelClass)}>{progressLabelText}</span>
             </div>
-          )}
+            <div className="task-bento-progress-track">
+              <div
+                className={cn("h-full rounded-full transition-all", progressBarFillClass)}
+                style={{ width: `${barWidthPct}%` }}
+              />
+            </div>
+          </div>
         </div>
 
-        <Dialog open={estimateModalOpen} onOpenChange={setEstimateModalOpen}>
+        <Dialog open={plannedModalOpen} onOpenChange={setPlannedModalOpen}>
           <DialogContent className="rounded-xl sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Estimated time</DialogTitle>
+              <DialogTitle>Planned time</DialogTitle>
               <DialogDescription>
-                Update how long you expect this task to take. Logged time is the sum of time entries below.
+                Update planned time for this task. Logged time is the sum of time entries below.
               </DialogDescription>
             </DialogHeader>
             <DurationPicker
-              value={estimateDraft}
-              onValueChange={setEstimateDraft}
+              value={plannedDraft}
+              onValueChange={setPlannedDraft}
               id="task-estimate-modal"
-              label="How long do you expect this task to take?"
+              label="How long is planned for this task?"
             />
-            {estimateError && <p className="text-sm text-destructive">{estimateError}</p>}
+            {plannedError && <p className="text-sm text-destructive">{plannedError}</p>}
             <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setEstimateModalOpen(false)}
-                disabled={estimateSaving}
+                onClick={() => setPlannedModalOpen(false)}
+                disabled={plannedSaving}
               >
                 Cancel
               </Button>
-              <Button type="button" onClick={() => void saveEstimate()} disabled={estimateSaving}>
-                {estimateSaving ? "Saving…" : "Save estimate"}
+              <Button type="button" onClick={() => void savePlanned()} disabled={plannedSaving}>
+                {plannedSaving ? "Saving…" : "Save planned time"}
               </Button>
             </DialogFooter>
           </DialogContent>

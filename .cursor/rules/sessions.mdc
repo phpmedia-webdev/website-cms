@@ -120,7 +120,7 @@ A developer typically starts a new chat when context becomes too large, to preve
 4. **Confirm** `docs/sessionlog.md` has **no `[x]` MVP checklist** — only unchecked open work (and Manual SQL notes). Post-MVP items belong in planlog only.
 5. Update `prd.md` if architecture or specs changed.
 6. Pause and allow developer to review update to documents.
-7. **Build check before push:** Run `pnpm run build` (or rely on the pre-push hook). If the build fails, fix type/lint errors before pushing to avoid failed Vercel deploys. Optional: run `pnpm run setup-git-hooks` once to install a pre-push hook that runs the build automatically.
+7. **Git push (no pre-build gate):** This project does **not** use a pre-push hook that runs `pnpm run build`. When the developer asks for a **git push** (session wrap-up or any time), **commit the current working tree and push** without running a full production build first—unless they explicitly ask to run `pnpm run build` or fix build errors before pushing. Use `pnpm run build` yourself when you want to verify before deploy (e.g. before merge); Vercel/CI still builds on push. **One-time cleanup:** If an old hook is still installed locally, run `pnpm run setup-git-hooks` to remove `.git/hooks/pre-push`.
 8. **Commit and push** all changes (code + docs) in a single commit and push; e.g. message: `Session wrapup: [brief summary]`.
 
 Do documentation updates **before** the final commit and push so context is captured once and the next session can pick up from changelog and sessionlog.

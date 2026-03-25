@@ -47,6 +47,7 @@ alwaysApply: true
 - **Cursor can use the terminal** to run commands when needed
 - **Dev server:** Start or restart the dev server (e.g. `pnpm run dev`) when the user asks or when testing requires it
 - **Git:** Run git commands (status, diff, commit, push, pull, etc.) when the user asks or as part of session workflow (e.g. commit and push at session end)
+- **Git push:** There is **no** pre-push production build hook in this repo (legacy hook removed—`pnpm run setup-git-hooks` only deletes it if present). When the developer requests a **push**, **stage, commit the current state, and push**; do **not** block the push on `pnpm run build` unless they explicitly ask to verify the build or fix deploy errors first.
 - Prefer the terminal for server, git, and build/script execution instead of assuming the server is already running or avoiding git
 
 ## Developer Feedback (Learning Mode)

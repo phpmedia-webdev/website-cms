@@ -18,7 +18,6 @@ import {
 import { ArrowLeft, UserPlus, X } from "lucide-react";
 import type { Project, ProjectMember } from "@/lib/supabase/projects";
 import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
-import { DurationPicker } from "@/components/ui/duration-picker";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
 import {
   Dialog,
@@ -86,9 +85,6 @@ export function ProjectEditClient({
   const [startDate, setStartDate] = useState(toInputDate(project.start_date));
   const [dueDate, setDueDate] = useState(toInputDate(project.due_date));
   const [completedDate, setCompletedDate] = useState(toInputDate(project.completed_date));
-  const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(
-    project.proposed_time ?? null
-  );
   const [potentialSales, setPotentialSales] = useState(
     project.potential_sales != null ? String(project.potential_sales) : ""
   );
@@ -264,7 +260,6 @@ export function ProjectEditClient({
           start_date: startDate || null,
           due_date: dueDate || null,
           completed_date: completedDate || null,
-          proposed_time: proposedTimeMinutes ?? null,
           potential_sales: potentialSales ? parseFloat(potentialSales) : null,
         }),
       });
@@ -490,12 +485,6 @@ export function ProjectEditClient({
                 </Select>
               </div>
             )}
-            <DurationPicker
-              value={proposedTimeMinutes}
-              onValueChange={setProposedTimeMinutes}
-              id="proposed_time"
-              label="Estimated time"
-            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <Label htmlFor="start">Start date</Label>

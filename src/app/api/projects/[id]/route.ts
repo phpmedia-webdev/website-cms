@@ -78,7 +78,8 @@ export async function PUT(
     if (body?.start_date !== undefined) input.start_date = body.start_date;
     if (body?.due_date !== undefined) input.due_date = body.due_date;
     if (body?.completed_date !== undefined) input.completed_date = body.completed_date;
-    if (body?.proposed_time !== undefined) input.proposed_time = body.proposed_time;
+    if (body?.planned_time !== undefined) input.planned_time = body.planned_time;
+    else if (body?.proposed_time !== undefined) input.planned_time = body.proposed_time;
     if (body?.potential_sales !== undefined)
       input.potential_sales = body.potential_sales;
     if (body?.required_mag_id !== undefined)

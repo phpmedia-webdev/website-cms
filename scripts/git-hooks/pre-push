@@ -1,8 +1,0 @@
-#!/bin/sh
-# Pre-push hook: run production build to catch type/lint errors before deploy.
-# Install with: pnpm run setup-git-hooks
-
-set -e
-echo "Running build before push (prevents failed Vercel deploys)..."
-pnpm run build
-echo "Build OK — pushing."

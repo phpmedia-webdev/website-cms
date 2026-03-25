@@ -392,7 +392,7 @@ function AllTasksTableDataRow({
       </td>
       <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.progress}`}>
         {(() => {
-          const estimated = t.proposed_time ?? 0;
+          const estimated = t.planned_time ?? 0;
           const spent = taskTimeLogTotals[t.id] ?? 0;
           if (estimated <= 0) return <span className="text-muted-foreground">—</span>;
           const pct = Math.round((spent / estimated) * 100);
@@ -634,7 +634,7 @@ export function AllTasksListClient({
         return labels.join(", ").toLowerCase();
       },
       progressParts: (t) => {
-        const estimated = t.proposed_time ?? 0;
+        const estimated = t.planned_time ?? 0;
         const spent = taskTimeLogTotals[t.id] ?? 0;
         if (estimated <= 0) return { hasEstimate: false, pct: 0 };
         return { hasEstimate: true, pct: Math.round((spent / estimated) * 100) };

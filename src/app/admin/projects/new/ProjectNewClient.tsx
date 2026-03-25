@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
-import { DurationPicker } from "@/components/ui/duration-picker";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
 import { setTaxonomyForContent } from "@/lib/supabase/taxonomy";
 
@@ -35,7 +34,6 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
   const [projectTypeTermId, setProjectTypeTermId] = useState<string>("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(null);
   const [potentialSales, setPotentialSales] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +77,6 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
           project_type_term_id: projectTypeTermId || undefined,
           start_date: startDate || undefined,
           due_date: dueDate || undefined,
-          proposed_time: proposedTimeMinutes ?? undefined,
           potential_sales: potentialSales ? parseFloat(potentialSales) : undefined,
         }),
       });
@@ -174,12 +171,6 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
                 </Select>
               </div>
             )}
-            <DurationPicker
-              value={proposedTimeMinutes}
-              onValueChange={setProposedTimeMinutes}
-              id="proposed_time"
-              label="Estimated time"
-            />
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="start">Start date</Label>

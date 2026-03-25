@@ -65,6 +65,7 @@ export default async function AdminProjectDetailPage({
   }
 
   const projectTotal = projectOrders.reduce((sum, o) => sum + Number(o.total), 0);
+  const projectPlannedTimeMinutes = tasks.reduce((sum, t) => sum + (t.planned_time ?? 0), 0);
 
   const membersWithLabels = await Promise.all(
     projectMembers.map(async (m) => {
@@ -93,6 +94,7 @@ export default async function AdminProjectDetailPage({
       initialInvoices={projectInvoices}
       initialProjectEvents={projectEvents}
       projectTotal={projectTotal}
+      projectPlannedTimeMinutes={projectPlannedTimeMinutes}
       projectTimeLogMinutes={projectTimeLogMinutes}
       clientDisplayName={clientDisplayName}
       projectStatusTerms={projectStatusTerms}

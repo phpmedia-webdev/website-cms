@@ -67,7 +67,7 @@ export function TaskNewClient({
   const [statusSlug, setStatusSlug] = useState(defaultStatusSlug);
   const [typeSlug, setTypeSlug] = useState(defaultTypeSlug);
   const [phaseSlug, setPhaseSlug] = useState(defaultPhaseSlug);
-  const [proposedTimeMinutes, setProposedTimeMinutes] = useState<number | null>(null);
+  const [plannedTimeMinutes, setPlannedTimeMinutes] = useState<number | null>(null);
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -97,7 +97,7 @@ export function TaskNewClient({
           task_status_slug: statusSlug || defaultStatusSlug,
           task_type_slug: typeSlug || defaultTypeSlug,
           task_phase_slug: phase || defaultPhaseSlug,
-          proposed_time: proposedTimeMinutes ?? undefined,
+          planned_time: plannedTimeMinutes ?? undefined,
           start_date: startDate || undefined,
           due_date: dueDate || undefined,
         }),
@@ -197,10 +197,10 @@ export function TaskNewClient({
               </div>
             </div>
             <DurationPicker
-              value={proposedTimeMinutes}
-              onValueChange={setProposedTimeMinutes}
-              id="task_proposed_time"
-              label="Estimated time"
+              value={plannedTimeMinutes}
+              onValueChange={setPlannedTimeMinutes}
+              id="task_planned_time"
+              label="Planned time"
             />
             <div className="grid max-w-md grid-cols-2 gap-4">
               <div>

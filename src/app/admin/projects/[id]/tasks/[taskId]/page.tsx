@@ -191,6 +191,19 @@ export default async function TaskDetailPage({
           </CardContent>
         </Card>
 
+        <div className="min-w-0 h-full">
+          <TaskAssigneesDetailCard followers={followersWithLabels} />
+        </div>
+
+        <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+          <CardHeader className="task-bento-card-header">
+            <TaskBentoPanelTitle icon={Paperclip}>Assigned resources</TaskBentoPanelTitle>
+          </CardHeader>
+          <CardContent className="task-bento-card-content flex flex-1 flex-col">
+            <TaskResourcesSection taskId={taskId} canManage={false} />
+          </CardContent>
+        </Card>
+
         <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
           <CardHeader className="task-bento-card-header">
             <TaskBentoPanelTitle icon={Calendar}>Schedule and Status</TaskBentoPanelTitle>
@@ -215,19 +228,6 @@ export default async function TaskDetailPage({
             </div>
           </CardContent>
         </Card>
-
-        <div className="min-w-0 h-full">
-          <TaskAssigneesDetailCard followers={followersWithLabels} />
-        </div>
-
-        <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-          <CardHeader className="task-bento-card-header">
-            <TaskBentoPanelTitle icon={Paperclip}>Assigned resources</TaskBentoPanelTitle>
-          </CardHeader>
-          <CardContent className="task-bento-card-content flex flex-1 flex-col">
-            <TaskResourcesSection taskId={taskId} canManage={false} />
-          </CardContent>
-        </Card>
       </div>
 
       <TaskTimeLogsSection
@@ -236,7 +236,7 @@ export default async function TaskDetailPage({
         userLabels={timeLogUserLabels}
         contactLabels={timeLogContactLabels}
         taskStatusSlug={task.task_status_slug}
-        estimatedMinutes={task.proposed_time}
+        plannedMinutes={task.planned_time}
       />
 
       <TaskThreadSection taskId={taskId} initialNotes={notes} authorLabels={authorLabels} />

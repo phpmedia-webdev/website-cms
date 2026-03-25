@@ -14,6 +14,8 @@
 
 **Outstanding (delete each line after you run on every tenant schema that needs it):**
 
+- **`201_tasks_projects_planned_time_transition.sql`** — `planned_time` on tasks/projects + `proposed_time` sync; run **before** **202** on each schema.
+- **`202_rpc_planned_time_column.sql`** — RPCs return `planned_time` (tasks + projects); run after **201** on the same schemas.
 - **`200_projects_project_number.sql`** — `projects.project_number` PROJ-YYYY-NNNNN + project list/detail RPCs.
 - **`198_get_tasks_dynamic_preset_filters.sql`** — All Tasks presets (`exclude_status_slugs`, `due_before`).
 - **`197_get_tasks_dynamic_exclude_archived_projects.sql`** — exclude tasks whose **project** is archived (confirm applied everywhere).
@@ -42,6 +44,15 @@ Use order **1 → 5** where dependencies apply (e.g. task threads depend on Phas
 - [x] **Directory (optional):** Align project **add member** with `GET /api/directory` where it reduces duplicate fetches ([planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications)).
 - [ ] **Project detail — Attachments tab:** Replace placeholder with file uploads or linked documents (schema/API TBD).
 - [x] **QA — All Tasks:** Full manual pass: default paint; preset + modal filters; **Overdue** + title search; column sort vs completed visibility; master reset (↺) recap.
+
+**Time model alignment (Tasks/Projects) — assessment + Do Next**
+
+- **Current behavior:** Migration **201** adds `planned_time` on `tasks`/`projects` (synced with legacy `proposed_time` via triggers). App + direct writes use **`planned_time`**. **Project detail planned total** = sum of task `planned_time` (Option A); project create/edit no longer sets manual planned time. **Logged time** = sum of `task_time_logs`; **project logged** = rollup of those entries.
+- [ ] **Run `202_rpc_planned_time_column.sql`** so list/detail RPCs return `planned_time` (app normalizes legacy `proposed_time` until then; 202 aligns PostgREST with types).
+- [ ] **Naming consistency:** Sweep remaining UI for **Estimated/Proposed** → **Planned** where missed.
+- [ ] **Follow-up migration (optional):** Drop `proposed_time` + sync triggers after all envs use `planned_time` only; remove `proposed_time` body aliases from APIs.
+- [ ] **Project logged-time rollup:** Keep dynamic sum from `task_time_logs`; add cached columns only if needed.
+- [ ] **QA:** task detail/edit, All Tasks, project detail, APIs — after **202** is applied.
 
 ### 2. Resources
 

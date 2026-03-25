@@ -98,7 +98,12 @@ export async function POST(
       task_phase_slug:
         typeof body.task_phase_slug === "string" ? body.task_phase_slug : undefined,
       priority_term_id: typeof body.priority_term_id === "string" ? body.priority_term_id : undefined,
-      proposed_time: typeof body.proposed_time === "number" ? body.proposed_time : undefined,
+      planned_time:
+        typeof body.planned_time === "number"
+          ? body.planned_time
+          : typeof body.proposed_time === "number"
+            ? body.proposed_time
+            : undefined,
       actual_time: typeof body.actual_time === "number" ? body.actual_time : undefined,
       due_date: body.due_date ?? undefined,
       start_date: body.start_date ?? undefined,

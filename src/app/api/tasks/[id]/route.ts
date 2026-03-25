@@ -80,7 +80,8 @@ export async function PUT(
     if (body?.task_type_slug !== undefined) input.task_type_slug = body.task_type_slug;
     if (body?.task_phase_slug !== undefined) input.task_phase_slug = body.task_phase_slug;
     if (body?.priority_term_id !== undefined) input.priority_term_id = body.priority_term_id;
-    if (body?.proposed_time !== undefined) input.proposed_time = body.proposed_time;
+    if (body?.planned_time !== undefined) input.planned_time = body.planned_time;
+    else if (body?.proposed_time !== undefined) input.planned_time = body.proposed_time;
     if (body?.actual_time !== undefined) input.actual_time = body.actual_time;
     if (body?.due_date !== undefined) input.due_date = body.due_date;
     if (body?.start_date !== undefined) input.start_date = body.start_date;

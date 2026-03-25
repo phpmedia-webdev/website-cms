@@ -326,6 +326,29 @@ export function TaskEditClient({
             </CardContent>
           </Card>
 
+          <div className="min-w-0 h-full">
+            <TaskFollowersSection
+              taskId={task.id}
+              initialFollowers={assignees}
+              projectId={projectId}
+            />
+          </div>
+
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="task-bento-card-header">
+              <TaskBentoPanelTitle icon={Paperclip}>Assigned resources</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="task-bento-card-content flex flex-1 flex-col">
+              <TaskResourcesSection
+                taskId={task.id}
+                projectId={projectId}
+                canManage
+                pendingResourceAssignments={pendingResourceAssignments}
+                onPendingResourceAssignmentsChange={setPendingResourceAssignments}
+              />
+            </CardContent>
+          </Card>
+
           <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
             <CardHeader className="task-bento-card-header">
               <TaskBentoPanelTitle icon={Calendar}>Schedule and Status</TaskBentoPanelTitle>
@@ -371,29 +394,6 @@ export function TaskEditClient({
               </div>
             </CardContent>
           </Card>
-
-          <div className="min-w-0 h-full">
-            <TaskFollowersSection
-              taskId={task.id}
-              initialFollowers={assignees}
-              projectId={projectId}
-            />
-          </div>
-
-          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-            <CardHeader className="task-bento-card-header">
-              <TaskBentoPanelTitle icon={Paperclip}>Assigned resources</TaskBentoPanelTitle>
-            </CardHeader>
-            <CardContent className="task-bento-card-content flex flex-1 flex-col">
-              <TaskResourcesSection
-                taskId={task.id}
-                projectId={projectId}
-                canManage
-                pendingResourceAssignments={pendingResourceAssignments}
-                onPendingResourceAssignmentsChange={setPendingResourceAssignments}
-              />
-            </CardContent>
-          </Card>
         </div>
       </form>
 
@@ -404,8 +404,8 @@ export function TaskEditClient({
         contactLabels={timeLogContactLabels}
         taskStatusSlug={statusSlug}
         onTaskStatusSlugChange={setStatusSlug}
-        estimatedMinutes={task.proposed_time}
-        canEditEstimate
+        plannedMinutes={task.planned_time}
+        canEditPlanned
       />
 
       <TaskThreadSection taskId={task.id} initialNotes={initialNotes} authorLabels={authorLabels} />

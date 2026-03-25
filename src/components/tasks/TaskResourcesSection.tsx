@@ -24,7 +24,6 @@ import {
 } from "@/components/pickers";
 import {
   fetchTaskResources,
-  replaceTaskResourceAssignments,
   type TaskResourceAssignmentDto,
   type TaskResourceAssignmentDraft,
 } from "@/lib/tasks/task-resources-api";
@@ -278,15 +277,11 @@ function CenteredEditControl({
   );
 }
 
-/** Detail view: server-backed list; modal commits with PUT on Done. */
+/** Detail view: read-only list (assign on task edit). */
 function TaskResourcesDetailSection({ taskId }: { taskId: string }) {
-  const catalog = useResourceCatalog();
   const [rows, setRows] = useState<TaskResourceAssignmentDto[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modifyOpen, setModifyOpen] = useState(false);
-  const [modalDraft, setModalDraft] = useState<TaskResourceAssignmentDraft[]>([]);
-  const [saving, setSaving] = useState(false);
 
   const loadRows = useCallback(async () => {
     setListLoading(true);
@@ -306,34 +301,6 @@ function TaskResourcesDetailSection({ taskId }: { taskId: string }) {
     void loadRows();
   }, [loadRows]);
 
-  const rowsAsDraft = useMemo(
-    () =>
-      rows.map((r) => ({
-        resource_id: r.resource_id,
-        bundle_instance_id: r.bundle_instance_id,
-      })),
-    [rows]
-  );
-
-  const openModify = () => {
-    setModalDraft(rowsAsDraft.map((r) => ({ ...r })));
-    setModifyOpen(true);
-  };
-
-  const handleDetailDone = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await replaceTaskResourceAssignments(taskId, modalDraft);
-      await loadRows();
-      setModifyOpen(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save resources");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (listLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -345,11 +312,6 @@ function TaskResourcesDetailSection({ taskId }: { taskId: string }) {
 
   return (
     <div className="flex min-h-0 flex-col gap-1.5">
-      <CenteredEditControl
-        onClick={() => openModify()}
-        disabled={catalog.loading || !catalog.catalogReady}
-      />
-
       {error ? <p className="text-center text-[11px] text-destructive">{error}</p> : null}
 
       <div className="max-h-[min(13rem,36vh)] min-h-0 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]">
@@ -363,51 +325,6 @@ function TaskResourcesDetailSection({ taskId }: { taskId: string }) {
           emptyMessage="—"
         />
       </div>
-
-      {!catalog.loading && !catalog.catalogReady ? (
-        <p className="text-center text-[10px] text-muted-foreground">
-          <Link href="/admin/events/resources" className="underline-offset-2 hover:underline">
-            Resource manager
-          </Link>
-        </p>
-      ) : null}
-
-      <Dialog
-        open={modifyOpen}
-        onOpenChange={(o) => {
-          if (!o && !saving) setModifyOpen(false);
-        }}
-      >
-        <DialogContent className="flex h-[min(90vh,52rem)] max-h-[90vh] w-full flex-col gap-3 overflow-hidden !p-4 sm:max-w-lg">
-          <DialogHeader className="shrink-0">
-            <DialogTitle>Modify resources</DialogTitle>
-          </DialogHeader>
-          {catalog.loading ? (
-            <div className="flex min-h-[10rem] shrink-0 justify-center py-5">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
-            </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <ResourceAssignmentsPickerBody
-                assignments={modalDraft}
-                onAssignmentsChange={setModalDraft}
-                resourcePickerGroups={catalog.resourcePickerGroups}
-                resourceById={catalog.resourceById}
-                bundleMemberIds={catalog.bundleMemberIds}
-                bundleNamesByDefinitionId={catalog.bundleNamesByDefinitionId}
-              />
-            </div>
-          )}
-          <DialogFooter className="shrink-0 border-t border-border/40 pt-3">
-            <Button type="button" variant="outline" onClick={() => !saving && setModifyOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={saving || catalog.loading} onClick={() => void handleDetailDone()}>
-              {saving ? "Saving…" : "Done"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
