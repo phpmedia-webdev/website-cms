@@ -11,6 +11,10 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For **open**
 
 ## [Unreleased]
 
+### 2026-03-24 22:07 CT — Ops note: stuck `preferences/route.ts` on Windows (EPERM)
+
+- **Note (no code change):** On one dev machine, `src/app/api/settings/notifications/preferences/route.ts` could not be read or deleted from normal Windows (including `EPERM` during `next build` / pre-push). **Safe Mode** + **Command Prompt** was required to remove the file; then restore with `git checkout HEAD -- src/app/api/settings/notifications/preferences/route.ts` and run `pnpm run build` before push. If builds fail on a single route file with `EPERM`, check ACLs, Controlled Folder Access, and AV locks—not application logic.
+
 ### 2026-03-24 16:29 CT — Project detail & edit: client/team layout, mandatory client, detail cleanup
 
 - **Context for Next Session:** **Manual SQL** unchanged — still run outstanding migrations listed in [sessionlog.md](./sessionlog.md) (**200**, **198**, **197**, **199** if any env behind). **Test:** Admin project **detail** — Client | Team column layout, **Manage members** link, pills, no taxonomy block; **edit** — cannot save without client; **Set client** + **Add member** (team/contact). **New project** can still be created without client; first **edit** save enforces client. **Next:** Attachments tab (sessionlog §1); Accounting module notes in sessionlog; optional **new project** flow to require or prompt for client.
