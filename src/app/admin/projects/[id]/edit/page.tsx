@@ -8,7 +8,9 @@ import {
 } from "@/lib/supabase/projects";
 import { getContactById } from "@/lib/supabase/crm";
 import { getOrganizationById } from "@/lib/supabase/organizations";
-import { getProfileByUserId } from "@/lib/supabase/profiles";
+import { getMediaById } from "@/lib/supabase/media";
+import { projectCoverImageUrlFromMedia } from "@/lib/projects/project-cover-image-url";
+import { getProjectMemberDisplayLabelMap } from "@/lib/projects/resolve-project-member-labels";
 import { ProjectEditClient } from "./ProjectEditClient";
 
 export default async function ProjectEditPage({
@@ -32,6 +34,12 @@ export default async function ProjectEditPage({
   ]);
   if (!project) notFound();
 
+  let initialCoverImageUrl: string | null = null;
+  if (project.cover_image_id) {
+    const coverMedia = await getMediaById(project.cover_image_id);
+    initialCoverImageUrl = projectCoverImageUrlFromMedia(coverMedia);
+  }
+
   let clientDisplayName: string | null = null;
   if (project.contact_id) {
     const contact = await getContactById(project.contact_id);
@@ -41,24 +49,15 @@ export default async function ProjectEditPage({
     clientDisplayName = org?.name ?? project.client_organization_id;
   }
 
-  const membersWithLabels = await Promise.all(
-    projectMembers.map(async (m) => {
-      let label = "—";
-      if (m.contact_id) {
-        const c = await getContactById(m.contact_id);
-        label = c?.full_name ?? c?.email ?? m.contact_id;
-      } else if (m.user_id) {
-        const p = await getProfileByUserId(m.user_id);
-        label = p?.display_name ?? m.user_id;
-      }
-      const roleTerm = projectRoleTerms.find((t) => t.id === m.role_term_id);
-      return {
-        ...m,
-        label,
-        role_label: roleTerm?.name ?? null,
-      };
-    })
-  );
+  const memberLabelById = await getProjectMemberDisplayLabelMap(projectMembers);
+  const membersWithLabels = projectMembers.map((m) => {
+    const roleTerm = projectRoleTerms.find((t) => t.slug === m.role_slug);
+    return {
+      ...m,
+      label: memberLabelById.get(m.id) ?? "—",
+      role_label: roleTerm?.name ?? null,
+    };
+  });
 
   return (
     <ProjectEditClient
@@ -68,6 +67,7 @@ export default async function ProjectEditPage({
       projectRoleTerms={projectRoleTerms}
       clientDisplayName={clientDisplayName}
       initialProjectMembers={membersWithLabels}
+      initialCoverImageUrl={initialCoverImageUrl}
     />
   );
 }

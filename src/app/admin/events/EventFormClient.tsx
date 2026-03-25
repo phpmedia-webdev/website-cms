@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/select";
 import { ProjectEventLinkCombobox } from "@/components/events/ProjectEventLinkCombobox";
 import { GalleryMediaPicker } from "@/components/galleries/GalleryMediaPicker";
-import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
 import {
   EventParticipantsResourcesTab,
   type PendingParticipant,
@@ -36,8 +35,8 @@ import {
   type ParticipantsSnapshotItem,
 } from "@/components/events/EventParticipantsResourcesTab";
 import { getMediaWithVariants } from "@/lib/supabase/media";
-import { setTaxonomyForContent } from "@/lib/supabase/taxonomy";
-import { ArrowLeft, Copy, ImageIcon, Trash2, X } from "lucide-react";
+import { getTaxonomyForContent, setTaxonomyForContent } from "@/lib/supabase/taxonomy";
+import { ArrowLeft, Copy, Trash2 } from "lucide-react";
 import type { Event } from "@/lib/supabase/events";
 import {
   buildRecurrenceRule,
@@ -55,6 +54,8 @@ interface EventFormClientProps {
   event?: Event | null;
   coverImageUrls?: Record<string, string>;
   initialProjectId?: string | null;
+  /** When set (new event opened from project detail with `from=project`), back/cancel/after-create go here—not when user only picks a project from the calendar flow. */
+  returnToProjectId?: string | null;
 }
 
 function toDatetimeLocal(iso: string): string {
@@ -126,9 +127,14 @@ export function EventFormClient({
   event,
   coverImageUrls = {},
   initialProjectId = null,
+  returnToProjectId = null,
 }: EventFormClientProps) {
   const router = useRouter();
   const isEdit = !!event;
+  const backHref = returnToProjectId
+    ? `/admin/projects/${returnToProjectId}`
+    : "/admin/events";
+  const backLabel = returnToProjectId ? "Back to Project" : "Back to Calendar";
 
   const [title, setTitle] = useState(event?.title ?? "");
   const [startDate, setStartDate] = useState("");
@@ -347,28 +353,22 @@ export function EventFormClient({
       .catch(() => setAvailableMags([]));
   }, []);
 
-  const handleTaxonomyInitialLoad = useCallback(({ categoryIds, tagIds }: { categoryIds: string[]; tagIds: string[] }) => {
-    setTaxonomyCategoryIds(new Set(categoryIds));
-    setTaxonomyTagIds(new Set(tagIds));
-  }, []);
-
-  const handleCategoryToggle = useCallback((id: string, checked: boolean) => {
-    setTaxonomyCategoryIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
+  useEffect(() => {
+    if (!event?.id) {
+      setTaxonomyCategoryIds(new Set());
+      setTaxonomyTagIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    getTaxonomyForContent(event.id, "event").then(({ categoryIds, tagIds }) => {
+      if (cancelled) return;
+      setTaxonomyCategoryIds(new Set(categoryIds));
+      setTaxonomyTagIds(new Set(tagIds));
     });
-  }, []);
-
-  const handleTagToggle = useCallback((id: string, checked: boolean) => {
-    setTaxonomyTagIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [event?.id]);
 
   useEffect(() => {
     if (showImagePicker) {
@@ -505,8 +505,7 @@ export function EventFormClient({
         }
       }
       if (!isEdit && eventId) {
-        // New event: return to calendar (same as after editing). Avoid landing on another full-page form.
-        router.replace("/admin/events");
+        router.replace(backHref);
         router.refresh();
       } else if (isEdit) {
         router.push("/admin/events");
@@ -597,183 +596,273 @@ export function EventFormClient({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Link
-          href="/admin/events"
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Calendar
-        </Link>
+    <div className="mx-auto max-w-7xl space-y-3 pb-6 md:space-y-4">
+      {/* Page chrome: title + primary actions one row; back link below title only */}
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            {isEdit ? "Edit Event" : "Add Event"}
+          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link href={backHref}>Cancel</Link>
+            </Button>
+            <Button
+              type="submit"
+              form="event-form-main"
+              size="sm"
+              disabled={saving || copying || deleting}
+            >
+              {saving ? "Saving…" : isEdit ? "Save" : "Create"}
+            </Button>
+          </div>
+        </div>
+        <div className="mt-1 grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
+          <div className="min-w-0 justify-self-start">
+            <Link
+              href={backHref}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+              {backLabel}
+            </Link>
+          </div>
+          <div className="flex shrink-0 items-center justify-center gap-1.5">
+            <Label
+              htmlFor="show-on-public"
+              className="cursor-pointer whitespace-nowrap text-xs font-medium text-muted-foreground sm:text-sm"
+            >
+              Show on public calendar
+            </Label>
+            <Switch
+              id="show-on-public"
+              checked={showOnPublicCalendar}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setShowPublicWarning(true);
+                } else {
+                  setShowOnPublicCalendar(false);
+                }
+              }}
+              aria-label="Show on public calendar"
+            />
+          </div>
+          <div className="min-w-0" aria-hidden="true" />
+        </div>
       </div>
 
       <Card>
-        <CardHeader className="pb-2 pt-4 px-4">
-          <div className="flex flex-row items-center justify-between w-full gap-4">
-            <CardTitle className="text-lg">{isEdit ? "Edit Event" : "Add Event"}</CardTitle>
-            <div className="flex items-center gap-3 shrink-0">
-              {isEdit && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopyAsNew}
-                    disabled={copying || saving || deleting}
-                  >
-                    <Copy className="h-4 w-4 mr-1" />
-                    {copying ? "Copying…" : "Copy as new"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    disabled={copying || saving || deleting}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
-                  </Button>
-                  <span className="text-muted-foreground" aria-hidden="true">|</span>
-                </>
-              )}
-              <div className="flex items-center gap-2">
-                <Label htmlFor="status" className="text-sm font-medium text-muted-foreground">Status</Label>
-                <select
-                  id="status"
-                  value={status}
-                  onChange={(e) =>
-                    setStatus(e.target.value as "draft" | "published")
-                  }
-                  className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                </select>
-              </div>
-              <span className="text-muted-foreground" aria-hidden="true">|</span>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="show-on-public" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                  Show on public calendar
-                </Label>
-                <Switch
-                  id="show-on-public"
-                  checked={showOnPublicCalendar}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setShowPublicWarning(true);
-                    } else {
-                      setShowOnPublicCalendar(false);
-                    }
-                  }}
-                  aria-label="Show on public calendar"
-                />
-              </div>
+        {isEdit ? (
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="sr-only">Event actions</CardTitle>
+            <div className="flex flex-row flex-wrap items-center justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyAsNew}
+                disabled={copying || saving || deleting}
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                {copying ? "Copying…" : "Copy as new"}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={copying || saving || deleting}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-2 px-4 pb-4">
-          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 w-full min-w-0">
+          </CardHeader>
+        ) : null}
+        <CardContent className={cn("px-4 pb-4", isEdit ? "pt-2" : "pt-4")}>
+          <form
+            id="event-form-main"
+            ref={formRef}
+            onSubmit={handleSubmit}
+            className="space-y-4 w-full min-w-0"
+          >
             {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
-            <div className="space-y-1">
-              <Label htmlFor="title" className="text-sm inline-flex items-center gap-1.5">
-                Title
-                <RequiredFieldMark />
-              </Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Event title"
-                required
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
-              <div className="space-y-1 min-w-0">
-                <Label htmlFor="event-type" className="text-sm inline-flex items-center gap-1.5">
-                  Event type
-                  <RequiredFieldMark />
-                </Label>
-                {eventTypes.length > 0 ? (
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "h-9 w-9 shrink-0 rounded-md border-2 border-border shadow-sm ring-1 ring-black/5 dark:ring-white/10",
-                        !event && !eventTypePickerInteracted && "bg-muted"
-                      )}
-                      style={
-                        event || eventTypePickerInteracted
-                          ? { backgroundColor: hexForEventTypeSlug(eventTypeSlug, eventTypes) }
-                          : undefined
-                      }
-                      title={
-                        event || eventTypePickerInteracted
-                          ? `Event type color (${eventTypeSlug})`
-                          : "Choose an event type to preview its color"
-                      }
-                      aria-hidden
+
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:items-stretch">
+              {/* Details — ~75% */}
+              <Card className="rounded-xl border border-border bg-muted/50 text-card-foreground shadow-none lg:col-span-9 lg:h-full">
+                <CardContent className="space-y-4 p-4 sm:p-5">
+                  <h2 className="sr-only">Event details</h2>
+                  <div className="space-y-1">
+                    <Label htmlFor="title" className="text-sm inline-flex items-center gap-1.5">
+                      Title
+                      <RequiredFieldMark />
+                    </Label>
+                    <Input
+                      id="title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Event title"
+                      required
+                      className="bg-background"
                     />
-                    <Select
-                      value={eventTypeSlug}
-                      onValueChange={(v) => {
-                        setEventTypePickerInteracted(true);
-                        setEventTypeSlug(v);
-                      }}
-                    >
-                      <SelectTrigger id="event-type" className="h-9 min-w-0 flex-1">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eventTypes.map((t) => (
-                          <SelectItem key={t.slug} value={t.slug} textValue={t.label}>
-                            <span className="flex items-center gap-2">
-                              <span
-                                className="size-2.5 shrink-0 rounded-full border border-black/15 dark:border-white/25"
-                                style={{ backgroundColor: hexForEventTypeOption(t) }}
-                                aria-hidden
-                              />
-                              {t.label}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No event types in Customizer yet. Defaults to &quot;meeting&quot; until you add types under{" "}
-                    <Link href="/admin/settings/customizer?tab=events" className="underline hover:text-foreground">
-                      Settings → Customizer → Events
-                    </Link>
-                    .
-                  </p>
-                )}
+                  <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                    <div className="space-y-1 min-w-0">
+                      <Label htmlFor="event-type" className="text-sm inline-flex items-center gap-1.5">
+                        Event type
+                        <RequiredFieldMark />
+                      </Label>
+                      {eventTypes.length > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={cn(
+                              "h-9 w-9 shrink-0 rounded-md border-2 border-border shadow-sm ring-1 ring-black/5 dark:ring-white/10",
+                              !event && !eventTypePickerInteracted && "bg-muted"
+                            )}
+                            style={
+                              event || eventTypePickerInteracted
+                                ? { backgroundColor: hexForEventTypeSlug(eventTypeSlug, eventTypes) }
+                                : undefined
+                            }
+                            title={
+                              event || eventTypePickerInteracted
+                                ? `Event type color (${eventTypeSlug})`
+                                : "Choose an event type to preview its color"
+                            }
+                            aria-hidden
+                          />
+                          <Select
+                            value={eventTypeSlug}
+                            onValueChange={(v) => {
+                              setEventTypePickerInteracted(true);
+                              setEventTypeSlug(v);
+                            }}
+                          >
+                            <SelectTrigger id="event-type" className="h-9 min-w-0 flex-1 bg-background">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {eventTypes.map((t) => (
+                                <SelectItem key={t.slug} value={t.slug} textValue={t.label}>
+                                  <span className="flex items-center gap-2">
+                                    <span
+                                      className="size-2.5 shrink-0 rounded-full border border-black/15 dark:border-white/25"
+                                      style={{ backgroundColor: hexForEventTypeOption(t) }}
+                                      aria-hidden
+                                    />
+                                    {t.label}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No event types in Customizer yet. Defaults to &quot;meeting&quot; until you add types under{" "}
+                          <Link href="/admin/settings/customizer?tab=events" className="underline hover:text-foreground">
+                            Settings → Customizer → Events
+                          </Link>
+                          .
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <Label htmlFor="event-project" className="text-sm">
+                        Project
+                      </Label>
+                      <ProjectEventLinkCombobox
+                        htmlId="event-project"
+                        value={projectId}
+                        onValueChange={setProjectId}
+                        disabled={saving || copying || deleting}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="description" className="text-sm">Description</Label>
+                    <textarea
+                      id="description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Optional details"
+                      rows={3}
+                      className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Status + cover image — ~25%; cover aligns to bottom with details card on lg */}
+              <div className="flex min-w-0 flex-col gap-3 lg:col-span-3 lg:h-full lg:min-h-0">
+                <div className="flex min-h-[3.25rem] flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-3 sm:min-h-[3.5rem] sm:px-4 sm:py-3.5">
+                  <Label htmlFor="status" className="shrink-0 text-sm font-medium text-muted-foreground">
+                    Status
+                  </Label>
+                  <select
+                    id="status"
+                    value={status}
+                    onChange={(e) =>
+                      setStatus(e.target.value as "draft" | "published")
+                    }
+                    className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:max-w-[9rem]"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                  </select>
+                </div>
+                <div className="flex flex-col justify-end lg:min-h-0 lg:flex-1">
+                  <Card className="rounded-xl border border-border bg-muted/50 text-card-foreground shadow-none">
+                    <CardContent className="space-y-3 p-4 sm:p-5">
+                      <p className="text-sm font-medium leading-none">Cover image</p>
+                      <div
+                        className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-border bg-muted"
+                        aria-label={coverImageId ? "Event cover preview" : "No cover image selected"}
+                      >
+                        {coverImageId && (coverImagePreviewUrl ?? coverImageUrls[coverImageId]) ? (
+                          <Image
+                            src={coverImagePreviewUrl ?? coverImageUrls[coverImageId]!}
+                            alt="Event cover preview"
+                            fill
+                            className="object-cover"
+                            sizes="(min-width: 1024px) 25vw, 100vw"
+                          />
+                        ) : (
+                          <div className="flex h-full min-h-[120px] items-center justify-center px-2 text-center text-xs text-muted-foreground">
+                            No image selected
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          className="w-fit text-left text-sm font-medium text-primary underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-50"
+                          onClick={() => setShowImagePicker(true)}
+                          disabled={saving || copying || deleting}
+                        >
+                          Choose image
+                        </button>
+                        {coverImageId && (coverImagePreviewUrl ?? coverImageUrls[coverImageId]) ? (
+                          <button
+                            type="button"
+                            className="w-fit text-left text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-destructive hover:underline disabled:pointer-events-none disabled:opacity-50"
+                            onClick={() => {
+                              setCoverImageId(null);
+                              setCoverImagePreviewUrl(null);
+                            }}
+                            disabled={saving || copying || deleting}
+                          >
+                            Remove image
+                          </button>
+                        ) : null}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-              <div className="space-y-1 min-w-0">
-                <Label htmlFor="event-project" className="text-sm">
-                  Project
-                </Label>
-                <ProjectEventLinkCombobox
-                  htmlId="event-project"
-                  value={projectId}
-                  onValueChange={setProjectId}
-                  disabled={saving || copying || deleting}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="description" className="text-sm">Description</Label>
-              <textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optional details"
-                rows={3}
-                className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              />
             </div>
             <Card className="rounded-xl border border-border bg-muted/50 text-card-foreground shadow-none">
               <CardContent className="space-y-4 p-4 sm:p-5">
@@ -781,8 +870,8 @@ export function EventFormClient({
                   Date &amp; time
                   <RequiredFieldMark />
                 </p>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     <Checkbox
                       id="is_all_day"
                       checked={isAllDay}
@@ -792,8 +881,8 @@ export function EventFormClient({
                       All day
                     </Label>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 min-w-0">
-                    <Label htmlFor="recurrence" className="text-sm shrink-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <Label htmlFor="recurrence" className="shrink-0 text-sm">
                       Repeats
                     </Label>
                     <Select
@@ -815,6 +904,9 @@ export function EventFormClient({
                       </SelectContent>
                     </Select>
                   </div>
+                  <p className="shrink-0 text-sm text-muted-foreground ms-auto max-w-full">
+                    Future Reminders Section
+                  </p>
                 </div>
                 {recurrencePreset !== "none" && (
                   <div className="space-y-1">
@@ -899,24 +991,38 @@ export function EventFormClient({
                 </div>
               </CardContent>
             </Card>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="location" className="text-sm">Location</Label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-start">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <div className="flex h-9 w-full shrink-0 items-center">
+                  <Label htmlFor="location">Location</Label>
+                </div>
                 <Input
                   id="location"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Venue or address"
+                  className="w-full"
                 />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="link_url" className="text-sm">Link</Label>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <div className="flex h-9 w-full shrink-0 items-center justify-between gap-x-2 gap-y-0">
+                  <Label htmlFor="link_url" className="shrink-0">
+                    Link
+                  </Label>
+                  <span
+                    className="truncate text-right text-xs text-muted-foreground"
+                    title="Coming soon"
+                  >
+                    Insert VRoom Call Link
+                  </span>
+                </div>
                 <Input
                   id="link_url"
                   type="text"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                   placeholder="https://..."
+                  className="w-full"
                 />
               </div>
             </div>
@@ -955,146 +1061,82 @@ export function EventFormClient({
 
             <Card className="bg-muted/40 border-muted">
               <CardContent className="p-4 pt-4">
-                <Tabs defaultValue="cover" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="cover">Cover Image</TabsTrigger>
-                    <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
+                <Tabs defaultValue="participants" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="participants">Participants</TabsTrigger>
+                    <TabsTrigger value="resources">Resources</TabsTrigger>
                     <TabsTrigger value="membership">Memberships</TabsTrigger>
-                    <TabsTrigger value="participants-resources">Participants &amp; Resources</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="cover" className="space-y-2 pt-4">
-                <Label className="text-sm">Cover image</Label>
-                <div className="flex items-center gap-2">
-                  {coverImageId && (coverImagePreviewUrl ?? coverImageUrls[coverImageId]) ? (
-                    <>
-                      <div className="relative w-14 h-14 rounded overflow-hidden bg-muted shrink-0">
-                        <Image
-                          src={coverImagePreviewUrl ?? coverImageUrls[coverImageId]!}
-                          alt="Cover"
-                          fill
-                          className="object-cover"
-                          sizes="56px"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowImagePicker(true)}
+                  <TabsContent value="participants" className="pt-4">
+                    <EventParticipantsResourcesTab
+                      mode="participants"
+                      eventId={event?.id}
+                      pendingParticipants={pendingParticipants}
+                      onPendingParticipantsChange={setPendingParticipants}
+                      pendingResourceAssignments={pendingResourceAssignments}
+                      onPendingResourceAssignmentsChange={setPendingResourceAssignments}
+                      onParticipantsSnapshot={setParticipantsForConflictCheck}
+                    />
+                  </TabsContent>
+                  <TabsContent value="resources" className="pt-4">
+                    <EventParticipantsResourcesTab
+                      mode="resources"
+                      eventId={event?.id}
+                      pendingParticipants={pendingParticipants}
+                      onPendingParticipantsChange={setPendingParticipants}
+                      pendingResourceAssignments={pendingResourceAssignments}
+                      onPendingResourceAssignmentsChange={setPendingResourceAssignments}
+                      onParticipantsSnapshot={setParticipantsForConflictCheck}
+                    />
+                  </TabsContent>
+                  <TabsContent value="membership" className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Access level</Label>
+                      <Select
+                        value={accessLevel}
+                        onValueChange={(v) => {
+                          setAccessLevel(v as "public" | "members" | "mag" | "private");
+                          if (v !== "mag") setRequiredMagId(null);
+                        }}
+                      >
+                        <SelectTrigger className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="public">Public</SelectItem>
+                          <SelectItem value="members">Members only</SelectItem>
+                          <SelectItem value="mag">Specific membership</SelectItem>
+                          <SelectItem value="private">Private</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Control who can see this event. &quot;Specific membership&quot; requires selecting a MAG below.
+                      </p>
+                    </div>
+                    {accessLevel === "mag" && (
+                      <div className="space-y-2">
+                        <Label className="text-sm">Required membership</Label>
+                        <Select
+                          value={requiredMagId ?? ""}
+                          onValueChange={(v) => setRequiredMagId(v || null)}
                         >
-                          <ImageIcon className="h-4 w-4 mr-1" />
-                          Change
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setCoverImageId(null);
-                            setCoverImagePreviewUrl(null);
-                          }}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Remove
-                        </Button>
+                          <SelectTrigger className="w-64">
+                            <SelectValue placeholder="Select a membership…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableMags.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    </>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <ImageIcon className="h-4 w-4 mr-1" />
-                      Choose image
-                    </Button>
-                  )}
-                </div>
-              </TabsContent>
-              <TabsContent value="taxonomy" className="pt-4">
-                <TaxonomyAssignmentForContent
-                  contentId={event?.id}
-                  contentTypeSlug="event"
-                  section="event"
-                  sectionLabel="Event"
-                  embedded
-                  selectedCategoryIds={taxonomyCategoryIds}
-                  selectedTagIds={taxonomyTagIds}
-                  onCategoryToggle={handleCategoryToggle}
-                  onTagToggle={handleTagToggle}
-                  onInitialLoad={event?.id ? handleTaxonomyInitialLoad : undefined}
-                />
-              </TabsContent>
-              <TabsContent value="membership" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label className="text-sm">Access level</Label>
-                  <Select
-                    value={accessLevel}
-                    onValueChange={(v) => {
-                      setAccessLevel(v as "public" | "members" | "mag" | "private");
-                      if (v !== "mag") setRequiredMagId(null);
-                    }}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">Public</SelectItem>
-                      <SelectItem value="members">Members only</SelectItem>
-                      <SelectItem value="mag">Specific membership</SelectItem>
-                      <SelectItem value="private">Private</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Control who can see this event. &quot;Specific membership&quot; requires selecting a MAG below.
-                  </p>
-                </div>
-                {accessLevel === "mag" && (
-                  <div className="space-y-2">
-                    <Label className="text-sm">Required membership</Label>
-                    <Select
-                      value={requiredMagId ?? ""}
-                      onValueChange={(v) => setRequiredMagId(v || null)}
-                    >
-                      <SelectTrigger className="w-64">
-                        <SelectValue placeholder="Select a membership…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableMags.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="participants-resources" className="pt-4">
-                <EventParticipantsResourcesTab
-                  eventId={event?.id}
-                  pendingParticipants={pendingParticipants}
-                  onPendingParticipantsChange={setPendingParticipants}
-                  pendingResourceAssignments={pendingResourceAssignments}
-                  onPendingResourceAssignmentsChange={setPendingResourceAssignments}
-                  onParticipantsSnapshot={setParticipantsForConflictCheck}
-                />
-              </TabsContent>
+                    )}
+                  </TabsContent>
                 </Tabs>
               </CardContent>
             </Card>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" asChild>
-                <Link href="/admin/events">Cancel</Link>
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Saving…" : isEdit ? "Save" : "Create"}
-              </Button>
-            </div>
           </form>
         </CardContent>
       </Card>

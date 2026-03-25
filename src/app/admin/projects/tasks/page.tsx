@@ -1,4 +1,4 @@
-import { listProjects, listProjectMembersByProjectIds, getProjectStatusTerms } from "@/lib/supabase/projects";
+import { listProjects, listProjectMembersByProjectIds } from "@/lib/supabase/projects";
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
 import { getCustomizerOptions } from "@/lib/supabase/settings";
@@ -32,9 +32,8 @@ export default async function AdminAllTasksPage() {
   let czTaskType: Awaited<ReturnType<typeof getCustomizerOptions>> = [];
   let czTaskStatus: Awaited<ReturnType<typeof getCustomizerOptions>> = [];
   let czTaskPhase: Awaited<ReturnType<typeof getCustomizerOptions>> = [];
-  let projectStatusTerms: Awaited<ReturnType<typeof getProjectStatusTerms>> = [];
   try {
-    [projects, bundle, czTaskType, czTaskStatus, czTaskPhase, projectStatusTerms] = await Promise.all([
+    [projects, bundle, czTaskType, czTaskStatus, czTaskPhase] = await Promise.all([
       listProjects({ include_archived: true }),
       getAdminTasksListBundle({
         exclude_status_slugs: [TASK_STATUS_SLUG_COMPLETED],
@@ -42,7 +41,6 @@ export default async function AdminAllTasksPage() {
       getCustomizerOptions("task_type"),
       getCustomizerOptions("task_status"),
       getCustomizerOptions("task_phase"),
-      getProjectStatusTerms(),
     ]);
   } catch (err) {
     const e = err as { message?: string; details?: string; hint?: string; code?: string };
@@ -61,10 +59,7 @@ export default async function AdminAllTasksPage() {
 
   const { tasks, phaseSlugByTaskId, taskAssigneesMap, taskTimeLogTotals } = bundle;
 
-  const projectStatusSlugById = Object.fromEntries(
-    projectStatusTerms.map((t) => [t.id, t.slug])
-  );
-  const pickerProjects = filterActiveProjectsForTaskList(projects, projectStatusSlugById);
+  const pickerProjects = filterActiveProjectsForTaskList(projects);
 
   const pickerProjectIds = pickerProjects.map((p) => p.id);
   const assigneeMemberRows =

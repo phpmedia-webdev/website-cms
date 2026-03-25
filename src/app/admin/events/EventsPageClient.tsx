@@ -5,23 +5,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EventsCalendar } from "@/components/events/EventsCalendar";
 import { EventsFilterBar } from "@/components/events/EventsFilterBar";
-import {
-  getTaxonomyTermsClient,
-  getSectionConfigsClient,
-  getTermsForContentSection,
-  getContentTaxonomyRelationships,
-} from "@/lib/supabase/taxonomy";
-import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
 import { Plus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import type { Event } from "@/lib/supabase/events";
 import { eventIdForEdit } from "@/lib/recurrence";
 import { buildCalendarEventHoverText } from "@/lib/events/calendar-event-hover";
 import type { View } from "react-big-calendar";
-import { RotateCcw } from "lucide-react";
-
 function useContainerHeight(minHeight = 400) {
   const ref = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(minHeight);
@@ -63,14 +53,11 @@ export function EventsPageClient({
   const [eventTypeOptions, setEventTypeOptions] = useState<EventTypeOption[]>([]);
   const [selectedEventType, setSelectedEventType] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [filterCategoryIds, setFilterCategoryIds] = useState<Set<string>>(new Set());
-  const [filterTagIds, setFilterTagIds] = useState<Set<string>>(new Set());
   const [filterMembershipIds, setFilterMembershipIds] = useState<Set<string>>(new Set());
   const [filterPublic, setFilterPublic] = useState(true);
   const [filterInternal, setFilterInternal] = useState(true);
   const [filterParticipantIds, setFilterParticipantIds] = useState<Set<string>>(new Set());
   const [filterResourceIds, setFilterResourceIds] = useState<Set<string>>(new Set());
-  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [eventParticipantMap, setEventParticipantMap] = useState<Map<string, Set<string>>>(new Map());
   const [eventResourceMap, setEventResourceMap] = useState<Map<string, Set<string>>>(new Map());
   const [resourceNamesByEvent, setResourceNamesByEvent] = useState<Record<string, string[]>>({});
@@ -78,12 +65,7 @@ export function EventsPageClient({
   const [myViewEnabled, setMyViewEnabled] = useState(false);
   const [myParticipantId, setMyParticipantId] = useState<string | null>(null);
 
-  const [terms, setTerms] = useState<TaxonomyTerm[]>([]);
-  const [configs, setConfigs] = useState<SectionTaxonomyConfig[]>([]);
   const [mags, setMags] = useState<{ id: string; name: string; uid: string }[]>([]);
-  const [eventTaxonomyMap, setEventTaxonomyMap] = useState<
-    Map<string, { categoryIds: string[]; tagIds: string[] }>
-  >(new Map());
 
   useEffect(() => {
     fetch("/api/settings/customizer?scope=event_type")
@@ -103,15 +85,6 @@ export function EventsPageClient({
   }, []);
 
   useEffect(() => {
-    Promise.all([getTaxonomyTermsClient(), getSectionConfigsClient()])
-      .then(([t, c]) => {
-        setTerms(t);
-        setConfigs(c);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     fetch("/api/crm/mags")
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
@@ -127,30 +100,6 @@ export function EventsPageClient({
       })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (events.length === 0) {
-      setEventTaxonomyMap(new Map());
-      return;
-    }
-    // Use real event IDs only (recurring events have synthetic ids that don't exist in taxonomy_relationships)
-    const realIds = [...new Set(events.map((e) => eventIdForEdit(e.id)))];
-    getContentTaxonomyRelationships(realIds)
-      .then((rels) => {
-        const termIdToType = new Map<string, "category" | "tag">();
-        terms.forEach((t) => termIdToType.set(t.id, t.type as "category" | "tag"));
-        const map = new Map<string, { categoryIds: string[]; tagIds: string[] }>();
-        rels.forEach((r) => {
-          const t = map.get(r.content_id) ?? { categoryIds: [], tagIds: [] };
-          const typ = termIdToType.get(r.term_id);
-          if (typ === "category") t.categoryIds.push(r.term_id);
-          else if (typ === "tag") t.tagIds.push(r.term_id);
-          map.set(r.content_id, t);
-        });
-        setEventTaxonomyMap(map);
-      })
-      .catch(() => setEventTaxonomyMap(new Map()));
-  }, [events, terms]);
 
   useEffect(() => {
     fetch("/api/events/me-participant-id")
@@ -191,20 +140,6 @@ export function EventsPageClient({
       });
   }, [events]);
 
-  const { categories, tags } = useMemo(
-    () => getTermsForContentSection(terms, configs, "event"),
-    [terms, configs]
-  );
-
-  const filterCategories = useMemo(
-    () => categories.map((c) => ({ id: c.id, name: c.name })),
-    [categories]
-  );
-  const filterTags = useMemo(
-    () => tags.map((t) => ({ id: t.id, name: t.name })),
-    [tags]
-  );
-
   const filteredEvents = useMemo(() => {
     let list = events;
 
@@ -236,22 +171,6 @@ export function EventsPageClient({
 
     if (selectedProjectId) {
       list = list.filter((e) => (e.project_id ?? null) === selectedProjectId);
-    }
-
-    if (filterCategoryIds.size > 0) {
-      list = list.filter((e) => {
-        const t = eventTaxonomyMap.get(eventIdForEdit(e.id));
-        if (!t) return false;
-        return t.categoryIds.some((id) => filterCategoryIds.has(id));
-      });
-    }
-
-    if (filterTagIds.size > 0) {
-      list = list.filter((e) => {
-        const t = eventTaxonomyMap.get(eventIdForEdit(e.id));
-        if (!t) return false;
-        return t.tagIds.some((id) => filterTagIds.has(id));
-      });
     }
 
     if (filterMembershipIds.size > 0) {
@@ -296,43 +215,14 @@ export function EventsPageClient({
     search,
     selectedEventType,
     selectedProjectId,
-    filterCategoryIds,
-    filterTagIds,
     filterMembershipIds,
     filterPublic,
     filterInternal,
     filterParticipantIds,
     filterResourceIds,
-    eventTaxonomyMap,
     eventParticipantMap,
     eventResourceMap,
   ]);
-
-  const hasFilters = useMemo(
-    () =>
-      search.trim().length > 0 ||
-      !!selectedEventType ||
-      !!selectedProjectId ||
-      filterCategoryIds.size > 0 ||
-      filterTagIds.size > 0 ||
-      filterMembershipIds.size > 0 ||
-      !filterPublic ||
-      !filterInternal ||
-      filterParticipantIds.size > 0 ||
-      filterResourceIds.size > 0,
-    [
-      search,
-      selectedEventType,
-      selectedProjectId,
-      filterCategoryIds,
-      filterTagIds,
-      filterMembershipIds,
-      filterPublic,
-      filterInternal,
-      filterParticipantIds,
-      filterResourceIds,
-    ]
-  );
 
   /** Native `title` hover for month / week / day / agenda (per occurrence id + resource names from assignments API). */
   const eventHoverDetailByEventId = useMemo(() => {
@@ -345,12 +235,32 @@ export function EventsPageClient({
     return out;
   }, [filteredEvents, resourceNamesByEvent]);
 
+  const hasFilters = useMemo(
+    () =>
+      search.trim().length > 0 ||
+      !!selectedEventType ||
+      !!selectedProjectId ||
+      filterMembershipIds.size > 0 ||
+      !filterPublic ||
+      !filterInternal ||
+      filterParticipantIds.size > 0 ||
+      filterResourceIds.size > 0,
+    [
+      search,
+      selectedEventType,
+      selectedProjectId,
+      filterMembershipIds,
+      filterPublic,
+      filterInternal,
+      filterParticipantIds,
+      filterResourceIds,
+    ]
+  );
+
   const handleResetFilters = useCallback(() => {
     setSearch("");
     setSelectedEventType(null);
     setSelectedProjectId(null);
-    setFilterCategoryIds(new Set());
-    setFilterTagIds(new Set());
     setFilterMembershipIds(new Set());
     setFilterPublic(true);
     setFilterInternal(true);
@@ -393,82 +303,58 @@ export function EventsPageClient({
 
   return (
     <div className="flex flex-col gap-6 h-[calc(100vh-11rem)]">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 shrink-0">
-        <div className="flex-1 min-w-0">
+      <div className="grid shrink-0 grid-cols-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold">Calendar Events</h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="mt-2 text-muted-foreground">
             Manage events and recurring schedules
           </p>
         </div>
-        <div className="flex flex-1 items-center justify-end shrink-0">
-          <div className="flex items-center gap-4">
+
+        <div className="flex justify-center md:px-2">
+          <div
+            className="inline-flex items-center gap-4 rounded-full border border-border/80 bg-muted/30 px-4 py-2 shadow-sm"
+            title={
+              myParticipantId == null
+                ? "Participant record not linked; My View unavailable"
+                : undefined
+            }
+          >
+            <span
+              className={cn(
+                "select-none text-sm font-medium transition-colors",
+                !myViewEnabled ? "font-semibold text-foreground" : "text-muted-foreground"
+              )}
+            >
+              All Events
+            </span>
             <Switch
               id="my-view"
               checked={myViewEnabled}
               onCheckedChange={setMyViewEnabled}
               disabled={myParticipantId == null}
-              aria-label="My View: only events where you are a participant"
+              aria-label={
+                myViewEnabled
+                  ? "Showing My View; switch to All Events"
+                  : "Showing All Events; switch to My View"
+              }
+              className="scale-[1.45] border border-border/60 shadow-sm data-[state=unchecked]:bg-muted data-[state=checked]:bg-primary"
             />
-            <Label
-              htmlFor="my-view"
-              className="text-sm font-medium cursor-pointer select-none"
-              title="Only events where you're a participant"
+            <span
+              className={cn(
+                "select-none text-sm font-medium transition-colors",
+                myViewEnabled ? "font-semibold text-foreground" : "text-muted-foreground"
+              )}
             >
               My View
-            </Label>
-
-            <div className="w-6 shrink-0" aria-hidden />
-
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="filter-public"
-                checked={filterPublic}
-                onCheckedChange={(v) => {
-                  const checked = !!v;
-                  setFilterPublic(checked);
-                  if (!checked && !filterInternal) setFilterInternal(true);
-                }}
-                aria-label="Show public events"
-              />
-              <label htmlFor="filter-public" className="text-sm cursor-pointer select-none">
-                Public
-              </label>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="filter-internal"
-                checked={filterInternal}
-                onCheckedChange={(v) => {
-                  const checked = !!v;
-                  setFilterInternal(checked);
-                  if (!checked && !filterPublic) setFilterPublic(true);
-                }}
-                aria-label="Show internal events"
-              />
-              <label htmlFor="filter-internal" className="text-sm cursor-pointer select-none">
-                Internal
-              </label>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 shrink-0"
-              onClick={handleResetFilters}
-              disabled={!hasFilters}
-              title="Reset search and filters"
-            >
-              <RotateCcw className="h-4 w-4 mr-1" />
-              Reset
-            </Button>
+            </span>
           </div>
         </div>
-        <div className="flex justify-end shrink-0">
-          <Button asChild>
+
+        <div className="flex justify-start md:justify-end">
+          <Button asChild className="shrink-0">
             <Link href="/admin/events/new">
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               Add Event
             </Link>
           </Button>
@@ -484,36 +370,20 @@ export function EventsPageClient({
           onSelectedEventTypeChange={setSelectedEventType}
           selectedProjectId={selectedProjectId}
           onSelectedProjectIdChange={setSelectedProjectId}
-          filterCategories={filterCategories}
-          filterTags={filterTags}
+          filterPublic={filterPublic}
+          filterInternal={filterInternal}
+          onFilterPublicChange={(checked) => {
+            setFilterPublic(checked);
+            if (!checked) setFilterInternal((prev) => prev || true);
+          }}
+          onFilterInternalChange={(checked) => {
+            setFilterInternal(checked);
+            if (!checked) setFilterPublic((prev) => prev || true);
+          }}
+          canReset={hasFilters}
+          onReset={handleResetFilters}
           filterMemberships={mags}
-          selectedCategoryIds={filterCategoryIds}
-          selectedTagIds={filterTagIds}
           selectedMembershipIds={filterMembershipIds}
-          filterParticipantIds={filterParticipantIds}
-          filterResourceIds={filterResourceIds}
-          onFilterParticipantsResourcesApply={(pIds, rIds) => {
-            setFilterParticipantIds(pIds);
-            setFilterResourceIds(rIds);
-          }}
-          showParticipantsModal={showParticipantsModal}
-          onShowParticipantsModalChange={setShowParticipantsModal}
-          onCategoryToggle={(id, checked) => {
-            setFilterCategoryIds((prev) => {
-              const next = new Set(prev);
-              if (checked) next.add(id);
-              else next.delete(id);
-              return next;
-            });
-          }}
-          onTagToggle={(id, checked) => {
-            setFilterTagIds((prev) => {
-              const next = new Set(prev);
-              if (checked) next.add(id);
-              else next.delete(id);
-              return next;
-            });
-          }}
           onMembershipToggle={(id, checked) => {
             setFilterMembershipIds((prev) => {
               const next = new Set(prev);

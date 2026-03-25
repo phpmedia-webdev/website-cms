@@ -14,11 +14,13 @@
 
 **Outstanding (delete each line after you run on every tenant schema that needs it):**
 
-- **`201_tasks_projects_planned_time_transition.sql`** — `planned_time` on tasks/projects + `proposed_time` sync; run **before** **202** on each schema.
-- **`202_rpc_planned_time_column.sql`** — RPCs return `planned_time` (tasks + projects); run after **201** on the same schemas.
 - **`200_projects_project_number.sql`** — `projects.project_number` PROJ-YYYY-NNNNN + project list/detail RPCs.
 - **`198_get_tasks_dynamic_preset_filters.sql`** — All Tasks presets (`exclude_status_slugs`, `due_before`).
 - **`197_get_tasks_dynamic_exclude_archived_projects.sql`** — exclude tasks whose **project** is archived (confirm applied everywhere).
+- **`203_projects_estimated_hourly_rate.sql`** — `projects.estimated_hourly_rate` + related RPC/app fields.
+- **`204_projects_cover_image.sql`** — project cover image path + storage policy (per script header).
+- **`205_projects_customizer_slugs.sql`** — `project_status_slug` / `project_type_slug`; drops legacy status/type term FK columns; RPC filter arg rename.
+- **`206_project_members_role_slug.sql`** — `project_members.role_slug`; drops `role_term_id`.
 
 ---
 
@@ -41,18 +43,15 @@ Use order **1 → 5** where dependencies apply (e.g. task threads depend on Phas
 
 - [ ] **GPUM (if in MVP):** Member-area **Projects**, **Tasks**, **Support tickets** per [planlog Phase 19](./planlog.md#phase-19-project-management-module) — or **defer** and document in planlog.
 - [ ] **Phase 19 items you still want before fork:** e.g. support project naming / type, **`project_id` on invoices**, punch-style time UI — keep as [planlog](./planlog.md) checkboxes and work them here when in scope.
-- [x] **Directory (optional):** Align project **add member** with `GET /api/directory` where it reduces duplicate fetches ([planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications)).
 - [ ] **Project detail — Attachments tab:** Replace placeholder with file uploads or linked documents (schema/API TBD).
-- [x] **QA — All Tasks:** Full manual pass: default paint; preset + modal filters; **Overdue** + title search; column sort vs completed visibility; master reset (↺) recap.
 
 **Time model alignment (Tasks/Projects) — assessment + Do Next**
 
-- **Current behavior:** Migration **201** adds `planned_time` on `tasks`/`projects` (synced with legacy `proposed_time` via triggers). App + direct writes use **`planned_time`**. **Project detail planned total** = sum of task `planned_time` (Option A); project create/edit no longer sets manual planned time. **Logged time** = sum of `task_time_logs`; **project logged** = rollup of those entries.
-- [ ] **Run `202_rpc_planned_time_column.sql`** so list/detail RPCs return `planned_time` (app normalizes legacy `proposed_time` until then; 202 aligns PostgREST with types).
+- **Current behavior:** Migrations **201** / **202** are **applied** (records): `planned_time` on `tasks`/`projects` (with legacy `proposed_time` sync via **201** where still present); list/detail RPCs return **`planned_time`** (**202**). App + direct writes use **`planned_time`**. **Project detail planned total** = sum of task `planned_time` (Option A). **Logged time** = sum of `task_time_logs`; **project logged** = rollup of those entries.
 - [ ] **Naming consistency:** Sweep remaining UI for **Estimated/Proposed** → **Planned** where missed.
 - [ ] **Follow-up migration (optional):** Drop `proposed_time` + sync triggers after all envs use `planned_time` only; remove `proposed_time` body aliases from APIs.
 - [ ] **Project logged-time rollup:** Keep dynamic sum from `task_time_logs`; add cached columns only if needed.
-- [ ] **QA:** task detail/edit, All Tasks, project detail, APIs — after **202** is applied.
+- [ ] **QA:** task detail/edit, All Tasks, project detail, APIs — spot-check `planned_time` vs RPC/UI parity.
 
 ### 2. Resources
 

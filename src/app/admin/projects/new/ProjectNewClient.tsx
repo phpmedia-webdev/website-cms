@@ -27,14 +27,19 @@ interface ProjectNewClientProps {
 
 export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientProps) {
   const router = useRouter();
-  const defaultStatusId = statusTerms.find((t) => t.slug === "new")?.id ?? statusTerms[0]?.id ?? "";
+  const defaultStatusSlug =
+    statusTerms.find((t) => t.slug === "planning")?.slug ??
+    statusTerms.find((t) => t.slug === "new")?.slug ??
+    statusTerms[0]?.slug ??
+    "";
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [statusTermId, setStatusTermId] = useState<string>(defaultStatusId);
-  const [projectTypeTermId, setProjectTypeTermId] = useState<string>("");
+  const [statusSlug, setStatusSlug] = useState<string>(defaultStatusSlug);
+  const [projectTypeSlug, setProjectTypeSlug] = useState<string>("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [potentialSales, setPotentialSales] = useState("");
+  const [estimatedHourlyRate, setEstimatedHourlyRate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [taxonomyCategoryIds, setTaxonomyCategoryIds] = useState<Set<string>>(new Set());
@@ -73,11 +78,14 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
         body: JSON.stringify({
           name: trimmed,
           description: description.trim() || undefined,
-          status_term_id: statusTermId || undefined,
-          project_type_term_id: projectTypeTermId || undefined,
+          project_status_slug: statusSlug || undefined,
+          project_type_slug: projectTypeSlug.trim() || undefined,
           start_date: startDate || undefined,
           due_date: dueDate || undefined,
           potential_sales: potentialSales ? parseFloat(potentialSales) : undefined,
+          estimated_hourly_rate: estimatedHourlyRate.trim()
+            ? parseFloat(estimatedHourlyRate)
+            : undefined,
         }),
       });
       const data = await res.json();
@@ -140,13 +148,13 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
             </div>
             <div>
               <Label htmlFor="status">Status</Label>
-              <Select value={statusTermId} onValueChange={setStatusTermId}>
+              <Select value={statusSlug} onValueChange={setStatusSlug}>
                 <SelectTrigger id="status" className="mt-1 w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {statusTerms.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <SelectItem key={t.slug} value={t.slug}>
                       {t.name}
                     </SelectItem>
                   ))}
@@ -156,14 +164,17 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
             {typeTerms.length > 0 && (
               <div>
                 <Label htmlFor="project_type">Type</Label>
-                <Select value={projectTypeTermId || "none"} onValueChange={(v) => setProjectTypeTermId(v === "none" ? "" : v)}>
+                <Select
+                  value={projectTypeSlug || "none"}
+                  onValueChange={(v) => setProjectTypeSlug(v === "none" ? "" : v)}
+                >
                   <SelectTrigger id="project_type" className="mt-1 w-[140px]">
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {typeTerms.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
+                      <SelectItem key={t.slug} value={t.slug}>
                         {t.name}
                       </SelectItem>
                     ))}
@@ -203,6 +214,19 @@ export function ProjectNewClient({ statusTerms, typeTerms }: ProjectNewClientPro
                 value={potentialSales}
                 onChange={(e) => setPotentialSales(e.target.value)}
                 placeholder="0"
+                className="mt-1 w-40"
+              />
+            </div>
+            <div>
+              <Label htmlFor="hourly_rate">Estimated hourly rate</Label>
+              <Input
+                id="hourly_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                value={estimatedHourlyRate}
+                onChange={(e) => setEstimatedHourlyRate(e.target.value)}
+                placeholder="Optional"
                 className="mt-1 w-40"
               />
             </div>

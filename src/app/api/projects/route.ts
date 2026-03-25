@@ -1,5 +1,5 @@
 /**
- * GET /api/projects — List projects (admin). Query: status_term_id, required_mag_id, include_archived.
+ * GET /api/projects — List projects (admin). Query: status_slug, required_mag_id, include_archived.
  * POST /api/projects — Create project (admin).
  */
 
@@ -39,12 +39,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ projects });
     }
 
-    const status_term_id = searchParams.get("status_term_id") ?? undefined;
+    const status_slug = searchParams.get("status_slug") ?? undefined;
     const required_mag_id = searchParams.get("required_mag_id") ?? undefined;
     const include_archived = searchParams.get("include_archived") === "true";
 
     const projects = await listProjects({
-      status_term_id: status_term_id || undefined,
+      status_slug: status_slug || undefined,
       required_mag_id: required_mag_id || undefined,
       include_archived,
     });
@@ -78,9 +78,10 @@ export async function POST(request: Request) {
     const input: ProjectInsert = {
       name,
       description: typeof body.description === "string" ? body.description : undefined,
-      status_term_id: typeof body.status_term_id === "string" ? body.status_term_id : undefined,
-      project_type_term_id:
-        typeof body.project_type_term_id === "string" ? body.project_type_term_id : undefined,
+      project_status_slug:
+        typeof body.project_status_slug === "string" ? body.project_status_slug : undefined,
+      project_type_slug:
+        typeof body.project_type_slug === "string" ? body.project_type_slug : undefined,
       start_date: body.start_date ?? undefined,
       due_date: body.due_date ?? undefined,
       completed_date: body.completed_date ?? undefined,
@@ -91,6 +92,8 @@ export async function POST(request: Request) {
             ? body.proposed_time
             : undefined,
       potential_sales: typeof body.potential_sales === "number" ? body.potential_sales : undefined,
+      estimated_hourly_rate:
+        typeof body.estimated_hourly_rate === "number" ? body.estimated_hourly_rate : undefined,
       required_mag_id: body.required_mag_id ?? undefined,
       contact_id: body.contact_id ?? undefined,
       client_organization_id: body.client_organization_id ?? undefined,

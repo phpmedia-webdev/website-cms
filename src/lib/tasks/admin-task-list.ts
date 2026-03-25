@@ -33,7 +33,7 @@ export interface AdminTasksListBundle {
   taskTimeLogTotals: Record<string, number>;
 }
 
-const EXCLUDED_PROJECT_STATUS_SLUGS = new Set(["completed", "closed"]);
+const EXCLUDED_PROJECT_STATUS_SLUGS = new Set(["completed", "complete", "closed"]);
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v && v.trim()))));
@@ -85,13 +85,10 @@ export async function resolveAssigneeLabelsForUserIds(userIds: string[]): Promis
 }
 
 /** Projects eligible for default task list: not archived, status slug not completed/closed. */
-export function filterActiveProjectsForTaskList(
-  projects: Project[],
-  termSlugById: Record<string, string>
-): Project[] {
+export function filterActiveProjectsForTaskList(projects: Project[]): Project[] {
   return projects.filter((p) => {
     if (p.archived_at) return false;
-    const slug = (termSlugById[p.status_term_id] ?? "").toLowerCase();
+    const slug = (p.project_status_slug ?? "").toLowerCase();
     return !EXCLUDED_PROJECT_STATUS_SLUGS.has(slug);
   });
 }

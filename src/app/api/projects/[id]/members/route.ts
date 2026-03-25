@@ -1,6 +1,6 @@
 /**
  * GET /api/projects/[id]/members — List project members.
- * POST /api/projects/[id]/members — Add a member (body: user_id? | contact_id?, role_term_id?).
+ * POST /api/projects/[id]/members — Add a member (body: user_id? | contact_id?, role_slug?).
  * DELETE /api/projects/[id]/members — Remove a member (body: id = member row id).
  * Admin only.
  */
@@ -15,8 +15,7 @@ import {
   addProjectMember,
   removeProjectMember,
 } from "@/lib/supabase/projects";
-import { getContactById } from "@/lib/supabase/crm";
-import { getProfileByUserId } from "@/lib/supabase/profiles";
+import { getProjectMemberDisplayLabelMap } from "@/lib/projects/resolve-project-member-labels";
 
 async function requireAdmin(): Promise<{ error: string; status: number } | null> {
   const user = await getCurrentUser();
@@ -49,24 +48,15 @@ export async function GET(
     }
 
     const projectRoleTerms = await getProjectRoleTerms();
-    const membersWithLabels = await Promise.all(
-      members.map(async (m) => {
-        let label = "—";
-        if (m.contact_id) {
-          const c = await getContactById(m.contact_id);
-          label = c?.full_name ?? c?.email ?? m.contact_id;
-        } else if (m.user_id) {
-          const p = await getProfileByUserId(m.user_id);
-          label = p?.display_name ?? m.user_id;
-        }
-        const roleTerm = projectRoleTerms.find((t) => t.id === m.role_term_id);
-        return {
-          ...m,
-          label,
-          role_label: roleTerm?.name ?? null,
-        };
-      })
-    );
+    const memberLabelById = await getProjectMemberDisplayLabelMap(members);
+    const membersWithLabels = members.map((m) => {
+      const roleTerm = projectRoleTerms.find((t) => t.slug === m.role_slug);
+      return {
+        ...m,
+        label: memberLabelById.get(m.id) ?? "—",
+        role_label: roleTerm?.name ?? null,
+      };
+    });
     return NextResponse.json(membersWithLabels);
   } catch (error) {
     console.error("GET /api/projects/[id]/members error:", error);
@@ -94,12 +84,17 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const userId = typeof body.user_id === "string" ? body.user_id : undefined;
     const contactId = typeof body.contact_id === "string" ? body.contact_id : undefined;
-    const roleTermId = typeof body.role_term_id === "string" ? body.role_term_id : body.role_term_id === null ? null : undefined;
+    const roleSlug =
+      typeof body.role_slug === "string"
+        ? body.role_slug
+        : body.role_slug === null
+          ? null
+          : undefined;
 
     const result = await addProjectMember(projectId, {
       user_id: userId ?? null,
       contact_id: contactId ?? null,
-      role_term_id: roleTermId,
+      role_slug: roleSlug,
     });
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 400 });

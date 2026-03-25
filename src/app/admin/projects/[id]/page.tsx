@@ -15,7 +15,9 @@ import { listInvoices } from "@/lib/shop/invoices";
 import { listEventsByProjectId } from "@/lib/supabase/events";
 import { getContactById } from "@/lib/supabase/crm";
 import { getOrganizationById } from "@/lib/supabase/organizations";
-import { getProfileByUserId } from "@/lib/supabase/profiles";
+import { getMediaById } from "@/lib/supabase/media";
+import { projectCoverImageUrlFromMedia } from "@/lib/projects/project-cover-image-url";
+import { getProjectMemberDisplayLabelMap } from "@/lib/projects/resolve-project-member-labels";
 import { ProjectDetailClient } from "./ProjectDetailClient";
 
 export default async function AdminProjectDetailPage({
@@ -55,6 +57,12 @@ export default async function AdminProjectDetailPage({
   const taskTypeTerms = statusTermsFromCustomizerRows(czTaskType);
   if (!project) notFound();
 
+  let coverImageUrl: string | null = null;
+  if (project.cover_image_id) {
+    const coverMedia = await getMediaById(project.cover_image_id);
+    coverImageUrl = projectCoverImageUrlFromMedia(coverMedia);
+  }
+
   let clientDisplayName: string | null = null;
   if (project.contact_id) {
     const contact = await getContactById(project.contact_id);
@@ -67,28 +75,20 @@ export default async function AdminProjectDetailPage({
   const projectTotal = projectOrders.reduce((sum, o) => sum + Number(o.total), 0);
   const projectPlannedTimeMinutes = tasks.reduce((sum, t) => sum + (t.planned_time ?? 0), 0);
 
-  const membersWithLabels = await Promise.all(
-    projectMembers.map(async (m) => {
-      let label = "—";
-      if (m.contact_id) {
-        const c = await getContactById(m.contact_id);
-        label = c?.full_name ?? c?.email ?? m.contact_id;
-      } else if (m.user_id) {
-        const p = await getProfileByUserId(m.user_id);
-        label = p?.display_name ?? m.user_id;
-      }
-      const roleTerm = projectRoleTerms.find((t) => t.id === m.role_term_id);
-      return {
-        ...m,
-        label,
-        role_label: roleTerm?.name ?? null,
-      };
-    })
-  );
+  const memberLabelById = await getProjectMemberDisplayLabelMap(projectMembers);
+  const membersWithLabels = projectMembers.map((m) => {
+    const roleTerm = projectRoleTerms.find((t) => t.slug === m.role_slug);
+    return {
+      ...m,
+      label: memberLabelById.get(m.id) ?? "—",
+      role_label: roleTerm?.name ?? null,
+    };
+  });
 
   return (
     <ProjectDetailClient
       project={project}
+      coverImageUrl={coverImageUrl}
       initialTasks={tasks}
       initialOrders={projectOrders}
       initialInvoices={projectInvoices}

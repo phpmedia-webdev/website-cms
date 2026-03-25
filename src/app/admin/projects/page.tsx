@@ -9,6 +9,7 @@ import {
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getOrganizationsByIds } from "@/lib/supabase/organizations";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
+import { getProjectMemberDisplayLabelMap } from "@/lib/projects/resolve-project-member-labels";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { ProjectsListClient } from "./ProjectsListClient";
 import type { ProjectListRow } from "@/components/projects/ProjectListTable";
@@ -29,7 +30,8 @@ export default async function AdminProjectsPage() {
 
   let projects: Awaited<ReturnType<typeof listProjects>> = [];
   let statusFilterOptions: ProjectStatusFilterOption[] = [];
-  let statusDisplayById: Awaited<ReturnType<typeof getAdminProjectStatusTermsForList>>["displayById"] = new Map();
+  let statusDisplayBySlug: Awaited<ReturnType<typeof getAdminProjectStatusTermsForList>>["displayBySlug"] =
+    new Map();
   let typeTerms: Awaited<ReturnType<typeof getProjectTypeTerms>> = [];
   try {
     const [proj, adminStatus, types] = await Promise.all([
@@ -39,7 +41,7 @@ export default async function AdminProjectsPage() {
     ]);
     projects = proj;
     statusFilterOptions = adminStatus.statusFilterOptions;
-    statusDisplayById = adminStatus.displayById;
+    statusDisplayBySlug = adminStatus.displayBySlug;
     typeTerms = types;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -64,8 +66,9 @@ export default async function AdminProjectsPage() {
   const contactMap = new Map<string, (typeof contacts)[number]>(contacts.map((contact) => [contact.id, contact]));
   const organizationMap = new Map(organizations.map((org) => [org.id, org]));
   const profileMap = new Map(profiles.map((profile) => [profile.user_id, profile]));
-  const statusMap = statusDisplayById;
-  const typeMap = new Map(typeTerms.map((term) => [term.id, term]));
+  const projectMemberLabelByMemberId = await getProjectMemberDisplayLabelMap(projectMembers);
+  const statusMap = statusDisplayBySlug;
+  const typeMap = new Map(typeTerms.map((term) => [term.slug, term]));
   const tasksByProject = new Map<string, Awaited<ReturnType<typeof listTasksByProjectIds>>>();
   for (const task of tasks) {
     const current = tasksByProject.get(task.project_id) ?? [];
@@ -82,8 +85,8 @@ export default async function AdminProjectsPage() {
   const now = Date.now();
 
   const rows: ProjectListRow[] = projects.map((project) => {
-    const statusTerm = toTerm(statusMap.get(project.status_term_id));
-    const typeTerm = project.project_type_term_id ? toTerm(typeMap.get(project.project_type_term_id)) : null;
+    const statusTerm = toTerm(statusMap.get(project.project_status_slug));
+    const typeTerm = project.project_type_slug ? toTerm(typeMap.get(project.project_type_slug)) : null;
     const contact = project.contact_id ? contactMap.get(project.contact_id) ?? null : null;
     const organization = project.client_organization_id ? organizationMap.get(project.client_organization_id) ?? null : null;
     const client = contact
@@ -101,17 +104,13 @@ export default async function AdminProjectsPage() {
         : null;
 
     const rawMembers = membersByProject.get(project.id) ?? [];
-    const memberUserIds = [
-      ...new Set(
-        rawMembers.map((m) => m.user_id).filter((id): id is string => Boolean(id && id.trim()))
-      ),
-    ];
     const members = rawMembers.map((member) => {
+      const label = projectMemberLabelByMemberId.get(member.id) ?? "?";
       if (member.contact_id) {
         const contactMember = contactMap.get(member.contact_id);
         return {
           id: member.id,
-          label: contactMember?.full_name ?? contactMember?.email ?? member.contact_id,
+          label,
           avatarUrl: contactMember?.avatar_url ?? null,
         };
       }
@@ -119,13 +118,13 @@ export default async function AdminProjectsPage() {
         const profile = profileMap.get(member.user_id);
         return {
           id: member.id,
-          label: profile?.display_name ?? member.user_id,
+          label,
           avatarUrl: profile?.avatar_url ?? null,
         };
       }
       return {
         id: member.id,
-        label: "?",
+        label,
         avatarUrl: null,
       };
     });

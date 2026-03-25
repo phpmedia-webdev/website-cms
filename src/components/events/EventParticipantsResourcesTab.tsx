@@ -18,6 +18,7 @@ import {
   resourceTypeLabelMap,
 } from "@/lib/events/resource-picker-groups";
 import { ResourceAssignmentsRollupList } from "@/components/events/ResourceAssignmentsRollupList";
+import { cn } from "@/lib/utils";
 
 export type PendingParticipant = { source_type: "crm_contact" | "team_member"; source_id: string };
 
@@ -64,6 +65,8 @@ interface EventParticipantsResourcesTabProps {
   onPendingResourceAssignmentsChange?: (rows: PendingResourceAssignment[]) => void;
   /** Called when the list of participants (to be saved) changes. Used for conflict check. */
   onParticipantsSnapshot?: (list: ParticipantsSnapshotItem[]) => void;
+  /** Split tabs: show only one block. Default shows both. */
+  mode?: "participants" | "resources" | "all";
 }
 
 export function EventParticipantsResourcesTab({
@@ -73,6 +76,7 @@ export function EventParticipantsResourcesTab({
   pendingResourceAssignments = [],
   onPendingResourceAssignmentsChange,
   onParticipantsSnapshot,
+  mode = "all",
 }: EventParticipantsResourcesTabProps) {
   const isCreateMode = !eventId;
 
@@ -331,8 +335,12 @@ export function EventParticipantsResourcesTab({
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
+  const showParticipants = mode === "all" || mode === "participants";
+  const showResources = mode === "all" || mode === "resources";
+
   return (
-    <div className="space-y-6 pt-4">
+    <div className={cn("space-y-6", mode === "all" && "pt-4")}>
+      {showParticipants ? (
       <div className="space-y-2">
         <Label className="text-sm">Participants</Label>
         {isCreateMode && (
@@ -356,7 +364,9 @@ export function EventParticipantsResourcesTab({
           }}
         />
       </div>
+      ) : null}
 
+      {showResources ? (
       <div className="space-y-2">
         <Label className="text-sm">Resources</Label>
         <p className="text-xs text-muted-foreground">
@@ -400,6 +410,7 @@ export function EventParticipantsResourcesTab({
           </div>
         )}
       </div>
+      ) : null}
     </div>
   );
 }

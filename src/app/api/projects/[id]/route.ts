@@ -72,9 +72,8 @@ export async function PUT(
     const input: ProjectUpdate = {};
     if (typeof body?.name === "string") input.name = body.name.trim();
     if (body?.description !== undefined) input.description = body.description;
-    if (body?.status_term_id !== undefined) input.status_term_id = body.status_term_id;
-    if (body?.project_type_term_id !== undefined)
-      input.project_type_term_id = body.project_type_term_id;
+    if (body?.project_status_slug !== undefined) input.project_status_slug = body.project_status_slug;
+    if (body?.project_type_slug !== undefined) input.project_type_slug = body.project_type_slug;
     if (body?.start_date !== undefined) input.start_date = body.start_date;
     if (body?.due_date !== undefined) input.due_date = body.due_date;
     if (body?.completed_date !== undefined) input.completed_date = body.completed_date;
@@ -82,11 +81,14 @@ export async function PUT(
     else if (body?.proposed_time !== undefined) input.planned_time = body.proposed_time;
     if (body?.potential_sales !== undefined)
       input.potential_sales = body.potential_sales;
+    if (body?.estimated_hourly_rate !== undefined)
+      input.estimated_hourly_rate = body.estimated_hourly_rate;
     if (body?.required_mag_id !== undefined)
       input.required_mag_id = body.required_mag_id;
     if (body?.contact_id !== undefined) input.contact_id = body.contact_id;
     if (body?.client_organization_id !== undefined)
       input.client_organization_id = body.client_organization_id;
+    if (body?.cover_image_id !== undefined) input.cover_image_id = body.cover_image_id;
     if (body?.archived_at !== undefined) input.archived_at = body.archived_at;
 
     const result = await updateProject(id, input);

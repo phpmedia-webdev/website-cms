@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, type ElementType } from "react";
+import { useState, useEffect, useMemo, type ElementType } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { View } from "react-big-calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,12 +28,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { Event } from "@/lib/supabase/events";
+import { sumProjectEventsEstimatedMinutes } from "@/lib/events/project-event-time-estimate";
 import type { Project, Task, ProjectMember } from "@/lib/supabase/projects";
 import type { StatusOrTypeTerm } from "@/lib/supabase/projects";
 import { formatMinutesAsHoursMinutes, projectDisplayRef } from "@/lib/supabase/projects";
 import type { OrderRow } from "@/lib/shop/orders";
 import type { InvoiceRow } from "@/lib/shop/invoices";
-import { EventsCalendar } from "@/components/events/EventsCalendar";
 import { TermBadge } from "@/components/taxonomy/TermBadge";
 import { isTaskStatusCompletedSlug } from "@/lib/tasks/task-status-reserved";
 import { cn } from "@/lib/utils";
@@ -48,8 +47,49 @@ function formatDate(s: string | null): string {
   }
 }
 
+/** Whole minutes → HH:MM (hours and minutes zero-padded, min 2 hour digits). */
+function formatMinutesAsHhMm(totalMinutes: number): string {
+  const safe = Math.max(0, Math.round(totalMinutes));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Planned / logged time row: `09:30 - Tasks` (matches metric typography). */
+function MetricTimeHhMmDashRow({ minutes, suffix }: { minutes: number; suffix: string }) {
+  return (
+    <p className="text-base font-semibold leading-tight text-foreground tabular-nums">
+      <span>{formatMinutesAsHhMm(minutes)}</span>
+      <span className="ml-1 text-xs font-normal normal-case tracking-normal text-muted-foreground">
+        {" "}- {suffix}
+      </span>
+    </p>
+  );
+}
+
+/** $1,234.56 style (no spurious leading zeros on the integer part). */
+function formatUsdAccounting(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+/** Event has fully ended (end before now). */
+function isEventPast(ev: Event): boolean {
+  try {
+    return new Date(ev.end_date).getTime() < Date.now();
+  } catch {
+    return false;
+  }
+}
+
 interface ProjectDetailClientProps {
   project: Project;
+  /** Resolved cover image URL when `project.cover_image_id` is set. */
+  coverImageUrl: string | null;
   initialTasks: Task[];
   initialOrders: OrderRow[];
   initialInvoices: InvoiceRow[];
@@ -77,6 +117,9 @@ type TabId =
   | "attachments"
   | "deliverables";
 
+/** Shared minimum height for client/team, date/progress stats (aligned to planned-time band ~5.5–6rem). */
+const METRIC_ROW_MIN_H = "min-h-[5.5rem]";
+
 function OverviewStatCard({
   icon: Icon,
   label,
@@ -89,7 +132,12 @@ function OverviewStatCard({
   sub?: string;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-xl border border-border/80 bg-muted/30 p-3">
+    <div
+      className={cn(
+        "flex flex-col gap-0.5 rounded-xl border border-border/80 bg-muted/30 p-3",
+        METRIC_ROW_MIN_H
+      )}
+    >
       <div className="flex items-center gap-2 text-muted-foreground">
         <Icon className="size-3.5 shrink-0" />
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
@@ -102,6 +150,7 @@ function OverviewStatCard({
 
 export function ProjectDetailClient({
   project,
+  coverImageUrl,
   initialTasks,
   initialOrders,
   initialInvoices,
@@ -122,8 +171,18 @@ export function ProjectDetailClient({
   const [invoices, setInvoices] = useState(initialInvoices);
   const [projectEvents, setProjectEvents] = useState(initialProjectEvents);
   const [projectMembers, setProjectMembers] = useState(initialProjectMembers);
-  const [projectEventsDate, setProjectEventsDate] = useState(() => new Date());
-  const [projectEventsView, setProjectEventsView] = useState<View>("month");
+
+  const sortedProjectEvents = useMemo(
+    () =>
+      [...projectEvents].sort(
+        (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+      ),
+    [projectEvents]
+  );
+  const projectEventTimeEstimateMinutes = useMemo(
+    () => sumProjectEventsEstimatedMinutes(projectEvents),
+    [projectEvents]
+  );
   const [tab, setTab] = useState<TabId>("message-center");
   const [archivedAt, setArchivedAt] = useState(project.archived_at);
   const [busy, setBusy] = useState(false);
@@ -203,8 +262,8 @@ export function ProjectDetailClient({
   };
 
   const typeTerm =
-    project.project_type_term_id != null
-      ? projectTypeTerms.find((t) => t.id === project.project_type_term_id) ?? null
+    project.project_type_slug != null
+      ? projectTypeTerms.find((t) => t.slug === project.project_type_slug) ?? null
       : null;
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter((t) => isTaskStatusCompletedSlug(t.task_status_slug)).length;
@@ -228,16 +287,9 @@ export function ProjectDetailClient({
           ((mockProfitabilityIncome - mockProfitabilityExpense) / mockProfitabilityIncome) * 100
         )
       : 0;
-  const mockFmtUsd = (n: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(n);
-  /** MOCK — replace with `projects.labor_rate_per_hour` (or similar) × logged hours */
-  const mockLaborRatePerHourUsd = 85;
-  const mockLaborEstimateUsd = (projectTimeLogMinutes / 60) * mockLaborRatePerHourUsd;
+  const hourlyRate = project.estimated_hourly_rate;
+  const laborEstimateUsd =
+    hourlyRate != null && hourlyRate > 0 ? (projectTimeLogMinutes / 60) * hourlyRate : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -316,10 +368,28 @@ export function ProjectDetailClient({
 
           <Card variant="bento" className="task-bento-tile flex min-h-0 flex-col lg:col-span-3">
             <CardContent className="flex flex-1 flex-col p-3 sm:p-4">
-              <div className="flex min-h-[8rem] flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20 px-3 py-6 text-center">
-                <ImageIcon className="mb-2 h-8 w-8 text-muted-foreground/50" aria-hidden />
-                <p className="text-xs text-muted-foreground">Optional project image</p>
-                <p className="mt-1 text-[0.6875rem] text-muted-foreground/80">Not configured</p>
+              <div
+                className={cn(
+                  "flex min-h-[8rem] flex-1 flex-col overflow-hidden rounded-xl border bg-muted/20",
+                  coverImageUrl
+                    ? "border-border/80 p-0"
+                    : "items-center justify-center border-dashed border-border/70 px-3 py-6 text-center"
+                )}
+              >
+                {coverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- external/supabase URL
+                  <img
+                    src={coverImageUrl}
+                    alt=""
+                    className="h-full max-h-[min(16rem,40vh)] w-full flex-1 object-cover"
+                  />
+                ) : (
+                  <>
+                    <ImageIcon className="mb-2 h-8 w-8 text-muted-foreground/50" aria-hidden />
+                    <p className="text-xs text-muted-foreground">Optional project image</p>
+                    <p className="mt-1 text-[0.6875rem] text-muted-foreground/80">Not configured</p>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -331,7 +401,7 @@ export function ProjectDetailClient({
                   Status
                 </p>
                 <TermBadge
-                  term={projectStatusTerms.find((t) => t.id === project.status_term_id)}
+                  term={projectStatusTerms.find((t) => t.slug === project.project_status_slug)}
                   className="w-fit text-base px-4 py-2 font-semibold leading-none"
                 />
               </div>
@@ -356,33 +426,41 @@ export function ProjectDetailClient({
         <div className="grid grid-cols-1 lg:grid-cols-12 lg:gap-4">
           <Card variant="bento" className="task-bento-tile flex min-h-0 flex-col lg:col-span-12">
             <CardContent className="flex flex-col p-2.5 sm:p-3">
-              <div className="flex min-h-[6.4rem] flex-col gap-4 lg:grid lg:grid-cols-12 lg:items-center lg:gap-0">
+              <div
+                className={cn(
+                  "grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-12 lg:gap-x-0 lg:gap-y-2",
+                  METRIC_ROW_MIN_H
+                )}
+              >
+                <p className="pt-0.5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground lg:col-span-3 lg:pr-4">
+                  Client
+                </p>
+                <p className="pt-0.5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground lg:col-span-9 lg:border-l lg:border-border/60 lg:pl-4">
+                  Team
+                </p>
                 <div className="flex min-w-0 flex-col lg:col-span-3 lg:pr-4">
-                  <p className="pt-0.5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Client
-                  </p>
-                  <div className="mt-1.5 flex min-w-0 max-w-[6.5rem] flex-col items-center gap-1.5 sm:items-start">
+                  <div className="mt-0.5 flex min-w-0 max-w-full flex-col items-center gap-1 sm:max-w-[10rem] sm:items-start">
                     {clientDisplayName ? (
                       <>
                         <span
-                          className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary"
+                          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary"
                           title={clientDisplayName}
                         >
                           {initials(clientDisplayName)}
                         </span>
                         <p
-                          className="w-full min-w-0 text-center text-[11px] font-semibold leading-tight text-foreground sm:text-left"
+                          className="w-full min-w-0 max-w-full truncate text-center text-[10px] font-semibold leading-tight text-foreground sm:text-left"
                           title={clientDisplayName}
                         >
-                          <span className="line-clamp-2 sm:line-clamp-3">{clientDisplayName}</span>
+                          {clientDisplayName}
                         </p>
                       </>
                     ) : (
                       <>
-                        <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-muted/50 text-xs font-medium text-muted-foreground">
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted/50 text-[10px] font-medium text-muted-foreground">
                           —
                         </span>
-                        <p className="w-full text-center text-[11px] text-muted-foreground sm:text-left">
+                        <p className="w-full truncate text-center text-[10px] text-muted-foreground sm:text-left">
                           <Link
                             href={`/admin/projects/${project.id}/edit`}
                             className="underline-offset-4 hover:underline"
@@ -394,13 +472,10 @@ export function ProjectDetailClient({
                     )}
                   </div>
                 </div>
-                <div className="flex min-h-0 min-w-0 flex-col border-t border-border/60 pt-4 lg:col-span-9 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-                  <p className="pt-0.5 text-left text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Team
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap justify-start gap-x-5 gap-y-3">
+                <div className="flex min-h-0 min-w-0 flex-col border-t border-border/60 pt-2 lg:col-span-9 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                  <div className="mt-0.5 flex min-h-0 min-w-0 flex-wrap justify-start gap-x-3 gap-y-2">
                     {teamOnlyMembers.length === 0 ? (
-                      <span className="text-left text-sm text-muted-foreground">
+                      <span className="min-w-0 text-left text-xs text-muted-foreground">
                         {primaryContactId
                           ? "No additional team members yet."
                           : "No members yet."}
@@ -409,23 +484,26 @@ export function ProjectDetailClient({
                       teamOnlyMembers.map((m) => (
                         <div
                           key={m.id}
-                          className="flex min-w-0 max-w-[5.25rem] flex-col items-center gap-1.5"
+                          className="flex w-[4.25rem] min-w-0 shrink-0 flex-col items-center gap-0.5 sm:w-[5rem]"
                         >
                           <span
-                            className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary"
+                            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary"
                             title={m.label}
                           >
                             {initials(m.label)}
                           </span>
                           <span
-                            className="w-full text-center text-[11px] font-semibold leading-tight text-foreground"
+                            className="w-full min-w-0 truncate text-center text-[10px] font-semibold leading-tight text-foreground"
                             title={m.label}
                           >
-                            <span className="line-clamp-2 break-words">{m.label}</span>
+                            {m.label}
                           </span>
                           {m.role_label ? (
-                            <span className="w-full text-center text-[10px] leading-none text-muted-foreground">
-                              <span className="line-clamp-1">{m.role_label}</span>
+                            <span
+                              className="w-full min-w-0 truncate text-center text-[9px] leading-none text-muted-foreground"
+                              title={m.role_label}
+                            >
+                              {m.role_label}
                             </span>
                           ) : null}
                         </div>
@@ -438,7 +516,7 @@ export function ProjectDetailClient({
           </Card>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 items-stretch gap-3 lg:grid-cols-4">
           <OverviewStatCard
             icon={Calendar}
             label="Start date"
@@ -451,7 +529,10 @@ export function ProjectDetailClient({
             sub={project.end_date_extended ? "Due date extended" : undefined}
           />
           <div
-            className="flex flex-col gap-1.5 rounded-xl border border-border/80 bg-muted/30 p-3"
+            className={cn(
+              "flex flex-col gap-1.5 rounded-xl border border-border/80 bg-muted/30 p-3",
+              METRIC_ROW_MIN_H
+            )}
             aria-label="Task completion progress"
           >
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -489,26 +570,25 @@ export function ProjectDetailClient({
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
-          <div className="rounded-xl border border-border/80 bg-muted/30 p-4">
-            <div className="grid grid-cols-1 gap-4 border-border/60 sm:grid-cols-3 sm:gap-4 sm:divide-x sm:divide-border/60">
+        <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-2 lg:gap-4">
+          <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
+            <div className="grid grid-cols-1 gap-3 border-border/60 sm:grid-cols-3 sm:gap-3 sm:divide-x sm:divide-border/60">
               <div className="flex min-w-0 flex-col gap-1 sm:pr-3">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Clock className="size-3.5 shrink-0" aria-hidden />
                   <span className="text-xs font-medium uppercase tracking-wide">Planned time</span>
                 </div>
-                <p className="text-base font-semibold leading-tight text-foreground tabular-nums">
-                  {formatMinutesAsHoursMinutes(projectPlannedTimeMinutes)}
-                </p>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <MetricTimeHhMmDashRow minutes={projectPlannedTimeMinutes} suffix="Tasks" />
+                  <MetricTimeHhMmDashRow minutes={projectEventTimeEstimateMinutes} suffix="Events" />
+                </div>
               </div>
               <div className="flex min-w-0 flex-col gap-1 sm:px-3">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Clock className="size-3.5 shrink-0" aria-hidden />
                   <span className="text-xs font-medium uppercase tracking-wide">Logged time</span>
                 </div>
-                <p className="text-base font-semibold leading-tight text-foreground tabular-nums">
-                  {formatMinutesAsHoursMinutes(projectTimeLogMinutes)}
-                </p>
+                <MetricTimeHhMmDashRow minutes={projectTimeLogMinutes} suffix="Tasks" />
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   {hasBudget
                     ? `of ${formatMinutesAsHoursMinutes(estimatedMinutes)} planned`
@@ -521,13 +601,18 @@ export function ProjectDetailClient({
                   <span className="text-xs font-medium uppercase tracking-wide">Labor estimate</span>
                 </div>
                 <p className="text-base font-semibold leading-tight text-foreground tabular-nums">
-                  {mockFmtUsd(mockLaborEstimateUsd)}
+                  {laborEstimateUsd != null ? formatUsdAccounting(laborEstimateUsd) : "—"}
                 </p>
+                {hourlyRate != null && hourlyRate > 0 ? (
+                  <p className="truncate text-[10px] leading-tight text-muted-foreground">
+                    Based on hourly rate of {formatUsdAccounting(hourlyRate)}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
-          <div className="rounded-xl border border-border/80 bg-muted/30 p-4">
-            <div className="mb-2 flex items-center gap-2 text-muted-foreground">
+          <div className="rounded-xl border border-border/80 bg-muted/30 p-3">
+            <div className="mb-1.5 flex items-center gap-2 text-muted-foreground">
               <CircleDollarSign className="size-4 shrink-0" aria-hidden />
               <span className="text-xs font-medium uppercase tracking-wide">Profitability</span>
               <span className="text-[10px] font-normal normal-case text-muted-foreground/80">(mock)</span>
@@ -539,7 +624,7 @@ export function ProjectDetailClient({
                   <span className="text-xs font-medium uppercase tracking-wide">Income</span>
                 </div>
                 <p className="text-base font-semibold leading-none text-foreground tabular-nums">
-                  {mockFmtUsd(mockProfitabilityIncome)}
+                  {formatUsdAccounting(mockProfitabilityIncome)}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col gap-0.5 sm:px-3">
@@ -548,7 +633,7 @@ export function ProjectDetailClient({
                   <span className="text-xs font-medium uppercase tracking-wide">Expense</span>
                 </div>
                 <p className="text-base font-semibold leading-none text-foreground tabular-nums">
-                  {mockFmtUsd(mockProfitabilityExpense)}
+                  {formatUsdAccounting(mockProfitabilityExpense)}
                 </p>
               </div>
               <div className="flex min-w-0 flex-col gap-0.5 sm:pl-3">
@@ -687,43 +772,22 @@ export function ProjectDetailClient({
             </TabsContent>
 
             <TabsContent value="events" className="mt-0 space-y-4 outline-none">
-              <Card className="border-0 shadow-none">
-                <CardHeader className="px-0 pt-0">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-lg font-medium">Events</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Calendar events linked to this project. Add a new event here to pre-fill the
-                        project link.
-                      </p>
-                    </div>
-                    <Button asChild>
-                      <Link href={`/admin/events/new?project_id=${encodeURIComponent(project.id)}`}>
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <h2 className="text-lg font-medium">Events</h2>
+                    <Button asChild className="shrink-0">
+                      <Link
+                        href={`/admin/events/new?project_id=${encodeURIComponent(project.id)}&from=project`}
+                      >
                         <Calendar className="h-4 w-4 mr-1" />
                         Add event
                       </Link>
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="px-0">
-                  <div className="min-h-[540px]">
-                    <EventsCalendar
-                      events={projectEvents}
-                      date={projectEventsDate}
-                      view={projectEventsView}
-                      onDateChange={setProjectEventsDate}
-                      onViewChange={setProjectEventsView}
-                      height={520}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border shadow-sm">
-                <CardHeader className="pb-2">
-                  <h3 className="text-base font-medium">Linked events</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Edit or unlink events from the project record.
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    All calendar events linked to this project, oldest first. Past events are
+                    de-emphasized for reference. Add an event to pre-fill this project.
                   </p>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -734,37 +798,58 @@ export function ProjectDetailClient({
                           <th className="h-9 px-4 text-left font-medium">Title</th>
                           <th className="h-9 px-4 text-left font-medium">Start</th>
                           <th className="h-9 px-4 text-left font-medium">End</th>
-                          <th className="h-9 w-24 px-4 text-left font-medium" />
+                          <th className="h-9 w-28 px-4 text-left font-medium" />
                         </tr>
                       </thead>
                       <tbody>
-                        {projectEvents.length === 0 ? (
+                        {sortedProjectEvents.length === 0 ? (
                           <tr>
                             <td colSpan={4} className="p-8 text-center text-muted-foreground">
                               No events linked to this project.
                             </td>
                           </tr>
                         ) : (
-                          projectEvents.map((ev) => (
-                            <tr key={ev.id} className="border-b hover:bg-muted/50">
-                              <td className="p-3 font-medium">{ev.title}</td>
-                              <td className="p-3 text-muted-foreground">{formatDate(ev.start_date)}</td>
-                              <td className="p-3 text-muted-foreground">{formatDate(ev.end_date)}</td>
-                              <td className="p-3 flex gap-1">
-                                <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
-                                  <Link href={`/admin/events/${ev.id}/edit`}>Edit</Link>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-muted-foreground"
-                                  onClick={() => unlinkEvent(ev.id)}
-                                >
-                                  Unlink
-                                </Button>
-                              </td>
-                            </tr>
-                          ))
+                          sortedProjectEvents.map((ev) => {
+                            const past = isEventPast(ev);
+                            return (
+                              <tr
+                                key={ev.id}
+                                className={cn(
+                                  "border-b transition-colors hover:bg-muted/50",
+                                  past && "italic text-muted-foreground opacity-70"
+                                )}
+                              >
+                                <td className="p-3 font-medium">
+                                  <Link
+                                    href={`/admin/events/${ev.id}/edit`}
+                                    className={cn(
+                                      "hover:underline",
+                                      past ? "text-muted-foreground" : "text-primary"
+                                    )}
+                                  >
+                                    {ev.title}
+                                  </Link>
+                                </td>
+                                <td className="p-3 tabular-nums">{formatDate(ev.start_date)}</td>
+                                <td className="p-3 tabular-nums">{formatDate(ev.end_date)}</td>
+                                <td className="p-3">
+                                  <div className="flex flex-wrap gap-1">
+                                    <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
+                                      <Link href={`/admin/events/${ev.id}/edit`}>Edit</Link>
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-muted-foreground"
+                                      onClick={() => unlinkEvent(ev.id)}
+                                    >
+                                      Unlink
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>

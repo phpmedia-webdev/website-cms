@@ -1,6 +1,6 @@
 /**
  * Which project statuses may be linked from calendar events (New/Edit Event form).
- * Status is the taxonomy term slug on the project's `status_term_id` (Projects section).
+ * Status is the Customizer slug on `projects.project_status_slug` (scope `project_status`).
  *
  * When project statuses are fully driven by Customizer, extend exclusion via
  * `registerCustomizerExcludedStatusSlugsForEventLink` (stub below) or by reading

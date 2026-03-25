@@ -17,6 +17,13 @@ export const DEFAULT_TASK_STATUS_SLUG = "to_do";
 export const DEFAULT_TASK_TYPE_SLUG = "task";
 export const DEFAULT_TASK_PHASE_SLUG = "backlog";
 
+/** Normalize slug for Customizer scopes `project_status` / `project_type` (matches `setCustomizerOptions`). */
+export function normalizeProjectCustomizerSlug(slug: string | null | undefined): string | null {
+  if (slug == null) return null;
+  const s = String(slug).trim().toLowerCase().replace(/\s+/g, "-");
+  return s.length > 0 ? s : null;
+}
+
 /** Format total minutes as "X h Y min" for display. Returns "—" when null or not a number. */
 export function formatMinutesAsHoursMinutes(totalMinutes: number | null | undefined): string {
   if (totalMinutes == null || typeof totalMinutes !== "number" || totalMinutes < 0)
@@ -37,8 +44,10 @@ export interface Project {
   project_number?: string | null;
   name: string;
   description: string | null;
-  status_term_id: string;
-  project_type_term_id: string | null;
+  /** Customizer scope `project_status`. */
+  project_status_slug: string;
+  /** Customizer scope `project_type`; optional. */
+  project_type_slug: string | null;
   start_date: string | null;
   due_date: string | null;
   completed_date: string | null;
@@ -46,6 +55,10 @@ export interface Project {
   planned_time: number | null;
   end_date_extended: boolean;
   potential_sales: number | null;
+  /** Blended hourly rate for labor estimates from logged time (optional). */
+  estimated_hourly_rate: number | null;
+  /** Optional hero image (`media.id`). */
+  cover_image_id: string | null;
   required_mag_id: string | null;
   contact_id: string | null;
   client_organization_id: string | null;
@@ -103,7 +116,8 @@ export interface Task {
 }
 
 export interface ListProjectsFilters {
-  status_term_id?: string | null;
+  /** Customizer `project_status` slug filter (case-insensitive match in RPC). */
+  status_slug?: string | null;
   required_mag_id?: string | null;
   include_archived?: boolean;
 }
@@ -136,14 +150,16 @@ export interface ProjectInsert {
   /** Optional import; normally assigned by DB trigger (PROJ-YYYY-NNNNN). */
   project_number?: string | null;
   description?: string | null;
-  status_term_id?: string | null;
-  project_type_term_id?: string | null;
+  project_status_slug?: string | null;
+  project_type_slug?: string | null;
   start_date?: string | null;
   due_date?: string | null;
   completed_date?: string | null;
   /** Planned time in minutes. */
   planned_time?: number | null;
   potential_sales?: number | null;
+  estimated_hourly_rate?: number | null;
+  cover_image_id?: string | null;
   required_mag_id?: string | null;
   contact_id?: string | null;
   client_organization_id?: string | null;
@@ -153,13 +169,15 @@ export interface ProjectInsert {
 export interface ProjectUpdate {
   name?: string;
   description?: string | null;
-  status_term_id?: string | null;
-  project_type_term_id?: string | null;
+  project_status_slug?: string | null;
+  project_type_slug?: string | null;
   start_date?: string | null;
   due_date?: string | null;
   completed_date?: string | null;
   planned_time?: number | null;
   potential_sales?: number | null;
+  estimated_hourly_rate?: number | null;
+  cover_image_id?: string | null;
   required_mag_id?: string | null;
   contact_id?: string | null;
   client_organization_id?: string | null;
@@ -214,6 +232,8 @@ function normalizeProjectFromRpc(row: unknown): Project {
   const r = row as Record<string, unknown>;
   const normalized = { ...r, planned_time: rpcPlannedMinutes(r) } as Record<string, unknown>;
   delete normalized.proposed_time;
+  if (normalized.estimated_hourly_rate === undefined) normalized.estimated_hourly_rate = null;
+  if (normalized.cover_image_id === undefined) normalized.cover_image_id = null;
   return normalized as unknown as Project;
 }
 
@@ -226,7 +246,7 @@ export async function listProjects(
   const schemaName = schema ?? PROJECTS_SCHEMA;
   const { data, error } = await supabase.rpc("get_projects_dynamic", {
     schema_name: schemaName,
-    status_term_id_filter: filters.status_term_id ?? null,
+    project_status_slug_filter: filters.status_slug?.trim() || null,
     required_mag_id_filter: filters.required_mag_id ?? null,
     include_archived: filters.include_archived ?? false,
   });
@@ -252,36 +272,16 @@ export async function listProjectsForEventLinking(
   schema?: string
 ): Promise<ProjectForEventLink[]> {
   const all = await listProjects({ include_archived: true }, schema);
-  const supabase = createServerSupabaseClient();
-  const schemaName = schema ?? PROJECTS_SCHEMA;
-  const statusIds = [...new Set(all.map((p) => p.status_term_id).filter(Boolean))];
-
-  let idToSlug = new Map<string, string>();
-  if (statusIds.length > 0) {
-    const { data: terms, error } = await supabase
-      .schema(schemaName)
-      .from("taxonomy_terms")
-      .select("id, slug")
-      .in("id", statusIds);
-    if (error) {
-      console.error("listProjectsForEventLinking taxonomy_terms:", error);
-    } else {
-      idToSlug = new Map(
-        (terms ?? []).map((t: { id: string; slug: string }) => [t.id, t.slug])
-      );
-    }
-  }
 
   return all
     .filter((p) => {
       if (p.archived_at) return false;
-      const slug = idToSlug.get(p.status_term_id) ?? null;
-      return shouldIncludeProjectForEventLink(slug);
+      return shouldIncludeProjectForEventLink(p.project_status_slug);
     })
     .map((p) => ({
       id: p.id,
       name: p.name,
-      status_slug: idToSlug.get(p.status_term_id) ?? null,
+      status_slug: p.project_status_slug ?? null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 }
@@ -313,27 +313,31 @@ export async function createProject(
 ): Promise<{ id: string } | { error: string }> {
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? getClientSchema();
-  const defaultStatusId = await getDefaultProjectStatusTermId(schemaName);
-  const statusTermId = input.status_term_id ?? defaultStatusId;
-  if (!statusTermId) {
+  const defaultStatusSlug = await getDefaultProjectStatusSlug(schemaName);
+  const statusSlug =
+    normalizeProjectCustomizerSlug(input.project_status_slug) ?? defaultStatusSlug;
+  if (!statusSlug) {
     return {
       error:
-        "Default project status term not found. Run migration 164_project_status_and_type_as_taxonomy.sql.",
+        "No project status in Customizer (scope project_status). Add options under Settings → Customizer → Projects.",
     };
   }
+  const typeSlug = normalizeProjectCustomizerSlug(input.project_type_slug);
   const payload: Record<string, unknown> = {
     name: input.name.trim(),
     ...(input.project_number != null && String(input.project_number).trim() !== ""
       ? { project_number: String(input.project_number).trim() }
       : {}),
     description: input.description ?? null,
-    status_term_id: statusTermId,
-    project_type_term_id: input.project_type_term_id ?? null,
+    project_status_slug: statusSlug,
+    project_type_slug: typeSlug,
     start_date: input.start_date ?? null,
     due_date: input.due_date ?? null,
     completed_date: input.completed_date ?? null,
     planned_time: input.planned_time ?? null,
     potential_sales: input.potential_sales ?? null,
+    estimated_hourly_rate: input.estimated_hourly_rate ?? null,
+    cover_image_id: input.cover_image_id ?? null,
     required_mag_id: input.required_mag_id ?? null,
     contact_id: input.contact_id ?? null,
     client_organization_id: input.client_organization_id ?? null,
@@ -360,9 +364,9 @@ export async function getOrCreateSupportProjectForContact(
   contactId: string,
   schema?: string
 ): Promise<{ id: string; created: boolean } | { error: string }> {
-  const perpetualTermId = await getProjectStatusTermIdBySlug("perpetual", schema);
-  if (!perpetualTermId) {
-    return { error: "Project status term 'perpetual' not found. Run migration 164." };
+  const perpetualSlug = normalizeProjectCustomizerSlug("perpetual");
+  if (!perpetualSlug) {
+    return { error: "Invalid perpetual slug." };
   }
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? getClientSchema();
@@ -370,7 +374,7 @@ export async function getOrCreateSupportProjectForContact(
     .schema(schemaName)
     .from("projects")
     .select("id")
-    .eq("status_term_id", perpetualTermId)
+    .eq("project_status_slug", perpetualSlug)
     .eq("contact_id", contactId)
     .maybeSingle();
   if (findErr) {
@@ -380,13 +384,13 @@ export async function getOrCreateSupportProjectForContact(
   if (existing?.id) {
     return { id: existing.id, created: false };
   }
-  const supportTypeTermId = await getProjectTypeTermIdBySlug("support", schema);
+  const supportTypeSlug = normalizeProjectCustomizerSlug("support");
   const created = await createProject(
     {
       name: "Support",
       description: null,
-      status_term_id: perpetualTermId,
-      project_type_term_id: supportTypeTermId ?? null,
+      project_status_slug: perpetualSlug,
+      project_type_slug: supportTypeSlug,
       contact_id: contactId,
     },
     schemaName
@@ -406,15 +410,25 @@ export async function updateProject(
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.name !== undefined) payload.name = input.name.trim();
   if (input.description !== undefined) payload.description = input.description;
-  if (input.status_term_id !== undefined) payload.status_term_id = input.status_term_id;
-  if (input.project_type_term_id !== undefined)
-    payload.project_type_term_id = input.project_type_term_id;
+  if (input.project_status_slug !== undefined) {
+    const s = normalizeProjectCustomizerSlug(input.project_status_slug);
+    if (!s) {
+      return { error: "project_status_slug cannot be empty" };
+    }
+    payload.project_status_slug = s;
+  }
+  if (input.project_type_slug !== undefined) {
+    payload.project_type_slug = normalizeProjectCustomizerSlug(input.project_type_slug);
+  }
   if (input.start_date !== undefined) payload.start_date = input.start_date;
   if (input.due_date !== undefined) payload.due_date = input.due_date;
   if (input.completed_date !== undefined) payload.completed_date = input.completed_date;
   if (input.planned_time !== undefined) payload.planned_time = input.planned_time;
   if (input.potential_sales !== undefined)
     payload.potential_sales = input.potential_sales;
+  if (input.estimated_hourly_rate !== undefined)
+    payload.estimated_hourly_rate = input.estimated_hourly_rate;
+  if (input.cover_image_id !== undefined) payload.cover_image_id = input.cover_image_id;
   if (input.required_mag_id !== undefined)
     payload.required_mag_id = input.required_mag_id;
   if (input.contact_id !== undefined) payload.contact_id = input.contact_id;
@@ -453,13 +467,14 @@ export async function deleteProject(
   return { ok: true };
 }
 
-/** Project member (team user or CRM contact) with optional role from Project Roles taxonomy. */
+/** Project member (team user or CRM contact) with optional role from Customizer scope `project_role`. */
 export interface ProjectMember {
   id: string;
   project_id: string;
   user_id: string | null;
   contact_id: string | null;
-  role_term_id: string | null;
+  /** Customizer `project_role` slug; nullable. */
+  role_slug: string | null;
   created_at: string;
 }
 
@@ -473,7 +488,7 @@ export async function listProjectMembers(
   const { data, error } = await supabase
     .schema(schemaName)
     .from("project_members")
-    .select("id, project_id, user_id, contact_id, role_term_id, created_at")
+    .select("id, project_id, user_id, contact_id, role_slug, created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
   if (error) {
@@ -494,7 +509,7 @@ export async function listProjectMembersByProjectIds(
   const { data, error } = await supabase
     .schema(schemaName)
     .from("project_members")
-    .select("id, project_id, user_id, contact_id, role_term_id, created_at")
+    .select("id, project_id, user_id, contact_id, role_slug, created_at")
     .in("project_id", projectIds)
     .order("created_at", { ascending: true });
   if (error) {
@@ -528,7 +543,7 @@ export async function listTasksByProjectIds(
 /** Add a member to a project. Exactly one of user_id or contact_id must be set. */
 export async function addProjectMember(
   projectId: string,
-  payload: { user_id?: string | null; contact_id?: string | null; role_term_id?: string | null },
+  payload: { user_id?: string | null; contact_id?: string | null; role_slug?: string | null },
   schema?: string
 ): Promise<{ id: string } | { error: string }> {
   const supabase = createServerSupabaseClient();
@@ -542,7 +557,7 @@ export async function addProjectMember(
     project_id: projectId,
     user_id: hasUser ? payload.user_id : null,
     contact_id: hasContact ? payload.contact_id : null,
-    role_term_id: payload.role_term_id ?? null,
+    role_slug: normalizeProjectCustomizerSlug(payload.role_slug),
   };
   const { data, error } = await supabase
     .schema(schemaName)
@@ -864,32 +879,42 @@ export const getTaskTypeTerms = (schema?: string) =>
   getTermsForSection("task_type", schema);
 /** Category terms in the Tasks taxonomy section (phases / milestones on tasks). */
 export const getTaskPhaseTerms = (schema?: string) => getTermsForSection("task", schema);
-export const getProjectStatusTerms = (schema?: string) =>
-  getTermsForSection("project_status", schema);
-export const getProjectTypeTerms = (schema?: string) =>
-  getTermsForSection("project_type", schema);
 
 /**
- * Overlay Customizer (scope `project_status`) labels and colors onto taxonomy terms by slug.
+ * Project status options for admin pickers — **Customizer only** (scope `project_status`).
+ * `id` is the slug (same as `slug`) so TermBadge / Select can key by slug without taxonomy_terms.
  */
-function applyCustomizerLabelsToProjectStatusTerms(
-  taxonomyTerms: StatusOrTypeTerm[],
-  czRows: CustomizerOptionRowServer[]
-): StatusOrTypeTerm[] {
-  const czBySlug = new Map<string, CustomizerOptionRowServer>();
-  for (const r of czRows) {
-    const s = String(r.slug ?? "").trim().toLowerCase();
-    if (s) czBySlug.set(s, r);
-  }
-  return taxonomyTerms.map((term) => {
-    const cz = czBySlug.get(term.slug.trim().toLowerCase());
-    if (!cz) return term;
-    const name =
-      cz.label != null && String(cz.label).trim() ? String(cz.label).trim() : term.name;
-    const rawColor = cz.color != null ? String(cz.color).trim() : "";
-    const color = rawColor ? normalizeHex(rawColor) : term.color;
-    return { ...term, name, color };
-  });
+export async function getProjectStatusTerms(schema?: string): Promise<StatusOrTypeTerm[]> {
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const czRows = await getCustomizerOptions("project_status", schemaName);
+  return czRows
+    .map((r) => {
+      const slug = normalizeProjectCustomizerSlug(r.slug);
+      if (!slug) return null;
+      const rawColor = r.color != null ? String(r.color).trim() : "";
+      const color = rawColor ? normalizeHex(rawColor) : null;
+      const name =
+        r.label != null && String(r.label).trim() ? String(r.label).trim() : slug;
+      return { id: slug, slug, name, color } satisfies StatusOrTypeTerm;
+    })
+    .filter((t): t is StatusOrTypeTerm => t != null);
+}
+
+/** Project type options for admin pickers — **Customizer only** (scope `project_type`). */
+export async function getProjectTypeTerms(schema?: string): Promise<StatusOrTypeTerm[]> {
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const czRows = await getCustomizerOptions("project_type", schemaName);
+  return czRows
+    .map((r) => {
+      const slug = normalizeProjectCustomizerSlug(r.slug);
+      if (!slug) return null;
+      const rawColor = r.color != null ? String(r.color).trim() : "";
+      const color = rawColor ? normalizeHex(rawColor) : null;
+      const name =
+        r.label != null && String(r.label).trim() ? String(r.label).trim() : slug;
+      return { id: slug, slug, name, color } satisfies StatusOrTypeTerm;
+    })
+    .filter((t): t is StatusOrTypeTerm => t != null);
 }
 
 /** One row for the admin projects list status filter (Customizer scope `project_status`, ordered by `display_order`). */
@@ -901,8 +926,7 @@ export interface ProjectStatusFilterOption {
 
 /**
  * Build status filter dropdown options from Customizer only (all rows, in list order).
- * Filtering compares `projects.status_term_id` → taxonomy term slug to `slug` (so customizer and taxonomy can diverge;
- * unmapped slugs still appear and match projects only when taxonomy has the same slug).
+ * Row filtering compares `projects.project_status_slug` to each option `slug`.
  */
 export function projectStatusFilterOptionsFromCustomizerRows(
   czRows: CustomizerOptionRowServer[]
@@ -922,32 +946,43 @@ export function projectStatusFilterOptionsFromCustomizerRows(
   return out;
 }
 
-/** Load project status for admin projects list: filter options = Customizer rows; row badges = taxonomy + customizer overlay. */
+/** Load project status for admin projects list: filter options + badge terms from Customizer only. */
 export async function getAdminProjectStatusTermsForList(schema?: string): Promise<{
   statusFilterOptions: ProjectStatusFilterOption[];
-  displayById: Map<string, StatusOrTypeTerm>;
+  displayBySlug: Map<string, StatusOrTypeTerm>;
 }> {
   const schemaName = schema ?? getClientSchema();
-  const [czRows, taxonomyTerms] = await Promise.all([
+  const [czRows, displayTerms] = await Promise.all([
     getCustomizerOptions("project_status", schemaName),
     getProjectStatusTerms(schemaName),
   ]);
-  const displayTerms = applyCustomizerLabelsToProjectStatusTerms(taxonomyTerms, czRows);
-  const displayById = new Map(displayTerms.map((t) => [t.id, t]));
+  const displayBySlug = new Map(displayTerms.map((t) => [t.slug, t]));
   let statusFilterOptions = projectStatusFilterOptionsFromCustomizerRows(czRows);
-  if (statusFilterOptions.length === 0 && taxonomyTerms.length > 0) {
-    statusFilterOptions = [...taxonomyTerms]
-      .sort((a, b) => a.slug.localeCompare(b.slug))
-      .map((t) => ({
-        slug: t.slug.trim().toLowerCase(),
-        label: t.name,
-        color: t.color,
-      }));
+  if (statusFilterOptions.length === 0 && displayTerms.length > 0) {
+    statusFilterOptions = displayTerms.map((t) => ({
+      slug: t.slug,
+      label: t.name,
+      color: t.color,
+    }));
   }
-  return { statusFilterOptions, displayById };
+  return { statusFilterOptions, displayBySlug };
 }
-export const getProjectRoleTerms = (schema?: string) =>
-  getTermsForSection("project_roles", schema);
+/** Project role options for member pickers — Customizer only (scope `project_role`). */
+export async function getProjectRoleTerms(schema?: string): Promise<StatusOrTypeTerm[]> {
+  const schemaName = schema ?? PROJECTS_SCHEMA;
+  const czRows = await getCustomizerOptions("project_role", schemaName);
+  return czRows
+    .map((r) => {
+      const slug = normalizeProjectCustomizerSlug(r.slug);
+      if (!slug) return null;
+      const rawColor = r.color != null ? String(r.color).trim() : "";
+      const color = rawColor ? normalizeHex(rawColor) : null;
+      const name =
+        r.label != null && String(r.label).trim() ? String(r.label).trim() : slug;
+      return { id: slug, slug, name, color } satisfies StatusOrTypeTerm;
+    })
+    .filter((t): t is StatusOrTypeTerm => t != null);
+}
 
 export async function getDefaultTaskStatusTermId(
   schema?: string
@@ -961,18 +996,10 @@ export async function getDefaultTaskTypeTermId(
   const terms = await getTaskTypeTerms(schema);
   return terms.find((t) => t.slug === "default")?.id ?? null;
 }
-export async function getDefaultProjectStatusTermId(
-  schema?: string
-): Promise<string | null> {
-  const terms = await getProjectStatusTerms(schema);
-  return terms.find((t) => t.slug === "new")?.id ?? null;
-}
-export async function getProjectStatusTermIdBySlug(
-  slug: string,
-  schema?: string
-): Promise<string | null> {
-  const terms = await getProjectStatusTerms(schema);
-  return terms.find((t) => t.slug === slug)?.id ?? null;
+/** First Customizer row (scope `project_status`, by display_order) — default for new projects. */
+export async function getDefaultProjectStatusSlug(schema?: string): Promise<string | null> {
+  const rows = await getCustomizerOptions("project_status", schema ?? getClientSchema());
+  return normalizeProjectCustomizerSlug(rows[0]?.slug);
 }
 export async function getTaskTypeTermIdBySlug(
   slug: string,
@@ -981,14 +1008,6 @@ export async function getTaskTypeTermIdBySlug(
   const terms = await getTaskTypeTerms(schema);
   return terms.find((t) => t.slug === slug)?.id ?? null;
 }
-export async function getProjectTypeTermIdBySlug(
-  slug: string,
-  schema?: string
-): Promise<string | null> {
-  const terms = await getProjectTypeTerms(schema);
-  return terms.find((t) => t.slug === slug)?.id ?? null;
-}
-
 /** Resolve a taxonomy term id to its display name (e.g. for activity log). */
 export async function getTermNameById(
   termId: string,
