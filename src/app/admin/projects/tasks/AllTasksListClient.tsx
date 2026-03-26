@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Filter, Plus, RotateCcw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -461,6 +462,7 @@ export function AllTasksListClient({
   taskTimeLogTotals: initialTimeTotals,
   currentUserId,
 }: AllTasksListClientProps) {
+  const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [taskAssigneesMap, setTaskAssigneesMap] = useState(initialAssigneesMap);
   const [taskTimeLogTotals, setTaskTimeLogTotals] = useState(initialTimeTotals);
