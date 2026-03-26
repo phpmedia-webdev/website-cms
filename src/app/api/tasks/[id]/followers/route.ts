@@ -13,6 +13,7 @@ import {
   getTaskFollowers,
   addTaskFollower,
   deleteTaskFollower,
+  listProjectMembers,
 } from "@/lib/supabase/projects";
 
 async function requireAdmin(): Promise<{ error: string; status: number } | null> {
@@ -77,6 +78,31 @@ export async function POST(
     }
     const contactId = typeof body.contact_id === "string" ? body.contact_id : undefined;
     const userId = typeof body.user_id === "string" ? body.user_id : undefined;
+    if (task.project_id?.trim()) {
+      const projectMembers = await listProjectMembers(task.project_id.trim());
+      const projectUserIds = new Set(
+        projectMembers
+          .map((m) => (typeof m.user_id === "string" ? m.user_id.trim() : ""))
+          .filter(Boolean)
+      );
+      const projectContactIds = new Set(
+        projectMembers
+          .map((m) => (typeof m.contact_id === "string" ? m.contact_id.trim() : ""))
+          .filter(Boolean)
+      );
+      if (userId && !projectUserIds.has(userId.trim())) {
+        return NextResponse.json(
+          { error: "For project-linked tasks, added members must already be project members." },
+          { status: 400 }
+        );
+      }
+      if (contactId && !projectContactIds.has(contactId.trim())) {
+        return NextResponse.json(
+          { error: "For project-linked tasks, added members must already be project members." },
+          { status: 400 }
+        );
+      }
+    }
     const result = await addTaskFollower(taskId, {
       role: role as "creator" | "responsible" | "follower",
       user_id: userId ?? null,

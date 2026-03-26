@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmContact } from "@/lib/supabase/crm";
 import type { ContactMethodRow, ContactMethodType } from "@/lib/supabase/contact-methods";
-import type { CrmContactStatusOption } from "@/lib/supabase/settings";
+import { CRM_STATUS_SLUG_NEW, type CrmContactStatusOption } from "@/lib/supabase/settings";
 import { Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,14 @@ import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
 import { ImageIcon } from "lucide-react";
 
 const DND_OPTIONS = ["none", "email", "phone", "all"] as const;
+
+function getDefaultContactStatusSlug(contactStatuses: CrmContactStatusOption[]): string {
+  return (
+    contactStatuses.find((s) => s.slug === CRM_STATUS_SLUG_NEW)?.slug ??
+    contactStatuses[0]?.slug ??
+    CRM_STATUS_SLUG_NEW
+  );
+}
 
 export function ContactEditForm({
   contact,
@@ -53,7 +61,7 @@ export function ContactEditForm({
     shipping_postal_code: contact.shipping_postal_code ?? "",
     shipping_country: contact.shipping_country ?? "",
     message: contact.message ?? "",
-    status: contact.status ?? (contactStatuses[0]?.slug ?? "new"),
+    status: contact.status ?? getDefaultContactStatusSlug(contactStatuses),
     dnd_status: contact.dnd_status ?? "none",
   });
 
@@ -82,7 +90,7 @@ export function ContactEditForm({
       shipping_postal_code: contact.shipping_postal_code ?? "",
       shipping_country: contact.shipping_country ?? "",
       message: contact.message ?? "",
-      status: contact.status ?? (contactStatuses[0]?.slug ?? "new"),
+      status: contact.status ?? getDefaultContactStatusSlug(contactStatuses),
       dnd_status: contact.dnd_status ?? "none",
     });
   }, [contact, contactStatuses]);
@@ -240,7 +248,7 @@ export function ContactEditForm({
           shipping_postal_code: form.shipping_postal_code || null,
           shipping_country: form.shipping_country || null,
           message: form.message.trim() ? form.message.trim() : null,
-          status: form.status || "new",
+          status: form.status || getDefaultContactStatusSlug(contactStatuses),
           dnd_status: form.dnd_status === "none" ? null : form.dnd_status,
         }),
       });

@@ -6,7 +6,7 @@ import { updateBlogCommentModerationStatus } from "@/lib/supabase/blog-comment-m
 /**
  * PATCH /api/blog/comments/[id]
  * Update comment moderation. Body: { status: 'approved' | 'rejected' }.
- * `id` is **`thread_messages.id`** (not `crm_notes`).
+ * `id` is **`thread_messages.id`**.
  * Requires "approve_reject" permission (PHP-Auth role assignment); when PHP-Auth not configured, admin/superadmin allowed.
  */
 export async function PATCH(

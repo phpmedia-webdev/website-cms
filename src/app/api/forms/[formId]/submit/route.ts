@@ -13,7 +13,8 @@ import {
   insertFormSubmission,
   type FormFieldAssignment,
 } from "@/lib/supabase/crm";
-import { getCrmContactStatuses } from "@/lib/supabase/settings";
+import { insertContactNotificationsTimeline } from "@/lib/supabase/contact-notifications-timeline";
+import { CRM_STATUS_SLUG_NEW, getCrmContactStatuses } from "@/lib/supabase/settings";
 import { notifyOnFormSubmitted } from "@/lib/notifications";
 import { getFormProtectionSettings } from "@/lib/forms/form-protection-settings";
 import { verifyRecaptchaToken } from "@/lib/forms/recaptcha";
@@ -40,8 +41,46 @@ const CORE_KEYS = [
   "shipping_state",
   "shipping_postal_code",
   "shipping_country",
-  "message",
 ] as const;
+
+const CORE_LABELS: Record<(typeof CORE_KEYS)[number], string> = {
+  email: "Email",
+  phone: "Phone",
+  first_name: "First name",
+  last_name: "Last name",
+  full_name: "Full name",
+  company: "Company",
+  address: "Address",
+  city: "City",
+  state: "State",
+  postal_code: "Postal code",
+  country: "Country",
+  shipping_address: "Shipping address",
+  shipping_city: "Shipping city",
+  shipping_state: "Shipping state",
+  shipping_postal_code: "Shipping postal code",
+  shipping_country: "Shipping country",
+};
+
+function getSubmittedMessage(
+  body: Record<string, unknown>,
+  formFields: FormFieldAssignment[]
+): string | null {
+  const hasMessageField = formFields.some(
+    (f) => f.field_source === "core" && f.core_field_key === "message"
+  );
+  if (!hasMessageField) return null;
+
+  const msg =
+    body.message != null && body.message !== ""
+      ? String(body.message)
+      : body.Message != null && body.Message !== ""
+        ? String(body.Message)
+        : null;
+  if (!msg) return null;
+  const trimmed = msg.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 function getPayloadValue(
   body: Record<string, unknown>,
@@ -169,17 +208,81 @@ async function handler(
       }
     }
 
-    const email = (bodyForSubmission.email != null && bodyForSubmission.email !== "")
-      ? String(bodyForSubmission.email)
-      : null;
-    const existingContact = await getContactByEmail(email);
-
     const statuses = await getCrmContactStatuses();
-    const defaultStatus = statuses[0]?.slug ?? "new";
+    const defaultStatus =
+      statuses.find((s) => s.slug === CRM_STATUS_SLUG_NEW)?.slug ??
+      statuses[0]?.slug ??
+      CRM_STATUS_SLUG_NEW;
+    const submittedMessage = getSubmittedMessage(bodyForSubmission, formFields);
+    const submittedEmail =
+      bodyForSubmission.email != null && bodyForSubmission.email !== ""
+        ? String(bodyForSubmission.email).trim()
+        : null;
+    const existingContact = await getContactByEmail(submittedEmail);
 
     let contactId: string | null = null;
+    let contactRecord:
+      | {
+          id: string;
+          email: string | null;
+          phone: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          full_name: string | null;
+          company: string | null;
+          status: string | null;
+        }
+      | null = null;
+    const changedLines: string[] = [];
 
-    if (!existingContact) {
+    if (existingContact) {
+      contactId = existingContact.id;
+      const updatePayload: Record<string, unknown> = {};
+      for (const key of CORE_KEYS) {
+        const v = bodyForSubmission[key];
+        if (v == null || v === "") continue;
+        const nextVal = String(v).trim();
+        const prevVal = String((existingContact as Record<string, unknown>)[key] ?? "").trim();
+        if (nextVal !== prevVal) {
+          updatePayload[key] = nextVal;
+          changedLines.push(`${CORE_LABELS[key]}: ${prevVal || "—"} -> ${nextVal || "—"}`);
+        }
+      }
+
+      if (Object.keys(updatePayload).length > 0) {
+        const { contact: updated, error: updateErr } = await updateContact(
+          existingContact.id,
+          updatePayload as Parameters<typeof updateContact>[1]
+        );
+        if (updateErr || !updated) {
+          return NextResponse.json(
+            { error: updateErr?.message ?? "Failed to update contact" },
+            { status: 500 }
+          );
+        }
+        contactRecord = {
+          id: updated.id,
+          email: updated.email ?? null,
+          phone: updated.phone ?? null,
+          first_name: updated.first_name ?? null,
+          last_name: updated.last_name ?? null,
+          full_name: updated.full_name ?? null,
+          company: updated.company ?? null,
+          status: updated.status ?? null,
+        };
+      } else {
+        contactRecord = {
+          id: existingContact.id,
+          email: existingContact.email ?? null,
+          phone: existingContact.phone ?? null,
+          first_name: existingContact.first_name ?? null,
+          last_name: existingContact.last_name ?? null,
+          full_name: existingContact.full_name ?? null,
+          company: existingContact.company ?? null,
+          status: existingContact.status ?? null,
+        };
+      }
+    } else {
       const corePayload: Record<string, unknown> = {
         status: defaultStatus,
         source: "form",
@@ -189,20 +292,7 @@ async function handler(
         const v = bodyForSubmission[key];
         if (v != null && v !== "") corePayload[key] = String(v);
       }
-      // Ensure message is set when form has message field (defensive for casing or client quirks)
-      const hasMessageField = formFields.some(
-        (f) => f.field_source === "core" && f.core_field_key === "message"
-      );
-      if (hasMessageField) {
-        const msg =
-          bodyForSubmission.message != null && bodyForSubmission.message !== ""
-            ? String(bodyForSubmission.message)
-            : (bodyForSubmission as Record<string, unknown>).Message != null &&
-                (bodyForSubmission as Record<string, unknown>).Message !== ""
-              ? String((bodyForSubmission as Record<string, unknown>).Message)
-              : null;
-        if (msg !== null) corePayload.message = msg;
-      }
+
       const { contact: created, error: createErr } = await createContact(
         corePayload as Parameters<typeof createContact>[0]
       );
@@ -213,76 +303,45 @@ async function handler(
         );
       }
       contactId = created.id;
+      contactRecord = {
+        id: created.id,
+        email: created.email ?? null,
+        phone: created.phone ?? null,
+        first_name: created.first_name ?? null,
+        last_name: created.last_name ?? null,
+        full_name: created.full_name ?? null,
+        company: created.company ?? null,
+        status: created.status ?? null,
+      };
+    }
 
-      for (const field of formFields) {
-        if (field.field_source !== "custom" || !field.custom_field_id) continue;
-        const val = getPayloadValue(body, field);
-        if (val !== null) {
-          await upsertContactCustomFieldValue(created.id, field.custom_field_id, val);
-        }
+    if (!contactId) {
+      return NextResponse.json({ error: "Missing contact id" }, { status: 500 });
+    }
+
+    const existingCustomValues = new Map<string, string>();
+    if (existingContact) {
+      const customRows = await getContactCustomFields(contactId);
+      for (const row of customRows) {
+        existingCustomValues.set(row.custom_field_id, String(row.value ?? ""));
       }
-
-      if (form.auto_assign_mag_ids?.length) {
-        for (const magId of form.auto_assign_mag_ids) {
-          await addContactToMag(created.id, magId, "form");
-        }
+    }
+    for (const field of formFields) {
+      if (field.field_source !== "custom" || !field.custom_field_id) continue;
+      const val = getPayloadValue(bodyForSubmission, field);
+      if (val === null) continue;
+      const prevVal = (existingCustomValues.get(field.custom_field_id) ?? "").trim();
+      const nextVal = String(val).trim();
+      if (nextVal === prevVal) continue;
+      await upsertContactCustomFieldValue(contactId, field.custom_field_id, nextVal);
+      if (existingContact) {
+        changedLines.push(`Custom ${field.custom_field_id}: ${prevVal || "—"} -> ${nextVal || "—"}`);
       }
-    } else {
-      contactId = existingContact.id;
+    }
 
-      const updatePayload: Record<string, unknown> = {};
-      const messageField = formFields.find((f) => f.core_field_key === "message");
-      const messageVal =
-        messageField && bodyForSubmission.message != null && bodyForSubmission.message !== ""
-          ? String(bodyForSubmission.message)
-          : null;
-      if (messageVal !== null) {
-        const existingMessage = existingContact.message?.trim() ?? "";
-        updatePayload.message = existingMessage
-          ? `${existingMessage}\n\n${messageVal}`
-          : messageVal;
-      }
-
-      for (const key of CORE_KEYS) {
-        if (key === "message") continue;
-        const bodyVal = bodyForSubmission[key];
-        if (bodyVal == null || bodyVal === "") continue;
-        const existingVal = (existingContact as unknown as Record<string, unknown>)[key];
-        const isEmpty =
-          existingVal == null || String(existingVal).trim() === "";
-        if (isEmpty) (updatePayload as unknown as Record<string, unknown>)[key] = String(bodyVal);
-      }
-
-      if (Object.keys(updatePayload).length > 0) {
-        const { error: updateErr } = await updateContact(
-          existingContact.id,
-          updatePayload as Parameters<typeof updateContact>[1]
-        );
-        if (updateErr) {
-          return NextResponse.json(
-            { error: updateErr.message },
-            { status: 500 }
-          );
-        }
-      }
-
-      const customValues = await getContactCustomFields(existingContact.id);
-      const customByFieldId = new Map(
-        customValues.map((c) => [c.custom_field_id, c.value])
-      );
-      for (const field of formFields) {
-        if (field.field_source !== "custom" || !field.custom_field_id) continue;
-        const bodyVal = getPayloadValue(bodyForSubmission, field);
-        if (bodyVal === null) continue;
-        const current = customByFieldId.get(field.custom_field_id);
-        const isEmpty = current == null || String(current).trim() === "";
-        if (isEmpty) {
-          await upsertContactCustomFieldValue(
-            existingContact.id,
-            field.custom_field_id,
-            bodyVal
-          );
-        }
+    if (form.auto_assign_mag_ids?.length) {
+      for (const magId of form.auto_assign_mag_ids) {
+        await addContactToMag(contactId, magId, "form");
       }
     }
 
@@ -296,6 +355,50 @@ async function handler(
         { error: subErr?.message ?? "Failed to save submission" },
         { status: 500 }
       );
+    }
+
+    if (contactId && contactRecord) {
+      const name =
+        contactRecord.full_name?.trim() ||
+        [contactRecord.first_name, contactRecord.last_name]
+          .filter((v): v is string => !!v && v.trim().length > 0)
+          .join(" ")
+          .trim() ||
+        contactRecord.email ||
+        "Unknown contact";
+
+      const summaryLines = [
+        `Name: ${name}`,
+        contactRecord.email ? `Email: ${contactRecord.email}` : null,
+        contactRecord.phone ? `Phone: ${contactRecord.phone}` : null,
+        contactRecord.company ? `Company: ${contactRecord.company}` : null,
+      ].filter((line): line is string => !!line);
+      const changeBlock = existingContact
+        ? changedLines.length > 0
+          ? `Changes:\n- ${changedLines.join("\n- ")}`
+          : "Changes: No mapped field changes."
+        : "Changes: New contact created.";
+      const messageBlock = submittedMessage ? `Message:\n${submittedMessage}` : "Message:\n—";
+
+      await insertContactNotificationsTimeline({
+        contact_id: contactId,
+        kind: "form_submission",
+        visibility: "admin_only",
+        title: existingContact ? `Form update: ${form.name}` : `Form submission: ${form.name}`,
+        body: `${summaryLines.join("\n")}\n\n${changeBlock}\n\n${messageBlock}`,
+        metadata: {
+          form_id: form.id,
+          form_name: form.name,
+          submission_id: submission.id,
+          contact_id: contactId,
+          extracted: true,
+          operation: existingContact ? "contact_updated" : "contact_created",
+          changed_fields: changedLines,
+        },
+        subject_type: "form_submission",
+        subject_id: submission.id,
+        source_event: "form_submitted",
+      });
     }
 
     const successMessage =

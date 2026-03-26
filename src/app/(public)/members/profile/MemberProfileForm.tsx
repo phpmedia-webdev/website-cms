@@ -22,6 +22,10 @@ export function MemberProfileForm() {
   const [email, setEmail] = useState("");
   const [handle, setHandle] = useState("");
   const [communicateInMessages, setCommunicateInMessages] = useState(false);
+  const [magCommunityPrefs, setMagCommunityPrefs] = useState<{
+    enabled: boolean;
+    mags: { mag_id: string; mag_name: string; opted_in: boolean }[];
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -49,6 +53,28 @@ export function MemberProfileForm() {
         }
       })
       .catch(() => {});
+
+    fetch("/api/members/messaging-preferences")
+      .then((res) => {
+        if (res.status === 403 || res.status === 401) return null;
+        return res.ok ? res.json() : null;
+      })
+      .then(
+        (
+          data: {
+            mag_community_messaging_enabled?: boolean;
+            mags?: { mag_id: string; mag_name: string; opted_in: boolean }[];
+          } | null
+        ) => {
+          if (data?.mags) {
+            setMagCommunityPrefs({
+              enabled: data.mag_community_messaging_enabled === true,
+              mags: data.mags,
+            });
+          }
+        }
+      )
+      .catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,6 +101,27 @@ export function MemberProfileForm() {
       if (!profileRes.ok) {
         const json = await profileRes.json();
         throw new Error(json.error ?? "Failed to update handle settings");
+      }
+      if (magCommunityPrefs) {
+        const magRes = await fetch("/api/members/messaging-preferences", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mag_community_messaging_enabled: magCommunityPrefs.enabled,
+            opt_in_mag_ids: magCommunityPrefs.mags.filter((m) => m.opted_in).map((m) => m.mag_id),
+          }),
+        });
+        if (!magRes.ok) {
+          const json = await magRes.json().catch(() => ({}));
+          throw new Error(json.error ?? "Failed to update MAG messaging preferences");
+        }
+        const data = await magRes.json();
+        if (data?.mags) {
+          setMagCommunityPrefs({
+            enabled: data.mag_community_messaging_enabled === true,
+            mags: data.mags,
+          });
+        }
       }
       setMessage({ type: "success", text: "Profile updated." });
       router.refresh();
@@ -156,6 +203,60 @@ export function MemberProfileForm() {
               Participate in messages and comments (group conversations and direct messaging)
             </Label>
           </div>
+          {magCommunityPrefs && magCommunityPrefs.mags.length > 0 && (
+            <div className="rounded-md border border-border/70 p-3 space-y-3 bg-muted/30">
+              <p className="text-sm font-medium">MAG community rooms</p>
+              <p className="text-xs text-muted-foreground">
+                When your membership allows MAG group chat, turn on the master switch and opt in per group. Announcements from admins are always visible regardless of these settings.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="mag-community-master"
+                  checked={magCommunityPrefs.enabled}
+                  onChange={(e) =>
+                    setMagCommunityPrefs((p) =>
+                      p ? { ...p, enabled: e.target.checked } : p
+                    )
+                  }
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="mag-community-master" className="font-normal cursor-pointer text-sm">
+                  Allow community messaging in my MAG groups
+                </Label>
+              </div>
+              <ul className="space-y-2">
+                {magCommunityPrefs.mags.map((m) => (
+                  <li key={m.mag_id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      id={`mag-opt-${m.mag_id}`}
+                      checked={m.opted_in}
+                      disabled={!magCommunityPrefs.enabled}
+                      onChange={(e) =>
+                        setMagCommunityPrefs((p) =>
+                          p
+                            ? {
+                                ...p,
+                                mags: p.mags.map((row) =>
+                                  row.mag_id === m.mag_id
+                                    ? { ...row, opted_in: e.target.checked }
+                                    : row
+                                ),
+                              }
+                            : p
+                        )
+                      }
+                      className="h-4 w-4 rounded border-input shrink-0"
+                    />
+                    <Label htmlFor={`mag-opt-${m.mag_id}`} className="font-normal cursor-pointer">
+                      {m.mag_name}
+                    </Label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="member-avatar-url">Avatar URL</Label>
             <div className="flex gap-2 items-center">

@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { EventsCalendar } from "@/components/events/EventsCalendar";
+import { EventsCalendar, type RBCEvent } from "@/components/events/EventsCalendar";
 import { EventsFilterBar } from "@/components/events/EventsFilterBar";
 import { Plus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -12,6 +13,7 @@ import type { Event } from "@/lib/supabase/events";
 import { eventIdForEdit } from "@/lib/recurrence";
 import { buildCalendarEventHoverText } from "@/lib/events/calendar-event-hover";
 import type { View } from "react-big-calendar";
+import { taskDetailPath } from "@/lib/tasks/task-detail-nav";
 function useContainerHeight(minHeight = 400) {
   const ref = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(minHeight);
@@ -35,19 +37,78 @@ interface EventsPageClientProps {
 }
 
 type EventTypeOption = { slug: string; label: string };
+type CalendarTaskDueItem = {
+  id: string;
+  task_number: string;
+  title: string;
+  due_date: string;
+  project_id: string | null;
+  task_status_slug: string;
+};
+
+function isoDateFromUnknown(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function deriveRangeForView(date: Date, view: View): { start: Date; end: Date } {
+  const d = new Date(date);
+  if (view === "day") {
+    return {
+      start: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0),
+      end: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59),
+    };
+  }
+  if (view === "week") {
+    const weekday = d.getDay();
+    const start = new Date(d);
+    start.setDate(d.getDate() - weekday);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+  if (view === "agenda") {
+    const start = new Date(d);
+    start.setDate(d.getDate() - 30);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(d);
+    end.setDate(d.getDate() + 30);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+  // month
+  return {
+    start: new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0),
+    end: new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59),
+  };
+}
 
 export function EventsPageClient({
   events: initialEvents,
   initialEventTypeColors = {},
 }: EventsPageClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { ref: calendarRef, height: calendarHeight } = useContainerHeight(400);
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [eventTypeColors, setEventTypeColors] = useState<Record<string, string>>(
     () => initialEventTypeColors
   );
-  const [date, setDate] = useState(() => new Date());
+  const [date, setDate] = useState(() => {
+    const fromQuery = isoDateFromUnknown(searchParams.get("date"));
+    if (fromQuery) return new Date(`${fromQuery}T12:00:00`);
+    return new Date();
+  });
   const [view, setView] = useState<View>("month");
   const [loading, setLoading] = useState(false);
+  const [taskDueItems, setTaskDueItems] = useState<CalendarTaskDueItem[]>([]);
 
   const [search, setSearch] = useState("");
   const [eventTypeOptions, setEventTypeOptions] = useState<EventTypeOption[]>([]);
@@ -56,6 +117,7 @@ export function EventsPageClient({
   const [filterMembershipIds, setFilterMembershipIds] = useState<Set<string>>(new Set());
   const [filterPublic, setFilterPublic] = useState(true);
   const [filterInternal, setFilterInternal] = useState(true);
+  const [showTasksLayer, setShowTasksLayer] = useState(true);
   const [filterParticipantIds, setFilterParticipantIds] = useState<Set<string>>(new Set());
   const [filterResourceIds, setFilterResourceIds] = useState<Set<string>>(new Set());
   const [eventParticipantMap, setEventParticipantMap] = useState<Map<string, Set<string>>>(new Map());
@@ -243,6 +305,7 @@ export function EventsPageClient({
       filterMembershipIds.size > 0 ||
       !filterPublic ||
       !filterInternal ||
+      !showTasksLayer ||
       filterParticipantIds.size > 0 ||
       filterResourceIds.size > 0,
     [
@@ -252,6 +315,7 @@ export function EventsPageClient({
       filterMembershipIds,
       filterPublic,
       filterInternal,
+      showTasksLayer,
       filterParticipantIds,
       filterResourceIds,
     ]
@@ -264,6 +328,7 @@ export function EventsPageClient({
     setFilterMembershipIds(new Set());
     setFilterPublic(true);
     setFilterInternal(true);
+    setShowTasksLayer(true);
     setFilterParticipantIds(new Set());
     setFilterResourceIds(new Set());
   }, []);
@@ -289,17 +354,88 @@ export function EventsPageClient({
     }
   }, []);
 
+  const fetchTaskDueLayer = useCallback(async (start: Date, end: Date) => {
+    if (!showTasksLayer) {
+      setTaskDueItems([]);
+      return;
+    }
+    try {
+      const params = new URLSearchParams({
+        start: start.toISOString(),
+        end: end.toISOString(),
+      });
+      const res = await fetch(`/api/tasks/calendar-layer?${params}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch task due-date layer");
+      const json = (await res.json()) as { data?: CalendarTaskDueItem[] };
+      setTaskDueItems(Array.isArray(json.data) ? json.data : []);
+    } catch {
+      setTaskDueItems([]);
+    }
+  }, [showTasksLayer]);
+
+  useEffect(() => {
+    const range = deriveRangeForView(date, view);
+    fetchTaskDueLayer(range.start, range.end);
+  }, [date, view, fetchTaskDueLayer]);
+
   const handleRangeChange = useCallback(
     (range: { start: Date; end: Date }) => {
       fetchEvents(range.start, range.end);
+      fetchTaskDueLayer(range.start, range.end);
     },
-    [fetchEvents]
+    [fetchEvents, fetchTaskDueLayer]
   );
 
   // react-big-calendar calls onNavigate(newDate, view, action); use first arg so arrows update date
   const handleDateChange = useCallback((newDate: Date) => {
     setDate(newDate);
   }, []);
+
+  const taskOverlayEvents = useMemo<RBCEvent[]>(() => {
+    if (!showTasksLayer) return [];
+    return taskDueItems
+      .map((t) => {
+        const dueIso = isoDateFromUnknown(t.due_date);
+        if (!dueIso) return null;
+        const start = new Date(`${dueIso}T00:00:00`);
+        const end = new Date(`${dueIso}T00:00:00`);
+        end.setDate(end.getDate() + 1);
+        const detailHref = taskDetailPath(t.id, t.project_id, "tasks");
+        return {
+          id: `task-due:${t.id}:${dueIso}`,
+          start,
+          end,
+          allDay: true,
+          title: `Task due: ${t.title}`,
+          displayColor: "#f59e0b",
+          hoverDetail: [
+            `${t.task_number || "Task"} — ${t.title}`,
+            `Due: ${dueIso}`,
+            `Status: ${t.task_status_slug || "unknown"}`,
+            "Click to open task details",
+          ].join("\n"),
+          tooltip: `${t.task_number || "Task"} — ${t.title}`,
+          resource: {
+            kind: "task" as const,
+            href: detailHref,
+          },
+        } satisfies RBCEvent;
+      })
+      .filter((e): e is RBCEvent => e != null);
+  }, [taskDueItems, showTasksLayer]);
+
+  const handleCalendarSelectEvent = useCallback(
+    (event: RBCEvent) => {
+      const r = (event.resource ?? {}) as { kind?: string; href?: string };
+      if (r.kind === "task" && typeof r.href === "string" && r.href.trim()) {
+        router.push(r.href);
+        return;
+      }
+      const id = event.id ? eventIdForEdit(event.id) : null;
+      if (id) router.push(`/admin/events/${id}/edit`);
+    },
+    [router]
+  );
 
   return (
     <div className="flex flex-col gap-6 h-[calc(100vh-11rem)]">
@@ -380,6 +516,8 @@ export function EventsPageClient({
             setFilterInternal(checked);
             if (!checked) setFilterPublic((prev) => prev || true);
           }}
+          showTasksLayer={showTasksLayer}
+          onShowTasksLayerChange={setShowTasksLayer}
           canReset={hasFilters}
           onReset={handleResetFilters}
           filterMemberships={mags}
@@ -411,12 +549,14 @@ export function EventsPageClient({
         )}
         <EventsCalendar
           events={filteredEvents}
+          overlayEvents={taskOverlayEvents}
           eventTypeColors={eventTypeColors}
           date={date}
           view={view}
           onDateChange={handleDateChange}
           onViewChange={setView}
           onRangeChange={handleRangeChange}
+          onSelectEvent={handleCalendarSelectEvent}
           height={calendarHeight}
           eventHoverDetailByEventId={eventHoverDetailByEventId}
         />

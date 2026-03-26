@@ -29,7 +29,7 @@ function formatDate(s: string): string {
 }
 
 /**
- * Task conversation: threaded-style list + add comment (crm_notes / task thread).
+ * Task conversation: threaded-style list + add comment (conversation_threads/thread_messages).
  */
 export function TaskThreadSection({
   taskId,

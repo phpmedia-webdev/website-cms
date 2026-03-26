@@ -16,13 +16,24 @@ export function initialsFromLabel(label: string): string {
   const t = label.trim();
   if (!t) return "?";
   const parts = t.split(/\s+/).filter(Boolean);
+  const firstAlpha = (s: string): string => {
+    for (const ch of s) {
+      if ((ch >= "A" && ch <= "Z") || (ch >= "a" && ch <= "z")) return ch;
+    }
+    return "";
+  };
   if (parts.length >= 2) {
-    const a = parts[0][0] ?? "";
-    const b = parts[parts.length - 1][0] ?? "";
-    return (a + b).toUpperCase();
+    const a = firstAlpha(parts[0] ?? "");
+    const b = firstAlpha(parts[parts.length - 1] ?? "");
+    const combined = (a + b).toUpperCase();
+    if (combined) return combined;
   }
-  if (t.length >= 2) return t.slice(0, 2).toUpperCase();
-  return t[0]!.toUpperCase();
+  const alphaChars = [...t].filter(
+    (ch) => (ch >= "A" && ch <= "Z") || (ch >= "a" && ch <= "z")
+  );
+  if (alphaChars.length >= 2) return (alphaChars[0] + alphaChars[1]).toUpperCase();
+  if (alphaChars.length === 1) return alphaChars[0]!.toUpperCase();
+  return "?";
 }
 
 /** Stable accent class from a string id (for avatar circles). */

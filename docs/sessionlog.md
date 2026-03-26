@@ -14,6 +14,7 @@
 
 **Applied on primary Supabase (2026-03-25):** **`207_tasks_contact_id.sql`** then **`208_tasks_project_id_nullable.sql`** — `tasks.contact_id`, nullable **`project_id`**, updated **`get_tasks_dynamic`** / **`get_task_by_id_dynamic`**. New forks or envs that are behind still run **207** then **208** in that order.
 **Applied on primary Supabase (2026-03-26):** **`209_tasks_project_fk_set_null.sql`** and **`210_tasks_creator_follower_backfill.sql`** — safe project delete unlink behavior (`ON DELETE SET NULL`) and creator-follower backfill/report.
+**Applied on primary Supabase (2026-03-26, evening):** **`214_message_center_mags_customizer.sql`** — `mags.allow_conversations`, GPUM MAG opt-in columns/tables, Customizer `message_center_*` seeds, `get_mags_dynamic` / `get_mag_by_id_dynamic` return `allow_conversations`. Other envs: run **214** in SQL Editor when behind.
 
 - **`200_projects_project_number.sql`** — `projects.project_number` PROJ-YYYY-NNNNN + project list/detail RPCs.
 - **`198_get_tasks_dynamic_preset_filters.sql`** — All Tasks presets (`exclude_status_slugs`, `due_before`).
@@ -32,7 +33,9 @@ Section 0 implementation is complete. See [changelog.md](./changelog.md) entry *
 
 ### 1. Tasks & Projects (remaining)
 
+- [ ] **Assignee picker scope split (project-linked vs loose):** when `tasks.project_id` is set, scope assignee picker to that project's members for faster selection; when `tasks.project_id` is null (loose task), show full tenant directory. Keep behavior consistent across task detail/edit and follower APIs.
 - [ ] **GPUM (if in MVP):** Member-area **Projects**, **Tasks**, **Support tickets** per [planlog Phase 19](./planlog.md#phase-19-project-management-module) — or **defer** and document in planlog.
+- [ ] **GPUM calendar — task due-date layer parity:** when member area calendar/dashboard work starts, add a GPUM-safe task due-date overlay (month/week/day/agenda) with hover details and click-through to allowed task detail routes only. Respect GPUM visibility rules (`contact_id` linkage, assignee/follower access, and future `client_visible` / `internal_only` policy) so internal-only tasks never leak.
 - [ ] **Phase 19 items you still want before fork:** e.g. standalone support-task refinements, **`project_id` on invoices**, punch-style time UI — keep as [planlog](./planlog.md) checkboxes and work them here when in scope.
 - [ ] **Project detail — Attachments tab:** Replace placeholder with file uploads or linked documents (schema/API TBD).
 - [ ] **Task assignee roles (Customizer first):** Add Customizer scope for **task follower / assignee roles** (e.g. `task_assignee_role` or `task_follower_role`), seed **creator**, **responsible**, **follower** as **core** (non-deletable slugs; labels/order/colors editable like **`project_role`**). Wire **Settings → Tasks** (or equivalent) and **link role pickers** (add assignee, responsible, etc.) to that scope instead of hard-coded strings where applicable.
@@ -46,10 +49,7 @@ Section 0 implementation is complete. See [changelog.md](./changelog.md) entry *
 **Time model alignment (Tasks/Projects) — assessment + Do Next**
 
 - **Current behavior:** Migrations **201** / **202** are **applied** (records): `planned_time` on `tasks`/`projects` (with legacy `proposed_time` sync via **201** where still present); list/detail RPCs return **`planned_time`** (**202**). App + direct writes use **`planned_time`**. **Project detail planned total** = sum of task `planned_time` (Option A). **Logged time** = sum of `task_time_logs`; **project logged** = rollup of those entries.
-- [x] **Naming consistency:** Sweep remaining UI for **Estimated/Proposed** → **Planned** where missed.
-- [x] **Follow-up migration (optional):** Drop `proposed_time` + sync triggers after all envs use `planned_time` only; remove `proposed_time` body aliases from APIs.
-- [x] **Project logged-time rollup:** Keep dynamic sum from `task_time_logs`; add cached columns only if needed.
-- [x] **QA:** task detail/edit, All Tasks, project detail, APIs — spot-check `planned_time` vs RPC/UI parity.
+- Open follow-up only: add new items here if any planned-time regressions are found in future QA.
 
 ### 2. Resources
 
@@ -59,21 +59,22 @@ No extra sessionlog lines — **Phase 21** in planlog. Optional: [picker MVP-if-
 
 Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get **support-style messaging**. Timeline + threads; cut over from **`crm_notes`** where spec says so.
 
-- [ ] **Messaging system 2 mire features** Need a way to see new messages and mark as read probably in a bulk move. New messages or notifications need to be represented with a badge counter.
+- [ ] **Messaging system 2 more features:** Add unread/new indicators and bulk mark-as-read actions for message/notification workflows.
 - [ ] **Wiring source of truth:** [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)
 - [ ] **Spec alignment:** [prd-technical §18C](./prd-technical.md#phase-18c-directory-and-messaging)
-- [ ] **MVP gate:** No new **`crm_notes`** writes for migrated kinds; writes → timeline / threads
+- [x] **MVP gate:** No new **`crm_notes`** writes for migrated kinds; writes → timeline / threads
 - [ ] **Merged read API:** Single stream (timeline ∪ threads), sort, cursor, **GPUM** never sees `admin_only` rows
 - [ ] **Triggers:** Timeline for MVP-critical events (forms, orders, assign, MAG, … — define minimal set)
 - [ ] **Event reminders — cron & multi-channel:** [planlog Phase 20](./planlog.md#phase-20-calendar--reminders--personal-ics-feeds) (email, push, in-app, SMS when connected)
 - [ ] **Blog comments:** Verify threads + moderation paths ([wiring doc](./reference/messages-and-notifications-wiring.md))
 - [ ] **Product comments** + **approval workflow** (posts + products)
 - [ ] **Admin — Comments management** (e.g. `/admin/content/comments`)
-- [ ] **Task comments:** **`conversation_threads`** / `thread_messages` (not new **`crm_notes`** volume for greenfield)
+- [x] **Task comments:** **`conversation_threads`** / `thread_messages` (not new **`crm_notes`** volume for greenfield)
 - [ ] **Tasks — hide from client (design + implement):** Edge case where a team member keeps a task **private** from the linked contact / GPUM — e.g. boolean **`client_visible`** / **`internal_only`** on `tasks`, default visible; **`contact_id`** remains “who we communicate with,” not “who may see the task.” Thread GPUM APIs, notifications, and any member task lists must respect the flag once added.
 - [ ] **Support conversation:** GPUM ↔ tenant admin; UI entry points
 - [ ] **UI:** Messages / notifications surface (admin + GPUM); contact timeline merge as needed
-- [ ] **Cutover + backfill** from **`crm_notes`**; document in [prd-technical](./prd-technical.md)
+- [ ] **Cutover + backfill** from **`crm_notes`**; runtime app usage removed in current code paths, keep DB table temporarily for compatibility and optional backfill audit; document in [prd-technical](./prd-technical.md)
+- [ ] **Fork migration note (important):** For new tenant/fork migrations, treat **`crm_notes`** as **legacy**. Keep it only for temporary compatibility/backfill windows; after timeline/thread backfill is complete in a fork, remove `crm_notes` from that fork’s required runtime migration path.
 
 **Plan detail:** [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications).
 
@@ -115,30 +116,14 @@ Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get
 
 ## Accounting (planned module — lightweight financials)
 
-**Goal:** Track **money in** + **money out** and project-level margin — **not** a full GL/accounting module. See discussion in recent chat (income SSOT, orders vs invoices, off-Stripe receipts, labor rate).
+**Goal:** Track **money in** + **money out** and project-level margin (lightweight financials, not full accounting).
 
-### Review plan — what we need
-
-**New Idea** All income has an invoice for tracking Money in the register. Invoices can have multiple payments applied.
-The plan is to have a single transactional register for income and expenses. filtering by any range will show a quick P&L.
-Verify how Stripe orders/invoices are mapped. 
-
-| Area | Intent |
-|------|--------|
-| **`payments`** (canonical **income** / cash-in) | **Single table** as SSOT for reporting: each row = one **received** amount. Link **`contact_id`** (who paid — optional but recommended for CRM). Link **`project_id`** for profitability. **Stripe:** `order_id` and/or `invoice_id` nullable FKs + `stripe_*` ids for idempotency (avoid double rows). **Off-Stripe (cash, Venmo, check, wire):** rows with **no** order/invoice, method + note. **Rule:** define whether rows are **only** manual/off-Stripe + **view/RPC unions** paid `orders`, or **backfill** every paid order into `payments` — pick one to avoid double-counting. |
-| **`expenses`** (ledger) | **amount**, **currency**, **incurred_at**, **description**, **vendor** (text or FK later), **`project_id`** (nullable = overhead), **category** via **Customizer** slug (e.g. `expense_category`), optional **receipt_url**, audit fields. |
-| **Projects** | **`labor_rate_per_hour`** (numeric, nullable) × **logged time** (existing time logs) = internal labor cost in margin. |
-| **Reporting** | RPC or SQL view: **project income** = sum(`payments` for project) + **expense** sum + **labor**; **contact** = filter `payments` by `contact_id`. Document **no double count** with raw `orders` if union is used. |
-| **Admin nav** | New section or sub-nav: **“Accounting”** or **“Financials”** (label TBD) — e.g. routes under `/admin/accounting/...` for **Payments** (list, add manual), **Expenses**, optional **Project P&L** summary. Wire **`sidebar-config.ts`** + **feature registry** gate if needed. |
-| **RLS** | Policies consistent with project + CRM admin access. |
-
-### Things easy to overlook (decide in design)
-
-- **Refunds / chargebacks** — negative amount or separate `payment_adjustments` (defer if v1 is gross-only).
-- **Multi-currency** — store currency per row; FX to base currency deferred or manual.
-- **Paid manual invoice** — today creates **both** `invoices` and **`orders`**; `payments` must reference **one** economic event (usually `order_id` after webhook, or invoice-only rule).
-- **Backfill** — existing tenants: script or optional migration from paid `orders` into `payments`.
-- **MVT / prd-technical** — short **Income rules** subsection when implemented.
+**Design notes (keep concise):**
+- Use one canonical income model to avoid double counting (`payments` strategy must be explicit).
+- Map Stripe order/invoice payment events to that model consistently.
+- Keep expenses project-linkable (`project_id` nullable) and category-driven.
+- Add project labor-rate support for margin rollups.
+- Preserve tenant-safe access/RLS and simple admin navigation.
 
 ### Open checklist (Accounting)
 

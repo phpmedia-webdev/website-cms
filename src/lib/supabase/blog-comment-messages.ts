@@ -1,6 +1,6 @@
 /**
  * Blog comments live in `thread_messages` under `conversation_threads` (thread_type = blog_comment).
- * Replaces legacy `crm_notes` note_type = blog_comment. See migrations 191–192.
+ * Canonical source for blog comment messaging. See migrations 191–192.
  */
 
 import { createServerSupabaseClient } from "./server-service";
@@ -121,7 +121,7 @@ export async function createBlogCommentAsThreadMessage(
 }
 
 /**
- * List comments for a post. Same shape as legacy `crm_notes` rows for API compatibility.
+ * List comments for a post. Same shape as `CrmNote` for API compatibility.
  */
 export async function getBlogCommentsForContentAsNotes(
   contentId: string,

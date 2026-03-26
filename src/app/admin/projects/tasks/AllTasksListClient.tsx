@@ -96,16 +96,16 @@ const ALL_TASKS_TOOLBAR_SEARCH = {
     "h-8 w-full min-w-0 border-2 border-border bg-card pl-7 text-xs text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:border-ring",
 } as const;
 
-/** Column widths (sum 100%). Tune here only. 17 / 12 / 15 / 12 / 12 / 10 / 10 / 12. */
+/** Column widths (sum 100%). Progress uses planned+actual share (15%) in this table. */
 const ALL_TASKS_TABLE_COL = {
-  title: "w-[17%] min-w-0",
-  project: "w-[12%] min-w-0",
-  assignee: "w-[15%] min-w-0",
-  phase: "w-[12%] min-w-0",
-  type: "w-[12%] min-w-0",
-  dueDate: "w-[10%] min-w-0",
-  progress: "w-[10%] min-w-0",
-  status: "w-[12%] min-w-0",
+  title: "w-[19%] min-w-0",
+  project: "w-[19%] min-w-0",
+  assignee: "w-[13%] min-w-0",
+  phase: "w-[7%] min-w-0",
+  type: "w-[7%] min-w-0",
+  dueDate: "w-[11%] min-w-0",
+  progress: "w-[13%] min-w-0",
+  status: "w-[11%] min-w-0",
 } as const;
 
 const ALL_TASKS_TABLE_TD = "p-3 align-top min-w-0";
@@ -220,12 +220,12 @@ function TaskAssigneeAvatars({ assignees }: { assignees: TaskAssigneeItem[] }) {
   if (visible.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
   return (
     <div className="flex min-w-0 items-center gap-0.5" title={allNames}>
-      <div className="flex -space-x-1.5">
+      <div className="flex -space-x-2.5">
         {visible.map((a) => (
           <span
             key={a.id}
             title={a.label}
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-[8px] font-medium text-muted-foreground"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-[10px] font-semibold text-muted-foreground"
           >
             {a.avatarUrl ? (
               <img src={a.avatarUrl} alt={a.label} className="h-full w-full object-cover" />

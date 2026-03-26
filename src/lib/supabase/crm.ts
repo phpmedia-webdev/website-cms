@@ -10,6 +10,17 @@ import { getTaskIdsForContact } from "./projects";
 import { CRM_STATUS_SLUG_NEW } from "./settings";
 import { syncContactOrganizationPhoneMatches } from "./organizations";
 import { replaceContactMethods } from "./contact-methods";
+import {
+  insertContactNotificationsTimeline,
+  listContactNotificationsTimeline,
+  type ContactNotificationsTimelineRow,
+} from "./contact-notifications-timeline";
+import {
+  createConversationThread,
+  insertThreadMessage,
+  listThreadMessages,
+  type ThreadMessageRow,
+} from "./conversation-threads";
 
 const CRM_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -27,6 +38,8 @@ function formatSupabaseError(err: unknown): string {
 
 export interface CrmContact {
   id: string;
+  /** GPUM: master toggle for MAG community messaging (migration 214). */
+  mag_community_messaging_enabled?: boolean;
   email: string | null;
   phone: string | null;
   first_name: string | null;
@@ -155,6 +168,8 @@ export interface Mag {
   status: "active" | "draft";
   /** Parent MAG id for hierarchy. Assigning to child auto-assigns ancestors. Present after migration 144. */
   parent_id?: string | null;
+  /** When false, only superadmin + tenant admin may post to the MAG group thread; GPUM community posts blocked. Default true if column missing (pre-migration). */
+  allow_conversations?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -603,7 +618,16 @@ export async function getContactsByMag(magId: string): Promise<ContactInMag[]> {
 
 /** Create a MAG (write). */
 export async function createMag(
-  payload: { name: string; uid: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: "active" | "draft"; parent_id?: string | null }
+  payload: {
+    name: string;
+    uid: string;
+    description?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    status?: "active" | "draft";
+    parent_id?: string | null;
+    allow_conversations?: boolean;
+  }
 ): Promise<{ mag: Mag | null; error: Error | null }> {
   const supabase = createServerSupabaseClient();
   const row = {
@@ -614,6 +638,7 @@ export async function createMag(
     end_date: payload.end_date ?? null,
     status: payload.status ?? "active",
     parent_id: payload.parent_id ?? null,
+    allow_conversations: payload.allow_conversations ?? true,
   };
   const { data, error } = await supabase
     .schema(CRM_SCHEMA)
@@ -631,7 +656,16 @@ export async function createMag(
 /** Update a MAG (write). */
 export async function updateMag(
   id: string,
-  payload: Partial<{ name: string; uid: string; description: string | null; start_date: string | null; end_date: string | null; status: "active" | "draft"; parent_id: string | null }>
+  payload: Partial<{
+    name: string;
+    uid: string;
+    description: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    status: "active" | "draft";
+    parent_id: string | null;
+    allow_conversations: boolean;
+  }>
 ): Promise<{ mag: Mag | null; error: Error | null }> {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
@@ -665,16 +699,8 @@ export async function deleteMag(id: string): Promise<{ success: boolean; error: 
 
 /** Get notes for a contact (RPC). */
 export async function getContactNotes(contactId: string): Promise<CrmNote[]> {
-  const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("get_contact_notes_dynamic", {
-    schema_name: CRM_SCHEMA,
-    contact_id_param: contactId,
-  });
-  if (error) {
-    console.error("Error fetching contact notes:", { message: error.message, code: error.code });
-    return [];
-  }
-  return (data as CrmNote[]) || [];
+  const rows = await listContactNotificationsTimeline(contactId, { limit: 200 });
+  return rows.map((r) => timelineRowToCrmNote(r));
 }
 
 /** Prefix for task-scoped conversation_uid (unified thread model). */
@@ -685,18 +711,166 @@ export function taskConversationUid(taskId: string): string {
   return `${TASK_CONVERSATION_UID_PREFIX}${taskId}`;
 }
 
-/** Get notes for a conversation (unified thread: task thread, message thread). RPC get_notes_by_conversation_uid_dynamic. */
+/** Get notes for a conversation (unified thread: task thread, message thread). */
 export async function getNotesByConversationUid(conversationUid: string): Promise<CrmNote[]> {
+  const taskId = parseTaskIdFromConversationUid(conversationUid);
+  if (!taskId) return [];
   const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("get_notes_by_conversation_uid_dynamic", {
-    schema_name: CRM_SCHEMA,
-    conversation_uid_param: conversationUid,
-  });
-  if (error) {
-    console.error("Error fetching notes by conversation_uid:", { message: error.message, code: error.code });
+  const { data: threadRow, error: threadErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("conversation_threads")
+    .select("id")
+    .eq("thread_type", "task_ticket")
+    .eq("subject_type", "task")
+    .eq("subject_id", taskId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (threadErr) {
+    console.error("Error resolving task thread:", {
+      message: threadErr.message,
+      code: threadErr.code,
+    });
     return [];
   }
-  return (data as CrmNote[]) || [];
+  if (!threadRow?.id) return [];
+  const data = await listThreadMessages(threadRow.id, { limit: 300 });
+  return data.map((m) => threadMessageToCrmNote(m, conversationUid, taskId));
+}
+
+function parseTaskIdFromConversationUid(conversationUid: string): string | null {
+  if (!conversationUid.startsWith(TASK_CONVERSATION_UID_PREFIX)) return null;
+  const taskId = conversationUid.slice(TASK_CONVERSATION_UID_PREFIX.length).trim();
+  return taskId || null;
+}
+
+function timelineRowToCrmNote(row: ContactNotificationsTimelineRow): CrmNote {
+  const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+  return {
+    id: row.id,
+    contact_id: row.contact_id,
+    body: row.body ?? row.title ?? "",
+    author_id: row.author_user_id ?? null,
+    note_type:
+      typeof metadata.note_type === "string" && metadata.note_type.trim()
+        ? metadata.note_type.trim()
+        : row.kind,
+    created_at: row.created_at,
+    updated_at: null,
+    content_id:
+      typeof metadata.content_id === "string" ? metadata.content_id : null,
+    status: typeof metadata.status === "string" ? metadata.status : null,
+    recipient_contact_id:
+      typeof metadata.recipient_contact_id === "string"
+        ? metadata.recipient_contact_id
+        : null,
+    parent_note_id:
+      typeof metadata.parent_note_id === "string" ? metadata.parent_note_id : null,
+    task_id: typeof metadata.task_id === "string" ? metadata.task_id : null,
+    conversation_uid:
+      typeof metadata.conversation_uid === "string"
+        ? metadata.conversation_uid
+        : null,
+  };
+}
+
+function threadMessageToCrmNote(
+  row: ThreadMessageRow,
+  conversationUid: string,
+  taskId: string | null
+): CrmNote {
+  const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+  const noteType =
+    typeof metadata.note_type === "string" && metadata.note_type.trim()
+      ? metadata.note_type.trim()
+      : "message";
+  return {
+    id: row.id,
+    contact_id: row.author_contact_id ?? null,
+    body: row.body,
+    author_id: row.author_user_id ?? null,
+    note_type: noteType,
+    created_at: row.created_at,
+    updated_at: row.edited_at ?? null,
+    content_id: null,
+    status: null,
+    recipient_contact_id:
+      typeof metadata.recipient_contact_id === "string"
+        ? metadata.recipient_contact_id
+        : null,
+    parent_note_id: row.parent_message_id ?? null,
+    task_id: taskId,
+    conversation_uid: conversationUid,
+  };
+}
+
+async function ensureThreadForNote(params: {
+  noteType?: string | null;
+  contactId: string;
+  taskId?: string | null;
+  conversationUid?: string | null;
+}): Promise<{ threadId: string | null; conversationUid: string | null }> {
+  const noteType = (params.noteType ?? "").trim().toLowerCase();
+  const taskId =
+    params.taskId ??
+    (params.conversationUid
+      ? parseTaskIdFromConversationUid(params.conversationUid)
+      : null);
+  const supabase = createServerSupabaseClient();
+  let threadType: "task_ticket" | "support" | null = null;
+  let subjectType: string | null = null;
+  let subjectId: string | null = null;
+  let conversationUid: string | null = params.conversationUid ?? null;
+
+  if (taskId) {
+    threadType = "task_ticket";
+    subjectType = "task";
+    subjectId = taskId;
+    conversationUid = taskConversationUid(taskId);
+  } else if (noteType === "message") {
+    threadType = "support";
+    subjectType = "contact_support";
+    subjectId = params.contactId;
+  }
+
+  if (!threadType || !subjectType || !subjectId) {
+    return { threadId: null, conversationUid };
+  }
+
+  const { data: existing, error } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("conversation_threads")
+    .select("id")
+    .eq("thread_type", threadType)
+    .eq("subject_type", subjectType)
+    .eq("subject_id", subjectId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("ensureThreadForNote lookup error:", {
+      message: error.message,
+      code: error.code,
+    });
+    return { threadId: null, conversationUid };
+  }
+  if (existing?.id) {
+    return { threadId: existing.id, conversationUid };
+  }
+  const { thread, error: createErr } = await createConversationThread({
+    thread_type: threadType,
+    subject_type: subjectType,
+    subject_id: subjectId,
+  });
+  if (createErr || !thread) {
+    console.error("ensureThreadForNote create error:", createErr?.message ?? "unknown");
+    return { threadId: null, conversationUid };
+  }
+  const { seedSupportTaskThreadParticipantsForAdmins } = await import(
+    "@/lib/message-center/thread-participants"
+  );
+  await seedSupportTaskThreadParticipantsForAdmins(thread.id);
+  return { threadId: thread.id, conversationUid };
 }
 
 /** Get CRM custom field definitions (RPC). */
@@ -886,7 +1060,7 @@ export async function updateContact(
 /**
  * Permanently delete a contact (write).
  * Removes taxonomy_relationships for this contact first (no FK; would orphan).
- * crm_notes, crm_contact_mags, crm_contact_custom_fields, etc. cascade via FK.
+ * contact_notifications_timeline, crm_contact_mags, crm_contact_custom_fields, etc. cascade via FK.
  */
 export async function deleteContact(id: string): Promise<{ success: boolean; error: Error | null }> {
   const supabase = createServerSupabaseClient();
@@ -925,28 +1099,69 @@ export async function createNote(
   taskId?: string | null,
   conversationUid?: string | null
 ): Promise<{ note: CrmNote | null; error: Error | null }> {
-  const supabase = createServerSupabaseClient();
-  const payload: Record<string, unknown> = {
-    contact_id: contactId,
-    body,
-    author_id: authorId ?? null,
-    note_type: noteType ?? null,
-  };
-  if (recipientContactId !== undefined) payload.recipient_contact_id = recipientContactId ?? null;
-  if (parentNoteId !== undefined) payload.parent_note_id = parentNoteId ?? null;
-  if (taskId !== undefined) payload.task_id = taskId ?? null;
-  if (conversationUid !== undefined) payload.conversation_uid = conversationUid ?? null;
-  const { data, error } = await supabase
-    .schema(CRM_SCHEMA)
-    .from("crm_notes")
-    .insert(payload)
-    .select()
-    .single();
-  if (error) {
-    console.error("Error creating note:", { message: error.message, code: error.code });
-    return { note: null, error: new Error(error.message) };
+  const normalizedType = (noteType ?? "").trim().toLowerCase();
+  const { threadId, conversationUid: resolvedConversationUid } =
+    await ensureThreadForNote({
+      noteType: normalizedType || null,
+      contactId,
+      taskId,
+      conversationUid,
+    });
+  if (threadId) {
+    const { message, error } = await insertThreadMessage({
+      thread_id: threadId,
+      body,
+      author_user_id: authorId ?? null,
+      author_contact_id: contactId,
+      parent_message_id: parentNoteId ?? null,
+      metadata: {
+        note_type: normalizedType || "message",
+        recipient_contact_id: recipientContactId ?? null,
+        contact_id: contactId,
+        task_id: taskId ?? null,
+        conversation_uid: resolvedConversationUid ?? null,
+      },
+    });
+    if (error || !message) {
+      return { note: null, error: error ?? new Error("Failed to create thread message") };
+    }
+    return {
+      note: threadMessageToCrmNote(
+        message,
+        resolvedConversationUid ?? "",
+        taskId ?? parseTaskIdFromConversationUid(resolvedConversationUid ?? "")
+      ),
+      error: null,
+    };
   }
-  return { note: data as CrmNote, error: null };
+
+  const title = normalizedType === "note" || normalizedType === "" ? "Note" : normalizedType;
+  const clientVisibleKinds = new Set(["message", "email_sent", "task_status_change"]);
+  const visibility = clientVisibleKinds.has(normalizedType)
+    ? "client_visible"
+    : "admin_only";
+  const { row, error } = await insertContactNotificationsTimeline({
+    contact_id: contactId,
+    kind: normalizedType || "note",
+    visibility,
+    title,
+    body,
+    metadata: {
+      note_type: normalizedType || "note",
+      recipient_contact_id: recipientContactId ?? null,
+      parent_note_id: parentNoteId ?? null,
+      task_id: taskId ?? null,
+      conversation_uid: resolvedConversationUid ?? null,
+    },
+    author_user_id: authorId ?? null,
+    subject_type: taskId ? "task" : "contact",
+    subject_id: taskId ?? contactId,
+    source_event: normalizedType || "note",
+  });
+  if (error || !row) {
+    return { note: null, error: error ?? new Error("Failed to create timeline note") };
+  }
+  return { note: timelineRowToCrmNote(row), error: null };
 }
 
 /** Update a note (write). */
@@ -956,31 +1171,75 @@ export async function updateNote(
   noteType?: string | null
 ): Promise<{ note: CrmNote | null; error: Error | null }> {
   const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase
+  const normalizedType = noteType != null ? String(noteType).trim().toLowerCase() : null;
+
+  const { data: timelineRow, error: timelineErr } = await supabase
     .schema(CRM_SCHEMA)
-    .from("crm_notes")
-    .update({ body, note_type: noteType ?? null, updated_at: new Date().toISOString() })
+    .from("contact_notifications_timeline")
+    .update({
+      body,
+      kind: normalizedType ?? undefined,
+      metadata: {
+        note_type: normalizedType ?? "note",
+      },
+    })
     .eq("id", noteId)
-    .select()
-    .single();
-  if (error) {
-    console.error("Error updating note:", { message: error.message, code: error.code });
-    return { note: null, error: new Error(error.message) };
+    .select("*")
+    .maybeSingle();
+  if (!timelineErr && timelineRow) {
+    return { note: timelineRowToCrmNote(timelineRow as ContactNotificationsTimelineRow), error: null };
   }
-  return { note: data as CrmNote, error: null };
+
+  const { data: messageRow, error: messageErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("thread_messages")
+    .update({
+      body,
+      edited_at: new Date().toISOString(),
+    })
+    .eq("id", noteId)
+    .select("*")
+    .maybeSingle();
+  if (!messageErr && messageRow) {
+    const meta =
+      (messageRow as { metadata?: Record<string, unknown> }).metadata ?? {};
+    const convUid =
+      typeof meta.conversation_uid === "string" ? meta.conversation_uid : "";
+    return {
+      note: threadMessageToCrmNote(
+        messageRow as ThreadMessageRow,
+        convUid,
+        parseTaskIdFromConversationUid(convUid)
+      ),
+      error: null,
+    };
+  }
+  return { note: null, error: new Error("Note not found") };
 }
 
 /** Delete a note (write). */
 export async function deleteNote(noteId: string): Promise<{ success: boolean; error: Error | null }> {
   const supabase = createServerSupabaseClient();
-  const { error } = await supabase
+  const { error: tErr } = await supabase
     .schema(CRM_SCHEMA)
-    .from("crm_notes")
+    .from("contact_notifications_timeline")
     .delete()
     .eq("id", noteId);
-  if (error) {
-    console.error("Error deleting note:", { message: error.message, code: error.code });
-    return { success: false, error: new Error(error.message) };
+  if (!tErr) return { success: true, error: null };
+
+  const { error: mErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("thread_messages")
+    .delete()
+    .eq("id", noteId);
+  if (!mErr) return { success: true, error: null };
+
+  if (tErr && mErr) {
+    console.error("Error deleting note:", {
+      timeline: tErr.message,
+      thread: mErr.message,
+    });
+    return { success: false, error: new Error("Failed to delete note") };
   }
   return { success: true, error: null };
 }
@@ -1002,11 +1261,21 @@ export async function logTaskStatusChange(
       : `Task "${taskTitle}" status changed to ${label}`;
   for (const contactId of contactIds) {
     if (!contactId) continue;
-    await createNote(contactId, body, null, "task_status_change", undefined, undefined, taskId, undefined);
+    await insertContactNotificationsTimeline({
+      contact_id: contactId,
+      kind: "task_status_change",
+      visibility: "client_visible",
+      title: "Task status changed",
+      body,
+      metadata: { task_id: taskId, note_type: "task_status_change" },
+      subject_type: "task",
+      subject_id: taskId,
+      source_event: "task_status_change",
+    });
   }
 }
 
-/** Create a blog comment (write). Stored in `thread_messages` / `conversation_threads` (not crm_notes). */
+/** Create a blog comment (write). Stored in `thread_messages` / `conversation_threads`. */
 export async function createBlogComment(
   contentId: string,
   body: string,
@@ -1345,12 +1614,32 @@ export async function mergeContacts(
 
   const { error: notesErr } = await supabase
     .schema(CRM_SCHEMA)
-    .from("crm_notes")
+    .from("contact_notifications_timeline")
     .update({ contact_id: primaryId })
     .eq("contact_id", secondaryId);
   if (notesErr) {
     console.error("mergeContacts: notes", notesErr);
     return { success: false, error: new Error(notesErr.message) };
+  }
+
+  const { error: threadMsgErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("thread_messages")
+    .update({ author_contact_id: primaryId })
+    .eq("author_contact_id", secondaryId);
+  if (threadMsgErr) {
+    console.error("mergeContacts: thread_messages", threadMsgErr);
+    return { success: false, error: new Error(threadMsgErr.message) };
+  }
+
+  const { error: threadPartErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("thread_participants")
+    .update({ contact_id: primaryId })
+    .eq("contact_id", secondaryId);
+  if (threadPartErr) {
+    console.error("mergeContacts: thread_participants", threadPartErr);
+    return { success: false, error: new Error(threadPartErr.message) };
   }
 
   const { error: subsErr } = await supabase
@@ -1486,7 +1775,7 @@ export async function mergeContacts(
  * Permanently delete all trashed contacts. Cannot be undone.
  * Deletes in order to avoid orphans:
  * - taxonomy_relationships (content_type='crm_contact') has no FK to crm_contacts, so we delete explicitly.
- * - crm_notes, crm_contact_custom_fields, crm_contact_mags, crm_consents, crm_contact_marketing_lists
+ * - contact_notifications_timeline, crm_contact_custom_fields, crm_contact_mags, crm_consents, crm_contact_marketing_lists
  *   have ON DELETE CASCADE and are removed automatically when contacts are deleted.
  * - form_submissions.contact_id and similar use ON DELETE SET NULL.
  */
@@ -1924,7 +2213,7 @@ export async function getFormSubmissionsByContactId(contactId: string): Promise<
   return rows.map(normalizeSubmissionRow);
 }
 
-/** Member GPUM activity stream filter (`crm_notes` + other sources). */
+/** Member GPUM activity stream filter (timeline + thread + other sources). */
 export const MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS = [
   { value: "all", label: "All" },
   { value: "message", label: "Messages" },
@@ -1954,7 +2243,7 @@ export const ADMIN_MESSAGES_NOTIFICATIONS_FILTER_OPTIONS = [
 /** @deprecated Prefer `MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS` or `ADMIN_MESSAGES_NOTIFICATIONS_FILTER_OPTIONS`. */
 export const ACTIVITY_TYPE_FILTER_OPTIONS = MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS;
 
-/** Admin dashboard feed + member activity stream item shapes. Admin uses `notification_timeline` (not legacy `crm_notes`). Member area still surfaces `message` / `note` from `crm_notes` for support/task threads until fully migrated. */
+/** Admin dashboard feed + member activity stream item shapes. Uses notification timeline and thread messages. */
 export interface DashboardActivityItem {
   type:
     | "notification_timeline"
@@ -1991,7 +2280,7 @@ export interface DashboardActivityItem {
   taskId?: string | null;
 }
 
-/** Fetch recent messages & notifications for admin dashboard: timeline + blog threads + CRM events + orders (no legacy crm_notes). */
+/** Fetch recent messages & notifications for admin dashboard: timeline + blog threads + CRM events + orders. */
 export async function getDashboardActivity(limit = 50): Promise<DashboardActivityItem[]> {
   const supabase = createServerSupabaseClient();
   const perType = Math.max(15, Math.floor(limit / 4));
@@ -2188,8 +2477,8 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
  * Includes notes for tasks the contact is on (task_followers): task thread replies appear in the stream.
  */
 export async function getMemberActivity(contactId: string, limit = 80): Promise<DashboardActivityItem[]> {
-  const [notes, formSubmissions, mags, marketingLists, contact, ordersData] = await Promise.all([
-    getContactNotes(contactId),
+  const [timelineRows, formSubmissions, mags, marketingLists, contact, ordersData] = await Promise.all([
+    listContactNotificationsTimeline(contactId, { limit: 200 }),
     getFormSubmissionsByContactId(contactId),
     getContactMags(contactId),
     getContactMarketingLists(contactId),
@@ -2213,7 +2502,9 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
 
   const taskIds = await getTaskIdsForContact(contactId);
   const noteById = new Map<string, CrmNote & { note_type?: string | null }>();
-  for (const n of notes as (CrmNote & { note_type?: string | null })[]) {
+  for (const r of timelineRows) {
+    if (r.visibility === "admin_only") continue;
+    const n = timelineRowToCrmNote(r) as CrmNote & { note_type?: string | null };
     noteById.set(n.id, n);
   }
   for (const taskId of taskIds) {

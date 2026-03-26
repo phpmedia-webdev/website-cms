@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -29,6 +30,8 @@ import { TaskTimeLogsSection } from "@/components/crm/TaskTimeLogsSection";
 import { TaskThreadSection } from "@/components/crm/TaskThreadSection";
 import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
 import { TaskResourcesSection } from "@/components/tasks/TaskResourcesSection";
+import { TaskReminderInlineControl } from "@/components/tasks/TaskReminderInlineControl";
+import { TaskShowOnCalendarControl } from "@/components/tasks/TaskShowOnCalendarControl";
 import { ScheduleDueSubStatus } from "@/components/tasks/ScheduleDueSubStatus";
 import {
   ADMIN_TASKS_LIST_PATH,
@@ -146,6 +149,7 @@ export function TaskEditClient({
   const [phaseSlug, setPhaseSlug] = useState(defaultPhaseSlug);
   const [startDate, setStartDate] = useState(dateInputValue(task.start_date));
   const [dueDate, setDueDate] = useState(dateInputValue(task.due_date));
+  const showOnCalendarHref = `/admin/events?source=task&task_id=${encodeURIComponent(task.id)}${dueDate ? `&date=${encodeURIComponent(dueDate)}` : ""}`;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingResourceAssignments, setPendingResourceAssignments] = useState<
@@ -317,6 +321,60 @@ export function TaskEditClient({
         <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 md:gap-3.5 lg:grid-cols-4 lg:grid-rows-1">
           <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
             <CardHeader className="task-bento-card-header">
+              <TaskBentoPanelTitle icon={Calendar}>Schedule and Status</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2 text-sm">
+              <div>
+                <Label htmlFor="start_date" className="text-xs text-muted-foreground">
+                  Start
+                </Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="mt-0.5 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="due" className="text-xs text-muted-foreground">
+                  Due
+                </Label>
+                <div className="mt-0.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <Input
+                      id="due"
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
+                    />
+                    <TaskReminderInlineControl taskId={task.id} dueDate={dueDate || null} />
+                  </div>
+                  <div className="mt-1.5">
+                    <TaskShowOnCalendarControl taskId={task.id} href={showOnCalendarHref} />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="status" className="text-xs text-muted-foreground">
+                  Status
+                </Label>
+                <Select value={statusSlug} onValueChange={setStatusSlug}>
+                  <SelectTrigger id="status" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <TaskTermSelectItems terms={statusTerms} />
+                  </SelectContent>
+                </Select>
+                <ScheduleDueSubStatus dueDate={dueDate || null} taskStatusSlug={statusSlug} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="task-bento-card-header">
               <TaskBentoPanelTitle icon={LayoutGrid}>Phase &amp; Type</TaskBentoPanelTitle>
             </CardHeader>
             <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2">
@@ -397,52 +455,6 @@ export function TaskEditClient({
                 pendingResourceAssignments={pendingResourceAssignments}
                 onPendingResourceAssignmentsChange={setPendingResourceAssignments}
               />
-            </CardContent>
-          </Card>
-
-          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
-            <CardHeader className="task-bento-card-header">
-              <TaskBentoPanelTitle icon={Calendar}>Schedule and Status</TaskBentoPanelTitle>
-            </CardHeader>
-            <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2 text-sm">
-              <div>
-                <Label htmlFor="start_date" className="text-xs text-muted-foreground">
-                  Start
-                </Label>
-                <Input
-                  id="start_date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="mt-0.5 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="due" className="text-xs text-muted-foreground">
-                  Due
-                </Label>
-                <Input
-                  id="due"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="mt-0.5 w-full max-w-[11rem] rounded-xl border-border/60 bg-background/90 font-mono text-sm font-medium tabular-nums shadow-sm backdrop-blur-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="status" className="text-xs text-muted-foreground">
-                  Status
-                </Label>
-                <Select value={statusSlug} onValueChange={setStatusSlug}>
-                  <SelectTrigger id="status" className={SELECT_TRIGGER_CLASS}>
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <TaskTermSelectItems terms={statusTerms} />
-                  </SelectContent>
-                </Select>
-                <ScheduleDueSubStatus dueDate={dueDate || null} taskStatusSlug={statusSlug} />
-              </div>
             </CardContent>
           </Card>
         </div>

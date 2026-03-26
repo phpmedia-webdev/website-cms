@@ -67,6 +67,8 @@ export async function PUT(
       end_date: body.end_date,
       status: body.status,
       parent_id: body.parent_id,
+      allow_conversations:
+        typeof body.allow_conversations === "boolean" ? body.allow_conversations : undefined,
     });
 
     if (error) {

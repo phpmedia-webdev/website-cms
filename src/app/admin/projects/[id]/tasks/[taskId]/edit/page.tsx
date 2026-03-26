@@ -21,7 +21,7 @@ import {
   getContactById,
   formatCrmContactDisplayName,
 } from "@/lib/supabase/crm";
-import { getDisplayLabelForUser } from "@/lib/blog-comments/author-name";
+import { getDisplayLabelForUser, getRealNameLabelForUser } from "@/lib/blog-comments/author-name";
 import { TaskEditClient } from "./TaskEditClient";
 import { parseTaskDetailFrom, taskEditPath } from "@/lib/tasks/task-detail-nav";
 
@@ -67,7 +67,9 @@ export default async function TaskEditPage({
   const assigneesWithLabels = await resolveTaskFollowersWithLabels(followers);
   const assigneesOnly = assigneesWithLabels.filter((f) => f.role !== "creator");
   const creatorFollower = assigneesWithLabels.find((f) => f.role === "creator");
-  const creatorName = creatorFollower?.label ?? (task.creator_id ? await getDisplayLabelForUser(task.creator_id) : null);
+  const creatorName = creatorFollower?.user_id
+    ? await getRealNameLabelForUser(creatorFollower.user_id)
+    : creatorFollower?.label ?? (task.creator_id ? await getRealNameLabelForUser(task.creator_id) : null);
   const createdOn = new Date(task.created_at).toLocaleDateString();
   const createdByLine = creatorName
     ? `Created by ${creatorName} on ${createdOn}`
@@ -83,7 +85,7 @@ export default async function TaskEditPage({
   const timeLogContactLabels: Record<string, string> = {};
   await Promise.all([
     ...timeLogUserIds.map(async (id) => {
-      timeLogUserLabels[id] = await getDisplayLabelForUser(id);
+      timeLogUserLabels[id] = await getRealNameLabelForUser(id);
     }),
     ...timeLogContactIds.map(async (id) => {
       const c = await getContactById(id);

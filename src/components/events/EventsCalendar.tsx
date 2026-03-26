@@ -101,6 +101,7 @@ export interface RBCEvent {
   title: string;
   id?: string;
   resource?: unknown;
+  allDay?: boolean;
   /** Customizer `event_type` slug */
   eventTypeSlug?: string | null;
   /** Resolved hex color for this type */
@@ -190,6 +191,8 @@ function toRBCEvent(
 
 export interface EventsCalendarProps {
   events: Event[];
+  /** Optional overlay entries (e.g., task due-date layer) rendered with calendar events. */
+  overlayEvents?: RBCEvent[];
   /** Slug → hex from customizer `event_type` (from API `event_type_colors` or SSR). */
   eventTypeColors?: Record<string, string>;
   date: Date;
@@ -206,6 +209,7 @@ export interface EventsCalendarProps {
 
 export function EventsCalendar({
   events,
+  overlayEvents = [],
   eventTypeColors = {},
   date,
   view,
@@ -218,11 +222,13 @@ export function EventsCalendar({
 }: EventsCalendarProps) {
   const router = useRouter();
   const rbcEvents = useMemo(
-    () =>
-      events.map((ev) =>
+    () => [
+      ...events.map((ev) =>
         toRBCEvent(ev, eventTypeColors, eventHoverDetailByEventId?.[ev.id])
       ),
-    [events, eventTypeColors, eventHoverDetailByEventId]
+      ...overlayEvents,
+    ],
+    [events, eventTypeColors, eventHoverDetailByEventId, overlayEvents]
   );
 
   const viewsConfig = useMemo(

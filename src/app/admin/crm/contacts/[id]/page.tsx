@@ -11,15 +11,110 @@ import {
 } from "@/lib/supabase/crm";
 import { getContactOrganizations } from "@/lib/supabase/organizations";
 import { getCrmContactStatuses } from "@/lib/supabase/settings";
+import { createServerSupabaseClient } from "@/lib/supabase/client";
+import { getClientSchema } from "@/lib/supabase/schema";
+import { listTasks } from "@/lib/supabase/projects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Mail, Phone, Building2, MapPin, User } from "lucide-react";
 import { ContactCardStatusBadge } from "./ContactCardStatusBadge";
 import { ContactCardOrgLine } from "./ContactCardOrgLine";
 import { ContactRecordLayout } from "./ContactRecordLayout";
-import { CopyMessageToNotesButton } from "./CopyMessageToNotesButton";
 import { ContactMergeButton } from "./ContactMergeButton";
 import { ContactComposeEmailButton } from "./ContactComposeEmailButton";
+
+type RelatedEventRow = {
+  id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  event_type: string | null;
+};
+
+type RelatedTaskRow = {
+  id: string;
+  title: string;
+  due_date: string | null;
+  task_status_slug: string;
+  project_id: string | null;
+  task_number: number | null;
+};
+
+type RelatedProjectRow = {
+  id: string;
+  title: string;
+  project_number: number | null;
+  project_status_slug: string | null;
+  role_slug: string | null;
+};
+
+async function getRelatedEventsForContact(contactId: string): Promise<RelatedEventRow[]> {
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data: participant } = await supabase
+    .schema(schema)
+    .from("participants")
+    .select("id")
+    .eq("source_type", "crm_contact")
+    .eq("source_id", contactId)
+    .limit(1)
+    .maybeSingle();
+  if (!participant?.id) return [];
+
+  const { data: links } = await supabase
+    .schema(schema)
+    .from("event_participants")
+    .select("event_id")
+    .eq("participant_id", participant.id);
+  const eventIds = [...new Set((links ?? []).map((r) => r.event_id).filter(Boolean))];
+  if (eventIds.length === 0) return [];
+
+  const { data: events, error } = await supabase
+    .schema(schema)
+    .from("events")
+    .select("id, title, start_date, end_date, status, event_type")
+    .in("id", eventIds)
+    .order("start_date", { ascending: false });
+  if (error) {
+    console.error("getRelatedEventsForContact:", error);
+    return [];
+  }
+  return (events ?? []) as RelatedEventRow[];
+}
+
+async function getRelatedProjectsForContact(contactId: string): Promise<RelatedProjectRow[]> {
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data: members, error: membersErr } = await supabase
+    .schema(schema)
+    .from("project_members")
+    .select("project_id, role_slug")
+    .eq("contact_id", contactId);
+  if (membersErr) {
+    console.error("getRelatedProjectsForContact members:", membersErr);
+    return [];
+  }
+  const projectIds = [...new Set((members ?? []).map((r) => r.project_id).filter(Boolean))];
+  if (projectIds.length === 0) return [];
+  const roleByProject = new Map((members ?? []).map((m) => [m.project_id, m.role_slug ?? null]));
+
+  const { data: projects, error: projectsErr } = await supabase
+    .schema(schema)
+    .from("projects")
+    .select("id, title, project_number, project_status_slug")
+    .in("id", projectIds)
+    .order("updated_at", { ascending: false });
+  if (projectsErr) {
+    console.error("getRelatedProjectsForContact projects:", projectsErr);
+    return [];
+  }
+
+  return ((projects ?? []) as Omit<RelatedProjectRow, "role_slug">[]).map((p) => ({
+    ...p,
+    role_slug: roleByProject.get(p.id) ?? null,
+  }));
+}
 
 export default async function ContactDetailPage({
   params,
@@ -27,7 +122,7 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [contact, customFieldDefinitions, contactCustomFieldValues, forms, mags, contactMarketingLists, allMarketingLists, contactStatuses, contactOrgs] =
+  const [contact, customFieldDefinitions, contactCustomFieldValues, forms, mags, contactMarketingLists, allMarketingLists, contactStatuses, contactOrgs, relatedEvents, relatedTasks, relatedProjects] =
     await Promise.all([
       getContactById(id),
       getCrmCustomFields(),
@@ -38,16 +133,23 @@ export default async function ContactDetailPage({
       getMarketingLists(),
       getCrmContactStatuses(),
       getContactOrganizations(id),
+      getRelatedEventsForContact(id),
+      listTasks({ assignee_contact_ids: [id] }).then((rows) =>
+        rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          due_date: r.due_date ?? null,
+          task_status_slug: r.task_status_slug,
+          project_id: r.project_id ?? null,
+          task_number: r.task_number ?? null,
+        }))
+      ),
+      getRelatedProjectsForContact(id),
     ]);
 
   if (!contact) {
     notFound();
   }
-
-  const sourceLabel =
-    contact.source ||
-    (contact.form_id && forms.find((f) => f.id === contact.form_id)?.name) ||
-    "—";
 
   const displayName =
     contact.full_name ||
@@ -167,21 +269,15 @@ export default async function ContactDetailPage({
                 </div>
               </div>
               <div className="border-t pt-4">
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Form Submission Message</h2>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Internal Contact Notes</h2>
                 <div className="rounded border bg-muted/30 px-3 py-2 min-h-[5rem] overflow-y-auto whitespace-pre-wrap text-sm">
                   {contact.message?.trim() ? contact.message : "—"}
-                </div>
-                <div className="flex items-center justify-between gap-2 mt-2">
-                  <p className="text-[10px] text-muted-foreground">Source: {sourceLabel}</p>
-                  <CopyMessageToNotesButton contactId={id} message={contact.message} />
                 </div>
               </div>
             </CardContent>
           </Card>
         }
         contactId={id}
-        contactEmail={contact.email}
-        displayName={displayName}
         contactStatus={contact.status}
         contactStatuses={contactStatuses}
         initialCustomFieldDefinitions={customFieldDefinitions}
@@ -191,6 +287,9 @@ export default async function ContactDetailPage({
         initialMags={mags}
         initialMarketingLists={contactMarketingLists}
         allMarketingLists={allMarketingLists}
+        relatedEvents={relatedEvents}
+        relatedTasks={relatedTasks}
+        relatedProjects={relatedProjects}
       />
     </div>
   );

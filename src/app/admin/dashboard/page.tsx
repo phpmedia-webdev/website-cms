@@ -5,14 +5,13 @@ import { ContentMetricCard } from "@/components/dashboard/ContentMetricCard";
 import { ContactMetricCard } from "@/components/dashboard/ContactMetricCard";
 import { OrdersMetricCard } from "@/components/dashboard/OrdersMetricCard";
 import { DashboardTabsClient } from "./DashboardTabsClient";
+import { DashboardQuickLinks } from "./DashboardQuickLinks";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { getRagStats, getRagBaseUrl } from "@/lib/rag";
-import {
-  getContactsCountByStatus,
-  getFormSubmissionsCount,
-  getDashboardActivity,
-} from "@/lib/supabase/crm";
+import { getContactsCountByStatus, getFormSubmissionsCount } from "@/lib/supabase/crm";
+import { getAdminMessageCenterStream } from "@/lib/message-center/admin-stream";
+import { countUnreadThreadsForUser } from "@/lib/supabase/conversation-threads";
 import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { getContentCount, getContentTotalChars } from "@/lib/supabase/content";
 import { getEventsCount, getEventsCountByType } from "@/lib/supabase/events";
@@ -61,7 +60,8 @@ export default async function DashboardPage() {
     publicCount: 0,
     privateCount: 0,
   };
-  let activityItems: Awaited<ReturnType<typeof getDashboardActivity>> = [];
+  let messageCenterItems: Awaited<ReturnType<typeof getAdminMessageCenterStream>> = [];
+  let messageCenterUnread = 0;
   let ragStats = { totalTokens: 0, partCount: 0, totalChars: 0 };
   let ragUrls: string[] = [];
   const defaultOrderMetrics: OrderMetrics = {
@@ -89,8 +89,9 @@ export default async function DashboardPage() {
       mediaStatsRes,
       eventsRes,
       eventsByTypeRes,
-      activityRes,
+      messageCenterRes,
       orderMetricsRes,
+      unreadRes,
     ] = await Promise.all([
       getContactsCountByStatus(),
       getCrmContactStatuses(),
@@ -104,8 +105,11 @@ export default async function DashboardPage() {
       getMediaStats().catch(() => ({ totalCount: 0, totalSizeBytes: 0 })),
       getEventsCount(schema),
       getEventsCountByType(schema),
-      getDashboardActivity(50),
+      getAdminMessageCenterStream(60, "all"),
       getOrderMetrics(schema).catch(() => defaultOrderMetrics),
+      currentUser?.id
+        ? countUnreadThreadsForUser(currentUser.id).catch(() => 0)
+        : Promise.resolve(0),
     ]);
     contactsByStatus = contactsByStatusRes;
     contactStatusLabels = Object.fromEntries(
@@ -121,8 +125,9 @@ export default async function DashboardPage() {
     mediaTotalBytes = mediaStatsRes.totalSizeBytes ?? 0;
     eventsCount = eventsRes;
     eventsByType = eventsByTypeRes;
-    activityItems = activityRes;
+    messageCenterItems = messageCenterRes;
     orderMetrics = orderMetricsRes;
+    messageCenterUnread = unreadRes;
   } catch (e) {
     // Metrics optional; leave at 0
   }
@@ -143,19 +148,22 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Your CMS Administration Panel
-            {(mvtVersion.appVersion ?? mvtVersion.lastUpdated) && (
-              <>
-                {" · "}
-                {[mvtVersion.appVersion && `App ${mvtVersion.appVersion}`, mvtVersion.lastUpdated && `Updated ${mvtVersion.lastUpdated}`]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </>
-            )}
-          </p>
+          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <p className="text-muted-foreground">
+              Your CMS Administration Panel
+              {(mvtVersion.appVersion ?? mvtVersion.lastUpdated) && (
+                <>
+                  {" · "}
+                  {[mvtVersion.appVersion && `App ${mvtVersion.appVersion}`, mvtVersion.lastUpdated && `Updated ${mvtVersion.lastUpdated}`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </>
+              )}
+            </p>
+            <DashboardQuickLinks />
+          </div>
         </div>
         <div className="text-right shrink-0">
           <p className="font-medium">Welcome {username}</p>
@@ -190,9 +198,10 @@ export default async function DashboardPage() {
         <MediaMetricCard count={mediaCount} totalSizeBytes={mediaTotalBytes} />
       </div>
 
-      {/* Tabs: Messages and Notifications, then RAG */}
+      {/* Tabs: Message Center, then RAG */}
       <DashboardTabsClient
-        activityItems={activityItems}
+        messageCenterItems={messageCenterItems}
+        messageCenterUnread={messageCenterUnread}
         ragStats={ragStats}
         ragUrls={ragUrls}
       />

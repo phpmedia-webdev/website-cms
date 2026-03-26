@@ -20,6 +20,8 @@ export interface EventsFilterBarProps {
   filterInternal: boolean;
   onFilterPublicChange: (checked: boolean) => void;
   onFilterInternalChange: (checked: boolean) => void;
+  showTasksLayer?: boolean;
+  onShowTasksLayerChange?: (checked: boolean) => void;
   canReset: boolean;
   onReset: () => void;
   filterMemberships?: { id: string; name: string }[];
@@ -39,6 +41,8 @@ export function EventsFilterBar({
   filterInternal,
   onFilterPublicChange,
   onFilterInternalChange,
+  showTasksLayer = true,
+  onShowTasksLayerChange,
   canReset,
   onReset,
   filterMemberships = [],
@@ -82,6 +86,18 @@ export function EventsFilterBar({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 md:col-span-2 md:justify-end">
+          <div className="mr-1 flex items-center gap-2">
+            <Checkbox
+              id="filter-tasks"
+              checked={showTasksLayer}
+              onCheckedChange={(v) => onShowTasksLayerChange?.(!!v)}
+              aria-label="Show task due dates on calendar"
+            />
+            <label htmlFor="filter-tasks" className="cursor-pointer select-none whitespace-nowrap text-sm">
+              Show Tasks Coming Due
+            </label>
+          </div>
+
           <div className="flex items-center gap-2">
             <Checkbox
               id="filter-public"

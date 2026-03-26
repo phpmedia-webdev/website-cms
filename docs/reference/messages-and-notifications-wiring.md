@@ -15,7 +15,7 @@ Use for **conversation-shaped** data: threaded text, authors (`author_user_id` /
 - [ ] **Task comments** — thread per task or ticket (`thread_type = task_ticket`, subject = task). Prefer over `crm_notes` + `conversation_uid` for new work.
 - [ ] **DM messages** — direct / small group (`thread_type = direct` or `group`, `thread_participants`). Enumeration-safe patterns on cold surfaces per PRD.
 - [ ] **Support thread** (`thread_type = support`).
-- [ ] **MAG group room** (`thread_type = mag_group`, `mag_id`).
+- [ ] **MAG group room** (`thread_type = mag_group`, `mag_id`). **Policy (migration 214):** `mags.allow_conversations` — when `false`, only **superadmin + tenant admin** (`website-cms-superadmin` / `website-cms-admin`) may post (announcements / broadcast); GPUM posts blocked unless community is on, GPUM has `crm_contacts.mag_community_messaging_enabled`, and row in `crm_contact_mag_community_opt_in` for that MAG. API: `POST /api/conversation-threads/[threadId]/messages` enforces via `mag-thread-policy.ts`. Admin **Message Center** lists thread heads in `getAdminMessageCenterStream`.
 - [ ] **Product comments** (`thread_type = product_comment`) — ecommerce / product pages.
 
 ### Ideas / backlog (messages)
@@ -47,7 +47,7 @@ Use for **atomic, list-friendly events** on a contact (or recipient): `kind`, `v
 
 ## Cross-cutting
 
-- [ ] **Merged stream** — admin + GPUM single API (`UNION`, sort, cursor, visibility rules)  
+- [ ] **Merged stream** — admin + GPUM single API (`UNION`, sort, cursor, visibility rules). **Admin dashboard:** unified feed in `src/lib/message-center/admin-stream.ts` + `GET /api/admin/message-center`; thread-head rows + timeline + CRM synthesizers; Customizer seeds `message_center_*` scopes (migration **214**).  
 - [x] **Contact detail (admin)** — legacy **CRM notes & activity** block removed; only **Messages and Notifications** (`contact_notifications_timeline`) on the contact tab. Further merge (e.g. thread previews) TBD.  
 - [ ] **RLS hardening** — replace v1 authenticated-wide policies where product requires tighter rules  
 

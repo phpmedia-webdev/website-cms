@@ -11,6 +11,18 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For **open**
 
 ## [Unreleased]
 
+### 2026-03-26 16:44 CT — Message Center (admin), MAG messaging controls, task reminders/calendar hooks
+
+- **Context for Next Session:** **DB:** **`214_message_center_mags_customizer.sql`** applied on primary (2026-03-26). Forks/envs behind: run **214** in Supabase SQL Editor, then confirm MAG edit saves **`allow_conversations`** and GPUM **`/api/members/messaging-preferences`** works. **Pending Manual SQL (if not yet on all envs):** **`211_task_reminders.sql`**, **`212_task_reminders_methods_array_minutes.sql`**, **`213_task_calendar_visibility.sql`** — task reminder + show-on-calendar columns/APIs. **Test:** Admin **Dashboard → Message Center** tab — filters, thread rows, unread badge; **CRM → Memberships → MAG** — member conversation switch; **POST** thread messages on **`mag_group`** with `allow_conversations` on/off; member **Profile** — MAG community block when member has MAGs. **Next (sessionlog §3):** GPUM merged read API + UI; bulk mark-read; timeline unread if desired; per‑MAG “notify admin on opt-in” if product still wants it.
+- **Completed:**
+  - **Migration 214 (manual SQL):** `mags.allow_conversations`; `crm_contacts.mag_community_messaging_enabled`; `crm_contact_mag_community_opt_in`; Customizer seeds for `message_center_*` scopes; `get_mags_dynamic` / `get_mag_by_id_dynamic` include `allow_conversations`.
+  - **Admin Message Center:** `getAdminMessageCenterStream`, `src/lib/message-center/*` (admin-stream, admin-filters, mag-thread-policy, thread-participants); `GET /api/admin/message-center`, `GET /api/admin/message-center/unread`, `PATCH /api/conversation-threads/[threadId]/read`; dashboard tab + `DashboardActivityStream` (thread heads, filters, `form_submitted` alias for timeline).
+  - **MAG behavior:** `MAGDetailClient` switch + `PUT /api/crm/mags/[id]`; `assertCanPostThreadMessage` on conversation thread message creates; superadmin/tenant-admin broadcast when conversations disabled; GPUM path requires global + per-MAG opt-in when enabled.
+  - **GPUM prefs:** `src/lib/supabase/member-mag-messaging.ts`, `GET/PATCH /api/members/messaging-preferences`, `MemberProfileForm` MAG community section.
+  - **Tenant queues:** New support/`task_ticket` threads from `ensureThreadForNote` seed admin-team `thread_participants` (`listAuthUserIdsAssignedToTenantSite`).
+  - **Tasks / calendar (in branch):** Migrations **211–213** (reminder + calendar visibility), related API/components (`TaskReminderInlineControl`, `TaskShowOnCalendarControl`, calendar-layer/visibility routes), plus dashboard quick links, events calendar/filter, CRM contact layout/tab work, blog comment/timeline fixes as in working tree.
+  - **Docs:** `messages-and-notifications-wiring.md`, `sessionlog.md`, `planlog.md` Phase 18C updates; `mvt.md` dashboard/API line.
+
 ### 2026-03-26 09:49 CT — Standalone tasks conversion complete (Section 0)
 
 - **Context for Next Session:** Section 0 is complete for implementation and migration scope. Supabase migrations **209** and **210** are applied on primary. Full end-to-end manual QA is intentionally deferred; when resumed, run the operational matrix for standalone create/link/unlink/move flows, project delete choices, and GPUM support ticket creation as standalone `support_ticket`.

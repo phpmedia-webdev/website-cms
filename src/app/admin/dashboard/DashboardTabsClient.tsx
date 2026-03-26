@@ -5,16 +5,18 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Activity, Bot } from "lucide-react";
 import { DashboardActivityStream } from "@/components/dashboard/DashboardActivityStream";
 import { RagKnowledgeCard } from "@/components/dashboard/RagKnowledgeCard";
-import type { DashboardActivityItem } from "@/lib/supabase/crm";
+import type { MessageCenterStreamItem } from "@/lib/message-center/admin-stream";
 
 interface DashboardTabsClientProps {
-  activityItems: DashboardActivityItem[];
+  messageCenterItems: MessageCenterStreamItem[];
+  messageCenterUnread?: number;
   ragStats: { totalTokens: number; partCount: number; totalChars: number };
   ragUrls: string[];
 }
 
 export function DashboardTabsClient({
-  activityItems,
+  messageCenterItems,
+  messageCenterUnread = 0,
   ragStats,
   ragUrls,
 }: DashboardTabsClientProps) {
@@ -25,7 +27,10 @@ export function DashboardTabsClient({
       <TabsList className="grid w-full max-w-md grid-cols-2 gap-1 h-auto min-h-9 p-1">
         <TabsTrigger value="messages" className="flex items-center gap-1.5 text-xs sm:text-sm px-2 py-1.5 whitespace-normal h-auto">
           <Activity className="h-3.5 w-3.5 shrink-0" />
-          <span className="text-left leading-tight">Messages and Notifications</span>
+          <span className="text-left leading-tight">
+            Message Center
+            {messageCenterUnread > 0 ? ` (${messageCenterUnread})` : ""}
+          </span>
         </TabsTrigger>
         <TabsTrigger value="rag" className="flex items-center gap-1.5">
           <Bot className="h-3.5 w-3.5" />
@@ -33,7 +38,7 @@ export function DashboardTabsClient({
         </TabsTrigger>
       </TabsList>
       <TabsContent value="messages" className="mt-4">
-        <DashboardActivityStream initialItems={activityItems} />
+        <DashboardActivityStream initialItems={messageCenterItems} />
       </TabsContent>
       <TabsContent value="rag" className="mt-4 space-y-4">
         <RagKnowledgeCard

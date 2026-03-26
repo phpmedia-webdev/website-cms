@@ -141,7 +141,7 @@ src/
 │   │   ├── content/           # Content (unified list, new, [id]/edit)
 │   │   ├── crm/               # Contacts, forms, lists, marketing, memberships, code-generator, omnichat
 │   │   ├── ecommerce/         # Products (list, new, [id]/edit), Orders (list, [id], import), Subscriptions
-│   │   ├── dashboard/
+│   │   ├── dashboard/           # Metrics + tabs **Message Center** (unified thread heads + notifications) + RAG; `DashboardQuickLinks`; `GET /api/admin/message-center` (+ unread)
 │   │   ├── events/            # Calendar, [id]/edit, resources
 │   │   ├── forms/             # Form list, [id], submissions
 │   │   ├── galleries/         # List, [id], new
@@ -153,7 +153,7 @@ src/
 │   │   ├── login/, mfa/       # Auth
 │   │   └── posts/, pages/     # Legacy redirects to content
 │   └── api/                   # API routes
-│       ├── admin/             # code-snippets, color-palettes, tenant-sites, tenant-users, roles, profile, membership-codes, settings
+│       ├── admin/             # code-snippets, color-palettes, tenant-sites, tenant-users, roles, profile, membership-codes, settings, **message-center** (unified stream + unread)
 │       ├── auth/
 │       ├── rag/               # knowledge (GET ?part=N) — RAG Knowledge Export
 │       ├── crm/               # contacts, custom-fields, forms, lists, mags, memberships, export, bulk-*, taxonomy/bulk
@@ -433,9 +433,21 @@ When you drop a new version of a module, replace the listed code paths and run t
 - **Folder structure (where to find / replace code):**
   ```
   src/app/api/rag/              # knowledge route (GET ?part=N)
-  src/app/admin/dashboard/      # Dashboard page — RAG metric widget + multi-URL info box
+  src/app/admin/dashboard/      # Dashboard page — Message Center tab + RAG metric widget + multi-URL info box; `DashboardQuickLinks`
   src/lib/rag.ts                 # Assembly (fetch content, Tiptap→text, segment by token limit), token/size helpers
   ```
+
+### Admin Message Center (dashboard)
+
+- **Version:** 0.1 (admin dashboard tab; GPUM stream TBD)
+- **Folder structure:**
+  ```
+  src/lib/message-center/            # admin-stream, admin-filters, mag-thread-policy, thread-participants
+  src/app/api/admin/message-center/  # GET unified stream, GET unread
+  src/app/api/conversation-threads/   # threads + [threadId]/messages + [threadId]/read
+  src/components/dashboard/          # DashboardActivityStream, DashboardTabsClient
+  ```
+- **Data / schema:** Migration **214** — `mags.allow_conversations`, GPUM opt-in tables; **191** threads/participants; **190** timeline.
 - **Data / schema:**
   - **Content table (client schema):** Add column `use_for_agent_training` boolean DEFAULT false. No separate RAG “page” tables; segments are computed at request time.
   - **Migrations:** New migration in client schema: `ALTER TABLE content ADD COLUMN use_for_agent_training boolean DEFAULT false;` (and any RPC updates if content is read via RPC).

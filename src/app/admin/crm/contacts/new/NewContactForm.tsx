@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { CrmContactStatusOption } from "@/lib/supabase/settings";
+import { CRM_STATUS_SLUG_NEW, type CrmContactStatusOption } from "@/lib/supabase/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,10 @@ export function NewContactForm({
   contactStatuses: CrmContactStatusOption[];
 }) {
   const router = useRouter();
-  const defaultStatus = contactStatuses[0]?.slug ?? "new";
+  const defaultStatus =
+    contactStatuses.find((s) => s.slug === CRM_STATUS_SLUG_NEW)?.slug ??
+    contactStatuses[0]?.slug ??
+    CRM_STATUS_SLUG_NEW;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({

@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { UserPlus, Loader2, Trash2, Search } from "lucide-react";
 import type { Mag } from "@/lib/supabase/crm";
 import type { ContactInMag } from "@/lib/supabase/crm";
@@ -46,6 +47,7 @@ export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClie
   );
   const [status, setStatus] = useState<"active" | "draft">(mag.status);
   const [parentId, setParentId] = useState<string | null>(mag.parent_id ?? null);
+  const [allowConversations, setAllowConversations] = useState(mag.allow_conversations !== false);
   const [magTag, setMagTag] = useState(`mag-${mag.uid}`);
   const [contacts, setContacts] = useState(initialContacts);
   const [memberSearch, setMemberSearch] = useState("");
@@ -63,6 +65,7 @@ export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClie
     setEndDate(mag.end_date ? mag.end_date.slice(0, 10) : "");
     setStatus(mag.status);
     setParentId(mag.parent_id ?? null);
+    setAllowConversations(mag.allow_conversations !== false);
   }, [mag]);
 
   const handleUidChange = (value: string) => {
@@ -96,6 +99,7 @@ export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClie
           end_date: endDate || null,
           status,
           parent_id: parentId || null,
+          allow_conversations: allowConversations,
         }),
       });
       if (!res.ok) {
@@ -232,6 +236,19 @@ export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClie
                 className="h-8 font-mono w-full text-sm"
               />
               <p className="text-[10px] text-muted-foreground leading-tight">Tag for media restriction (mag- + UID).</p>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-2 py-2">
+              <div className="space-y-0.5 min-w-0">
+                <Label htmlFor="allow-conv" className="text-xs">Member conversations in MAG room</Label>
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  When off, members cannot post in the MAG group thread; superadmin and tenant admin can still post announcements.
+                </p>
+              </div>
+              <Switch
+                id="allow-conv"
+                checked={allowConversations}
+                onCheckedChange={setAllowConversations}
+              />
             </div>
             <div className="space-y-0.5">
               <Label className="text-xs">Parent (optional)</Label>

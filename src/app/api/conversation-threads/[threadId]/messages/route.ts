@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { insertThreadMessage, listThreadMessages } from "@/lib/supabase/conversation-threads";
+import { assertCanPostThreadMessage } from "@/lib/message-center/mag-thread-policy";
 
 /**
  * GET /api/conversation-threads/[threadId]/messages?limit=200
@@ -44,12 +45,21 @@ export async function POST(
     const { threadId } = await params;
     const body = (await request.json()) as Record<string, unknown>;
     const text = typeof body.body === "string" ? body.body : "";
+    const authorContactId =
+      typeof body.author_contact_id === "string" ? body.author_contact_id : null;
+    const gate = await assertCanPostThreadMessage({
+      threadId,
+      authorUserId: user.id,
+      authorContactId,
+    });
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status });
+    }
     const { message, error } = await insertThreadMessage({
       thread_id: threadId,
       body: text,
       author_user_id: user.id,
-      author_contact_id:
-        typeof body.author_contact_id === "string" ? body.author_contact_id : null,
+      author_contact_id: authorContactId,
       parent_message_id:
         typeof body.parent_message_id === "string" ? body.parent_message_id : null,
       metadata:

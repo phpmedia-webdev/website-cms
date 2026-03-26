@@ -131,6 +131,8 @@ export async function getAdminTasksListBundle(
 
   const taskAssigneesMap: Record<string, TaskAssigneeListItem[]> = {};
   for (const f of followers) {
+    // Assignee column should reflect assigned members/contacts, not mandatory creator.
+    if (f.role === "creator") continue;
     const list = taskAssigneesMap[f.task_id] ?? [];
     const item: TaskAssigneeListItem = {
       id: f.id,
@@ -143,7 +145,7 @@ export async function getAdminTasksListBundle(
       item.avatarUrl = p?.avatar_url ?? null;
     } else if (f.contact_id) {
       const c = contactMap.get(f.contact_id);
-      item.label = c ? c.full_name || c.email || c.id : f.contact_id.slice(0, 8);
+      item.label = c ? c.full_name || c.email || "Contact" : "Contact";
       item.avatarUrl = c?.avatar_url ?? null;
     }
     list.push(item);

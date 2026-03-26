@@ -9,6 +9,8 @@ import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import {
   getTaskById,
+  getProjectById,
+  listProjectMembers,
   updateTask,
   deleteTask,
   getTaskFollowers,
@@ -17,6 +19,7 @@ import {
 import { logTaskStatusChange } from "@/lib/supabase/crm";
 import { getTaskStatusLabelForSlug } from "@/lib/tasks/task-customizer-labels";
 import { getClientSchema } from "@/lib/supabase/schema";
+import { getContactsByOrganizationId } from "@/lib/supabase/organizations";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -102,6 +105,44 @@ export async function PUT(
     }
 
     const existing = await getTaskById(id);
+    const effectiveProjectId: string | null =
+      input.project_id !== undefined
+        ? input.project_id == null
+          ? null
+          : String(input.project_id).trim() || null
+        : existing?.project_id?.trim() || null;
+    if (effectiveProjectId && input.contact_id !== undefined && input.contact_id !== null) {
+      const candidateContactId = String(input.contact_id).trim();
+      if (candidateContactId) {
+        const [project, projectMembers] = await Promise.all([
+          getProjectById(effectiveProjectId),
+          listProjectMembers(effectiveProjectId),
+        ]);
+        const allowedContactIds = new Set(
+          projectMembers
+            .map((m) => (typeof m.contact_id === "string" ? m.contact_id.trim() : ""))
+            .filter(Boolean)
+        );
+        const orgId = project?.client_organization_id?.trim() ?? "";
+        if (orgId) {
+          const orgContacts = await getContactsByOrganizationId(orgId);
+          for (const c of orgContacts) {
+            if (typeof c.id === "string" && c.id.trim()) {
+              allowedContactIds.add(c.id.trim());
+            }
+          }
+        }
+        if (!allowedContactIds.has(candidateContactId)) {
+          return NextResponse.json(
+            {
+              error:
+                "For project-linked tasks, contact must be a project member contact or a contact linked to the project's client organization.",
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
     const result = await updateTask(id, input);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });

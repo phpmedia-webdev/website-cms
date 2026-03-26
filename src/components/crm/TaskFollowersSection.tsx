@@ -57,6 +57,7 @@ function labelForCompositeId(rows: DirectoryPickerRow[], compositeId: string): s
 export function TaskFollowersSection({
   taskId,
   initialFollowers,
+  projectId,
   readOnly = false,
   initialLinkedContact,
 }: TaskFollowersSectionProps) {
@@ -75,6 +76,12 @@ export function TaskFollowersSection({
   const [adding, setAdding] = useState(false);
   const [contactSaving, setContactSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [projectScopeLoading, setProjectScopeLoading] = useState(false);
+  const [projectMemberUserIds, setProjectMemberUserIds] = useState<Set<string>>(() => new Set());
+  const [projectMemberContactIds, setProjectMemberContactIds] = useState<Set<string>>(() => new Set());
+  const [projectAllowedContactIds, setProjectAllowedContactIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
   useEffect(() => {
     setFollowers(initialFollowers);
@@ -83,6 +90,77 @@ export function TaskFollowersSection({
   useEffect(() => {
     setLinkedContact(initialLinkedContact);
   }, [initialLinkedContact]);
+
+  useEffect(() => {
+    const pid = projectId?.trim();
+    if (!pid) {
+      setProjectMemberUserIds(new Set());
+      setProjectMemberContactIds(new Set());
+      setProjectAllowedContactIds(new Set());
+      setProjectScopeLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setProjectScopeLoading(true);
+    Promise.all([
+      fetch(`/api/projects/${pid}/members`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/projects/${pid}`).then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(async ([rows, project]) => {
+        if (cancelled) return;
+        const userIds = new Set<string>();
+        const contactIds = new Set<string>();
+        const allowedContactIds = new Set<string>();
+        if (Array.isArray(rows)) {
+          for (const raw of rows) {
+            if (raw && typeof raw === "object") {
+              const rec = raw as { user_id?: unknown; contact_id?: unknown };
+              if (typeof rec.user_id === "string" && rec.user_id.trim()) {
+                userIds.add(rec.user_id.trim());
+              }
+              if (typeof rec.contact_id === "string" && rec.contact_id.trim()) {
+                const cid = rec.contact_id.trim();
+                contactIds.add(cid);
+                allowedContactIds.add(cid);
+              }
+            }
+          }
+        }
+        const clientOrgId =
+          project && typeof project === "object"
+            ? String((project as { client_organization_id?: unknown }).client_organization_id ?? "").trim()
+            : "";
+        if (clientOrgId) {
+          const orgRes = await fetch(`/api/crm/organizations/${clientOrgId}/contacts`)
+            .then((r) => (r.ok ? r.json() : { contacts: [] }))
+            .catch(() => ({ contacts: [] as Array<{ id?: string }> }));
+          const orgContacts = Array.isArray(orgRes?.contacts) ? orgRes.contacts : [];
+          for (const c of orgContacts) {
+            if (c && typeof c === "object" && typeof c.id === "string" && c.id.trim()) {
+              allowedContactIds.add(c.id.trim());
+            }
+          }
+        }
+        setProjectMemberUserIds(userIds);
+        setProjectMemberContactIds(contactIds);
+        setProjectAllowedContactIds(allowedContactIds);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectMemberUserIds(new Set());
+          setProjectMemberContactIds(new Set());
+          setProjectAllowedContactIds(new Set());
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setProjectScopeLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const hasProjectScope = !!projectId?.trim();
 
   const assignedCompositeIds = useMemo(() => {
     const s = new Set<string>();
@@ -96,14 +174,27 @@ export function TaskFollowersSection({
   const directoryRowsForPicker = useMemo(() => {
     return directoryRows.filter((row) => {
       if (row.source_type !== "team_member" && row.source_type !== "crm_contact") return false;
+      if (hasProjectScope) {
+        if (row.source_type === "team_member" && !projectMemberUserIds.has(row.source_id)) {
+          return false;
+        }
+        if (row.source_type === "crm_contact" && !projectMemberContactIds.has(row.source_id)) {
+          return false;
+        }
+      }
       const id = toDirectoryParticipantCompositeId(row.source_type, row.source_id);
       return !assignedCompositeIds.has(id);
     });
-  }, [directoryRows, assignedCompositeIds]);
+  }, [directoryRows, assignedCompositeIds, hasProjectScope, projectMemberUserIds, projectMemberContactIds]);
 
   const directoryContactRowsOnly = useMemo(
-    () => directoryRows.filter((row) => row.source_type === "crm_contact"),
-    [directoryRows]
+    () =>
+      directoryRows.filter(
+        (row) =>
+          row.source_type === "crm_contact" &&
+          (!hasProjectScope || projectAllowedContactIds.has(row.source_id))
+      ),
+    [directoryRows, hasProjectScope, projectAllowedContactIds]
   );
 
   const directoryTeamRowCount = useMemo(
@@ -269,7 +360,7 @@ export function TaskFollowersSection({
   return (
     <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
       <CardHeader className="task-bento-card-header">
-        <TaskBentoPanelTitle icon={Users}>Assignees</TaskBentoPanelTitle>
+        <TaskBentoPanelTitle icon={Users}>Members</TaskBentoPanelTitle>
       </CardHeader>
       <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-4">
         <div>
@@ -329,9 +420,9 @@ export function TaskFollowersSection({
         </div>
 
         <div className="border-t border-border/60 pt-3">
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assignees</p>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Members</p>
           {followers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No assignees yet.</p>
+            <p className="text-sm text-muted-foreground">No members yet.</p>
           ) : (
             <ul className="space-y-2">
               {followers.map((f) => (
@@ -347,7 +438,7 @@ export function TaskFollowersSection({
                         size="icon"
                         className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                         onClick={() => handleRemove(f.id)}
-                        aria-label="Remove assignee"
+                        aria-label="Remove member"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -366,7 +457,7 @@ export function TaskFollowersSection({
                 className="w-full rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
                 onClick={openAddModal}
               >
-                Add assignee
+                Add member
               </Button>
             </div>
           )}
@@ -384,6 +475,8 @@ export function TaskFollowersSection({
             </DialogHeader>
             {directoryLoading ? (
               <p className="text-sm text-muted-foreground">Loading directory…</p>
+            ) : projectScopeLoading ? (
+              <p className="text-sm text-muted-foreground">Loading project members…</p>
             ) : (
               <DirectoryParticipantPicker
                 directoryRows={directoryContactRowsOnly}
@@ -409,7 +502,7 @@ export function TaskFollowersSection({
                 type="button"
                 onClick={() => void linkSelectedContact()}
                 disabled={
-                  contactSaving || contactModalSelection.size === 0 || directoryLoading
+                  contactSaving || contactModalSelection.size === 0 || directoryLoading || projectScopeLoading
                 }
               >
                 {contactSaving ? "Saving…" : "Save"}
@@ -421,7 +514,7 @@ export function TaskFollowersSection({
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogContent className="max-w-lg rounded-xl">
             <DialogHeader>
-              <DialogTitle>Add assignees</DialogTitle>
+              <DialogTitle>Add members</DialogTitle>
               <DialogDescription>
                 Search team members and contacts. Select one or more people, then save.
               </DialogDescription>
@@ -437,6 +530,8 @@ export function TaskFollowersSection({
             )}
             {directoryLoading ? (
               <p className="text-sm text-muted-foreground">Loading directory…</p>
+            ) : projectScopeLoading ? (
+              <p className="text-sm text-muted-foreground">Loading project members…</p>
             ) : (
               <DirectoryParticipantPicker
                 directoryRows={directoryRowsForPicker}
@@ -454,7 +549,7 @@ export function TaskFollowersSection({
               <Button
                 type="button"
                 onClick={() => void addSelectedAssignees()}
-                disabled={adding || modalSelection.size === 0 || directoryLoading}
+                disabled={adding || modalSelection.size === 0 || directoryLoading || projectScopeLoading}
               >
                 {adding ? "Adding…" : `Add${modalSelection.size > 0 ? ` (${modalSelection.size})` : ""}`}
               </Button>

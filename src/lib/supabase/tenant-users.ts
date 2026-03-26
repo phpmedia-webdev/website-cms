@@ -109,6 +109,20 @@ export async function updateTenantUser(id: string, row: TenantUserUpdate): Promi
   return true;
 }
 
+/**
+ * Auth user IDs assigned to a tenant site (admin team / GPUM-style assignments on site).
+ * Used to seed thread_participants for tenant-wide support and task queues.
+ */
+export async function listAuthUserIdsAssignedToTenantSite(
+  tenantSiteId: string
+): Promise<string[]> {
+  const rows = await listUsersByTenantSite(tenantSiteId);
+  const ids = rows
+    .map((r) => r.user_id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  return [...new Set(ids)];
+}
+
 /** List users assigned to a tenant site (with role and is_owner). */
 export async function listUsersByTenantSite(tenantSiteId: string): Promise<TenantUserWithAssignment[]> {
   const supabase = createServerSupabaseClient();

@@ -6,6 +6,7 @@ import {
   insertThreadMessage,
   isValidThreadType,
 } from "@/lib/supabase/conversation-threads";
+import { assertCanPostThreadMessage } from "@/lib/message-center/mag-thread-policy";
 
 /**
  * POST /api/conversation-threads
@@ -37,10 +38,23 @@ export async function POST(request: Request) {
     const fm = body.first_message;
     if (fm && typeof fm === "object" && fm !== null && "body" in fm) {
       const text = typeof (fm as { body?: unknown }).body === "string" ? (fm as { body: string }).body : "";
+      const firstAuthorContact =
+        "author_contact_id" in fm && typeof (fm as { author_contact_id?: unknown }).author_contact_id === "string"
+          ? (fm as { author_contact_id: string }).author_contact_id
+          : null;
+      const gate = await assertCanPostThreadMessage({
+        threadId: thread.id,
+        authorUserId: user.id,
+        authorContactId: firstAuthorContact,
+      });
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.message, thread }, { status: gate.status });
+      }
       const { message, error: msgErr } = await insertThreadMessage({
         thread_id: thread.id,
         body: text,
         author_user_id: user.id,
+        author_contact_id: firstAuthorContact,
       });
       if (msgErr) {
         return NextResponse.json({ error: msgErr.message, thread }, { status: 400 });

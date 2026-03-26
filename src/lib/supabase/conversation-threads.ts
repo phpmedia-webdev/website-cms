@@ -188,3 +188,159 @@ export async function addThreadParticipant(input: {
   }
   return { participant: data as ThreadParticipantRow, error: null };
 }
+
+/** Insert participant if not already present (unique thread+user). Swallows duplicate errors. */
+export async function addThreadParticipantIfNotExists(input: {
+  thread_id: string;
+  user_id?: string | null;
+  contact_id?: string | null;
+  role?: string | null;
+}): Promise<void> {
+  const { error } = await addThreadParticipant(input);
+  if (!error) return;
+  const msg = error.message.toLowerCase();
+  if (msg.includes("duplicate") || msg.includes("unique") || msg.includes("23505")) {
+    return;
+  }
+  console.error("addThreadParticipantIfNotExists:", error.message);
+}
+
+export async function getConversationThreadById(
+  threadId: string
+): Promise<ConversationThreadRow | null> {
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data, error } = await supabase
+    .schema(schema)
+    .from("conversation_threads")
+    .select("*")
+    .eq("id", threadId)
+    .maybeSingle();
+  if (error) {
+    console.error("getConversationThreadById:", error.message, error.code);
+    return null;
+  }
+  return (data as ConversationThreadRow) ?? null;
+}
+
+/** Recent thread heads for admin Message Center (all types). */
+export async function listRecentConversationThreadsForAdmin(
+  limit: number
+): Promise<ConversationThreadRow[]> {
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const cap = Math.min(Math.max(limit, 1), 150);
+  const { data, error } = await supabase
+    .schema(schema)
+    .from("conversation_threads")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(cap);
+  if (error) {
+    console.error("listRecentConversationThreadsForAdmin:", error.message, error.code);
+    return [];
+  }
+  return (data ?? []) as ConversationThreadRow[];
+}
+
+export interface ThreadLastMessagePreview {
+  thread_id: string;
+  body: string;
+  created_at: string;
+  author_user_id: string | null;
+  author_contact_id: string | null;
+}
+
+/** Latest message per thread (one round-trip per thread chunk; correct for any depth). */
+export async function fetchLatestThreadMessagesForThreads(
+  threadIds: string[]
+): Promise<Map<string, ThreadLastMessagePreview>> {
+  const result = new Map<string, ThreadLastMessagePreview>();
+  if (threadIds.length === 0) return result;
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  await Promise.all(
+    threadIds.map(async (tid) => {
+      const { data, error } = await supabase
+        .schema(schema)
+        .from("thread_messages")
+        .select("thread_id, body, created_at, author_user_id, author_contact_id")
+        .eq("thread_id", tid)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error("fetchLatestThreadMessagesForThreads:", tid, error.message);
+        return;
+      }
+      if (data) {
+        result.set(tid, data as ThreadLastMessagePreview);
+      }
+    })
+  );
+  return result;
+}
+
+export async function updateThreadParticipantLastRead(input: {
+  thread_id: string;
+  user_id: string;
+  read_at?: string;
+}): Promise<{ ok: boolean; error: Error | null }> {
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const at = input.read_at ?? new Date().toISOString();
+  const { data: existing } = await supabase
+    .schema(schema)
+    .from("thread_participants")
+    .select("id")
+    .eq("thread_id", input.thread_id)
+    .eq("user_id", input.user_id)
+    .maybeSingle();
+  if (existing?.id) {
+    const { error } = await supabase
+      .schema(schema)
+      .from("thread_participants")
+      .update({ last_read_at: at })
+      .eq("id", existing.id);
+    if (error) {
+      return { ok: false, error: new Error(error.message) };
+    }
+    return { ok: true, error: null };
+  }
+  const { error } = await supabase.schema(schema).from("thread_participants").insert({
+    thread_id: input.thread_id,
+    user_id: input.user_id,
+    contact_id: null,
+    last_read_at: at,
+    role: null,
+  });
+  if (error) {
+    return { ok: false, error: new Error(error.message) };
+  }
+  return { ok: true, error: null };
+}
+
+/** Threads where the user has unread messages (participant row vs latest message time). */
+export async function countUnreadThreadsForUser(userId: string): Promise<number> {
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data: parts, error: pErr } = await supabase
+    .schema(schema)
+    .from("thread_participants")
+    .select("thread_id, last_read_at")
+    .eq("user_id", userId);
+  if (pErr || !parts?.length) {
+    if (pErr) console.error("countUnreadThreadsForUser participants:", pErr.message);
+    return 0;
+  }
+  const threadIds = [...new Set((parts as { thread_id: string }[]).map((p) => p.thread_id))];
+  const lastByThread = await fetchLatestThreadMessagesForThreads(threadIds);
+  let n = 0;
+  for (const p of parts as { thread_id: string; last_read_at: string | null }[]) {
+    const last = lastByThread.get(p.thread_id);
+    if (!last?.created_at) continue;
+    const readAt = p.last_read_at ? new Date(p.last_read_at).getTime() : 0;
+    if (new Date(last.created_at).getTime() > readAt) n++;
+  }
+  return n;
+}

@@ -49,6 +49,29 @@ export async function getDisplayLabelForUser(authUserId: string): Promise<string
 }
 
 /**
+ * Get a person's real-name style label for UI surfaces like time logs.
+ * Prefers full_name/name/display_name and intentionally does NOT prioritize handle.
+ */
+export async function getRealNameLabelForUser(authUserId: string): Promise<string> {
+  const tenantUser = await getTenantUserByAuthUserId(authUserId);
+  const profile = await getProfileByUserId(authUserId);
+  const { user } = await getUserById(authUserId);
+  const meta = (user?.user_metadata as Record<string, unknown> | undefined) ?? undefined;
+
+  const fromMeta =
+    (meta?.full_name as string)?.trim() ||
+    (meta?.name as string)?.trim() ||
+    (meta?.display_name as string)?.trim() ||
+    "";
+
+  const fromTenant = tenantUser?.display_name?.trim() || "";
+  const fromProfile = profile?.display_name?.trim() || "";
+  const fromEmail = tenantUser?.email?.trim() || (typeof user?.email === "string" ? user.email.trim() : "");
+
+  return fromMeta || fromTenant || fromProfile || fromEmail || "User";
+}
+
+/**
  * Get display name for a comment author (auth user id). Uses handle when set (for messaging), then display_name, then email.
  */
 export async function getCommentAuthorDisplayName(authUserId: string): Promise<string> {
