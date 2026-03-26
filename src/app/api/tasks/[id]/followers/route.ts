@@ -69,6 +69,12 @@ export async function POST(
     if (!role || !["creator", "responsible", "follower"].includes(role)) {
       return NextResponse.json({ error: "role must be creator, responsible, or follower" }, { status: 400 });
     }
+    if (role === "creator") {
+      return NextResponse.json(
+        { error: "Creator role is system-managed and cannot be added manually." },
+        { status: 400 }
+      );
+    }
     const contactId = typeof body.contact_id === "string" ? body.contact_id : undefined;
     const userId = typeof body.user_id === "string" ? body.user_id : undefined;
     const result = await addTaskFollower(taskId, {
@@ -89,14 +95,32 @@ export async function POST(
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const authErr = await requireAdmin();
     if (authErr) return NextResponse.json({ error: authErr.error }, { status: authErr.status });
 
+    const { id: taskId } = await params;
+    if (!taskId) return NextResponse.json({ error: "Task ID required" }, { status: 400 });
+    const task = await getTaskById(taskId);
+    if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+
     const body = await request.json().catch(() => ({}));
     const id = typeof body.id === "string" ? body.id : undefined;
     if (!id) return NextResponse.json({ error: "Follower id required" }, { status: 400 });
+
+    const followers = await getTaskFollowers(taskId);
+    const target = followers.find((f) => f.id === id);
+    if (!target) return NextResponse.json({ error: "Follower not found for task" }, { status: 404 });
+    if (target.role === "creator") {
+      return NextResponse.json(
+        { error: "Creator is mandatory and cannot be removed." },
+        { status: 400 }
+      );
+    }
 
     const result = await deleteTaskFollower(id);
     if ("error" in result) {

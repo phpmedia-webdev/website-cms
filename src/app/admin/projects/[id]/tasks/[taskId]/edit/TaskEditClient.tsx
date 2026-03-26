@@ -71,6 +71,7 @@ interface TaskEditClientProps {
   /** Active projects for moving this task (includes current). */
   projectsForPicker: { id: string; name: string }[];
   task: Task;
+  createdByLine: string;
   assignees: TaskFollowerWithLabel[];
   /** CRM contact on task row (`tasks.contact_id`). */
   taskLinkedContact: { id: string; label: string } | null;
@@ -90,6 +91,7 @@ export function TaskEditClient({
   projectName,
   projectsForPicker,
   task,
+  createdByLine,
   assignees,
   taskLinkedContact,
   statusTerms,
@@ -308,6 +310,7 @@ export function TaskEditClient({
               className="min-h-[3.75rem] resize-y rounded-xl border-border/50 bg-background/40 text-sm leading-snug text-foreground placeholder:text-muted-foreground/60 shadow-sm backdrop-blur-sm focus-visible:ring-1"
             />
           </div>
+          <p className="mt-2 text-right text-xs italic text-muted-foreground">{createdByLine}</p>
           {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
         </section>
 

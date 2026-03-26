@@ -101,6 +101,13 @@ export default async function TaskDetailPage({
   );
 
   const followersWithLabels = await resolveTaskFollowersWithLabels(followers);
+  const assigneesOnly = followersWithLabels.filter((f) => f.role !== "creator");
+  const creatorFollower = followersWithLabels.find((f) => f.role === "creator");
+  const creatorName = creatorFollower?.label ?? (task.creator_id ? await getDisplayLabelForUser(task.creator_id) : null);
+  const createdOn = new Date(task.created_at).toLocaleDateString();
+  const createdByLine = creatorName
+    ? `Created by ${creatorName} on ${createdOn}`
+    : `Created on ${createdOn}`;
 
   let taskLinkedContact: { id: string; label: string } | null = null;
   if (task.contact_id) {
@@ -170,6 +177,7 @@ export default async function TaskDetailPage({
         ) : (
           <p className="mt-2 text-sm italic text-muted-foreground">No description.</p>
         )}
+        <p className="mt-2 text-right text-xs italic text-muted-foreground">{createdByLine}</p>
       </section>
 
       {/* Four equal meta panels (1 col → 2×2 → 4×1) */}
@@ -190,7 +198,7 @@ export default async function TaskDetailPage({
                   {project?.name?.trim() ? project.name : "View project"}
                 </Link>
               ) : (
-                <p className="truncate text-sm text-muted-foreground">—</p>
+                <p className="truncate text-sm text-muted-foreground">No project</p>
               )}
             </div>
             <div>
@@ -206,7 +214,7 @@ export default async function TaskDetailPage({
 
         <div className="min-w-0 h-full">
           <TaskAssigneesDetailCard
-            followers={followersWithLabels}
+            followers={assigneesOnly}
             linkedContact={taskLinkedContact}
           />
         </div>

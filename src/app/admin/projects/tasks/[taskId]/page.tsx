@@ -99,6 +99,13 @@ export default async function TaskDetailUnassignedPage({
   );
 
   const followersWithLabels = await resolveTaskFollowersWithLabels(followers);
+  const assigneesOnly = followersWithLabels.filter((f) => f.role !== "creator");
+  const creatorFollower = followersWithLabels.find((f) => f.role === "creator");
+  const creatorName = creatorFollower?.label ?? (task.creator_id ? await getDisplayLabelForUser(task.creator_id) : null);
+  const createdOn = new Date(task.created_at).toLocaleDateString();
+  const createdByLine = creatorName
+    ? `Created by ${creatorName} on ${createdOn}`
+    : `Created on ${createdOn}`;
 
   let taskLinkedContact: { id: string; label: string } | null = null;
   if (task.contact_id) {
@@ -164,6 +171,7 @@ export default async function TaskDetailUnassignedPage({
           ) : (
             <p className="mt-2 text-sm italic text-muted-foreground">No description.</p>
           )}
+        <p className="mt-2 text-right text-xs italic text-muted-foreground">{createdByLine}</p>
         </section>
 
         <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 md:gap-3.5 lg:grid-cols-4 lg:grid-rows-1">
@@ -189,7 +197,7 @@ export default async function TaskDetailUnassignedPage({
 
           <div className="min-w-0 h-full">
             <TaskAssigneesDetailCard
-              followers={followersWithLabels}
+              followers={assigneesOnly}
               linkedContact={taskLinkedContact}
             />
           </div>

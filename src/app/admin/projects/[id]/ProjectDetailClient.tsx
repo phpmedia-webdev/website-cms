@@ -5,6 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
@@ -25,6 +33,7 @@ import {
   Paperclip,
   Percent,
   Receipt,
+  Trash2,
   TrendingUp,
 } from "lucide-react";
 import type { Event } from "@/lib/supabase/events";
@@ -231,6 +240,8 @@ export function ProjectDetailClient({
   const [tab, setTab] = useState<TabId>("message-center");
   const [archivedAt, setArchivedAt] = useState(project.archived_at);
   const [busy, setBusy] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const router = useRouter();
   const isArchived = !!archivedAt;
 
@@ -343,6 +354,27 @@ export function ProjectDetailClient({
   const hourlyRate = project.estimated_hourly_rate;
   const laborEstimateUsd =
     hourlyRate != null && hourlyRate > 0 ? (projectTimeLogMinutes / 60) * hourlyRate : null;
+  const linkedTaskCount = tasks.length;
+
+  const deleteProjectWithMode = async (deleteLinkedTasks: boolean) => {
+    if (deleteLinkedTasks) {
+      const confirmed = window.confirm(
+        `Final warning: this will permanently delete this project and ${linkedTaskCount} linked task${linkedTaskCount === 1 ? "" : "s"}. This cannot be undone. Continue?`
+      );
+      if (!confirmed) return;
+    }
+    setDeleteBusy(true);
+    try {
+      const q = deleteLinkedTasks ? "?delete_tasks=1" : "";
+      const res = await fetch(`/api/projects/${project.id}${q}`, { method: "DELETE" });
+      if (!res.ok) return;
+      setDeleteDialogOpen(false);
+      router.push("/admin/projects");
+      router.refresh();
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -378,8 +410,63 @@ export function ProjectDetailClient({
               Edit
             </Link>
           </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="shrink-0"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" aria-hidden />
+            Delete
+          </Button>
         </div>
       </div>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete project?</DialogTitle>
+            <DialogDescription>
+              Deletion is intended for test or sandbox projects. For real projects, use Archive so
+              records stay intact.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              This project currently has{" "}
+              <span className="font-medium text-foreground">{linkedTaskCount}</span> linked task
+              {linkedTaskCount === 1 ? "" : "s"}.
+            </p>
+            <p>
+              You can delete the project only (recommended), which preserves linked tasks and
+              unlinks them to <span className="font-medium text-foreground">No project</span>.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleteBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void deleteProjectWithMode(false)}
+              disabled={deleteBusy}
+            >
+              Delete project only
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void deleteProjectWithMode(true)}
+              disabled={deleteBusy}
+            >
+              Delete project + linked tasks
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Overview: 50% project copy | 25% image placeholder | 25% status */}
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col gap-6">

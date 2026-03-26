@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { Filter, RotateCcw, Search } from "lucide-react";
+import { Filter, Plus, RotateCcw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -83,6 +83,7 @@ function normalizePhaseSlug(slug: string): string {
 
 const TASK_TYPE_SELECT_ALL = "__all_task_types__";
 const TASK_STATUS_SELECT_ALL = "__all_task_status__";
+const NO_PROJECT_SELECT_VALUE = "__no_project__";
 
 /**
  * All Tasks toolbar search — stronger border/background than default Input so the field reads clearly on the page.
@@ -502,6 +503,12 @@ export function AllTasksListClient({
   const [tasksPreset, setTasksPreset] = useState<TasksPresetId>(DEFAULT_TASKS_PRESET);
 
   const [loading, setLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [createProjectId, setCreateProjectId] = useState<string | null>(null);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const projectMap = useMemo(
     () => new Map(initialProjects.map((p) => [p.id, p.name])),
@@ -953,6 +960,47 @@ export function AllTasksListClient({
     await loadTasksFromQuery(qs);
   }, [loadTasksFromQuery]);
 
+  const openCreateTask = useCallback(() => {
+    setCreateTitle("");
+    setCreateDescription("");
+    setCreateProjectId(null);
+    setCreateError(null);
+    setCreateOpen(true);
+  }, []);
+
+  const createTaskFromDialog = useCallback(async () => {
+    const title = createTitle.trim();
+    if (!title) {
+      setCreateError("Title is required.");
+      return;
+    }
+    setCreateSubmitting(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description: createDescription.trim() || null,
+          project_id: createProjectId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data?.id !== "string") {
+        setCreateError(typeof data?.error === "string" ? data.error : "Failed to create task.");
+        return;
+      }
+      const newTaskId = data.id as string;
+      router.push(taskDetailPath(newTaskId, createProjectId, "tasks"));
+      router.refresh();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create task.");
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }, [createTitle, createDescription, createProjectId, router]);
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">All Tasks</h1>
@@ -1019,6 +1067,17 @@ export function AllTasksListClient({
         </div>
 
         <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1 md:flex-nowrap">
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-xs"
+            onClick={openCreateTask}
+            disabled={loading}
+            title="Create a new task (project optional)"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            Add task
+          </Button>
           <Button
             type="button"
             variant={customFilterDimensionsActive > 0 ? "secondary" : "outline"}
@@ -1543,6 +1602,84 @@ export function AllTasksListClient({
             </Button>
             <Button type="button" onClick={() => void applyCustomFilters()} disabled={loading}>
               {loading ? "Loading…" : "Apply"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Add task</DialogTitle>
+            <DialogDescription>
+              Create a task for day-to-day operations. Project is optional.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label htmlFor="all-tasks-create-title" className="text-xs font-medium text-muted-foreground">
+                Title
+              </label>
+              <Input
+                id="all-tasks-create-title"
+                value={createTitle}
+                onChange={(e) => setCreateTitle(e.target.value)}
+                placeholder="Task title"
+                disabled={createSubmitting}
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="all-tasks-create-project" className="text-xs font-medium text-muted-foreground">
+                Project
+              </label>
+              <Select
+                value={createProjectId ?? NO_PROJECT_SELECT_VALUE}
+                onValueChange={(v) =>
+                  setCreateProjectId(v === NO_PROJECT_SELECT_VALUE ? null : v)
+                }
+                disabled={createSubmitting}
+              >
+                <SelectTrigger id="all-tasks-create-project">
+                  <SelectValue placeholder="No project" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_PROJECT_SELECT_VALUE}>No project</SelectItem>
+                  {pickerProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label
+                htmlFor="all-tasks-create-description"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Description (optional)
+              </label>
+              <Input
+                id="all-tasks-create-description"
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                placeholder="Optional"
+                disabled={createSubmitting}
+              />
+            </div>
+            {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+              disabled={createSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void createTaskFromDialog()} disabled={createSubmitting}>
+              {createSubmitting ? "Creating…" : "Create task"}
             </Button>
           </DialogFooter>
         </DialogContent>

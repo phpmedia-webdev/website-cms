@@ -188,7 +188,7 @@ export interface ProjectUpdate {
 }
 
 export interface TaskInsert {
-  project_id: string;
+  project_id?: string | null;
   title: string;
   description?: string | null;
   task_status_slug?: string | null;
@@ -461,13 +461,25 @@ export async function updateProject(
   return { ok: true };
 }
 
-/** Delete a project (cascades to tasks and task_followers). */
+/** Delete a project; optionally delete linked tasks first. */
 export async function deleteProject(
   id: string,
+  options?: { deleteLinkedTasks?: boolean },
   schema?: string
 ): Promise<{ ok: true } | { error: string }> {
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? getClientSchema();
+  if (options?.deleteLinkedTasks) {
+    const { error: tasksError } = await supabase
+      .schema(schemaName)
+      .from("tasks")
+      .delete()
+      .eq("project_id", id);
+    if (tasksError) {
+      console.error("deleteProject linked tasks delete error:", tasksError);
+      return { error: tasksError.message };
+    }
+  }
   const { error } = await supabase
     .schema(schemaName)
     .from("projects")
@@ -1092,8 +1104,12 @@ export async function createTask(
         "Default task priority term not found. Run migration 161_task_priority_as_taxonomy.sql.",
     };
   }
+  const normalizedProjectId =
+    input.project_id != null && String(input.project_id).trim()
+      ? String(input.project_id).trim()
+      : null;
   const payload: Record<string, unknown> = {
-    project_id: input.project_id,
+    project_id: normalizedProjectId,
     title: input.title.trim(),
     description: input.description ?? null,
     task_status_slug: taskStatusSlug,
@@ -1121,9 +1137,9 @@ export async function createTask(
     console.error("createTask error:", error);
     return { error: error.message };
   }
-  if (input.project_id?.trim()) {
+  if (normalizedProjectId) {
     await maybeExtendProjectEndDate(
-      input.project_id.trim(),
+      normalizedProjectId,
       input.due_date ?? null,
       schemaName
     );

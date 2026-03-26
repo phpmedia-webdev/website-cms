@@ -65,6 +65,13 @@ export default async function TaskEditPage({
   );
 
   const assigneesWithLabels = await resolveTaskFollowersWithLabels(followers);
+  const assigneesOnly = assigneesWithLabels.filter((f) => f.role !== "creator");
+  const creatorFollower = assigneesWithLabels.find((f) => f.role === "creator");
+  const creatorName = creatorFollower?.label ?? (task.creator_id ? await getDisplayLabelForUser(task.creator_id) : null);
+  const createdOn = new Date(task.created_at).toLocaleDateString();
+  const createdByLine = creatorName
+    ? `Created by ${creatorName} on ${createdOn}`
+    : `Created on ${createdOn}`;
 
   const statusTerms = statusTermsFromCustomizerRows(czTaskStatus);
   const taskTypeTerms = statusTermsFromCustomizerRows(czTaskType);
@@ -103,7 +110,8 @@ export default async function TaskEditPage({
       projectName={project.name}
       projectsForPicker={projectsForPicker}
       task={task}
-      assignees={assigneesWithLabels}
+      assignees={assigneesOnly}
+      createdByLine={createdByLine}
       taskLinkedContact={taskLinkedContact}
       statusTerms={statusTerms}
       taskTypeTerms={taskTypeTerms}

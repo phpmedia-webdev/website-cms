@@ -557,7 +557,7 @@ The Project Management module provides lightweight project and task tracking wit
 ### Scope (high level)
 
 - **Projects:** Named projects with optional description, status, and timeline (e.g. start/target dates).
-- **Tasks:** Tasks (or work items) belonging to projects: title, description, status, optional assignee, due date, **priority** (low / medium / high), and task type (e.g. default work item or support_ticket). Support tickets are tasks of type ticket; submitting a ticket auto-creates or reuses a perpetual Support project for that member.
+- **Tasks:** Tasks (or work items) can be standalone or project-linked: title, description, status, optional assignee, due date, **priority** (low / medium / high), and task type (e.g. default work item or support_ticket). Support tickets are tasks of type `support_ticket`; they default to standalone (`project_id = null`) with optional contact link and can be linked to a project later if needed.
 - **Visibility and access:** Data is tenant-scoped (per schema). **Project visibility is driven by MAG (required_mag_id):** team admins see projects by role and feature access; **GPUM (members)** see projects for which they have the required MAG. Projects are available to both team admins and GPUM in their respective areas (admin vs member area). The module is subject to the same feature gating as other admin features—Superadmin can enable or disable it per tenant.
 - **Integration:** Optional linkage to orders and events (project_id); optional linkage to content, contact, or form submission may be defined in implementation phases.
 
@@ -566,7 +566,7 @@ Detailed sub-steps, data model, and API design are captured in the planlog and p
 ### Placement in the app
 
 - **Admin:** A dedicated sidebar entry (e.g. "Projects") with list and detail views under `/admin/projects` (and project detail at `/admin/projects/[id]`). Feature slug **projects**. Subject to the same role and feature-gating rules as other admin features. Roles and feature-registry step at end of phase.
-- **Member area (GPUM):** Two additional items: **(1) Projects** — list and detail of projects the member can see (by MAG); read-only progress. **(2) Support Tickets** — list view of tickets (tasks of type support_ticket) submitted by that member. **(3) Tasks** — task list when the member was assigned tasks to accomplish or follow under a project. GPUM can create a support ticket (creates/reuses a perpetual Support project); team members can assign a GPUM as a follower on a project/task; GPUM cannot self-assign as follower.
+- **Member area (GPUM):** Two additional items: **(1) Projects** — list and detail of projects the member can see (by MAG); read-only progress. **(2) Support Tickets** — list view of tickets (tasks of type support_ticket) submitted by that member. **(3) Tasks** — task list when the member was assigned tasks to accomplish or follow under a project. GPUM can create a support ticket as a standalone task (no required support project); team members can assign a GPUM as a follower on a project/task; GPUM cannot self-assign as follower.
 - **Superadmin:** Enable or disable the Project Management feature per tenant via existing feature gating (tenant sites / site settings). No separate superadmin-only project views are required for the initial scope unless added in a later phase.
 
 ---

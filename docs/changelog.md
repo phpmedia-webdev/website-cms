@@ -11,6 +11,17 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For **open**
 
 ## [Unreleased]
 
+### 2026-03-26 09:49 CT — Standalone tasks conversion complete (Section 0)
+
+- **Context for Next Session:** Section 0 is complete for implementation and migration scope. Supabase migrations **209** and **210** are applied on primary. Full end-to-end manual QA is intentionally deferred; when resumed, run the operational matrix for standalone create/link/unlink/move flows, project delete choices, and GPUM support ticket creation as standalone `support_ticket`.
+- **Completed:**
+  - **DB migrations:** Added **`209_tasks_project_fk_set_null.sql`** (`tasks.project_id` FK uses `ON DELETE SET NULL`, nullable-safe index/comment update) and **`210_tasks_creator_follower_backfill.sql`** (backfills missing creator follower rows and reports remaining anomalies).
+  - **Task create/update model:** Added shared parser **`src/lib/tasks/task-create-input.ts`** and wired both **`POST /api/tasks`** and **`POST /api/projects/[id]/tasks`** to the same contract; task creation supports optional/nullable `project_id` and enforces creator ownership behavior.
+  - **Standalone + routing parity:** Added standalone task creation from **All Tasks** and aligned canonical task detail/edit routing for project-linked and unassigned tasks (`No project` labeling and redirects).
+  - **Project deletion guardrail:** Project detail UI now prompts with **Cancel**, **Delete project only** (preserve/unlink tasks), or **Delete project + linked tasks** (final warning); API supports `DELETE /api/projects/[id]?delete_tasks=1`; archive-first guidance added in UI copy.
+  - **Support flow update:** **`POST /api/members/support`** no longer requires a support project; it creates standalone `support_ticket` tasks (`project_id = null`) while keeping `contact_id` and creator follower behavior.
+  - **Docs sync:** Updated **`sessionlog.md`**, **`planlog.md`**, and **`prd.md`** to reflect standalone-first support/task strategy and legacy support-project notes as superseded.
+
 ### 2026-03-25 22:19 CT — Tasks: `contact_id`, nullable `project_id` (loose tasks), canonical URLs, directory picker polish
 
 - **Context for Next Session:** **DB:** **207** / **208** **applied** in Supabase SQL Editor on **primary** tenant (2026-03-25). Forks or extra envs still run **`supabase/migrations/207_tasks_contact_id.sql`** then **`208_tasks_project_id_nullable.sql`** when behind. **Test:** Task **detail/edit** — Assignees card (**Contact** + assignees), **Project** picker with **No project**, **Cancel** / **Save** order; **All Tasks** — **No project** column + links to **`/admin/projects/tasks/{id}`**; support ticket create still sets **`contact_id`** when present. **Next (sessionlog §1):** Customizer **task assignee roles** (core slugs) + creator auto-assign + assignees card order; **Add task** from All Tasks list + **`POST /api/tasks`**; task edit **time log** full name + **Assigned resources** trash-only removes; §3 **client_visible** design. **`docs/WORKNOTES.md`** — scratch list for Add task button / detail backlink / support loose-task plan.

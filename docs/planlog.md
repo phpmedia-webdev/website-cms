@@ -401,7 +401,7 @@ Proactive hints so users see **availability before save** (not only after **409*
   - [ ] **Admin UI — time tracking:** Task proposed_time, actual_time; optional punch-style entries UI.
   - [x] **Admin UI — archive/restore:** Buttons; list hides archived by default.
   - [ ] **Integration — activity stream:** Log task created/completed, project status changes. Filter by project access (MAG).
-  - [ ] **Integration — support tickets:** GPUM submits a **ticket** (task of type support_ticket) via member area; auto-create or reuse a **perpetual Support project** for that GPUM (customer) when they start a support process (first ticket). Project: status = **perpetual** (lives with the life of the client), category = **Support Ticket**. Create task with task_type = support_ticket linked to that project.
+  - [ ] **Integration — support tickets (standalone-first):** GPUM submits a **ticket** (task of type `support_ticket`) via member area as a standalone task (`project_id = null`) by default. Keep `contact_id` and creator-follower invariants; comments + time logs make each ticket a mini-project workflow container. Project linking is optional later.
   - [ ] **Integration — e-commerce:** Order optional project_id; project detail shows linked orders; optional actual vs potential_sales.
   - [x] **Integration — calendar:** Event project_id; project detail shows linked events (Events tab, list + Unlink); event form Project selector; API create/update accept project_id. (Event visibility by project MAG deferred to member-facing project view.)
 - [x] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list views); create event from here auto-assigns project_id; wiring in place.
@@ -427,8 +427,8 @@ Proactive hints so users see **availability before save** (not only after **409*
   - [x] **Projects/tasks — taxonomy UI (with color):** Add taxonomy assignment to project and task create/edit/detail; display categories/tags with taxonomy color where shown.
   - [ ] **Custom view presets (optional):** Table user_view_presets (user_id, view_type, name, payload JSON). API CRUD. Projects/tasks list: View dropdown, Save current view, Manage presets.
   - [x] **Activity stream — task state changes:** When task status (or key fields) changes, create activity stream entry so stream shows e.g. "Task X marked done" (no time logs in stream).
-  - [x] **Support project (per GPUM):** Create when GPUM starts support (first ticket), not on member creation; status = perpetual; category = Support Ticket (taxonomy); one project per GPUM; all support_ticket tasks link to it.
-  - [x] **Integration — support tickets:** GPUM submits ticket (task type support_ticket) via member area; auto-create or reuse perpetual Support project (status = perpetual, category = Support Ticket) when GPUM starts support; create task linked to that project.
+  - [x] **Support project (per GPUM) — legacy:** Earlier approach completed historically; now **superseded** by standalone support tasks (no required support project).
+  - [x] **Integration — support tickets (legacy):** Earlier project-linked ticket flow completed historically; now **superseded** by standalone support-task default.
   - [x] **Integration — calendar:** Event project_id; project detail shows linked events (Events tab, list + Unlink); event form Project selector; API create/update accept project_id. (Event visibility by project MAG deferred to member-facing project view.)
   - [x] **Project Events tab — calendar view (UI):** Project detail Events tab = calendar mirror (month / week / list); create event auto-assigns project; wiring in place.
   - [x] **Feature registry, sidebar gating & roles (Phase 19):** Add projects to feature registry; ensure sidebar gating; adjust roles. Ecommerce/Social/Marketing order in registry (migration 171); route-features and sidebar match.
@@ -441,7 +441,7 @@ Proactive hints so users see **availability before save** (not only after **409*
   - [x] **Project UI — members:** Project detail: **Client | Team** row (labels + **Manage members**); large client avatar + truncated name (no inner borders); team as **pills** (initials + name + role); when client is a **contact**, that contact is not duplicated in the team column. **Edit:** Same pill style for additional members. **Detail (Mar 2026):** Dropped overview **Utilization** card; removed **Categories & tags** from detail (taxonomy assignment remains on **edit**).
   - [x] **Task assignee scoping:** When task has project with members, restrict assignee picker (creator/responsible/follower) to project members; API + TaskFollowersSection.
   - [x] **Task assignee — team + contacts:** Allow adding team (user) and contacts from project members in Assignments section.
-  - [ ] **Support project:** Title "Support Requests for – (client-name)"; **`project_type_slug`** = support (or tenant’s Support type slug); add GPUM contact to project_members when creating perpetual support project.
+  - [ ] **Support flow update:** Remove remaining required support-project assumptions from member/admin support flows; keep optional manual linking to a project only when needed.
   - [ ] **Reserved taxonomy terms (optional):** Prevent deletion of reserved term slugs (e.g. project_type.support, project_status.perpetual) in Settings → Taxonomy; document list.
 
 ### Phase 20: Calendar — reminders & personal ICS feeds

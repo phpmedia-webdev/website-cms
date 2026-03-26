@@ -1,5 +1,6 @@
 /**
  * GET /api/tasks — Admin all-tasks bundle.
+ * POST /api/tasks — Create task (admin). Supports standalone (project_id = null) or project-linked tasks.
  * Query (comma-separated): project_ids (UUIDs), status_slugs, type_slugs, phase_slugs,
  * assignee_user_ids, assignee_contact_ids, exclude_status_slugs, due_before (YYYY-MM-DD).
  * Slugs match Settings → Customizer (task_status, task_type, task_phase).
@@ -13,8 +14,9 @@ import { getCurrentUser } from "@/lib/auth/supabase-auth";
 /** Per-request task list; query string varies by preset — do not cache at the framework layer. */
 export const dynamic = "force-dynamic";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
-import type { ListTasksFilters } from "@/lib/supabase/projects";
+import { addTaskFollower, createTask, deleteTask, type ListTasksFilters } from "@/lib/supabase/projects";
 import { getAdminTasksListBundle } from "@/lib/tasks/admin-task-list";
+import { buildTaskInsertFromBody } from "@/lib/tasks/task-create-input";
 import { getClientSchema } from "@/lib/supabase/schema";
 
 async function requireAdmin() {
@@ -73,6 +75,52 @@ export async function GET(request: Request) {
     return NextResponse.json(bundle);
   } catch (error) {
     console.error("GET /api/tasks error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await getCurrentUser();
+    const authErr = await requireAdmin();
+    if (authErr) {
+      return NextResponse.json({ error: authErr.error }, { status: authErr.status });
+    }
+    if (!user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const parsed = buildTaskInsertFromBody(body);
+    if ("error" in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+
+    // Creator is mandatory for operational tasks.
+    parsed.input.creator_id = user.id;
+
+    const result = await createTask(parsed.input, getClientSchema());
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+    const creatorFollow = await addTaskFollower(result.id, {
+      role: "creator",
+      user_id: user.id,
+      contact_id: null,
+    });
+    if ("error" in creatorFollow) {
+      await deleteTask(result.id, getClientSchema());
+      return NextResponse.json(
+        { error: "Failed to assign creator on task creation. No task was created." },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ id: result.id, task_number: result.task_number }, { status: 201 });
+  } catch (error) {
+    console.error("POST /api/tasks error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }

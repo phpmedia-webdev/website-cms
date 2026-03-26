@@ -13,6 +13,7 @@
 **Database changes are not applied when you pull code.** Copy files from `supabase/migrations/` into **Supabase Dashboard → SQL Editor** and **Run** (numeric filename order).
 
 **Applied on primary Supabase (2026-03-25):** **`207_tasks_contact_id.sql`** then **`208_tasks_project_id_nullable.sql`** — `tasks.contact_id`, nullable **`project_id`**, updated **`get_tasks_dynamic`** / **`get_task_by_id_dynamic`**. New forks or envs that are behind still run **207** then **208** in that order.
+**Applied on primary Supabase (2026-03-26):** **`209_tasks_project_fk_set_null.sql`** and **`210_tasks_creator_follower_backfill.sql`** — safe project delete unlink behavior (`ON DELETE SET NULL`) and creator-follower backfill/report.
 
 - **`200_projects_project_number.sql`** — `projects.project_number` PROJ-YYYY-NNNNN + project list/detail RPCs.
 - **`198_get_tasks_dynamic_preset_filters.sql`** — All Tasks presets (`exclude_status_slugs`, `due_before`).
@@ -21,14 +22,18 @@
 
 ---
 
-## MVP completion — **open** items (sections 1–5)
+## MVP completion — **open** items (sections 0–5)
 
-Use order **1 → 5** where dependencies apply (e.g. task threads depend on Phase 18C).
+Use order **0 → 5** where dependencies apply (e.g. task threads depend on Phase 18C).
+
+### 0. Standalone tasks conversion plan (DO FIRST)
+
+Section 0 implementation is complete. See [changelog.md](./changelog.md) entry **2026-03-26 09:49 CT** for details; full manual QA matrix is deferred.
 
 ### 1. Tasks & Projects (remaining)
 
 - [ ] **GPUM (if in MVP):** Member-area **Projects**, **Tasks**, **Support tickets** per [planlog Phase 19](./planlog.md#phase-19-project-management-module) — or **defer** and document in planlog.
-- [ ] **Phase 19 items you still want before fork:** e.g. support project naming / type, **`project_id` on invoices**, punch-style time UI — keep as [planlog](./planlog.md) checkboxes and work them here when in scope.
+- [ ] **Phase 19 items you still want before fork:** e.g. standalone support-task refinements, **`project_id` on invoices**, punch-style time UI — keep as [planlog](./planlog.md) checkboxes and work them here when in scope.
 - [ ] **Project detail — Attachments tab:** Replace placeholder with file uploads or linked documents (schema/API TBD).
 - [ ] **Task assignee roles (Customizer first):** Add Customizer scope for **task follower / assignee roles** (e.g. `task_assignee_role` or `task_follower_role`), seed **creator**, **responsible**, **follower** as **core** (non-deletable slugs; labels/order/colors editable like **`project_role`**). Wire **Settings → Tasks** (or equivalent) and **link role pickers** (add assignee, responsible, etc.) to that scope instead of hard-coded strings where applicable.
 - [ ] **Creator auto-assign + Assignees card order:** On **create task** (e.g. from All Tasks list), **auto-insert** the logged-in admin as **`task_followers`** with **creator** role; **API/UI:** creator row **not removable**. **Assignees card** order: **Creator** (and other role-grouped assignees) **first** → **linked contact** (`tasks.contact_id`) → **remaining assignees** by role. Align detail and edit surfaces.
@@ -54,6 +59,7 @@ No extra sessionlog lines — **Phase 21** in planlog. Optional: [picker MVP-if-
 
 Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get **support-style messaging**. Timeline + threads; cut over from **`crm_notes`** where spec says so.
 
+- [ ] **Messaging system 2 mire features** Need a way to see new messages and mark as read probably in a bulk move. New messages or notifications need to be represented with a badge counter.
 - [ ] **Wiring source of truth:** [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)
 - [ ] **Spec alignment:** [prd-technical §18C](./prd-technical.md#phase-18c-directory-and-messaging)
 - [ ] **MVP gate:** No new **`crm_notes`** writes for migrated kinds; writes → timeline / threads

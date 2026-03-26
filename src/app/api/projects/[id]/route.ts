@@ -106,7 +106,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -120,7 +120,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Project ID required" }, { status: 400 });
     }
 
-    const result = await deleteProject(id);
+    const url = new URL(request.url);
+    const deleteTasksRaw = (url.searchParams.get("delete_tasks") ?? "").trim().toLowerCase();
+    const deleteLinkedTasks = deleteTasksRaw === "1" || deleteTasksRaw === "true";
+
+    const result = await deleteProject(id, { deleteLinkedTasks });
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
