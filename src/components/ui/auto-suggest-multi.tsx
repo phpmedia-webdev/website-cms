@@ -41,6 +41,8 @@ type AutoSuggestMultiProps = {
   className?: string;
   /** Optional: limit dropdown height (default max-h-48) */
   dropdownClassName?: string;
+  /** When `1`, choosing an option replaces the selection (single-select). */
+  maxSelections?: number;
 } & (
   | {
       /** Flat list (default behavior). */
@@ -69,6 +71,7 @@ export function AutoSuggestMulti({
   label,
   className,
   dropdownClassName,
+  maxSelections,
 }: AutoSuggestMultiProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -106,9 +109,13 @@ export function AutoSuggestMulti({
   }, [open]);
 
   const add = (id: string) => {
-    const next = new Set(selectedIds);
-    next.add(id);
-    onSelectionChange(next);
+    if (maxSelections === 1) {
+      onSelectionChange(new Set([id]));
+    } else {
+      const next = new Set(selectedIds);
+      next.add(id);
+      onSelectionChange(next);
+    }
     setQuery("");
   };
 

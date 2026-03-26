@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 import { getProjectById } from "@/lib/supabase/projects";
 import { getCustomizerOptions } from "@/lib/supabase/settings";
-import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms";
+import {
+  CUSTOMIZER_SCOPE_TASK_PHASE,
+  CUSTOMIZER_SCOPE_TASK_STATUS,
+  CUSTOMIZER_SCOPE_TASK_TYPE,
+  statusTermsFromCustomizerRows,
+} from "@/lib/tasks/customizer-task-terms";
 import { TaskNewClient } from "./TaskNewClient";
 
 export default async function NewTaskPage({
@@ -12,9 +17,9 @@ export default async function NewTaskPage({
   const { id: projectId } = await params;
   const [project, czTaskStatus, czTaskType, czTaskPhase] = await Promise.all([
     getProjectById(projectId),
-    getCustomizerOptions("task_status"),
-    getCustomizerOptions("task_type"),
-    getCustomizerOptions("task_phase"),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_STATUS),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_TYPE),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_PHASE),
   ]);
   if (!project) notFound();
 

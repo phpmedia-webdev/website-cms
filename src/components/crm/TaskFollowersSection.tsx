@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -33,6 +34,8 @@ interface TaskFollowersSectionProps {
   projectId?: string | null;
   /** Detail view: list only, no add/remove. */
   readOnly?: boolean;
+  /** CRM contact linked on the task row (`tasks.contact_id`); contacts only, not organizations. */
+  initialLinkedContact: { id: string; label: string } | null;
 }
 
 function followerCompositeId(f: TaskFollowerWithLabel): string | null {
@@ -55,20 +58,31 @@ export function TaskFollowersSection({
   taskId,
   initialFollowers,
   readOnly = false,
+  initialLinkedContact,
 }: TaskFollowersSectionProps) {
   const router = useRouter();
   const [followers, setFollowers] = useState<TaskFollowerWithLabel[]>(initialFollowers);
+  const [linkedContact, setLinkedContact] = useState<{ id: string; label: string } | null>(
+    initialLinkedContact
+  );
   const [modalOpen, setModalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
   const [directoryRows, setDirectoryRows] = useState<DirectoryPickerRow[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryLoaded, setDirectoryLoaded] = useState(false);
   const [modalSelection, setModalSelection] = useState<Set<string>>(() => new Set());
+  const [contactModalSelection, setContactModalSelection] = useState<Set<string>>(() => new Set());
   const [adding, setAdding] = useState(false);
+  const [contactSaving, setContactSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setFollowers(initialFollowers);
   }, [initialFollowers]);
+
+  useEffect(() => {
+    setLinkedContact(initialLinkedContact);
+  }, [initialLinkedContact]);
 
   const assignedCompositeIds = useMemo(() => {
     const s = new Set<string>();
@@ -86,6 +100,16 @@ export function TaskFollowersSection({
       return !assignedCompositeIds.has(id);
     });
   }, [directoryRows, assignedCompositeIds]);
+
+  const directoryContactRowsOnly = useMemo(
+    () => directoryRows.filter((row) => row.source_type === "crm_contact"),
+    [directoryRows]
+  );
+
+  const directoryTeamRowCount = useMemo(
+    () => directoryRows.filter((row) => row.source_type === "team_member").length,
+    [directoryRows]
+  );
 
   const loadDirectory = useCallback(() => {
     if (directoryLoaded || directoryLoading) return;
@@ -109,6 +133,62 @@ export function TaskFollowersSection({
     setModalSelection(new Set());
     setModalOpen(true);
     loadDirectory();
+  };
+
+  const openContactModal = () => {
+    setError(null);
+    setContactModalSelection(new Set());
+    setContactModalOpen(true);
+    loadDirectory();
+  };
+
+  const saveTaskContactId = async (contactId: string | null, labelHint: string | null) => {
+    setError(null);
+    setContactSaving(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: contactId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data?.error === "string" ? data.error : "Failed to update contact");
+        return false;
+      }
+      setLinkedContact(
+        contactId && labelHint
+          ? { id: contactId, label: labelHint }
+          : contactId
+            ? { id: contactId, label: "Contact" }
+            : null
+      );
+      router.refresh();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update contact");
+      return false;
+    } finally {
+      setContactSaving(false);
+    }
+  };
+
+  const linkSelectedContact = async () => {
+    const [first] = Array.from(contactModalSelection);
+    if (!first) return;
+    const parsed = parseDirectoryParticipantCompositeId(first);
+    if (!parsed || parsed.source_type !== "crm_contact") return;
+    const label = labelForCompositeId(directoryRows, first);
+    const ok = await saveTaskContactId(parsed.source_id, label);
+    if (ok) {
+      setContactModalSelection(new Set());
+      setContactModalOpen(false);
+    }
+  };
+
+  const clearLinkedContact = async () => {
+    const ok = await saveTaskContactId(null, null);
+    if (ok) setContactModalOpen(false);
   };
 
   const addSelectedAssignees = async () => {
@@ -191,48 +271,152 @@ export function TaskFollowersSection({
       <CardHeader className="task-bento-card-header">
         <TaskBentoPanelTitle icon={Users}>Assignees</TaskBentoPanelTitle>
       </CardHeader>
-      <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2">
-        {followers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No assignees yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {followers.map((f) => (
-              <AssigneeListItem
-                key={f.id}
-                follower={f}
-                showRole={false}
-                trailing={
-                  readOnly ? undefined : (
+      <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-4">
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Contact</p>
+          {linkedContact ? (
+            <AssigneeListItem
+              follower={{
+                id: `task-contact-${linkedContact.id}`,
+                role: "follower",
+                user_id: null,
+                contact_id: linkedContact.id,
+                label: linkedContact.label,
+              }}
+              showRole={false}
+              trailing={
+                readOnly ? (
+                  <Link
+                    href={`/admin/crm/contacts/${linkedContact.id}`}
+                    className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    View
+                  </Link>
+                ) : (
+                  <div className="flex shrink-0 items-center gap-0.5">
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRemove(f.id)}
-                      aria-label="Remove assignee"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      disabled={contactSaving}
+                      onClick={() => void clearLinkedContact()}
+                      aria-label="Remove linked contact"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                  )
-                }
-              />
-            ))}
-          </ul>
-        )}
-
-        {!readOnly && (
-          <div className="mt-auto pt-1">
+                    <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
+                      <Link href={`/admin/crm/contacts/${linkedContact.id}`}>View</Link>
+                    </Button>
+                  </div>
+                )
+              }
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No contact linked.</p>
+          )}
+          {!readOnly && (
             <Button
               type="button"
               variant="outline"
-              className="w-full rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
-              onClick={openAddModal}
+              className="mt-2 w-full rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
+              onClick={openContactModal}
+              disabled={contactSaving}
             >
-              Add Assignee
+              {linkedContact ? "Change contact" : "Add contact"}
             </Button>
-            {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-          </div>
-        )}
+          )}
+        </div>
+
+        <div className="border-t border-border/60 pt-3">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assignees</p>
+          {followers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No assignees yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {followers.map((f) => (
+                <AssigneeListItem
+                  key={f.id}
+                  follower={f}
+                  showRole={false}
+                  trailing={
+                    readOnly ? undefined : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRemove(f.id)}
+                        aria-label="Remove assignee"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          )}
+
+          {!readOnly && (
+            <div className="mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
+                onClick={openAddModal}
+              >
+                Add assignee
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <Dialog open={contactModalOpen} onOpenChange={setContactModalOpen}>
+          <DialogContent className="max-w-lg rounded-xl">
+            <DialogHeader>
+              <DialogTitle>{linkedContact ? "Change contact" : "Add contact"}</DialogTitle>
+              <DialogDescription>
+                Choose a CRM contact for this task (e.g. ticket requester). Only contacts are listed.
+              </DialogDescription>
+            </DialogHeader>
+            {directoryLoading ? (
+              <p className="text-sm text-muted-foreground">Loading directory…</p>
+            ) : (
+              <DirectoryParticipantPicker
+                directoryRows={directoryContactRowsOnly}
+                selectedCompositeIds={contactModalSelection}
+                onSelectionChange={setContactModalSelection}
+                placeholder="Search contacts…"
+                className="max-w-none"
+                dropdownClassName={`${ADMIN_PICKER_DROPDOWN_CLASS} max-h-60`}
+                contactsOnly
+                maxSelections={1}
+              />
+            )}
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setContactModalOpen(false)}
+                disabled={contactSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void linkSelectedContact()}
+                disabled={
+                  contactSaving || contactModalSelection.size === 0 || directoryLoading
+                }
+              >
+                {contactSaving ? "Saving…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogContent className="max-w-lg rounded-xl">
@@ -242,6 +426,15 @@ export function TaskFollowersSection({
                 Search team members and contacts. Select one or more people, then save.
               </DialogDescription>
             </DialogHeader>
+            {!directoryLoading && directoryLoaded && directoryTeamRowCount === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No team members in the directory for this deployment. Team rows come from{" "}
+                <code className="rounded bg-muted px-1">tenant_user_assignments</code> for the site whose{" "}
+                <code className="rounded bg-muted px-1">tenant_sites.schema_name</code> matches{" "}
+                <code className="rounded bg-muted px-1">NEXT_PUBLIC_CLIENT_SCHEMA</code>. CRM contacts still
+                load from your tenant schema.
+              </p>
+            )}
             {directoryLoading ? (
               <p className="text-sm text-muted-foreground">Loading directory…</p>
             ) : (

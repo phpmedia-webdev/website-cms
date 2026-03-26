@@ -109,6 +109,12 @@ export async function POST(
       start_date: body.start_date ?? undefined,
       creator_id: body.creator_id ?? undefined,
       responsible_id: body.responsible_id ?? undefined,
+      contact_id:
+        body.contact_id === null || body.contact_id === ""
+          ? null
+          : typeof body.contact_id === "string"
+            ? body.contact_id.trim() || null
+            : undefined,
     };
 
     const result = await createTask(input);

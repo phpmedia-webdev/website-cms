@@ -4,12 +4,17 @@ import {
   listTasks,
   listProjectMembers,
   getProjectTimeLogTotalMinutes,
+  getTaskTimeLogTotalMinutesByTaskIds,
   getProjectStatusTerms,
   getProjectTypeTerms,
   getProjectRoleTerms,
 } from "@/lib/supabase/projects";
 import { getCustomizerOptions } from "@/lib/supabase/settings";
-import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms";
+import {
+  CUSTOMIZER_SCOPE_TASK_STATUS,
+  CUSTOMIZER_SCOPE_TASK_TYPE,
+  statusTermsFromCustomizerRows,
+} from "@/lib/tasks/customizer-task-terms";
 import { listOrders } from "@/lib/shop/orders";
 import { listInvoices } from "@/lib/shop/invoices";
 import { listEventsByProjectId } from "@/lib/supabase/events";
@@ -48,14 +53,19 @@ export default async function AdminProjectDetailPage({
     getProjectTimeLogTotalMinutes(id),
     getProjectStatusTerms(),
     getProjectTypeTerms(),
-    getCustomizerOptions("task_status"),
-    getCustomizerOptions("task_type"),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_STATUS),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_TYPE),
     listProjectMembers(id),
     getProjectRoleTerms(),
   ]);
   const taskStatusTerms = statusTermsFromCustomizerRows(czTaskStatus);
   const taskTypeTerms = statusTermsFromCustomizerRows(czTaskType);
   if (!project) notFound();
+
+  const taskTimeLogTotals =
+    tasks.length > 0
+      ? await getTaskTimeLogTotalMinutesByTaskIds(tasks.map((t) => t.id))
+      : {};
 
   let coverImageUrl: string | null = null;
   if (project.cover_image_id) {
@@ -101,6 +111,7 @@ export default async function AdminProjectDetailPage({
       projectTypeTerms={projectTypeTerms}
       taskStatusTerms={taskStatusTerms}
       taskTypeTerms={taskTypeTerms}
+      initialTaskTimeLogTotals={taskTimeLogTotals}
       initialProjectMembers={membersWithLabels}
       projectRoleTerms={projectRoleTerms}
     />

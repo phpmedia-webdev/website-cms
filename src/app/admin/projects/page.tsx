@@ -71,9 +71,11 @@ export default async function AdminProjectsPage() {
   const typeMap = new Map(typeTerms.map((term) => [term.slug, term]));
   const tasksByProject = new Map<string, Awaited<ReturnType<typeof listTasksByProjectIds>>>();
   for (const task of tasks) {
-    const current = tasksByProject.get(task.project_id) ?? [];
+    const pid = task.project_id?.trim();
+    if (!pid) continue;
+    const current = tasksByProject.get(pid) ?? [];
     current.push(task);
-    tasksByProject.set(task.project_id, current);
+    tasksByProject.set(pid, current);
   }
   const membersByProject = new Map<string, typeof projectMembers>();
   for (const member of projectMembers) {

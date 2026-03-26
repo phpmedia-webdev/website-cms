@@ -86,6 +86,20 @@ export async function PUT(
     if (body?.due_date !== undefined) input.due_date = body.due_date;
     if (body?.start_date !== undefined) input.start_date = body.start_date;
     if (body?.responsible_id !== undefined) input.responsible_id = body.responsible_id;
+    if (body?.contact_id !== undefined) {
+      if (body.contact_id === null || body.contact_id === "") {
+        input.contact_id = null;
+      } else if (typeof body.contact_id === "string") {
+        input.contact_id = body.contact_id.trim() || null;
+      }
+    }
+    if (body?.project_id !== undefined) {
+      if (body.project_id === null || body.project_id === "") {
+        input.project_id = null;
+      } else if (typeof body.project_id === "string") {
+        input.project_id = body.project_id.trim();
+      }
+    }
 
     const existing = await getTaskById(id);
     const result = await updateTask(id, input);
@@ -101,7 +115,12 @@ export async function PUT(
         String(existing.task_status_slug).trim().toLowerCase()
     ) {
       const followers = await getTaskFollowers(id);
-      const contactIds = followers.map((f) => f.contact_id).filter((c): c is string => !!c);
+      const contactIdsSet = new Set<string>();
+      if (existing.contact_id) contactIdsSet.add(existing.contact_id);
+      for (const f of followers) {
+        if (f.contact_id) contactIdsSet.add(f.contact_id);
+      }
+      const contactIds = Array.from(contactIdsSet);
       if (contactIds.length > 0) {
         const schema = getClientSchema();
         const statusLabel = await getTaskStatusLabelForSlug(String(newStatusSlug), schema);

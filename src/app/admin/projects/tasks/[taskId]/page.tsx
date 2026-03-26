@@ -1,0 +1,245 @@
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { Calendar, LayoutGrid, Paperclip } from "lucide-react";
+import {
+  getTaskById,
+  getTaskFollowers,
+  listTaskTimeLogs,
+} from "@/lib/supabase/projects";
+import { resolveTaskFollowersWithLabels } from "@/lib/tasks/resolve-task-followers-with-labels";
+import { getCustomizerOptions } from "@/lib/supabase/settings";
+import {
+  CUSTOMIZER_SCOPE_TASK_PHASE,
+  CUSTOMIZER_SCOPE_TASK_STATUS,
+  CUSTOMIZER_SCOPE_TASK_TYPE,
+  resolveTaskCustomizerTerm,
+  statusTermsFromCustomizerRows,
+} from "@/lib/tasks/customizer-task-terms";
+import {
+  getNotesByConversationUid,
+  taskConversationUid,
+  getContactById,
+  formatCrmContactDisplayName,
+} from "@/lib/supabase/crm";
+import { getDisplayLabelForUser } from "@/lib/blog-comments/author-name";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { TaskThreadSection } from "@/components/crm/TaskThreadSection";
+import { TaskAssigneesDetailCard } from "@/components/crm/TaskAssigneesReadOnlyCard";
+import { TaskTimeLogsSection } from "@/components/crm/TaskTimeLogsSection";
+import { TermBadge } from "@/components/taxonomy/TermBadge";
+import {
+  ADMIN_TASKS_LIST_PATH,
+  parseTaskDetailFrom,
+  taskDetailPath,
+  taskEditPath,
+  type TaskDetailFrom,
+} from "@/lib/tasks/task-detail-nav";
+import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
+import { TaskResourcesSection } from "@/components/tasks/TaskResourcesSection";
+import { ScheduleDueSubStatus } from "@/components/tasks/ScheduleDueSubStatus";
+
+/**
+ * Task detail when `tasks.project_id` is NULL (canonical URL without a project segment).
+ */
+export default async function TaskDetailUnassignedPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ taskId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { taskId } = await params;
+  const sp = await searchParams;
+  const from: TaskDetailFrom = parseTaskDetailFrom(sp);
+
+  const [task, notes, followers, timeLogs, czTaskType, czTaskStatus, czTaskPhase] =
+    await Promise.all([
+      getTaskById(taskId),
+      getNotesByConversationUid(taskConversationUid(taskId)),
+      getTaskFollowers(taskId),
+      listTaskTimeLogs(taskId),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_TYPE),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_STATUS),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_PHASE),
+    ]);
+  if (!task) notFound();
+  if (task.project_id?.trim()) {
+    redirect(taskDetailPath(taskId, task.project_id, from));
+  }
+
+  const statusTerms = statusTermsFromCustomizerRows(czTaskStatus);
+  const typeTerms = statusTermsFromCustomizerRows(czTaskType);
+  const taskPhaseTerms = statusTermsFromCustomizerRows(czTaskPhase);
+
+  const statusTerm = resolveTaskCustomizerTerm(statusTerms, task.task_status_slug);
+  const typeTerm = resolveTaskCustomizerTerm(typeTerms, task.task_type_slug);
+  const phaseTerm = resolveTaskCustomizerTerm(taskPhaseTerms, task.task_phase_slug);
+
+  const timeLogUserIds = [...new Set(timeLogs.map((l) => l.user_id).filter(Boolean))] as string[];
+  const timeLogContactIds = [...new Set(timeLogs.map((l) => l.contact_id).filter(Boolean))] as string[];
+  const timeLogUserLabels: Record<string, string> = {};
+  const timeLogContactLabels: Record<string, string> = {};
+  await Promise.all([
+    ...timeLogUserIds.map(async (id) => {
+      timeLogUserLabels[id] = await getDisplayLabelForUser(id);
+    }),
+    ...timeLogContactIds.map(async (id) => {
+      const c = await getContactById(id);
+      timeLogContactLabels[id] = c ? formatCrmContactDisplayName(c) : "Contact";
+    }),
+  ]);
+
+  const authorIds = [...new Set(notes.map((n) => n.author_id).filter(Boolean))] as string[];
+  const authorLabels: Record<string, string> = {};
+  await Promise.all(
+    authorIds.map(async (id) => {
+      authorLabels[id] = await getDisplayLabelForUser(id);
+    })
+  );
+
+  const followersWithLabels = await resolveTaskFollowersWithLabels(followers);
+
+  let taskLinkedContact: { id: string; label: string } | null = null;
+  if (task.contact_id) {
+    const c = await getContactById(task.contact_id);
+    if (c) taskLinkedContact = { id: c.id, label: formatCrmContactDisplayName(c) };
+  }
+
+  function formatDateIso(s: string | null): string {
+    if (!s) return "—";
+    try {
+      return new Date(s).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+    } catch {
+      return "—";
+    }
+  }
+
+  const backHref = ADMIN_TASKS_LIST_PATH;
+  const backLabel = "← Back to all tasks";
+  const editHref = taskEditPath(taskId, null, from);
+
+  return (
+    <div className="mx-auto max-w-7xl pb-6">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3 px-3 sm:mb-4 sm:px-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Task Detail View</h1>
+          <Link
+            href={backHref}
+            className="mt-1 inline-block text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            {backLabel}
+          </Link>
+        </div>
+        <Button
+          size="sm"
+          className="task-bento-primary-btn shrink-0 rounded-xl border border-white/60 bg-primary/95 backdrop-blur-sm transition-[box-shadow,transform] hover:bg-primary active:scale-[0.98]"
+          asChild
+        >
+          <Link href={editHref}>Edit Task</Link>
+        </Button>
+      </div>
+
+      <div className="task-bento-page space-y-3 md:space-y-4">
+        <section className="task-bento-hero border-0 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div
+              className="task-bento-chip shrink-0"
+              title="Task reference for support and linking"
+            >
+              {task.task_number}
+            </div>
+            <h1 className="min-w-0 flex-1 text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl">
+              {task.title}
+            </h1>
+          </div>
+          {task.description?.trim() ? (
+            <p className="mt-2 text-sm leading-snug text-muted-foreground whitespace-pre-wrap">
+              {task.description}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm italic text-muted-foreground">No description.</p>
+          )}
+        </section>
+
+        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 md:gap-3.5 lg:grid-cols-4 lg:grid-rows-1">
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="task-bento-card-header">
+              <TaskBentoPanelTitle icon={LayoutGrid}>Phase &amp; Type</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="task-bento-card-content flex min-w-0 flex-1 flex-col space-y-2">
+              <div className="min-w-0">
+                <p className="mb-1 text-xs text-muted-foreground">Project</p>
+                <p className="truncate text-sm text-muted-foreground">No project</p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Phase</p>
+                <TermBadge term={phaseTerm} />
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Type</p>
+                <TermBadge term={typeTerm} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="min-w-0 h-full">
+            <TaskAssigneesDetailCard
+              followers={followersWithLabels}
+              linkedContact={taskLinkedContact}
+            />
+          </div>
+
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="task-bento-card-header">
+              <TaskBentoPanelTitle icon={Paperclip}>Assigned resources</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="task-bento-card-content flex flex-1 flex-col">
+              <TaskResourcesSection taskId={taskId} canManage={false} />
+            </CardContent>
+          </Card>
+
+          <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
+            <CardHeader className="task-bento-card-header">
+              <TaskBentoPanelTitle icon={Calendar}>Schedule and Status</TaskBentoPanelTitle>
+            </CardHeader>
+            <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Start</p>
+                <p className="mt-0.5 font-mono text-sm font-medium tabular-nums">
+                  {formatDateIso(task.start_date)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Due</p>
+                <p className="mt-0.5 font-mono text-sm font-medium tabular-nums">
+                  {formatDateIso(task.due_date)}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Status</p>
+                <TermBadge term={statusTerm} />
+                <ScheduleDueSubStatus dueDate={task.due_date} taskStatusSlug={task.task_status_slug} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <TaskTimeLogsSection
+          taskId={taskId}
+          initialLogs={timeLogs}
+          userLabels={timeLogUserLabels}
+          contactLabels={timeLogContactLabels}
+          taskStatusSlug={task.task_status_slug}
+          plannedMinutes={task.planned_time}
+        />
+
+        <TaskThreadSection taskId={taskId} initialNotes={notes} authorLabels={authorLabels} />
+      </div>
+    </div>
+  );
+}

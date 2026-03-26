@@ -5,14 +5,15 @@ import { Card, CardContent, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { CustomizerOptionRow } from "@/components/settings/CustomizerOptionsTable";
 import { CustomizerOptionsTable } from "@/components/settings/CustomizerOptionsTable";
+import {
+  CUSTOMIZER_SCOPE_TASK_PHASE,
+  CUSTOMIZER_SCOPE_TASK_STATUS,
+  CUSTOMIZER_SCOPE_TASK_TYPE,
+} from "@/lib/tasks/customizer-task-terms";
 
 const SUBTAB_TYPE = "task-type";
 const SUBTAB_STATUS = "task-status";
 const SUBTAB_PHASE = "task-phase";
-
-const SCOPE_TASK_TYPE = "task_type";
-const SCOPE_TASK_STATUS = "task_status";
-const SCOPE_TASK_PHASE = "task_phase";
 
 interface TasksSettingsClientProps {
   isSuperadmin?: boolean;
@@ -60,7 +61,7 @@ export function TasksSettingsClient({
     setTypesSaving(true);
     setTypesSaved(false);
     try {
-      if (await saveScope(SCOPE_TASK_TYPE, taskTypes)) setTypesSaved(true);
+      if (await saveScope(CUSTOMIZER_SCOPE_TASK_TYPE, taskTypes)) setTypesSaved(true);
     } finally {
       setTypesSaving(false);
     }
@@ -70,7 +71,7 @@ export function TasksSettingsClient({
     setStatusesSaving(true);
     setStatusesSaved(false);
     try {
-      if (await saveScope(SCOPE_TASK_STATUS, taskStatuses)) setStatusesSaved(true);
+      if (await saveScope(CUSTOMIZER_SCOPE_TASK_STATUS, taskStatuses)) setStatusesSaved(true);
     } finally {
       setStatusesSaving(false);
     }
@@ -80,7 +81,7 @@ export function TasksSettingsClient({
     setPhasesSaving(true);
     setPhasesSaved(false);
     try {
-      if (await saveScope(SCOPE_TASK_PHASE, taskPhases)) setPhasesSaved(true);
+      if (await saveScope(CUSTOMIZER_SCOPE_TASK_PHASE, taskPhases)) setPhasesSaved(true);
     } finally {
       setPhasesSaving(false);
     }
@@ -124,7 +125,7 @@ export function TasksSettingsClient({
               Define task types (e.g., Task, Bug, Feature, Research). Used when creating or editing tasks.
             </CardDescription>
             <CustomizerOptionsTable
-              scope={SCOPE_TASK_TYPE}
+              scope={CUSTOMIZER_SCOPE_TASK_TYPE}
               items={taskTypes}
               onItemsChange={(next) => {
                 setTaskTypes(next);
@@ -147,7 +148,7 @@ export function TasksSettingsClient({
               Define task statuses (e.g., To do, In progress, Review, Done). Used to track task state.
             </CardDescription>
             <CustomizerOptionsTable
-              scope={SCOPE_TASK_STATUS}
+              scope={CUSTOMIZER_SCOPE_TASK_STATUS}
               items={taskStatuses}
               onItemsChange={(next) => {
                 setTaskStatuses(next);
@@ -170,7 +171,7 @@ export function TasksSettingsClient({
               Define task phases (e.g., Backlog, Sprint, Done). Used for workflow or board columns.
             </CardDescription>
             <CustomizerOptionsTable
-              scope={SCOPE_TASK_PHASE}
+              scope={CUSTOMIZER_SCOPE_TASK_PHASE}
               items={taskPhases}
               onItemsChange={(next) => {
                 setTaskPhases(next);

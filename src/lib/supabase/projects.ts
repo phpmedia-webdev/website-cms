@@ -93,7 +93,8 @@ export function projectDueDateForAdminList(project: unknown): string | null {
 
 export interface Task {
   id: string;
-  project_id: string;
+  /** Owning project; null = not on any project. */
+  project_id: string | null;
   /** Human-readable reference (TASK-YYYY-NNNNN; NNNNN resets each UTC calendar year — migration 194). Immutable; use `id` for FKs. */
   task_number: string;
   title: string;
@@ -111,6 +112,8 @@ export interface Task {
   start_date: string | null;
   creator_id: string | null;
   responsible_id: string | null;
+  /** Primary CRM contact (e.g. ticket requester); optional. */
+  contact_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -198,11 +201,14 @@ export interface TaskInsert {
   start_date?: string | null;
   creator_id?: string | null;
   responsible_id?: string | null;
+  contact_id?: string | null;
 }
 
 export interface TaskUpdate {
   title?: string;
   description?: string | null;
+  /** Move task to another project (admin). */
+  project_id?: string | null;
   task_status_slug?: string | null;
   task_type_slug?: string | null;
   task_phase_slug?: string | null;
@@ -212,6 +218,7 @@ export interface TaskUpdate {
   due_date?: string | null;
   start_date?: string | null;
   responsible_id?: string | null;
+  contact_id?: string | null;
 }
 
 /** Until `202_rpc_planned_time_column.sql`, RPC rows may still use `proposed_time`. */
@@ -225,6 +232,12 @@ function normalizeTaskFromRpc(row: unknown): Task {
   const r = row as Record<string, unknown>;
   const normalized = { ...r, planned_time: rpcPlannedMinutes(r) } as Record<string, unknown>;
   delete normalized.proposed_time;
+  if (normalized.contact_id === undefined || normalized.contact_id === "") {
+    normalized.contact_id = null;
+  }
+  if (normalized.project_id === undefined || normalized.project_id === "") {
+    normalized.project_id = null;
+  }
   return normalized as unknown as Task;
 }
 
@@ -1034,7 +1047,7 @@ async function maybeExtendProjectEndDate(
   dueDate: string | null,
   schemaName: string
 ): Promise<void> {
-  if (!dueDate) return;
+  if (!projectId?.trim() || !dueDate) return;
   const project = await getProjectById(projectId, schemaName);
   if (!project?.due_date) return;
   const due = new Date(dueDate);
@@ -1093,6 +1106,10 @@ export async function createTask(
     start_date: input.start_date ?? null,
     creator_id: input.creator_id ?? null,
     responsible_id: input.responsible_id ?? null,
+    contact_id:
+      input.contact_id != null && String(input.contact_id).trim()
+        ? String(input.contact_id).trim()
+        : null,
   };
   const { data, error } = await supabase
     .schema(schemaName)
@@ -1104,11 +1121,13 @@ export async function createTask(
     console.error("createTask error:", error);
     return { error: error.message };
   }
-  await maybeExtendProjectEndDate(
-    input.project_id,
-    input.due_date ?? null,
-    schemaName
-  );
+  if (input.project_id?.trim()) {
+    await maybeExtendProjectEndDate(
+      input.project_id.trim(),
+      input.due_date ?? null,
+      schemaName
+    );
+  }
   return { id: data.id, task_number: data.task_number as string };
 }
 
@@ -1149,6 +1168,23 @@ export async function updateTask(
   if (input.start_date !== undefined) payload.start_date = input.start_date;
   if (input.responsible_id !== undefined)
     payload.responsible_id = input.responsible_id;
+  if (input.contact_id !== undefined) {
+    payload.contact_id =
+      input.contact_id != null && String(input.contact_id).trim()
+        ? String(input.contact_id).trim()
+        : null;
+  }
+  if (input.project_id !== undefined) {
+    if (input.project_id === null) {
+      payload.project_id = null;
+    } else {
+      const pid = String(input.project_id).trim();
+      if (!pid) {
+        return { error: "Invalid project_id" };
+      }
+      payload.project_id = pid;
+    }
+  }
 
   const { error } = await supabase
     .schema(schemaName)
@@ -1160,7 +1196,15 @@ export async function updateTask(
     return { error: error.message };
   }
   const newDue = input.due_date !== undefined ? input.due_date : existing.due_date;
-  await maybeExtendProjectEndDate(existing.project_id, newDue ?? null, schemaName);
+  const effectiveProjectId: string | null =
+    input.project_id !== undefined
+      ? input.project_id === null
+        ? null
+        : String(input.project_id).trim() || null
+      : existing.project_id;
+  if (effectiveProjectId) {
+    await maybeExtendProjectEndDate(effectiveProjectId, newDue ?? null, schemaName);
+  }
   return { ok: true };
 }
 

@@ -2,7 +2,12 @@ import { listProjects, listProjectMembersByProjectIds } from "@/lib/supabase/pro
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
 import { getCustomizerOptions } from "@/lib/supabase/settings";
-import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms";
+import {
+  CUSTOMIZER_SCOPE_TASK_PHASE,
+  CUSTOMIZER_SCOPE_TASK_STATUS,
+  CUSTOMIZER_SCOPE_TASK_TYPE,
+  statusTermsFromCustomizerRows,
+} from "@/lib/tasks/customizer-task-terms";
 import {
   filterActiveProjectsForTaskList,
   getAdminTasksListBundle,
@@ -38,9 +43,9 @@ export default async function AdminAllTasksPage() {
       getAdminTasksListBundle({
         exclude_status_slugs: [TASK_STATUS_SLUG_COMPLETED],
       }),
-      getCustomizerOptions("task_type"),
-      getCustomizerOptions("task_status"),
-      getCustomizerOptions("task_phase"),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_TYPE),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_STATUS),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_PHASE),
     ]);
   } catch (err) {
     const e = err as { message?: string; details?: string; hint?: string; code?: string };

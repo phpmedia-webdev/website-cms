@@ -43,25 +43,60 @@ export function AssigneeListItem({
 }
 
 /**
- * Task detail only: title + list or empty line. No helper text, links, or controls.
- * Manage assignees on **Edit task** (`TaskFollowersSection`).
+ * Task detail only: linked CRM contact first, then assignee list. No controls.
+ * Manage on **Edit task** (`TaskFollowersSection`).
  */
-export function TaskAssigneesDetailCard({ followers }: { followers: TaskFollowerWithLabel[] }) {
+export function TaskAssigneesDetailCard({
+  followers,
+  linkedContact,
+}: {
+  followers: TaskFollowerWithLabel[];
+  /** Primary CRM contact for the task (e.g. ticket requester). */
+  linkedContact: { id: string; label: string } | null;
+}) {
   return (
     <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
       <CardHeader className="task-bento-card-header">
         <TaskBentoPanelTitle icon={Users}>Assignees</TaskBentoPanelTitle>
       </CardHeader>
-      <CardContent className="task-bento-card-content flex flex-1 flex-col">
-        {followers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No Assignees Yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {followers.map((f) => (
-              <AssigneeListItem key={f.id} follower={f} showRole={false} />
-            ))}
-          </ul>
-        )}
+      <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-4">
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Contact</p>
+          {linkedContact ? (
+            <AssigneeListItem
+              follower={{
+                id: `task-contact-${linkedContact.id}`,
+                role: "follower",
+                user_id: null,
+                contact_id: linkedContact.id,
+                label: linkedContact.label,
+              }}
+              showRole={false}
+              trailing={
+                <Link
+                  href={`/admin/crm/contacts/${linkedContact.id}`}
+                  className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  View
+                </Link>
+              }
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No contact linked.</p>
+          )}
+        </div>
+        <div className="border-t border-border/60 pt-3">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assignees</p>
+          {followers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No assignees yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {followers.map((f) => (
+                <AssigneeListItem key={f.id} follower={f} showRole={false} />
+              ))}
+            </ul>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -5,6 +5,11 @@ import {
   getCustomizerOptions,
 } from "@/lib/supabase/settings";
 import { CustomizerSettingsContent } from "@/components/settings/CustomizerSettingsContent";
+import {
+  CUSTOMIZER_SCOPE_TASK_PHASE,
+  CUSTOMIZER_SCOPE_TASK_STATUS,
+  CUSTOMIZER_SCOPE_TASK_TYPE,
+} from "@/lib/tasks/customizer-task-terms";
 
 export default async function CustomizerSettingsPage() {
   const [
@@ -27,9 +32,9 @@ export default async function CustomizerSettingsPage() {
     getCustomizerOptions("project_type"),
     getCustomizerOptions("project_status"),
     getCustomizerOptions("project_role"),
-    getCustomizerOptions("task_type"),
-    getCustomizerOptions("task_status"),
-    getCustomizerOptions("task_phase"),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_TYPE),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_STATUS),
+    getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_PHASE),
     getCustomizerOptions("event_type"),
   ]);
   const isSuperadmin = isSuperadminFromRole(role);
