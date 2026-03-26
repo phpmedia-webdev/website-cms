@@ -84,6 +84,7 @@ export async function POST(request: Request) {
       task_status_slug: DEFAULT_TASK_STATUS_SLUG,
       task_type_slug: DEFAULT_TASK_TYPE_SLUG,
       task_phase_slug: DEFAULT_TASK_PHASE_SLUG,
+      contact_id: member.contact_id,
     });
     if ("error" in taskResult) {
       return NextResponse.json(

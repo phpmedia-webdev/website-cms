@@ -30,7 +30,7 @@ import { TermBadge } from "@/components/taxonomy/TermBadge";
 import { normalizeHex } from "@/lib/event-type-colors";
 import { dueDateScheduleHint, initialsFromLabel } from "@/lib/tasks/display-helpers";
 import { taskTermForSlug } from "@/lib/tasks/merge-task-customizer-colors";
-import { taskDetailQuery } from "@/lib/tasks/task-detail-nav";
+import { taskDetailPath } from "@/lib/tasks/task-detail-nav";
 import {
   DEFAULT_ALL_TASKS_SORT,
   PRESET_FLAT_DUE_SORT,
@@ -334,7 +334,7 @@ function AllTasksTableDataRow({
     <tr className="border-b hover:bg-muted/50">
       <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.title}`}>
         <Link
-          href={`/admin/projects/${t.project_id}/tasks/${t.id}${taskDetailQuery("tasks")}`}
+          href={taskDetailPath(t.id, t.project_id, "tasks")}
           className="block break-words font-semibold text-primary hover:underline"
         >
           {t.title}
@@ -342,13 +342,17 @@ function AllTasksTableDataRow({
         <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{t.task_number}</div>
       </td>
       <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.project}`}>
-        <Link
-          href={`/admin/projects/${t.project_id}`}
-          className="block truncate text-primary hover:underline"
-          title={projectMap.get(t.project_id) ?? undefined}
-        >
-          {projectMap.get(t.project_id) ?? t.project_id.slice(0, 8) + "…"}
-        </Link>
+        {t.project_id?.trim() ? (
+          <Link
+            href={`/admin/projects/${t.project_id}`}
+            className="block truncate text-primary hover:underline"
+            title={projectMap.get(t.project_id) ?? undefined}
+          >
+            {projectMap.get(t.project_id) ?? t.project_id.slice(0, 8) + "…"}
+          </Link>
+        ) : (
+          <span className="block truncate text-muted-foreground">No project</span>
+        )}
       </td>
       <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.assignee}`}>
         <TaskAssigneeAvatars assignees={taskAssigneesMap[t.id] ?? []} />
@@ -360,7 +364,7 @@ function AllTasksTableDataRow({
       </td>
       <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.type}`}>
         <div className="min-w-0 max-w-full">
-          <TermBadge term={taskTypeTerms.find((s) => s.id === t.task_type_slug) ?? null} />
+          <TermBadge term={taskTermForSlug(taskTypeTerms, t.task_type_slug)} />
         </div>
       </td>
       <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.dueDate}`}>
@@ -408,7 +412,7 @@ function AllTasksTableDataRow({
       </td>
       <td className={`${ALL_TASKS_TABLE_TD} ${ALL_TASKS_TABLE_COL.status}`}>
         <div className="min-w-0 max-w-full">
-          <TermBadge term={statusTerms.find((s) => s.id === t.task_status_slug) ?? null} />
+          <TermBadge term={taskTermForSlug(statusTerms, t.task_status_slug)} />
         </div>
       </td>
     </tr>
@@ -618,15 +622,18 @@ export function AllTasksListClient({
     }
 
     return {
-      projectName: (t) => projectMap.get(t.project_id) ?? "",
+      projectName: (t) =>
+        (t.project_id ? projectMap.get(t.project_id) : undefined) ?? "No project",
       phaseIndex: (t) => {
         const raw = phaseSlugByTaskId[t.id] ?? t.task_phase_slug ?? "";
         const s = String(raw).trim();
         if (!s) return UNKNOWN_SORT_INDEX;
         return phaseSlugOrder.get(normalizePhaseSlug(s)) ?? UNKNOWN_SORT_INDEX;
       },
-      typeIndex: (t) => typeIndexByTermId.get(t.task_type_slug) ?? UNKNOWN_SORT_INDEX,
-      statusIndex: (t) => statusIndexByTermId.get(t.task_status_slug) ?? UNKNOWN_SORT_INDEX,
+      typeIndex: (t) =>
+        typeIndexByTermId.get(normalizePhaseSlug(t.task_type_slug)) ?? UNKNOWN_SORT_INDEX,
+      statusIndex: (t) =>
+        statusIndexByTermId.get(normalizePhaseSlug(t.task_status_slug)) ?? UNKNOWN_SORT_INDEX,
       assigneeSortKey: (t) => {
         const labels = (taskAssigneesMap[t.id] ?? [])
           .map((a) => a.label)
@@ -663,15 +670,16 @@ export function AllTasksListClient({
     const list = sortedDisplayTasks;
     if (list.length === 0) return [];
     const groups: { projectId: string; tasks: Task[] }[] = [];
-    let currentId = list[0].project_id;
+    let currentId = list[0].project_id ?? "";
     let bucket: Task[] = [list[0]];
     for (let i = 1; i < list.length; i++) {
       const t = list[i];
-      if (t.project_id === currentId) {
+      const pid = t.project_id ?? "";
+      if (pid === currentId) {
         bucket.push(t);
       } else {
         groups.push({ projectId: currentId, tasks: bucket });
-        currentId = t.project_id;
+        currentId = pid;
         bucket = [t];
       }
     }
@@ -1129,19 +1137,23 @@ export function AllTasksListClient({
                   </tr>
                 ) : projectSortGroups != null ? (
                   projectSortGroups.map((g) => (
-                    <Fragment key={g.projectId}>
+                    <Fragment key={g.projectId || "__none__"}>
                       <tr className="border-t-2 border-border bg-muted/50">
                         <th
                           colSpan={8}
                           scope="colgroup"
                           className="px-4 py-2 text-left align-middle text-sm font-semibold text-foreground"
                         >
-                          <Link
-                            href={`/admin/projects/${g.projectId}`}
-                            className="hover:underline"
-                          >
-                            {projectMap.get(g.projectId) ?? g.projectId.slice(0, 8) + "…"}
-                          </Link>
+                          {g.projectId ? (
+                            <Link
+                              href={`/admin/projects/${g.projectId}`}
+                              className="hover:underline"
+                            >
+                              {projectMap.get(g.projectId) ?? g.projectId.slice(0, 8) + "…"}
+                            </Link>
+                          ) : (
+                            <span>No project</span>
+                          )}
                           <span className="ml-2 font-normal text-muted-foreground">
                             ({g.tasks.length} {g.tasks.length === 1 ? "task" : "tasks"})
                           </span>

@@ -61,6 +61,17 @@ export interface CrmContact {
   deleted_at?: string | null;
 }
 
+/** Single-line display name for a CRM contact (task client row, pickers). */
+export function formatCrmContactDisplayName(
+  c: Pick<CrmContact, "full_name" | "first_name" | "last_name" | "email">
+): string {
+  if (c.full_name?.trim()) return c.full_name.trim();
+  const first = c.first_name?.trim() ?? "";
+  const last = c.last_name?.trim() ?? "";
+  const name = [first, last].filter(Boolean).join(" ");
+  return name || c.email || "Contact";
+}
+
 export interface CrmNote {
   id: string;
   contact_id: string | null;

@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
 import {
-  getProjectById,
   getTaskById,
   getTaskFollowers,
   listProjects,
@@ -22,31 +21,34 @@ import {
   formatCrmContactDisplayName,
 } from "@/lib/supabase/crm";
 import { getDisplayLabelForUser } from "@/lib/blog-comments/author-name";
-import { TaskEditClient } from "./TaskEditClient";
+import { TaskEditClient } from "@/app/admin/projects/[id]/tasks/[taskId]/edit/TaskEditClient";
 import { parseTaskDetailFrom, taskEditPath } from "@/lib/tasks/task-detail-nav";
 
-export default async function TaskEditPage({
+const NO_PROJECT_LABEL = "No project";
+
+/**
+ * Edit task when `tasks.project_id` is NULL — URL has no project segment.
+ */
+export default async function TaskEditUnassignedPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string; taskId: string }>;
+  params: Promise<{ taskId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { id: projectId, taskId } = await params;
+  const { taskId } = await params;
   const sp = await searchParams;
   const taskDetailFrom = parseTaskDetailFrom(sp);
   const schema = getClientSchema();
 
   const task = await getTaskById(taskId);
   if (!task) notFound();
-  const canonicalPid = task.project_id?.trim() ?? "";
-  if (canonicalPid !== projectId) {
+  if (task.project_id?.trim()) {
     redirect(taskEditPath(taskId, task.project_id, taskDetailFrom));
   }
 
-  const [project, followers, timeLogs, notes, czTaskType, czTaskStatus, czTaskPhase, allProjects] =
+  const [followers, timeLogs, notes, czTaskType, czTaskStatus, czTaskPhase, allProjects] =
     await Promise.all([
-      getProjectById(projectId),
       getTaskFollowers(taskId),
       listTaskTimeLogs(taskId),
       getNotesByConversationUid(taskConversationUid(taskId)),
@@ -55,14 +57,10 @@ export default async function TaskEditPage({
       getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_PHASE),
       listProjects({ include_archived: false }, schema),
     ]);
-  if (!project) notFound();
 
-  const projectRowById = new Map<string, { id: string; name: string }>();
-  for (const p of allProjects) projectRowById.set(p.id, { id: p.id, name: p.name });
-  projectRowById.set(project.id, { id: project.id, name: project.name });
-  const projectsForPicker = [...projectRowById.values()].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-  );
+  const projectsForPicker = [...allProjects]
+    .map((p) => ({ id: p.id, name: p.name }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
   const assigneesWithLabels = await resolveTaskFollowersWithLabels(followers);
 
@@ -100,7 +98,7 @@ export default async function TaskEditPage({
 
   return (
     <TaskEditClient
-      projectName={project.name}
+      projectName={NO_PROJECT_LABEL}
       projectsForPicker={projectsForPicker}
       task={task}
       assignees={assigneesWithLabels}

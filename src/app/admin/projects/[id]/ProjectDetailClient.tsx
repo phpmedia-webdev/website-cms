@@ -35,6 +35,7 @@ import { formatMinutesAsHoursMinutes, projectDisplayRef } from "@/lib/supabase/p
 import type { OrderRow } from "@/lib/shop/orders";
 import type { InvoiceRow } from "@/lib/shop/invoices";
 import { TermBadge } from "@/components/taxonomy/TermBadge";
+import { resolveTaskCustomizerTerm } from "@/lib/tasks/customizer-task-terms";
 import { isTaskStatusCompletedSlug } from "@/lib/tasks/task-status-reserved";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,45 @@ function formatDate(s: string | null): string {
   } catch {
     return "—";
   }
+}
+
+/**
+ * Project task list — Due column (local calendar):
+ * - Completed → muted (never show overdue red).
+ * - Not completed, invalid/missing due → muted.
+ * - Not completed, today > due day → red (overdue).
+ * - Not completed, due today or later → green.
+ */
+function dueDateProjectListTone(
+  isoDue: string | null | undefined,
+  taskStatusSlug: string | null | undefined
+): "muted" | "overdue" | "ok" {
+  if (isTaskStatusCompletedSlug(taskStatusSlug)) return "muted";
+  const raw = typeof isoDue === "string" ? isoDue.trim() : "";
+  if (!raw) return "muted";
+  const ymd = raw.length >= 10 ? raw.slice(0, 10) : raw;
+  const parts = ymd.split("-").map((p) => parseInt(p, 10));
+  if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) return "muted";
+  const [y, m, d] = parts;
+  const dueDay = new Date(y!, m! - 1, d!);
+  if (Number.isNaN(dueDay.getTime())) return "muted";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  dueDay.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  if (dueDay.getTime() < today.getTime()) return "overdue";
+  return "ok";
+}
+
+/**
+ * Progress % = sum(`task_time_logs.minutes`) / `planned_time` × 100 (same as All Tasks list).
+ * Null when planned is missing or zero.
+ */
+function taskTimeProgressPercentFromLogs(task: Task, loggedMinutes: number): number | null {
+  const planned = task.planned_time;
+  if (planned == null || planned <= 0) return null;
+  const spent = Math.max(0, loggedMinutes);
+  return Math.round((spent / planned) * 100);
 }
 
 /** Whole minutes → HH:MM (hours and minutes zero-padded, min 2 hour digits). */
@@ -104,6 +144,8 @@ interface ProjectDetailClientProps {
   projectTypeTerms: StatusOrTypeTerm[];
   taskStatusTerms: StatusOrTypeTerm[];
   taskTypeTerms: StatusOrTypeTerm[];
+  /** Per-task logged minutes (from `task_time_logs`); keys = task id. */
+  initialTaskTimeLogTotals: Record<string, number>;
   initialProjectEvents: Event[];
   initialProjectMembers: (ProjectMember & { label: string; role_label: string | null })[];
   projectRoleTerms: StatusOrTypeTerm[];
@@ -162,11 +204,14 @@ export function ProjectDetailClient({
   projectTypeTerms,
   taskStatusTerms,
   taskTypeTerms,
+  initialTaskTimeLogTotals,
   initialProjectEvents,
   initialProjectMembers,
   projectRoleTerms: _projectRoleTerms,
 }: ProjectDetailClientProps) {
   const [tasks, setTasks] = useState(initialTasks);
+  const [taskTimeLogTotals, setTaskTimeLogTotals] =
+    useState<Record<string, number>>(initialTaskTimeLogTotals);
   const [orders, setOrders] = useState(initialOrders);
   const [invoices, setInvoices] = useState(initialInvoices);
   const [projectEvents, setProjectEvents] = useState(initialProjectEvents);
@@ -192,6 +237,14 @@ export function ProjectDetailClient({
   useEffect(() => {
     setProjectMembers(initialProjectMembers);
   }, [initialProjectMembers]);
+
+  useEffect(() => {
+    setTasks(initialTasks);
+  }, [initialTasks]);
+
+  useEffect(() => {
+    setTaskTimeLogTotals(initialTaskTimeLogTotals);
+  }, [initialTaskTimeLogTotals]);
 
   function initials(label: string): string {
     const parts = label.trim().split(/\s+/).filter(Boolean);
@@ -721,50 +774,121 @@ export function ProjectDetailClient({
                 </Button>
               </div>
               <div className="overflow-x-auto rounded-md border">
-                <table className="w-full caption-bottom text-sm">
+                <table className="w-full table-fixed caption-bottom text-sm">
+                  {/* Column %: 13+30+13+10+10+10+15 — table-fixed UAs scale to table width */}
+                  <colgroup>
+                    <col style={{ width: "13%" }} />
+                    <col style={{ width: "30%" }} />
+                    <col style={{ width: "13%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "15%" }} />
+                  </colgroup>
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="h-9 px-4 text-left font-medium">Task ID</th>
-                      <th className="h-9 px-4 text-left font-medium">Title</th>
-                      <th className="h-9 px-4 text-left font-medium">Status</th>
-                      <th className="h-9 px-4 text-left font-medium">Start</th>
-                      <th className="h-9 px-4 text-left font-medium">Due</th>
+                      <th className="h-9 px-2 text-left text-xs font-medium sm:px-3">
+                        Task ID
+                      </th>
+                      <th className="h-9 px-2 text-left text-xs font-medium sm:px-3">
+                        Title
+                      </th>
+                      <th className="h-9 px-2 text-left text-xs font-medium sm:px-3">
+                        Type
+                      </th>
+                      <th className="h-9 px-2 text-left text-xs font-medium sm:px-3">
+                        Start
+                      </th>
+                      <th className="h-9 px-2 text-left text-xs font-medium sm:px-3">Due</th>
+                      <th className="h-9 px-2 text-left text-xs font-medium sm:px-3">
+                        Progress
+                      </th>
+                      <th className="h-9 px-2 text-left text-xs font-medium sm:px-3">
+                        Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {tasks.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                        <td colSpan={7} className="p-8 text-center text-muted-foreground">
                           No tasks yet.
                         </td>
                       </tr>
                     ) : (
-                      tasks.map((t) => (
-                        <tr key={t.id} className="border-b last:border-0 hover:bg-muted/40">
-                          <td className="p-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
-                            {t.task_number}
-                          </td>
-                          <td className="p-3 font-medium">
-                            <Link
-                              href={`/admin/projects/${project.id}/tasks/${t.id}?from=project`}
-                              className="text-primary hover:underline"
-                            >
-                              {t.title}
-                            </Link>
-                          </td>
-                          <td className="p-3">
-                            <TermBadge term={taskStatusTerms.find((s) => s.id === t.task_status_slug)} />
-                            {t.task_type_slug ? (
+                      tasks.map((t) => {
+                        const progressPct = taskTimeProgressPercentFromLogs(
+                          t,
+                          taskTimeLogTotals[t.id] ?? 0
+                        );
+                        const dueTone = dueDateProjectListTone(t.due_date, t.task_status_slug);
+                        const dueCellClass =
+                          dueTone === "overdue"
+                            ? "font-medium text-red-600 dark:text-red-400"
+                            : dueTone === "ok"
+                              ? "font-medium text-emerald-600 dark:text-emerald-500"
+                              : "text-muted-foreground";
+                        return (
+                          <tr
+                            key={t.id}
+                            className="border-b last:border-0 hover:bg-muted/40"
+                          >
+                            <td className="max-w-0 p-2 align-middle font-mono text-xs text-muted-foreground whitespace-nowrap sm:p-3">
+                              {t.task_number}
+                            </td>
+                            <td className="max-w-0 p-2 align-middle sm:p-3">
+                              <Link
+                                href={`/admin/projects/${project.id}/tasks/${t.id}?from=project`}
+                                title={t.title}
+                                className="block truncate font-medium text-primary hover:underline"
+                              >
+                                {t.title}
+                              </Link>
+                            </td>
+                            <td className="max-w-0 overflow-hidden p-2 align-middle sm:p-3 whitespace-nowrap">
                               <TermBadge
-                                className="ml-1"
-                                term={taskTypeTerms.find((s) => s.id === t.task_type_slug) ?? null}
+                                term={
+                                  resolveTaskCustomizerTerm(taskTypeTerms, t.task_type_slug)
+                                }
                               />
-                            ) : null}
-                          </td>
-                          <td className="p-3 text-muted-foreground">{formatDate(t.start_date)}</td>
-                          <td className="p-3 text-muted-foreground">{formatDate(t.due_date)}</td>
-                        </tr>
-                      ))
+                            </td>
+                            <td className="max-w-0 p-2 align-middle text-muted-foreground whitespace-nowrap sm:p-3">
+                              {formatDate(t.start_date)}
+                            </td>
+                            <td
+                              className={cn(
+                                "max-w-0 p-2 align-middle whitespace-nowrap tabular-nums sm:p-3",
+                                dueCellClass
+                              )}
+                            >
+                              {formatDate(t.due_date)}
+                            </td>
+                            <td className="max-w-0 p-2 align-middle whitespace-nowrap sm:p-3">
+                              {progressPct == null ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : (
+                                <span
+                                  className={cn(
+                                    "tabular-nums font-semibold",
+                                    progressPct > 100
+                                      ? "text-red-600 dark:text-red-400"
+                                      : "text-emerald-600 dark:text-emerald-500"
+                                  )}
+                                >
+                                  {progressPct}%
+                                </span>
+                              )}
+                            </td>
+                            <td className="max-w-0 overflow-hidden p-2 align-middle sm:p-3 whitespace-nowrap">
+                              <TermBadge
+                                term={
+                                  resolveTaskCustomizerTerm(taskStatusTerms, t.task_status_slug)
+                                }
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

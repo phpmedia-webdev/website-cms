@@ -1,11 +1,20 @@
 import { dueDateScheduleHint } from "@/lib/tasks/display-helpers";
+import { isTaskStatusCompletedSlug } from "@/lib/tasks/task-status-reserved";
 import { cn } from "@/lib/utils";
 
+type ScheduleDueSubStatusProps = {
+  dueDate: string | null | undefined;
+  /** When status is completed, overdue never applies — line hidden (no false "Overdue"). */
+  taskStatusSlug: string | null | undefined;
+};
+
 /**
- * Compact line under task status on Schedule card: green "On Schedule" or red "Overdue" from due date only.
- * Renders nothing when due is missing/invalid.
+ * Compact line under task status on Schedule card: green "On Schedule" or red "Overdue".
+ * Overdue only when status is not completed and due date (local calendar) is before today.
+ * Renders nothing when due is missing/invalid, or when task is completed.
  */
-export function ScheduleDueSubStatus({ dueDate }: { dueDate: string | null | undefined }) {
+export function ScheduleDueSubStatus({ dueDate, taskStatusSlug }: ScheduleDueSubStatusProps) {
+  if (isTaskStatusCompletedSlug(taskStatusSlug)) return null;
   const hint = dueDateScheduleHint(dueDate);
   if (!hint) return null;
   const overdue = hint === "overdue";

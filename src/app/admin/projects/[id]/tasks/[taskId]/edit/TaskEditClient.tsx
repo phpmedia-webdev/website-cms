@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -31,7 +32,7 @@ import { TaskResourcesSection } from "@/components/tasks/TaskResourcesSection";
 import { ScheduleDueSubStatus } from "@/components/tasks/ScheduleDueSubStatus";
 import {
   ADMIN_TASKS_LIST_PATH,
-  taskDetailQuery,
+  taskDetailPath,
   type TaskDetailFrom,
 } from "@/lib/tasks/task-detail-nav";
 import type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
@@ -42,6 +43,9 @@ import {
 
 const SELECT_TRIGGER_CLASS =
   "mt-0.5 rounded-xl border-border/60 bg-background/90 shadow-sm backdrop-blur-sm";
+
+/** Radix Select requires non-empty string values; maps to `tasks.project_id` NULL. */
+const NO_PROJECT_SELECT_VALUE = "__no_project__";
 
 function dateInputValue(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -62,10 +66,14 @@ function pickSlug(
 }
 
 interface TaskEditClientProps {
-  projectId: string;
+  /** Current project name (fallback label if picker row missing). */
   projectName: string;
+  /** Active projects for moving this task (includes current). */
+  projectsForPicker: { id: string; name: string }[];
   task: Task;
   assignees: TaskFollowerWithLabel[];
+  /** CRM contact on task row (`tasks.contact_id`). */
+  taskLinkedContact: { id: string; label: string } | null;
   /** Customizer-driven options (`id` === slug). */
   statusTerms: StatusOrTypeTerm[];
   taskTypeTerms: StatusOrTypeTerm[];
@@ -79,10 +87,11 @@ interface TaskEditClientProps {
 }
 
 export function TaskEditClient({
-  projectId,
   projectName,
+  projectsForPicker,
   task,
   assignees,
+  taskLinkedContact,
   statusTerms,
   taskTypeTerms,
   taskPhaseTerms,
@@ -94,12 +103,26 @@ export function TaskEditClient({
   authorLabels,
 }: TaskEditClientProps) {
   const router = useRouter();
-  const fromQuery = taskDetailQuery(taskDetailFrom);
-  const taskDetailHref = `/admin/projects/${projectId}/tasks/${task.id}${fromQuery}`;
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    task.project_id?.trim() ? task.project_id : null
+  );
+
+  useEffect(() => {
+    setSelectedProjectId(task.project_id?.trim() ? task.project_id : null);
+  }, [task.project_id]);
+
+  /** Detail URL for the task as saved on the server (Cancel / discard draft project). */
+  const persistedTaskDetailHref = taskDetailPath(task.id, task.project_id, taskDetailFrom);
+  /** Detail URL after edits (Save navigates here so URL matches chosen project). */
+  const taskDetailHref = taskDetailPath(task.id, selectedProjectId, taskDetailFrom);
   const backHref =
-    taskDetailFrom === "project" ? `/admin/projects/${projectId}` : ADMIN_TASKS_LIST_PATH;
+    taskDetailFrom === "project" && task.project_id?.trim()
+      ? `/admin/projects/${task.project_id}`
+      : ADMIN_TASKS_LIST_PATH;
   const backLabel =
-    taskDetailFrom === "project" ? `← Back to ${projectName}` : "← Back to all tasks";
+    taskDetailFrom === "project" && task.project_id?.trim()
+      ? `← Back to ${projectName}`
+      : "← Back to all tasks";
 
   const defaultStatusSlug = useMemo(
     () => pickSlug(statusTerms, task.task_status_slug, DEFAULT_TASK_STATUS_SLUG),
@@ -191,6 +214,7 @@ export function TaskEditClient({
         body: JSON.stringify({
           title: trimmed,
           description: description.trim() || null,
+          project_id: selectedProjectId,
           task_status_slug: statusSlug || defaultStatusSlug,
           task_type_slug: typeSlug || defaultTypeSlug,
           task_phase_slug: phase || defaultPhaseSlug,
@@ -236,6 +260,15 @@ export function TaskEditClient({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
+            asChild
+          >
+            <Link href={persistedTaskDetailHref}>Cancel</Link>
+          </Button>
+          <Button
             type="submit"
             form="task-edit-form"
             size="sm"
@@ -243,15 +276,6 @@ export function TaskEditClient({
             className="task-bento-primary-btn shrink-0 rounded-xl border border-white/60 bg-primary/95 backdrop-blur-sm transition-[box-shadow,transform] hover:bg-primary active:scale-[0.98]"
           >
             {submitting ? "Saving…" : "Save changes"}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="shrink-0 rounded-xl border-border/60 bg-background/80 shadow-sm backdrop-blur-sm"
-            asChild
-          >
-            <Link href={taskDetailHref}>Cancel</Link>
           </Button>
         </div>
       </div>
@@ -294,6 +318,29 @@ export function TaskEditClient({
             </CardHeader>
             <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2">
               <div>
+                <Label htmlFor="task_project" className="text-xs text-muted-foreground">
+                  Project
+                </Label>
+                <Select
+                  value={selectedProjectId ?? NO_PROJECT_SELECT_VALUE}
+                  onValueChange={(v) =>
+                    setSelectedProjectId(v === NO_PROJECT_SELECT_VALUE ? null : v)
+                  }
+                >
+                  <SelectTrigger id="task_project" className={SELECT_TRIGGER_CLASS}>
+                    <SelectValue placeholder="Select project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PROJECT_SELECT_VALUE}>No project</SelectItem>
+                    {projectsForPicker.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label htmlFor="task_phase" className="text-xs text-muted-foreground">
                   Phase
                 </Label>
@@ -330,7 +377,8 @@ export function TaskEditClient({
             <TaskFollowersSection
               taskId={task.id}
               initialFollowers={assignees}
-              projectId={projectId}
+              projectId={selectedProjectId ?? undefined}
+              initialLinkedContact={taskLinkedContact}
             />
           </div>
 
@@ -341,7 +389,7 @@ export function TaskEditClient({
             <CardContent className="task-bento-card-content flex flex-1 flex-col">
               <TaskResourcesSection
                 taskId={task.id}
-                projectId={projectId}
+                projectId={selectedProjectId ?? undefined}
                 canManage
                 pendingResourceAssignments={pendingResourceAssignments}
                 onPendingResourceAssignmentsChange={setPendingResourceAssignments}
@@ -390,7 +438,7 @@ export function TaskEditClient({
                     <TaskTermSelectItems terms={statusTerms} />
                   </SelectContent>
                 </Select>
-                <ScheduleDueSubStatus dueDate={dueDate || null} />
+                <ScheduleDueSubStatus dueDate={dueDate || null} taskStatusSlug={statusSlug} />
               </div>
             </CardContent>
           </Card>

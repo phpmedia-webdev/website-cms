@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Calendar, LayoutGrid, Paperclip } from "lucide-react";
 import {
@@ -9,10 +9,19 @@ import {
 } from "@/lib/supabase/projects";
 import { resolveTaskFollowersWithLabels } from "@/lib/tasks/resolve-task-followers-with-labels";
 import { getCustomizerOptions } from "@/lib/supabase/settings";
-import { statusTermsFromCustomizerRows } from "@/lib/tasks/customizer-task-terms";
-import { taskTermForSlug } from "@/lib/tasks/merge-task-customizer-colors";
-import { getNotesByConversationUid, taskConversationUid } from "@/lib/supabase/crm";
-import { getContactById } from "@/lib/supabase/crm";
+import {
+  CUSTOMIZER_SCOPE_TASK_PHASE,
+  CUSTOMIZER_SCOPE_TASK_STATUS,
+  CUSTOMIZER_SCOPE_TASK_TYPE,
+  resolveTaskCustomizerTerm,
+  statusTermsFromCustomizerRows,
+} from "@/lib/tasks/customizer-task-terms";
+import {
+  getNotesByConversationUid,
+  taskConversationUid,
+  getContactById,
+  formatCrmContactDisplayName,
+} from "@/lib/supabase/crm";
 import { getDisplayLabelForUser } from "@/lib/blog-comments/author-name";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -23,25 +32,13 @@ import { TermBadge } from "@/components/taxonomy/TermBadge";
 import {
   ADMIN_TASKS_LIST_PATH,
   parseTaskDetailFrom,
-  taskDetailQuery,
+  taskDetailPath,
+  taskEditPath,
   type TaskDetailFrom,
 } from "@/lib/tasks/task-detail-nav";
 import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
 import { TaskResourcesSection } from "@/components/tasks/TaskResourcesSection";
 import { ScheduleDueSubStatus } from "@/components/tasks/ScheduleDueSubStatus";
-
-function contactDisplayName(c: {
-  full_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-}): string {
-  if (c.full_name?.trim()) return c.full_name.trim();
-  const first = c.first_name?.trim() ?? "";
-  const last = c.last_name?.trim() ?? "";
-  const name = [first, last].filter(Boolean).join(" ");
-  return name || c.email || "Contact";
-}
 
 export default async function TaskDetailPage({
   params,
@@ -53,34 +50,31 @@ export default async function TaskDetailPage({
   const { id: projectId, taskId } = await params;
   const sp = await searchParams;
   const from: TaskDetailFrom = parseTaskDetailFrom(sp);
-  const [
-    project,
-    task,
-    notes,
-    followers,
-    timeLogs,
-    czTaskType,
-    czTaskStatus,
-    czTaskPhase,
-  ] = await Promise.all([
-    getProjectById(projectId),
-    getTaskById(taskId),
-    getNotesByConversationUid(taskConversationUid(taskId)),
-    getTaskFollowers(taskId),
-    listTaskTimeLogs(taskId),
-    getCustomizerOptions("task_type"),
-    getCustomizerOptions("task_status"),
-    getCustomizerOptions("task_phase"),
-  ]);
-  if (!project || !task || task.project_id !== projectId) notFound();
+  const [task, notes, followers, timeLogs, czTaskType, czTaskStatus, czTaskPhase] =
+    await Promise.all([
+      getTaskById(taskId),
+      getNotesByConversationUid(taskConversationUid(taskId)),
+      getTaskFollowers(taskId),
+      listTaskTimeLogs(taskId),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_TYPE),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_STATUS),
+      getCustomizerOptions(CUSTOMIZER_SCOPE_TASK_PHASE),
+    ]);
+  if (!task) notFound();
+  const canonicalPid = task.project_id?.trim() ?? "";
+  if (canonicalPid !== projectId) {
+    redirect(taskDetailPath(taskId, task.project_id, from));
+  }
+  const project = await getProjectById(projectId);
+  if (!project) notFound();
 
   const statusTerms = statusTermsFromCustomizerRows(czTaskStatus);
   const typeTerms = statusTermsFromCustomizerRows(czTaskType);
   const taskPhaseTerms = statusTermsFromCustomizerRows(czTaskPhase);
 
-  const statusTerm = statusTerms.find((t) => t.id === task.task_status_slug) ?? null;
-  const typeTerm = typeTerms.find((t) => t.id === task.task_type_slug) ?? null;
-  const phaseTerm = taskTermForSlug(taskPhaseTerms, task.task_phase_slug ?? null);
+  const statusTerm = resolveTaskCustomizerTerm(statusTerms, task.task_status_slug);
+  const typeTerm = resolveTaskCustomizerTerm(typeTerms, task.task_type_slug);
+  const phaseTerm = resolveTaskCustomizerTerm(taskPhaseTerms, task.task_phase_slug);
 
   const taskTimeLogTotalMinutes = timeLogs.reduce((sum, l) => sum + (l.minutes ?? 0), 0);
 
@@ -94,7 +88,7 @@ export default async function TaskDetailPage({
     }),
     ...timeLogContactIds.map(async (id) => {
       const c = await getContactById(id);
-      timeLogContactLabels[id] = c ? contactDisplayName(c) : "Contact";
+      timeLogContactLabels[id] = c ? formatCrmContactDisplayName(c) : "Contact";
     }),
   ]);
 
@@ -107,6 +101,12 @@ export default async function TaskDetailPage({
   );
 
   const followersWithLabels = await resolveTaskFollowersWithLabels(followers);
+
+  let taskLinkedContact: { id: string; label: string } | null = null;
+  if (task.contact_id) {
+    const c = await getContactById(task.contact_id);
+    if (c) taskLinkedContact = { id: c.id, label: formatCrmContactDisplayName(c) };
+  }
 
   function formatDateIso(s: string | null): string {
     if (!s) return "—";
@@ -125,8 +125,7 @@ export default async function TaskDetailPage({
     from === "project" ? `/admin/projects/${projectId}` : ADMIN_TASKS_LIST_PATH;
   const backLabel =
     from === "project" ? `← Back to ${project.name}` : "← Back to all tasks";
-  const fromQuery = taskDetailQuery(from);
-  const editHref = `/admin/projects/${projectId}/tasks/${taskId}/edit${fromQuery}`;
+  const editHref = taskEditPath(taskId, task.project_id, from);
 
   return (
     <div className="mx-auto max-w-7xl pb-6">
@@ -179,7 +178,21 @@ export default async function TaskDetailPage({
           <CardHeader className="task-bento-card-header">
             <TaskBentoPanelTitle icon={LayoutGrid}>Phase &amp; Type</TaskBentoPanelTitle>
           </CardHeader>
-          <CardContent className="task-bento-card-content flex flex-1 flex-col space-y-2">
+          <CardContent className="task-bento-card-content flex min-w-0 flex-1 flex-col space-y-2">
+            <div className="min-w-0">
+              <p className="mb-1 text-xs text-muted-foreground">Project</p>
+              {task.project_id?.trim() ? (
+                <Link
+                  href={`/admin/projects/${task.project_id}`}
+                  title={project?.name?.trim() ? project.name : "View project"}
+                  className="block w-full min-w-0 truncate text-sm font-medium text-primary underline-offset-4 transition-colors hover:underline"
+                >
+                  {project?.name?.trim() ? project.name : "View project"}
+                </Link>
+              ) : (
+                <p className="truncate text-sm text-muted-foreground">—</p>
+              )}
+            </div>
             <div>
               <p className="mb-1 text-xs text-muted-foreground">Phase</p>
               <TermBadge term={phaseTerm} />
@@ -192,7 +205,10 @@ export default async function TaskDetailPage({
         </Card>
 
         <div className="min-w-0 h-full">
-          <TaskAssigneesDetailCard followers={followersWithLabels} />
+          <TaskAssigneesDetailCard
+            followers={followersWithLabels}
+            linkedContact={taskLinkedContact}
+          />
         </div>
 
         <Card variant="bento" className="task-bento-tile flex h-full min-w-0 flex-col">
@@ -224,7 +240,7 @@ export default async function TaskDetailPage({
             <div>
               <p className="mb-1 text-xs text-muted-foreground">Status</p>
               <TermBadge term={statusTerm} />
-              <ScheduleDueSubStatus dueDate={task.due_date} />
+              <ScheduleDueSubStatus dueDate={task.due_date} taskStatusSlug={task.task_status_slug} />
             </div>
           </CardContent>
         </Card>

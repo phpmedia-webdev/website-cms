@@ -24,6 +24,13 @@ export interface DirectoryParticipantPickerProps {
   placeholder?: string;
   className?: string;
   dropdownClassName?: string;
+  /**
+   * When true, only the **Contacts** group is shown (no Team heading / empty-team line).
+   * Use when rows are already filtered to `crm_contact` (e.g. task linked contact).
+   */
+  contactsOnly?: boolean;
+  /** Pass `1` for task primary contact (`tasks.contact_id` is a single FK). */
+  maxSelections?: number;
 }
 
 const TEAM_HEADING = "Team";
@@ -45,6 +52,8 @@ export function DirectoryParticipantPicker({
   placeholder = DEFAULT_PLACEHOLDER,
   className,
   dropdownClassName,
+  contactsOnly = false,
+  maxSelections,
 }: DirectoryParticipantPickerProps) {
   const groups: AutoSuggestGroup[] = useMemo(() => {
     const toOpt = (e: DirectoryPickerRow): AutoSuggestOption | null => {
@@ -64,11 +73,14 @@ export function DirectoryParticipantPicker({
       if (row.source_type === "team_member") team.push(opt);
       else if (row.source_type === "crm_contact") contacts.push(opt);
     }
+    if (contactsOnly) {
+      return [{ heading: CONTACTS_HEADING, options: contacts, emptyLabel: EMPTY_CONTACTS }];
+    }
     return [
       { heading: TEAM_HEADING, options: team, emptyLabel: EMPTY_TEAM },
       { heading: CONTACTS_HEADING, options: contacts, emptyLabel: EMPTY_CONTACTS },
     ];
-  }, [directoryRows]);
+  }, [directoryRows, contactsOnly]);
 
   return (
     <AutoSuggestMulti
@@ -78,6 +90,7 @@ export function DirectoryParticipantPicker({
       placeholder={placeholder}
       className={className ?? ADMIN_PICKER_FIELD_CLASS}
       dropdownClassName={dropdownClassName ?? ADMIN_PICKER_DROPDOWN_CLASS}
+      maxSelections={maxSelections}
     />
   );
 }
