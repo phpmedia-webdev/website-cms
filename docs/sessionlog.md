@@ -12,7 +12,7 @@
 
 **Database changes are not applied when you pull code.** Copy files from `supabase/migrations/` into **Supabase Dashboard → SQL Editor** and **Run** (numeric filename order).
 
-**Task features shipped in code (run when not yet applied):** **`207_tasks_contact_id.sql`**, **`208_tasks_project_id_nullable.sql`** (order: **207** then **208** after **207** deps).
+**Applied on primary Supabase (2026-03-25):** **`207_tasks_contact_id.sql`** then **`208_tasks_project_id_nullable.sql`** — `tasks.contact_id`, nullable **`project_id`**, updated **`get_tasks_dynamic`** / **`get_task_by_id_dynamic`**. New forks or envs that are behind still run **207** then **208** in that order.
 
 
 
