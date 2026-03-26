@@ -17,10 +17,6 @@
 - **`200_projects_project_number.sql`** — `projects.project_number` PROJ-YYYY-NNNNN + project list/detail RPCs.
 - **`198_get_tasks_dynamic_preset_filters.sql`** — All Tasks presets (`exclude_status_slugs`, `due_before`).
 - **`197_get_tasks_dynamic_exclude_archived_projects.sql`** — exclude tasks whose **project** is archived (confirm applied everywhere).
-- **`203_projects_estimated_hourly_rate.sql`** — `projects.estimated_hourly_rate` + related RPC/app fields.
-- **`204_projects_cover_image.sql`** — project cover image path + storage policy (per script header).
-- **`205_projects_customizer_slugs.sql`** — `project_status_slug` / `project_type_slug`; drops legacy status/type term FK columns; RPC filter arg rename.
-- **`206_project_members_role_slug.sql`** — `project_members.role_slug`; drops `role_term_id`.
 
 ---
 
