@@ -15,6 +15,9 @@ import {
 const ALLOWED: MessageCenterStreamFilter[] = [
   "all",
   "conversations",
+  "comments",
+  "notes",
+  "requires_moderation",
   "notifications",
   "notification_timeline",
   "blog_comment",

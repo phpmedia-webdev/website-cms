@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,10 +17,11 @@ interface MessageCenterBroadcastPanelProps {
 }
 
 /**
- * Folded “Broadcast” strip above the Message Center stream (full page only).
- * Audience + compose UI; delivery hooks to MAG announcement threads TBD.
+ * Folded composer under “Broadcast Announcements” on the full Message Center page.
+ * Audience + compose; MAG posts use `mag_group` threads; team uses admin timeline rows.
  */
 export function MessageCenterBroadcastPanel({ mags }: MessageCenterBroadcastPanelProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [allUsers, setAllUsers] = useState(false);
   const [selectedMagIds, setSelectedMagIds] = useState<Set<string>>(() => new Set());
@@ -30,6 +32,7 @@ export function MessageCenterBroadcastPanel({ mags }: MessageCenterBroadcastPane
   const [teamLoaded, setTeamLoaded] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   const magSuggestOptions: AutoSuggestOption[] = useMemo(
     () =>
@@ -88,11 +91,57 @@ export function MessageCenterBroadcastPanel({ mags }: MessageCenterBroadcastPane
   const canSend =
     body.trim().length > 0 && (allUsers || selectedMagIds.size > 0 || selectedTeamIds.size > 0);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!canSend) return;
-    setStatusMessage(
-      "Broadcast sending is not connected yet. Audience and message are ready for the next integration step (MAG threads / notifications)."
-    );
+    setSending(true);
+    setStatusMessage(null);
+    try {
+      const res = await fetch("/api/admin/message-center/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: body.trim(),
+          allUsers: allUsers,
+          magIds: allUsers ? [] : [...selectedMagIds],
+          teamUserIds: allUsers ? [] : [...selectedTeamIds],
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        magThreadsPosted?: number;
+        teamInboxRows?: number;
+        memberPortalRows?: number;
+        errors?: string[];
+      };
+      if (!res.ok) {
+        setStatusMessage(typeof data?.error === "string" ? data.error : "Could not send announcement");
+        return;
+      }
+      const magN = data.magThreadsPosted ?? 0;
+      const teamN = data.teamInboxRows ?? 0;
+      const memberN = data.memberPortalRows ?? 0;
+      const parts = [
+        magN ? `${magN} MAG room${magN === 1 ? "" : "s"}` : null,
+        memberN
+          ? `${memberN} member portal inbox${memberN === 1 ? "" : "es"} (no MAG)`
+          : null,
+        teamN ? `${teamN} team inbox${teamN === 1 ? "" : "es"}` : null,
+      ].filter(Boolean);
+      let msg = parts.length ? `Sent to ${parts.join(" and ")}.` : "Broadcast completed.";
+      if (Array.isArray(data.errors) && data.errors.length > 0) {
+        msg += ` Some targets failed (${data.errors.length}).`;
+      }
+      setStatusMessage(msg);
+      setBody("");
+      setAllUsers(false);
+      setSelectedMagIds(new Set());
+      setSelectedTeamIds(new Set());
+      router.refresh();
+    } catch {
+      setStatusMessage("Could not send announcement");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -110,13 +159,19 @@ export function MessageCenterBroadcastPanel({ mags }: MessageCenterBroadcastPane
         )}
         aria-expanded={open}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Megaphone className="size-4" aria-hidden />
+        <span
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-md border",
+            "bg-rose-500/15 border-rose-500/30 text-rose-700 dark:text-rose-300"
+          )}
+          aria-hidden
+        >
+          <Megaphone className="size-4" />
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-foreground">Broadcast</span>
+          <span className="block text-foreground">Compose your Announcement</span>
           <span className="block text-xs font-normal text-muted-foreground truncate">
-            MAGs, staff, or all GPUM members
+            MAGs, team inboxes, or all GPUM rooms
           </span>
         </span>
         {open ? (
@@ -129,9 +184,11 @@ export function MessageCenterBroadcastPanel({ mags }: MessageCenterBroadcastPane
       {open && (
         <div className="space-y-5 px-4 pb-4 pt-3 border-t border-border/60 bg-background/80">
           <p className="text-xs text-muted-foreground">
-            Pick recipients below. Use <span className="text-foreground font-medium">All GPUM users</span> only for
-            major tenant-wide news; prefer MAGs when you can. <span className="text-foreground font-medium">Team</span>{" "}
-            means this site&apos;s staff, not every member.
+            Pick recipients below. <span className="text-foreground font-medium">All GPUM users</span> posts one message
+            to every active MAG group room (enrolled members see it under Messages) and a client-visible copy to
+            registered members who are not in any MAG.{" "}
+            <span className="text-foreground font-medium">Team</span> delivers to selected staff inboxes (admin Message
+            Center only). Prefer MAGs when you can instead of tenant-wide.
           </p>
 
           <div className="flex items-start gap-3 rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2.5">
@@ -191,7 +248,7 @@ export function MessageCenterBroadcastPanel({ mags }: MessageCenterBroadcastPane
 
           <div className="space-y-2">
             <Label htmlFor="broadcast-body" className="text-sm font-medium">
-              Message
+              Announcement text
             </Label>
             <Textarea
               id="broadcast-body"
@@ -207,8 +264,8 @@ export function MessageCenterBroadcastPanel({ mags }: MessageCenterBroadcastPane
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" onClick={handleSend} disabled={!canSend}>
-              Send broadcast
+            <Button type="button" onClick={handleSend} disabled={!canSend || sending}>
+              {sending ? "Sending…" : "Send announcement"}
             </Button>
             <Button
               type="button"

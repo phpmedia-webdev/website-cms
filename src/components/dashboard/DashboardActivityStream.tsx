@@ -1,13 +1,22 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RotateCcw, Search } from "lucide-react";
+import {
+  Bell,
+  CircleDollarSign,
+  Megaphone,
+  MessageSquareText,
+  MessagesSquare,
+  PencilLine,
+  RotateCcw,
+  Search,
+  type LucideIcon,
+} from "lucide-react";
 import type { MessageCenterStreamItem } from "@/lib/message-center/admin-stream";
 import {
   normalizeTimelineKindForMessageCenter,
@@ -48,24 +57,77 @@ const DATE_PRESET_OPTIONS: { value: MessageCenterDatePreset; label: string; days
   { value: "custom", label: "Custom range…" },
 ];
 
+/** Filters where URL `thread_id` / inline transcript apply. For `all`, notes, orders, etc., show the full stream. */
+const MESSAGE_CENTER_INLINE_THREAD_FILTERS = new Set<MessageCenterStreamFilter>([
+  "conversations",
+  "support",
+  "direct",
+  "group",
+  "mag_group",
+]);
+
 interface DashboardActivityStreamProps {
   initialItems: MessageCenterStreamItem[];
   /** When set, stream is filtered to this CRM contact (mini Message Center). */
   contactId?: string | null;
+  /** Optional initial filter (used by contact drill-in links). */
+  initialFilter?: MessageCenterStreamFilter;
+  /** Optional support thread to open inline (contact message center). */
+  initialThreadId?: string | null;
+  /**
+   * Contact record Message Center tab: with `thread_id` + a conversation-capable filter (e.g. Messages),
+   * show per-message transcript for that thread. Otherwise show the stream list (no auto single-thread rollup).
+   */
+  contactRecordTab?: boolean;
+  /** CRM / GPUM display name for this contact — used in expanded thread subtext (Member · name · time). */
+  expandedThreadContactLabel?: string | null;
   /** Tighter layout on contact record. */
   compact?: boolean;
   /** Taller scroll area for `/admin/dashboard/message-center`. */
   layout?: "card" | "full";
 }
 
+interface ThreadMessageRow {
+  id: string;
+  thread_id: string;
+  body: string;
+  author_user_id: string | null;
+  author_contact_id: string | null;
+  metadata: Record<string, unknown>;
+  parent_message_id: string | null;
+  created_at: string;
+  edited_at: string | null;
+}
+
+const ANNOUNCEMENT_LABEL = "ANNOUNCEMENT";
+
+function messageCenterItemIsAnnouncement(item: MessageCenterStreamItem): boolean {
+  if (item.source === "thread") {
+    return item.threadType === "mag_group" && item.broadcast === true;
+  }
+  return item.source === "timeline" && item.teamBroadcast === true;
+}
+
+function announcementBodyText(item: MessageCenterStreamItem): string {
+  if (item.source === "thread") return item.preview?.trim() || "(empty message)";
+  if (item.source === "timeline") return item.body?.trim() || "(empty announcement)";
+  return "";
+}
+
 function threadTypeLabel(item: MessageCenterStreamItem & { source: "thread" }): string {
-  return item.threadType === "task_ticket"
-    ? "Task"
-    : item.threadType === "support"
-      ? "Support"
-      : item.threadType === "mag_group"
-        ? "MAG"
-        : item.threadType.replace(/_/g, " ");
+  if (item.threadType === "task_ticket") return "COMMENT:TASK";
+  if (item.threadType === "support") {
+    if (item.supportRollupDirection === "in") return "MESSAGE:IN";
+    if (item.supportRollupDirection === "out") return "MESSAGE:OUT";
+    return "MESSAGE";
+  }
+  if (item.threadType === "direct") return "MESSAGE";
+  if (item.threadType === "blog_comment") return "COMMENT:BLOG";
+  if (item.threadType === "product_comment") return "COMMENT:PRODUCT";
+  if (item.threadType === "mag_group" && item.broadcast) return ANNOUNCEMENT_LABEL;
+  if (item.threadType === "mag_group") return "MESSAGE";
+  if (item.threadType === "group") return "MESSAGE";
+  return String(item.threadType).replace(/_/g, " ");
 }
 
 /** Primary line in the list: when search hits older thread text, show that line—not only latest `preview`. */
@@ -97,6 +159,25 @@ function formatItem(item: MessageCenterStreamItem): string {
   if (item.source === "thread") {
     return `${threadTypeLabel(item)}: ${item.preview}`;
   }
+  if (item.source === "timeline" && item.teamBroadcast) {
+    return `${ANNOUNCEMENT_LABEL}: ${item.body?.trim() ? item.body : "Announcement"}`;
+  }
+  if (item.source === "timeline" && item.timelineKind === "blog_comment") {
+    return `COMMENT:BLOG: ${item.body?.trim() ? item.body : "Comment"}`;
+  }
+  if (item.source === "timeline" && item.timelineKind === "product_comment") {
+    return `COMMENT:PRODUCT: ${item.body?.trim() ? item.body : "Comment"}`;
+  }
+  if (item.source === "timeline" && item.timelineKind === "order") {
+    return `TRANSACTION: ${item.body?.trim() ? item.body : "Order update"}`;
+  }
+  if (
+    item.source === "timeline" &&
+    (item.timelineKind === "staff_note" || item.timelineKind === "note")
+  ) {
+    const prefix = item.noteScope === "note_to_self" ? "NOTE:SELF" : "NOTE";
+    return `${prefix}: ${item.body?.trim() ? item.body : "Note"}`;
+  }
   if (
     item.source === "timeline" &&
     normalizeTimelineKindForMessageCenter(item.timelineKind) === "form_submitted"
@@ -107,9 +188,11 @@ function formatItem(item: MessageCenterStreamItem): string {
         ?.split("\n")
         .map((l) => l.trim())
         .find((l) => l.length > 0) ?? "";
-    return firstLine ? `${formLabel} · ${firstLine}` : `Form submission · ${formLabel}`;
+    return firstLine
+      ? `NOTIFICATION: ${formLabel} · ${firstLine}`
+      : `NOTIFICATION: Form submission · ${formLabel}`;
   }
-  return item.body?.trim() ? item.body : "Notification";
+  return `NOTIFICATION: ${item.body?.trim() ? item.body : "Notification"}`;
 }
 
 function resolveHref(item: MessageCenterStreamItem): string {
@@ -118,7 +201,10 @@ function resolveHref(item: MessageCenterStreamItem): string {
       return `/admin/projects/tasks/${item.taskId}`;
     }
     if (item.threadType === "support" && item.contactId) {
-      return `/admin/crm/contacts/${item.contactId}`;
+      const q = new URLSearchParams();
+      q.set("mc_filter", "conversations");
+      q.set("thread_id", item.threadId);
+      return `/admin/crm/contacts/${item.contactId}?${q.toString()}`;
     }
     if (item.threadType === "mag_group" && item.magId) {
       return `/admin/crm/memberships/${item.magId}`;
@@ -145,33 +231,159 @@ function resolveHref(item: MessageCenterStreamItem): string {
 }
 
 function kindBadge(item: MessageCenterStreamItem): string | null {
-  if (item.source === "thread") return item.threadType;
-  return item.displayKind ?? item.timelineKind ?? null;
+  if (messageCenterItemIsAnnouncement(item)) return ANNOUNCEMENT_LABEL;
+  if (item.source === "thread") {
+    return threadTypeLabel(item);
+  }
+  const kind = item.displayKind ?? item.timelineKind ?? "";
+  if (kind === "blog_comment") return "COMMENT:BLOG";
+  if (kind === "product_comment") return "COMMENT:PRODUCT";
+  if (kind === "order") return "TRANSACTION";
+  if (item.source === "timeline" && item.noteScope === "note_to_self") return "NOTE:SELF";
+  if (kind === "staff_note" || kind === "note") return "NOTE";
+  return "NOTIFICATION";
+}
+
+type RowVisual = {
+  Icon: LucideIcon;
+  iconWrapClass: string;
+  iconClass: string;
+  badgeClass: string;
+};
+
+function rowVisual(item: MessageCenterStreamItem): RowVisual {
+  if (messageCenterItemIsAnnouncement(item)) {
+    return {
+      Icon: Megaphone,
+      iconWrapClass: "bg-rose-500/15 border border-rose-500/30",
+      iconClass: "text-rose-700 dark:text-rose-300",
+      badgeClass: "bg-rose-500/15 text-rose-900 dark:text-rose-100",
+    };
+  }
+  const isMessageThread =
+    item.source === "thread" &&
+    (item.threadType === "support" ||
+      item.threadType === "direct" ||
+      item.threadType === "group" ||
+      item.threadType === "mag_group");
+  const isComment =
+    (item.source === "thread" && item.threadType === "task_ticket") ||
+    (item.source === "timeline" &&
+      (item.timelineKind === "blog_comment" || item.timelineKind === "product_comment"));
+  const isTransaction = item.source === "timeline" && item.timelineKind === "order";
+  const isNote =
+    item.source === "timeline" &&
+    (item.timelineKind === "staff_note" || item.timelineKind === "note");
+
+  if (isMessageThread) {
+    return {
+      Icon: MessagesSquare,
+      iconWrapClass: "bg-blue-500/15 border border-blue-500/30",
+      iconClass: "text-blue-700 dark:text-blue-300",
+      badgeClass: "bg-blue-500/15 text-blue-800 dark:text-blue-200",
+    };
+  }
+  if (isComment) {
+    return {
+      Icon: MessageSquareText,
+      iconWrapClass: "bg-violet-500/15 border border-violet-500/30",
+      iconClass: "text-violet-700 dark:text-violet-300",
+      badgeClass: "bg-violet-500/15 text-violet-800 dark:text-violet-200",
+    };
+  }
+  if (isTransaction) {
+    return {
+      Icon: CircleDollarSign,
+      iconWrapClass: "bg-emerald-500/15 border border-emerald-500/30",
+      iconClass: "text-emerald-700 dark:text-emerald-300",
+      badgeClass: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200",
+    };
+  }
+  if (isNote) {
+    return {
+      Icon: PencilLine,
+      iconWrapClass: "bg-cyan-500/15 border border-cyan-500/30",
+      iconClass: "text-cyan-700 dark:text-cyan-300",
+      badgeClass: "bg-cyan-500/15 text-cyan-800 dark:text-cyan-200",
+    };
+  }
+  return {
+    Icon: Bell,
+    iconWrapClass: "bg-amber-500/15 border border-amber-500/30",
+    iconClass: "text-amber-700 dark:text-amber-300",
+    badgeClass: "bg-amber-500/15 text-amber-800 dark:text-amber-200",
+  };
 }
 
 export function DashboardActivityStream({
   initialItems,
   contactId = null,
+  initialFilter = "all",
+  initialThreadId = null,
+  contactRecordTab = false,
+  expandedThreadContactLabel = null,
   compact = false,
   layout = "card",
 }: DashboardActivityStreamProps) {
   const router = useRouter();
-  const [typeFilter, setTypeFilter] = useState<MessageCenterStreamFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<MessageCenterStreamFilter>(initialFilter);
   const [items, setItems] = useState<MessageCenterStreamItem[]>(initialItems);
   const [search, setSearch] = useState("");
   const [moderatingId, setModeratingId] = useState<string | null>(null);
   const [canApproveReject, setCanApproveReject] = useState(false);
-  const [selectedThreadIds, setSelectedThreadIds] = useState<Set<string>>(() => new Set());
-  const [markingRead, setMarkingRead] = useState(false);
+  const [addNoteOpen, setAddNoteOpen] = useState(false);
+  const [composerType, setComposerType] = useState<"message" | "private">("message");
+  const [noteBody, setNoteBody] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(() =>
+    initialThreadId?.trim() ? initialThreadId.trim() : null
+  );
+  /** Contact tab: last known URL `thread_id` so we clear transcript when SPA drops it, but not when filter changes with no URL thread. */
+  const prevUrlThreadIdRef = useRef<string | null>(null);
+  const [threadMessages, setThreadMessages] = useState<ThreadMessageRow[]>([]);
+  const [threadAuthors, setThreadAuthors] = useState<
+    Record<string, { roleLabel: string; displayName: string }>
+  >({});
+  const [threadMsgContactNames, setThreadMsgContactNames] = useState<Record<string, string>>({});
+  const [threadRefreshNonce, setThreadRefreshNonce] = useState(0);
+  const [composerMessageOnly, setComposerMessageOnly] = useState(false);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [threadError, setThreadError] = useState<string | null>(null);
+  const threadScrollRef = useRef<HTMLDivElement | null>(null);
   const [datePreset, setDatePreset] = useState<MessageCenterDatePreset>("initial");
   const [customDateFrom, setCustomDateFrom] = useState("");
   const [customDateTo, setCustomDateTo] = useState("");
   const [customDateDialogOpen, setCustomDateDialogOpen] = useState(false);
+  const [viewingSelfNote, setViewingSelfNote] = useState<MessageCenterStreamItem | null>(null);
+  const [viewingAnnouncement, setViewingAnnouncement] = useState<MessageCenterStreamItem | null>(null);
+  const [selfNoteDeleteIntent, setSelfNoteDeleteIntent] = useState(false);
+  const [selfNoteDeleting, setSelfNoteDeleting] = useState(false);
+  const [selfNoteError, setSelfNoteError] = useState<string | null>(null);
   /** Committed custom range (fetch uses this when preset is custom). */
   const [customRangeApplied, setCustomRangeApplied] = useState<{
     date_from: string;
     date_to: string;
   } | null>(null);
+  const forcedContactThreadId = useMemo(() => {
+    if (contactRecordTab) return null;
+    const cid = contactId?.trim();
+    if (!cid) return null;
+    if (!MESSAGE_CENTER_INLINE_THREAD_FILTERS.has(typeFilter)) return null;
+    const messageThreads = items.filter(
+      (i): i is MessageCenterStreamItem & { source: "thread" } =>
+        i.source === "thread" &&
+        (i.threadType === "support" ||
+          i.threadType === "direct" ||
+          i.threadType === "group" ||
+          i.threadType === "mag_group")
+    );
+    if (messageThreads.length !== 1) return null;
+    return messageThreads[0].threadId;
+  }, [contactRecordTab, contactId, items, typeFilter]);
+  const resolvedActiveThreadId = contactRecordTab
+    ? activeThreadId
+    : (forcedContactThreadId ?? activeThreadId);
 
   const dateQueryKey = useMemo(() => {
     if (datePreset === "initial") return "";
@@ -213,7 +425,107 @@ export function DashboardActivityStream({
   );
 
   useEffect(() => {
-    const useInitialOnly = typeFilter === "all" && !hasActiveDateRange;
+    setTypeFilter(initialFilter);
+  }, [initialFilter]);
+
+  useEffect(() => {
+    if (contactRecordTab) {
+      const tid = initialThreadId?.trim() || null;
+      const inlineOk = MESSAGE_CENTER_INLINE_THREAD_FILTERS.has(typeFilter);
+      if (!inlineOk) {
+        setActiveThreadId(null);
+        prevUrlThreadIdRef.current = tid;
+        return;
+      }
+      if (tid) {
+        setActiveThreadId(tid);
+        prevUrlThreadIdRef.current = tid;
+        return;
+      }
+      if (prevUrlThreadIdRef.current && !tid) {
+        setActiveThreadId(null);
+      }
+      prevUrlThreadIdRef.current = tid;
+      return;
+    }
+    if (!MESSAGE_CENTER_INLINE_THREAD_FILTERS.has(typeFilter)) {
+      setActiveThreadId(null);
+      return;
+    }
+    const tid = initialThreadId?.trim();
+    if (tid) setActiveThreadId(tid);
+  }, [contactRecordTab, initialThreadId, typeFilter]);
+
+  useEffect(() => {
+    if (!resolvedActiveThreadId) {
+      setThreadMessages([]);
+      setThreadAuthors({});
+      setThreadMsgContactNames({});
+      setThreadError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingThread(true);
+    setThreadError(null);
+    const enrichQ = contactId?.trim() ? "&enrichAuthors=1" : "";
+    fetch(
+      `/api/conversation-threads/${encodeURIComponent(resolvedActiveThreadId)}/messages?limit=200${enrichQ}`,
+      {
+        cache: "no-store",
+      }
+    )
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("fetch"))))
+      .then(
+        (d: {
+          data?: ThreadMessageRow[];
+          authors?: Record<string, { roleLabel: string; displayName: string }>;
+          contactNames?: Record<string, string>;
+        }) => {
+          if (cancelled) return;
+          const rows = Array.isArray(d.data) ? d.data : [];
+          rows.sort((a, b) => {
+            const ta = new Date(a.created_at).getTime();
+            const tb = new Date(b.created_at).getTime();
+            return contactId?.trim() ? ta - tb : tb - ta;
+          });
+          setThreadMessages(rows);
+          if (contactId?.trim() && d.authors && d.contactNames) {
+            setThreadAuthors(d.authors);
+            setThreadMsgContactNames(d.contactNames);
+          } else {
+            setThreadAuthors({});
+            setThreadMsgContactNames({});
+          }
+        }
+      )
+      .catch(() => {
+        if (cancelled) return;
+        setThreadMessages([]);
+        setThreadAuthors({});
+        setThreadMsgContactNames({});
+        setThreadError("Failed to load thread messages.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingThread(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedActiveThreadId, contactId, threadRefreshNonce]);
+
+  useEffect(() => {
+    if (!resolvedActiveThreadId || loadingThread) return;
+    const el = threadScrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [resolvedActiveThreadId, loadingThread, threadMessages.length, threadRefreshNonce]);
+
+  useEffect(() => {
+    /** Contact-scoped stream must refetch: SSR limit/cap can diverge from `/api/admin/message-center` and skip rows that appear under filter "notes". */
+    const useInitialOnly =
+      typeFilter === "all" && !hasActiveDateRange && !(contactId?.trim().length);
     if (useInitialOnly) {
       setItems(initialItems);
       return;
@@ -232,35 +544,7 @@ export function DashboardActivityStream({
     return () => {
       cancelled = true;
     };
-  }, [typeFilter, initialItems, messageCenterQuery, dateQueryKey, hasActiveDateRange]);
-
-  const toggleThreadSelected = (threadId: string) => {
-    setSelectedThreadIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(threadId)) next.delete(threadId);
-      else next.add(threadId);
-      return next;
-    });
-  };
-
-  const markThreadsRead = async (threadIds: string[]) => {
-    const unique = [...new Set(threadIds.filter(Boolean))];
-    if (unique.length === 0) return;
-    setMarkingRead(true);
-    try {
-      const res = await fetch("/api/admin/message-center/mark-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadIds: unique }),
-      });
-      if (res.ok) {
-        setSelectedThreadIds(new Set());
-        router.refresh();
-      }
-    } finally {
-      setMarkingRead(false);
-    }
-  };
+  }, [typeFilter, initialItems, messageCenterQuery, dateQueryKey, hasActiveDateRange, contactId]);
 
   useEffect(() => {
     fetch("/api/admin/me/context", { cache: "no-store" })
@@ -271,10 +555,16 @@ export function DashboardActivityStream({
       .catch(() => setCanApproveReject(false));
   }, []);
 
-  const handleCommentStatus = async (noteId: string, status: "approved" | "rejected") => {
+  const handleCommentStatus = async (
+    noteId: string,
+    kind: "blog_comment" | "product_comment",
+    status: "approved" | "rejected"
+  ) => {
     setModeratingId(noteId);
     try {
-      const res = await fetch(`/api/blog/comments/${noteId}`, {
+      const endpoint =
+        kind === "product_comment" ? `/api/product/comments/${noteId}` : `/api/blog/comments/${noteId}`;
+      const res = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -282,6 +572,84 @@ export function DashboardActivityStream({
       if (res.ok) router.refresh();
     } finally {
       setModeratingId(null);
+    }
+  };
+
+  const closeSelfNoteDialog = useCallback(() => {
+    setViewingSelfNote(null);
+    setSelfNoteDeleteIntent(false);
+    setSelfNoteError(null);
+  }, []);
+
+  const handleDeleteSelfNote = async () => {
+    if (!viewingSelfNote || viewingSelfNote.source !== "timeline") return;
+    setSelfNoteDeleting(true);
+    setSelfNoteError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/message-center/notes/${encodeURIComponent(viewingSelfNote.id)}`,
+        { method: "DELETE" }
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setSelfNoteError(typeof data?.error === "string" ? data.error : "Delete failed");
+        return;
+      }
+      const removedId = viewingSelfNote.id;
+      setItems((prev) => prev.filter((i) => !(i.source === "timeline" && i.id === removedId)));
+      closeSelfNoteDialog();
+      router.refresh();
+    } catch {
+      setSelfNoteError("Delete failed");
+    } finally {
+      setSelfNoteDeleting(false);
+    }
+  };
+
+  const handleCreateGlobalNote = async () => {
+    const body = noteBody.trim();
+    if (!body) return;
+    setSavingNote(true);
+    setNoteError(null);
+    try {
+      const scopedContactId = contactId?.trim() ?? "";
+      const isContactComposer = scopedContactId.length > 0;
+      /** Client-visible messages must use `createNote` → `thread_messages` so GPUM + contact MC show full thread. */
+      const res = isContactComposer
+        ? await fetch(`/api/crm/contacts/${encodeURIComponent(scopedContactId)}/notes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(
+              composerType === "message"
+                ? { body, note_type: "message" }
+                : { body, note_type: "staff_note" }
+            ),
+          })
+        : await fetch("/api/admin/message-center/notes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body }),
+          });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setNoteError(typeof data?.error === "string" ? data.error : "Failed to create note");
+        return;
+      }
+      const bumpThread =
+        !!resolvedActiveThreadId &&
+        !!contactId?.trim() &&
+        isContactComposer &&
+        composerType === "message";
+      setNoteBody("");
+      setComposerType("message");
+      setAddNoteOpen(false);
+      setComposerMessageOnly(false);
+      if (bumpThread) setThreadRefreshNonce((n) => n + 1);
+      router.refresh();
+    } catch {
+      setNoteError("Failed to create note");
+    } finally {
+      setSavingNote(false);
     }
   };
 
@@ -302,7 +670,9 @@ export function DashboardActivityStream({
             (i.authorLabel?.toLowerCase().includes(q) ?? false)
           );
         }
+        const displayLine = formatListPrimaryLine(i, "").toLowerCase();
         return (
+          displayLine.includes(q) ||
           i.contactName.toLowerCase().includes(q) ||
           (i.body?.toLowerCase().includes(q) ?? false) ||
           (i.formName?.toLowerCase().includes(q) ?? false) ||
@@ -314,21 +684,6 @@ export function DashboardActivityStream({
     return list;
   }, [items, search]);
 
-  const visibleUnreadThreadIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const item of filtered) {
-      if (item.source === "thread" && item.unread) ids.push(item.threadId);
-    }
-    return ids;
-  }, [filtered]);
-
-  const selectedUnreadToMark = useMemo(() => {
-    return [...selectedThreadIds].filter((id) => {
-      const row = filtered.find((i) => i.source === "thread" && i.threadId === id);
-      return row?.source === "thread" && row.unread;
-    });
-  }, [filtered, selectedThreadIds]);
-
   const resetControls = useCallback(() => {
     setSearch("");
     setTypeFilter("all");
@@ -338,6 +693,9 @@ export function DashboardActivityStream({
     setCustomRangeApplied(null);
     setCustomDateDialogOpen(false);
   }, []);
+
+  const isContactInlineConversation = !!(resolvedActiveThreadId && contactId?.trim());
+  const useRichTranscriptMeta = !!contactId?.trim();
 
   const hasAnythingToReset = useMemo(() => {
     if (search.trim()) return true;
@@ -365,41 +723,28 @@ export function DashboardActivityStream({
             {contactId?.trim() ? "Message Center (this contact)" : "Message Center"}
           </CardTitle>
           <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              disabled={markingRead || selectedUnreadToMark.length === 0}
-              onClick={() => markThreadsRead(selectedUnreadToMark)}
-            >
-              Mark selected read
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs"
-              disabled={markingRead || visibleUnreadThreadIds.length === 0}
-              onClick={() => markThreadsRead(visibleUnreadThreadIds)}
-            >
-              Mark all visible unread
-            </Button>
+            {!isContactInlineConversation && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setComposerMessageOnly(false);
+                  const scoped = !!contactId?.trim();
+                  const messagesFilter = typeFilter === "conversations";
+                  setComposerType(scoped && messagesFilter ? "message" : scoped ? "private" : "message");
+                  setAddNoteOpen(true);
+                  setNoteError(null);
+                }}
+              >
+                {contactId?.trim() && typeFilter === "conversations"
+                  ? "Add message or note"
+                  : "Add Note"}
+              </Button>
+            )}
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {contactId?.trim()
-            ? "Threads and activity for this contact only. Use the filter for messages vs notifications."
-            : layout === "full"
-              ? "Newest first. Choose a date window to load older activity, then filter by type (e.g. orders) — cap still applies per load."
-              : "Newest first — optional date window + type filter. Same list as the full Message Center page."}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Multi-select applies to{" "}
-          <span className="text-foreground font-medium">conversations only</span>
-          : use the checkbox on the left (notifications and other rows have no checkbox). Open a row from its title
-          link.
-        </p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center gap-2 overflow-x-auto overflow-y-visible whitespace-nowrap px-1 py-1">
@@ -536,21 +881,297 @@ export function DashboardActivityStream({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        <div
-          className={`overflow-y-auto space-y-1 ${
-            compact
-              ? "max-h-[280px]"
-              : layout === "full"
-                ? "max-h-[min(75vh,52rem)] min-h-[320px]"
-                : "max-h-[360px]"
-          }`}
+        <Dialog
+          open={viewingAnnouncement != null}
+          onOpenChange={(open) => {
+            if (!open) setViewingAnnouncement(null);
+          }}
         >
-          {filtered.length === 0 ? (
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Announcement</DialogTitle>
+            </DialogHeader>
+            {viewingAnnouncement ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {ANNOUNCEMENT_LABEL} · {new Date(viewingAnnouncement.at).toLocaleString()}
+                </p>
+                {viewingAnnouncement.source === "thread" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {viewingAnnouncement.contactName}
+                    {viewingAnnouncement.authorLabel
+                      ? ` · ${viewingAnnouncement.authorLabel}`
+                      : ""}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{viewingAnnouncement.contactName}</p>
+                )}
+                <div className="max-h-[min(50vh,28rem)] overflow-y-auto rounded-md border bg-muted/30 px-3 py-2">
+                  <p className="whitespace-pre-wrap text-sm text-foreground">
+                    {announcementBodyText(viewingAnnouncement)}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-2 sm:justify-end flex-col sm:flex-row">
+              {viewingAnnouncement?.source === "thread" &&
+              viewingAnnouncement.threadType === "mag_group" &&
+              viewingAnnouncement.magId ? (
+                <Button type="button" variant="outline" size="sm" className="sm:mr-auto w-full sm:w-auto" asChild>
+                  <Link href={`/admin/crm/memberships/${viewingAnnouncement.magId}`}>Open MAG</Link>
+                </Button>
+              ) : null}
+              <Button type="button" variant="secondary" onClick={() => setViewingAnnouncement(null)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={viewingSelfNote != null}
+          onOpenChange={(open) => {
+            if (!open) closeSelfNoteDialog();
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Scratch note</DialogTitle>
+            </DialogHeader>
+            {viewingSelfNote && viewingSelfNote.source === "timeline" ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  NOTE:SELF · {new Date(viewingSelfNote.at).toLocaleString()}
+                </p>
+                <div className="max-h-[min(50vh,28rem)] overflow-y-auto rounded-md border bg-muted/30 px-3 py-2">
+                  <p className="whitespace-pre-wrap text-sm text-foreground">
+                    {viewingSelfNote.body?.trim() || "(empty note)"}
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Only scratch notes can be removed here. Everything else in Message Center is kept as an audit
+                  record.
+                </p>
+                {selfNoteError ? <p className="text-xs text-destructive">{selfNoteError}</p> : null}
+                {selfNoteDeleteIntent ? (
+                  <p className="text-sm text-destructive">Delete this note permanently? This cannot be undone.</p>
+                ) : null}
+              </div>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-0">
+              {selfNoteDeleteIntent ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={selfNoteDeleting}
+                    onClick={() => setSelfNoteDeleteIntent(false)}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={selfNoteDeleting}
+                    onClick={handleDeleteSelfNote}
+                  >
+                    {selfNoteDeleting ? "Deleting…" : "Delete permanently"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={closeSelfNoteDialog}>
+                    Close
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => setSelfNoteDeleteIntent(true)}
+                  >
+                    Delete note
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={addNoteOpen}
+          onOpenChange={(open) => {
+            setAddNoteOpen(open);
+            if (!open) setComposerMessageOnly(false);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {composerMessageOnly
+                  ? "Message"
+                  : contactId?.trim()
+                    ? "Add message or note"
+                    : "Add note"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              {contactId?.trim() && !composerMessageOnly ? (
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  value={composerType}
+                  onChange={(e) => setComposerType(e.target.value as "message" | "private")}
+                >
+                  <option value="message">Message to contact (visible to contact)</option>
+                  <option value="private">Internal note (staff only)</option>
+                </select>
+              ) : null}
+              <textarea
+                className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={noteBody}
+                onChange={(e) => setNoteBody(e.target.value)}
+                placeholder={
+                  contactId?.trim()
+                    ? composerType === "message"
+                      ? "Message the contact can see..."
+                      : "Internal note for staff..."
+                    : "Scratch note for yourself..."
+                }
+              />
+              {noteError ? <p className="text-xs text-destructive">{noteError}</p> : null}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setAddNoteOpen(false);
+                  setComposerMessageOnly(false);
+                }}
+                disabled={savingNote}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateGlobalNote}
+                disabled={savingNote || !noteBody.trim()}
+              >
+                {savingNote
+                  ? composerMessageOnly
+                    ? "Sending…"
+                    : "Saving…"
+                  : composerMessageOnly
+                    ? "Send message"
+                    : "Save note"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <div
+          className={cn(
+            isContactInlineConversation && "flex min-h-0 flex-col gap-2",
+            !isContactInlineConversation && "contents"
+          )}
+        >
+          <div
+            ref={threadScrollRef}
+            className={cn(
+              "overflow-y-auto space-y-1",
+              isContactInlineConversation &&
+                cn(
+                  "min-h-[200px] flex-1",
+                  compact
+                    ? "max-h-[260px]"
+                    : layout === "full"
+                      ? "max-h-[min(72vh,50rem)]"
+                      : "max-h-[340px]"
+                ),
+              !isContactInlineConversation &&
+                (compact
+                  ? "max-h-[280px]"
+                  : layout === "full"
+                    ? "max-h-[min(75vh,52rem)] min-h-[320px]"
+                    : "max-h-[360px]")
+            )}
+          >
+          {resolvedActiveThreadId ? (
+            loadingThread ? (
+              <p className="text-xs text-muted-foreground py-4 text-center">Loading conversation…</p>
+            ) : threadError ? (
+              <p className="text-xs text-destructive py-4 text-center">{threadError}</p>
+            ) : threadMessages.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4 text-center">No messages in this conversation yet.</p>
+            ) : (
+              <div className="space-y-1">
+                {threadMessages.map((m) => {
+                  const isMember = !!m.author_contact_id?.trim();
+                  const isStaff = !isMember && !!m.author_user_id?.trim();
+                  const who = isMember ? "Member" : isStaff ? "Staff" : "System";
+                  const dt = new Date(m.created_at).toLocaleString();
+                  let subLine: string;
+                  if (useRichTranscriptMeta) {
+                    const cid = m.author_contact_id?.trim();
+                    const uid = m.author_user_id?.trim();
+                    if (cid) {
+                      const cname =
+                        threadMsgContactNames[cid] ??
+                        expandedThreadContactLabel?.trim() ??
+                        "Contact";
+                      subLine = `Member · ${cname} · ${dt}`;
+                    } else if (uid) {
+                      const meta = threadAuthors[uid];
+                      subLine = meta
+                        ? `${meta.roleLabel} · ${meta.displayName} · ${dt}`
+                        : `Team · ${dt}`;
+                    } else {
+                      subLine = `System · ${dt}`;
+                    }
+                  } else {
+                    subLine = `MESSAGE · ${who} · ${dt}`;
+                  }
+                  const iconWrapClass = isMember
+                    ? "bg-slate-500/15 border border-slate-500/30"
+                    : isStaff
+                      ? "bg-blue-500/15 border border-blue-500/30"
+                      : "bg-zinc-500/10 border border-zinc-500/25";
+                  const iconClass = isMember
+                    ? "text-slate-700 dark:text-slate-300"
+                    : isStaff
+                      ? "text-blue-700 dark:text-blue-300"
+                      : "text-zinc-600 dark:text-zinc-400";
+                  return (
+                    <div
+                      key={m.id}
+                      className={cn(
+                        "flex items-start gap-2 rounded px-2 py-1.5 hover:bg-muted/50 text-sm",
+                        isMember ? "flex-row" : "flex-row-reverse"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                          iconWrapClass
+                        )}
+                        aria-hidden
+                      >
+                        <MessagesSquare className={cn("h-3.5 w-3.5", iconClass)} />
+                      </div>
+                      <div className={cn("flex-1 min-w-0", isMember ? "text-left" : "text-right")}>
+                        <p className="whitespace-pre-wrap break-words">{m.body?.trim() || "(empty message)"}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">{subLine}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : filtered.length === 0 ? (
             <p className="text-xs text-muted-foreground py-4 text-center">No items match</p>
           ) : (
             filtered.map((item) => {
               const href = resolveHref(item);
               const badge = kindBadge(item);
+              const visual = rowVisual(item);
+              const primaryLine = formatListPrimaryLine(item, search);
+              const showBadge =
+                !!badge && !primaryLine.toUpperCase().startsWith(`${badge.toUpperCase()}:`);
               const subLine =
                 item.source === "thread"
                   ? item.authorLabel
@@ -559,64 +1180,88 @@ export function DashboardActivityStream({
                   : item.contactName;
               const isPendingComment =
                 item.source === "timeline" &&
-                item.timelineKind === "blog_comment" &&
+                (item.timelineKind === "blog_comment" || item.timelineKind === "product_comment") &&
                 item.status === "pending" &&
                 item.id;
-              const isThread = item.source === "thread";
-              const showUnread = isThread && item.unread;
+              const openInlineSupportThread =
+                !!contactId?.trim() &&
+                item.source === "thread" &&
+                item.threadType === "support";
+              const openSelfNoteDetail =
+                item.source === "timeline" && item.noteScope === "note_to_self";
+              const openAnnouncementDetail = messageCenterItemIsAnnouncement(item);
+              const rowText = (
+                <>
+                  <p className="truncate">{primaryLine}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                    <span>{subLine}</span>
+                    <span>·</span>
+                    <span>{new Date(item.at).toLocaleString()}</span>
+                    {showBadge && (
+                      <span
+                        className={cn(
+                          "inline-flex rounded px-1 py-0.5 text-[10px] font-medium",
+                          visual.badgeClass
+                        )}
+                      >
+                        {badge}
+                      </span>
+                    )}
+                  </p>
+                </>
+              );
               return (
                 <div
                   key={`${item.source}-${item.id}-${item.at}`}
-                  className={`flex items-start justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50 group ${
-                    showUnread ? "bg-primary/5 border border-primary/15" : ""
-                  }`}
+                  className="flex items-start justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/50 group"
                 >
                   <div
-                    className="flex w-9 shrink-0 items-start justify-center pt-0.5"
-                    title={isThread ? "Select for mark read" : undefined}
+                    className={cn(
+                      "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                      visual.iconWrapClass
+                    )}
+                    aria-hidden
                   >
-                    {isThread ? (
-                      <div
-                        className="inline-flex"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        <Checkbox
-                          checked={selectedThreadIds.has(item.threadId)}
-                          onCheckedChange={() => toggleThreadSelected(item.threadId)}
-                          aria-label={`Select conversation thread (${item.threadType}) for mark read`}
-                        />
-                      </div>
-                    ) : null}
+                    <visual.Icon className={cn("h-3.5 w-3.5", visual.iconClass)} />
                   </div>
-                  <div className="flex w-3 shrink-0 justify-center pt-1.5">
-                    {showUnread ? (
-                      <span
-                        className="size-2 shrink-0 rounded-full bg-primary"
-                        title="Unread"
-                        aria-hidden
-                      />
-                    ) : null}
-                  </div>
-                  <Link href={href} className="flex-1 min-w-0 text-sm transition-colors">
-                    <p className={`truncate ${showUnread ? "font-medium" : ""}`}>
-                      {formatListPrimaryLine(item, search)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
-                      <span>{subLine}</span>
-                      <span>·</span>
-                      <span>{new Date(item.at).toLocaleString()}</span>
-                      {badge && (
-                        <span className="inline-flex rounded px-1 py-0.5 text-[10px] font-medium bg-muted">
-                          {badge}
-                        </span>
-                      )}
-                    </p>
-                  </Link>
+                  {openInlineSupportThread ? (
+                    <button
+                      type="button"
+                      className="flex-1 min-w-0 text-sm transition-colors text-left"
+                      onClick={() => {
+                        setTypeFilter("conversations");
+                        if (item.source === "thread") setActiveThreadId(item.threadId);
+                      }}
+                    >
+                      {rowText}
+                    </button>
+                  ) : openAnnouncementDetail ? (
+                    <button
+                      type="button"
+                      className="flex-1 min-w-0 text-sm text-left transition-colors hover:underline underline-offset-2 cursor-pointer"
+                      onClick={() => setViewingAnnouncement(item)}
+                    >
+                      {rowText}
+                    </button>
+                  ) : openSelfNoteDetail ? (
+                    <button
+                      type="button"
+                      className="flex-1 min-w-0 text-sm text-left transition-colors hover:underline underline-offset-2 cursor-pointer"
+                      onClick={() => {
+                        setSelfNoteDeleteIntent(false);
+                        setSelfNoteError(null);
+                        setViewingSelfNote(item);
+                      }}
+                    >
+                      {rowText}
+                    </button>
+                  ) : href === "#" ? (
+                    <div className="flex-1 min-w-0 text-sm text-foreground">{rowText}</div>
+                  ) : (
+                    <Link href={href} className="flex-1 min-w-0 text-sm transition-colors">
+                      {rowText}
+                    </Link>
+                  )}
                   {canApproveReject && isPendingComment && item.id && (
                     <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
@@ -624,7 +1269,13 @@ export function DashboardActivityStream({
                         variant="outline"
                         className="h-7 text-xs"
                         disabled={moderatingId === item.id}
-                        onClick={() => handleCommentStatus(item.id!, "approved")}
+                        onClick={() =>
+                          handleCommentStatus(
+                            item.id!,
+                            item.timelineKind === "product_comment" ? "product_comment" : "blog_comment",
+                            "approved"
+                          )
+                        }
                       >
                         Approve
                       </Button>
@@ -633,7 +1284,13 @@ export function DashboardActivityStream({
                         variant="outline"
                         className="h-7 text-xs text-destructive hover:text-destructive"
                         disabled={moderatingId === item.id}
-                        onClick={() => handleCommentStatus(item.id!, "rejected")}
+                        onClick={() =>
+                          handleCommentStatus(
+                            item.id!,
+                            item.timelineKind === "product_comment" ? "product_comment" : "blog_comment",
+                            "rejected"
+                          )
+                        }
                       >
                         Reject
                       </Button>
@@ -643,6 +1300,24 @@ export function DashboardActivityStream({
               );
             })
           )}
+          </div>
+          {isContactInlineConversation ? (
+            <div className="shrink-0 border-t border-border pt-2 pb-0.5 flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                className="h-9"
+                onClick={() => {
+                  setComposerMessageOnly(true);
+                  setComposerType("message");
+                  setNoteError(null);
+                  setAddNoteOpen(true);
+                }}
+              >
+                Message
+              </Button>
+            </div>
+          ) : null}
         </div>
       </CardContent>
     </Card>

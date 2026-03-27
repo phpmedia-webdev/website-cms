@@ -5,10 +5,13 @@
 import {
   listRecentContactNotificationsTimelineGlobal,
   listContactNotificationsTimeline,
+  parseTimelineMetadataJson,
+  timelineRowIsNoteToSelfForViewer,
 } from "@/lib/supabase/contact-notifications-timeline";
 import type { ContactNotificationsTimelineRow } from "@/lib/supabase/contact-notifications-timeline";
 import {
   listRecentConversationThreadsForAdmin,
+  listRecentMagGroupThreadMessagesForStream,
   listSupportThreadsForContact,
   listTaskTicketThreadsForTaskIds,
   listThreadMessages,
@@ -17,7 +20,7 @@ import {
   type ConversationThreadType,
 } from "@/lib/supabase/conversation-threads";
 import { getTaskIdsForContact } from "@/lib/supabase/projects";
-import { getCommentAuthorDisplayName } from "@/lib/blog-comments/author-name";
+import { getCommentAuthorDisplayName, getRealNameLabelForUser } from "@/lib/blog-comments/author-name";
 import { createServerSupabaseClient } from "@/lib/supabase/server-service";
 import { getClientSchema } from "@/lib/supabase/schema";
 import {
@@ -32,6 +35,9 @@ const CRM_SCHEMA = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_templat
 export type MessageCenterStreamFilter =
   | "all"
   | "conversations"
+  | "comments"
+  | "notes"
+  | "requires_moderation"
   | "notifications"
   | "notification_timeline"
   | "blog_comment"
@@ -54,6 +60,17 @@ export function normalizeTimelineKindForMessageCenter(kind: string): string {
   return k;
 }
 
+function moderationStatusFromCommentMetadata(
+  metadata: Record<string, unknown> | null | undefined
+): "pending" | "approved" | "rejected" {
+  const v =
+    metadata?.blog_moderation_status ??
+    metadata?.product_moderation_status ??
+    metadata?.moderation_status;
+  if (v === "approved" || v === "rejected" || v === "pending") return v;
+  return "pending";
+}
+
 export type MessageCenterStreamItem =
   | {
       source: "thread";
@@ -71,8 +88,12 @@ export type MessageCenterStreamItem =
       contactId: string;
       contactName: string;
       authorLabel: string | null;
+      /** Support rollup only: last message from contact (IN) vs staff (OUT). */
+      supportRollupDirection?: "in" | "out";
       /** Present when `forUserId` was passed to stream builder — thread has newer messages than `last_read_at`. */
       unread?: boolean;
+      /** Admin MAG announcement (`thread_messages.metadata.source` = admin_broadcast). */
+      broadcast?: boolean;
     }
   | {
       source: "timeline";
@@ -96,6 +117,10 @@ export type MessageCenterStreamItem =
       orderId?: string;
       orderStatus?: string;
       taskId?: string | null;
+      /** From timeline metadata — personal scratch notes (dashboard) visible only to author/recipient. */
+      noteScope?: "note_to_self" | null;
+      /** Staff team inbox announcement (`metadata.team_broadcast`). */
+      teamBroadcast?: boolean;
     };
 
 /** Map dashboard / URL filter to internal handling. */
@@ -119,15 +144,22 @@ function threadTypeMatchesFilter(
   return threadType === filter;
 }
 
+function normalizeMessageCenterContactId(id: string | null | undefined): string {
+  return (id ?? "").trim().toLowerCase();
+}
+
+/** True for DB `kind` values that are internal staff / note rows on the contact timeline. */
+export function streamTimelineKindIsStaffNoteOrNote(kind: string | undefined | null): boolean {
+  const k = (kind ?? "").trim().toLowerCase();
+  return k === "staff_note" || k === "note";
+}
+
 /** Contact-scoped Message Center: row involves this CRM contact (v1 — direct `contact_id` / task / support subject). */
 export function messageCenterItemInvolvesContact(item: MessageCenterStreamItem, contactId: string): boolean {
-  const cid = contactId.trim();
-  if (!cid) return true;
-  if (item.source === "thread") {
-    return item.contactId === cid;
-  }
-  if (item.source === "timeline") {
-    return item.contactId === cid;
+  const want = normalizeMessageCenterContactId(contactId);
+  if (!want) return true;
+  if (item.source === "thread" || item.source === "timeline") {
+    return normalizeMessageCenterContactId(item.contactId) === want;
   }
   return false;
 }
@@ -135,6 +167,25 @@ export function messageCenterItemInvolvesContact(item: MessageCenterStreamItem, 
 function passesFilter(item: MessageCenterStreamItem, filter: MessageCenterStreamFilter): boolean {
   if (filter === "all") return true;
   if (filter === "conversations") return item.source === "thread";
+  if (filter === "comments") {
+    if (item.source === "thread") {
+      return item.threadType === "task_ticket";
+    }
+    return (
+      item.source === "timeline" &&
+      (item.timelineKind === "blog_comment" || item.timelineKind === "product_comment")
+    );
+  }
+  if (filter === "requires_moderation") {
+    return (
+      item.source === "timeline" &&
+      (item.timelineKind === "blog_comment" || item.timelineKind === "product_comment") &&
+      item.status === "pending"
+    );
+  }
+  if (filter === "notes") {
+    return item.source === "timeline" && streamTimelineKindIsStaffNoteOrNote(item.timelineKind);
+  }
   if (filter === "notifications") return item.source === "timeline";
   if (filter === "notification_timeline") {
     return item.source === "timeline" && item.nativeDbTimeline === true;
@@ -178,7 +229,10 @@ async function enrichSupportThreadSearchText(
   items: MessageCenterStreamItem[]
 ): Promise<MessageCenterStreamItem[]> {
   const supportThreadIds = items
-    .filter((item) => item.source === "thread" && item.threadType === "support")
+    .filter(
+      (item): item is Extract<MessageCenterStreamItem, { source: "thread" }> =>
+        item.source === "thread" && item.threadType === "support"
+    )
     .map((item) => item.threadId);
   const uniqueIds = [...new Set(supportThreadIds)];
   const BATCH = 15;
@@ -223,6 +277,7 @@ export async function getAdminMessageCenterStream(
   filter: MessageCenterStreamFilter = "all",
   options?: GetAdminMessageCenterStreamOptions
 ): Promise<MessageCenterStreamItem[]> {
+  const viewerUserId = options?.forUserId?.trim() ?? "";
   const contactScope = !!options?.contactId?.trim();
   const scopeMult = contactScope ? 4 : 1;
   const rangeIso: MessageCenterDateRangeIso | null = normalizeMessageCenterDateRange(
@@ -231,18 +286,80 @@ export async function getAdminMessageCenterStream(
   );
 
   const perKind = messageCenterFetchCap(Math.max(20, Math.ceil(limit * 0.6 * scopeMult)), rangeIso);
+  /** Contact-scoped views need a larger global timeline window so rows not returned by merge still appear when volume is high. */
+  const perKindEffective = contactScope ? Math.max(perKind, 320) : perKind;
   const threadCap = messageCenterFetchCap(Math.max(20, Math.ceil(limit * 0.55 * scopeMult)), rangeIso);
   const blogLimit = messageCenterFetchCap(Math.ceil(limit / 2), rangeIso);
 
   const scopedContactId = options?.contactId?.trim() ?? "";
 
-  const [globalThreads, timelineRowsGlobal, blogRows, supportThreads, taskIdsForContact, timelineForContact] =
+  const [globalThreads, timelineRowsGlobal, blogRows, productRows, supportThreads, taskIdsForContact, timelineForContact] =
     await Promise.all([
     listRecentConversationThreadsForAdmin(threadCap, rangeIso),
-    listRecentContactNotificationsTimelineGlobal(perKind, rangeIso),
+    listRecentContactNotificationsTimelineGlobal(perKindEffective, rangeIso),
     import("@/lib/supabase/blog-comment-messages").then((m) =>
       m.fetchRecentBlogCommentRowsForDashboard(blogLimit, rangeIso)
     ),
+    (async () => {
+      type ProductJoinRow = {
+        id: string;
+        body: string;
+        created_at: string;
+        author_user_id: string | null;
+        metadata: Record<string, unknown> | null;
+        conversation_threads:
+          | { thread_type: string; subject_id: string | null }
+          | { thread_type: string; subject_id: string | null }[]
+          | null;
+      };
+      const supabase = createServerSupabaseClient();
+      const schema = getClientSchema();
+      let q = supabase
+        .schema(schema)
+        .from("thread_messages")
+        .select(
+          `
+          id,
+          body,
+          created_at,
+          author_user_id,
+          metadata,
+          conversation_threads!inner (
+            thread_type,
+            subject_id
+          )
+        `
+        )
+        .eq("conversation_threads.thread_type", "product_comment");
+      if (rangeIso?.dateFrom) q = q.gte("created_at", rangeIso.dateFrom);
+      if (rangeIso?.dateTo) q = q.lte("created_at", rangeIso.dateTo);
+      const { data, error } = await q.order("created_at", { ascending: false }).limit(blogLimit);
+      if (error) {
+        console.error("fetchRecentProductCommentRowsForDashboard:", error.message, error.code);
+        return [] as {
+          id: string;
+          body: string;
+          created_at: string;
+          author_user_id: string | null;
+          metadata: Record<string, unknown> | null;
+          product_id: string | null;
+        }[];
+      }
+      const rows = ((data ?? []) as ProductJoinRow[]).map((row) => {
+        const th = Array.isArray(row.conversation_threads)
+          ? row.conversation_threads[0]
+          : row.conversation_threads;
+        return {
+          id: row.id,
+          body: row.body,
+          created_at: row.created_at,
+          author_user_id: row.author_user_id,
+          metadata: row.metadata,
+          product_id: th?.subject_id ?? null,
+        };
+      });
+      return rows;
+    })(),
     scopedContactId ? listSupportThreadsForContact(scopedContactId) : Promise.resolve([]),
     scopedContactId ? getTaskIdsForContact(scopedContactId) : Promise.resolve([]),
     scopedContactId
@@ -251,7 +368,7 @@ export async function getAdminMessageCenterStream(
   ]);
 
   let timelineRows: ContactNotificationsTimelineRow[] = timelineRowsGlobal;
-  if (scopedContactId && timelineForContact.length > 0) {
+  if (scopedContactId) {
     const byId = new Map<string, ContactNotificationsTimelineRow>();
     for (const r of timelineRowsGlobal) byId.set(r.id, r);
     for (const r of timelineForContact) byId.set(r.id, r);
@@ -268,22 +385,44 @@ export async function getAdminMessageCenterStream(
   for (const t of supportThreads) threadsById.set(t.id, t);
   for (const t of taskTicketThreads) threadsById.set(t.id, t);
   const threads = [...threadsById.values()];
+  const magGroupThreads = threads.filter((t) => t.thread_type === "mag_group");
 
   /** Threads explicitly tied to this contact (direct subject, orphans, author lookup). */
   const supportThreadIdsForScope = new Set(supportThreads.map((x) => x.id));
 
-  const threadIds = threads.map((t) => t.id);
-  const lastByThread = await fetchLatestThreadMessagesForThreads(threadIds);
+  const threadIdsForLatestPreview = threads
+    .filter((t) => t.thread_type !== "mag_group")
+    .map((t) => t.id);
+  const lastByThread = await fetchLatestThreadMessagesForThreads(threadIdsForLatestPreview);
+
+  const magMsgCap = messageCenterFetchCap(Math.min(750, Math.max(limit * 6, 160)), rangeIso);
+  const magMessagesForStream =
+    magGroupThreads.length > 0
+      ? await listRecentMagGroupThreadMessagesForStream(
+          magGroupThreads.map((t) => t.id),
+          {
+            limit: magMsgCap,
+            dateFrom: rangeIso?.dateFrom ?? null,
+            dateTo: rangeIso?.dateTo ?? null,
+          }
+        )
+      : [];
 
   const authorIds = new Set<string>();
   for (const t of threads) {
     const last = lastByThread.get(t.id);
     if (last?.author_user_id) authorIds.add(last.author_user_id);
   }
+  for (const msg of magMessagesForStream) {
+    if (msg.author_user_id) authorIds.add(msg.author_user_id);
+  }
   for (const row of timelineRows) {
     if (row.author_user_id) authorIds.add(row.author_user_id);
   }
   for (const row of blogRows) {
+    if (row.author_user_id) authorIds.add(row.author_user_id);
+  }
+  for (const row of productRows) {
     if (row.author_user_id) authorIds.add(row.author_user_id);
   }
   const authorNames: Record<string, string> = {};
@@ -341,6 +480,10 @@ export async function getAdminMessageCenterStream(
   for (const cid of taskContactId.values()) {
     contactIds.add(cid);
   }
+  for (const msg of magMessagesForStream) {
+    const c = msg.author_contact_id?.trim();
+    if (c) contactIds.add(c);
+  }
 
   let contactNames: Record<string, string> = {};
   if (contactIds.size > 0) {
@@ -365,11 +508,26 @@ export async function getAdminMessageCenterStream(
     }
   }
 
-  const { moderationStatusFromMetadata } = await import("@/lib/supabase/blog-comment-messages");
+  const supportOutUserIds = new Set<string>();
+  for (const t of threads) {
+    if (t.thread_type === "mag_group" || t.thread_type !== "support") continue;
+    const last = lastByThread.get(t.id);
+    if (!last) continue;
+    const lastCid = last.author_contact_id?.trim() ?? "";
+    const lastUid = last.author_user_id?.trim() ?? "";
+    if (!lastCid && lastUid) supportOutUserIds.add(lastUid);
+  }
+  const supportOutRealNames: Record<string, string> = {};
+  await Promise.all(
+    [...supportOutUserIds].map(async (uid) => {
+      supportOutRealNames[uid] = await getRealNameLabelForUser(uid);
+    })
+  );
 
   const items: MessageCenterStreamItem[] = [];
 
   for (const t of threads) {
+    if (t.thread_type === "mag_group") continue;
     const last = lastByThread.get(t.id);
     const threadAt = last?.created_at ?? t.updated_at;
     if (rangeIso && !messageCenterItemInDateRange(threadAt, rangeIso)) continue;
@@ -399,13 +557,33 @@ export async function getAdminMessageCenterStream(
     } else {
       contactId = "";
     }
-    const authorLabel = last?.author_user_id
-      ? authorNames[last.author_user_id] ?? null
-      : last?.author_contact_id
-        ? contactNames[last.author_contact_id] ?? "Member"
-        : null;
     const contactName =
       contactId && contactNames[contactId] ? contactNames[contactId] : contactId ? "Contact" : "—";
+
+    let authorLabel: string | null = null;
+    let supportRollupDirection: "in" | "out" | undefined;
+    if (t.thread_type === "support" && last) {
+      const lastCid = last.author_contact_id?.trim() ?? "";
+      const lastUid = last.author_user_id?.trim() ?? "";
+      if (lastCid) {
+        supportRollupDirection = "in";
+        const fromAuthor = contactNames[lastCid]?.trim();
+        authorLabel =
+          (fromAuthor && fromAuthor.length > 0 ? fromAuthor : null) ??
+          (contactId && contactNames[contactId]?.trim() ? contactNames[contactId].trim() : null) ??
+          (contactName !== "—" ? contactName : null);
+      } else if (lastUid) {
+        supportRollupDirection = "out";
+        const real = supportOutRealNames[lastUid]?.trim();
+        authorLabel = real && real.length > 0 ? real : null;
+      }
+    } else {
+      authorLabel = last?.author_user_id
+        ? authorNames[last.author_user_id] ?? null
+        : last?.author_contact_id
+          ? contactNames[last.author_contact_id] ?? "Member"
+          : null;
+    }
 
     const threadItem: MessageCenterStreamItem = {
       source: "thread",
@@ -421,8 +599,69 @@ export async function getAdminMessageCenterStream(
       contactId,
       contactName,
       authorLabel,
+      ...(supportRollupDirection ? { supportRollupDirection } : {}),
     };
     if (passesFilter(threadItem, filter)) items.push(threadItem);
+  }
+
+  /** MAG group rooms: one stream row per message (not one rollup row per thread). */
+  if (magGroupThreads.length > 0 && magMessagesForStream.length > 0) {
+    const magThreadById = new Map(magGroupThreads.map((t) => [t.id, t]));
+    const magIdsForLabels = [
+      ...new Set(
+        magGroupThreads
+          .map((t) => t.mag_id)
+          .filter((id): id is string => typeof id === "string" && !!id.trim())
+      ),
+    ];
+    const magRoomNames: Record<string, string> = {};
+    if (magIdsForLabels.length > 0) {
+      const supabase = createServerSupabaseClient();
+      const { data } = await supabase
+        .schema(CRM_SCHEMA)
+        .from("mags")
+        .select("id, name")
+        .in("id", magIdsForLabels);
+      for (const m of (data as { id: string; name: string | null }[] | null) ?? []) {
+        magRoomNames[m.id] = m.name?.trim() || "MAG";
+      }
+    }
+    for (const msg of magMessagesForStream) {
+      const t = magThreadById.get(msg.thread_id);
+      if (!t) continue;
+      const threadAt = msg.created_at;
+      if (rangeIso && !messageCenterItemInDateRange(threadAt, rangeIso)) continue;
+      const preview = msg.body?.trim() || "(empty message)";
+      const authorLabel = msg.author_user_id
+        ? authorNames[msg.author_user_id] ?? null
+        : msg.author_contact_id
+          ? contactNames[msg.author_contact_id] ?? "Member"
+          : null;
+      const magId = t.mag_id?.trim() ?? null;
+      const contactName = magId ? magRoomNames[magId] ?? "MAG room" : "MAG room";
+      const meta =
+        msg.metadata && typeof msg.metadata === "object" && !Array.isArray(msg.metadata)
+          ? (msg.metadata as Record<string, unknown>)
+          : {};
+      const isAnnouncement = meta.source === "admin_broadcast";
+      const threadItem: MessageCenterStreamItem = {
+        source: "thread",
+        id: `thread-msg-${msg.id}`,
+        at: threadAt,
+        threadType: "mag_group",
+        threadId: t.id,
+        magId,
+        subjectType: t.subject_type,
+        subjectId: t.subject_id,
+        preview,
+        taskId: null,
+        contactId: "",
+        contactName,
+        authorLabel,
+        ...(isAnnouncement ? { broadcast: true } : {}),
+      };
+      if (passesFilter(threadItem, filter)) items.push(threadItem);
+    }
   }
 
   /** Contacts with a support thread row in this stream — skip duplicate `message` timeline rows (same GPUM as `thread_messages`). */
@@ -448,7 +687,22 @@ export async function getAdminMessageCenterStream(
       contactName: row.author_user_id ? authorNames[row.author_user_id] ?? "Commenter" : "Commenter",
       body: row.body?.trim() ? row.body : "Comment",
       contentId: row.content_id,
-      status: moderationStatusFromMetadata(row.metadata),
+      status: moderationStatusFromCommentMetadata(row.metadata),
+    };
+    if (passesFilter(item, filter)) items.push(item);
+  }
+  for (const row of productRows) {
+    const item: MessageCenterStreamItem = {
+      source: "timeline",
+      id: row.id,
+      at: row.created_at,
+      timelineKind: "product_comment",
+      displayKind: "product_comment",
+      nativeDbTimeline: false,
+      contactId: "",
+      contactName: row.author_user_id ? authorNames[row.author_user_id] ?? "Commenter" : "Commenter",
+      body: row.body?.trim() ? row.body : "Product comment",
+      status: moderationStatusFromCommentMetadata(row.metadata),
     };
     if (passesFilter(item, filter)) items.push(item);
   }
@@ -567,6 +821,16 @@ export async function getAdminMessageCenterStream(
   for (const t of timelineRows) {
     const cid = t.contact_id ?? "";
     const kindLower = (t.kind ?? "").trim().toLowerCase();
+    const isGlobalNote =
+      (kindLower === "staff_note" || kindLower === "note") && !cid.trim();
+    if (isGlobalNote) {
+      if (!viewerUserId) continue;
+      const authorId = t.author_user_id?.trim() ?? "";
+      const recipientId = t.recipient_user_id?.trim() ?? "";
+      if (authorId !== viewerUserId && recipientId !== viewerUserId) {
+        continue;
+      }
+    }
     if (
       kindLower === "message" &&
       cid.trim() &&
@@ -576,10 +840,7 @@ export async function getAdminMessageCenterStream(
     }
     const line = (t.body?.trim() || t.title?.trim() || t.kind) ?? "Notification";
     const displayKind = normalizeTimelineKindForMessageCenter(t.kind);
-    const meta =
-      t.metadata && typeof t.metadata === "object" && !Array.isArray(t.metadata)
-        ? (t.metadata as Record<string, unknown>)
-        : {};
+    const meta = parseTimelineMetadataJson(t.metadata);
     const formIdMeta = typeof meta.form_id === "string" ? meta.form_id : null;
     const formNameMeta = typeof meta.form_name === "string" ? meta.form_name : undefined;
     const submissionMeta = typeof meta.submission_id === "string" ? meta.submission_id : null;
@@ -588,6 +849,10 @@ export async function getAdminMessageCenterStream(
     const submissionId =
       submissionMeta ?? (isFormTimeline && t.subject_id?.trim() ? t.subject_id.trim() : null);
     const formId = formIdMeta;
+    const noteScope: "note_to_self" | null = timelineRowIsNoteToSelfForViewer(t, viewerUserId)
+      ? "note_to_self"
+      : null;
+    const teamBroadcast = meta.team_broadcast === true;
     const item: MessageCenterStreamItem = {
       source: "timeline",
       id: t.id,
@@ -596,11 +861,18 @@ export async function getAdminMessageCenterStream(
       displayKind,
       nativeDbTimeline: true,
       contactId: cid,
-      contactName: cid ? (contactNames[cid] ?? "Contact") : "Contact",
+      contactName:
+        cid
+          ? (contactNames[cid] ?? "Contact")
+          : (kindLower === "staff_note" || kindLower === "note")
+            ? "Team"
+            : "Contact",
       body: line,
       formName: formNameMeta,
       formId: formId ?? undefined,
       submissionId: submissionId ?? undefined,
+      noteScope,
+      ...(teamBroadcast ? { teamBroadcast: true } : {}),
     };
     if (!passesFilter(item, filter)) continue;
     items.push(item);
@@ -692,7 +964,20 @@ export async function getAdminMessageCenterStream(
     const nonThreads = out.filter((i) => i.source !== "thread");
     const budget = Math.max(limit, 120);
     const roomForRest = Math.max(0, budget - threadsOnly.length);
-    out = [...threadsOnly, ...nonThreads.slice(0, roomForRest)];
+    /**
+     * Always retain every contact-scoped staff/note timeline row; otherwise a flat
+     * `nonThreads.slice(0, roomForRest)` drops internal notes when many orders / MAG / list
+     * rows are newer or higher volume (filter "all" looked broken vs filter "notes").
+     */
+    const isContactTimelineNote = (i: MessageCenterStreamItem) =>
+      i.source === "timeline" && streamTimelineKindIsStaffNoteOrNote(i.timelineKind);
+    const contactTimelineNotes = nonThreads.filter(isContactTimelineNote);
+    const otherNonThreads = nonThreads.filter((i) => !isContactTimelineNote(i));
+    const roomForOther = Math.max(0, roomForRest - contactTimelineNotes.length);
+    const tail = [...contactTimelineNotes, ...otherNonThreads.slice(0, roomForOther)].sort(
+      (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+    );
+    out = [...threadsOnly, ...tail];
   } else {
     out = out.slice(0, limit);
   }

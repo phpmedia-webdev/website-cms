@@ -13,15 +13,18 @@ import { replaceContactMethods } from "./contact-methods";
 import {
   insertContactNotificationsTimeline,
   listContactNotificationsTimeline,
+  parseTimelineMetadataJson,
   type ContactNotificationsTimelineRow,
 } from "./contact-notifications-timeline";
 import {
   createConversationThread,
   insertThreadMessage,
+  listRecentStaffMagGroupMessagesForMagIds,
   listSupportThreadsForContact,
   listThreadMessages,
   type ThreadMessageRow,
 } from "./conversation-threads";
+import { getMemberByUserId } from "./members";
 
 const CRM_SCHEMA =
   process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
@@ -958,6 +961,41 @@ export async function getContactCustomFieldValuesForContactIds(
   return (data as ContactCustomFieldValueBulk[]) ?? [];
 }
 
+/**
+ * Registered members (`members.user_id` set) with no row in `crm_contact_mags`.
+ * Used so tenant-wide MAG broadcasts can still reach GPUM logins that are not in any MAG.
+ */
+export async function listRegisteredMemberContactIdsWithoutMagEnrollment(): Promise<string[]> {
+  const supabase = createServerSupabaseClient();
+  const { data: memberRows, error: mErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("members")
+    .select("contact_id")
+    .not("user_id", "is", null);
+  if (mErr) {
+    console.error("listRegisteredMemberContactIdsWithoutMagEnrollment members:", mErr.message);
+    return [];
+  }
+  const { data: magRows, error: magErr } = await supabase
+    .schema(CRM_SCHEMA)
+    .from("crm_contact_mags")
+    .select("contact_id");
+  if (magErr) {
+    console.error("listRegisteredMemberContactIdsWithoutMagEnrollment mags:", magErr.message);
+    return [];
+  }
+  const withMag = new Set(
+    (magRows ?? []).map((r: { contact_id: string }) => String(r.contact_id).trim()).filter(Boolean)
+  );
+  const out = new Set<string>();
+  for (const row of memberRows ?? []) {
+    const cid = String((row as { contact_id: string }).contact_id).trim();
+    if (!cid || withMag.has(cid)) continue;
+    out.add(cid);
+  }
+  return [...out];
+}
+
 /** Get MAGs assigned to a contact (RPC). */
 export async function getContactMags(contactId: string): Promise<ContactMag[]> {
   const supabase = createServerSupabaseClient();
@@ -1140,11 +1178,26 @@ export async function createNote(
       conversationUid,
     });
   if (threadId) {
+    /**
+     * Support-thread `message` rows: member-originated → `author_contact_id` = contact; staff-originated →
+     * `author_contact_id` null + `author_user_id` set. Previously every row used `author_contact_id: contactId`,
+     * so operator replies looked like member messages in Message Center.
+     */
+    let msgAuthorContactId: string | null = contactId;
+    const msgAuthorUserId = authorId ?? null;
+    if (normalizedType === "message" && !taskId) {
+      if (authorId) {
+        const member = await getMemberByUserId(authorId);
+        if (!member || member.contact_id !== contactId) {
+          msgAuthorContactId = null;
+        }
+      }
+    }
     const { message, error } = await insertThreadMessage({
       thread_id: threadId,
       body,
-      author_user_id: authorId ?? null,
-      author_contact_id: contactId,
+      author_user_id: msgAuthorUserId,
+      author_contact_id: msgAuthorContactId,
       parent_message_id: parentNoteId ?? null,
       metadata: {
         note_type: normalizedType || "message",
@@ -2247,16 +2300,10 @@ export async function getFormSubmissionsByContactId(contactId: string): Promise<
 
 /** Member GPUM activity stream filter (timeline + thread + other sources). */
 export const MEMBER_ACTIVITY_TYPE_FILTER_OPTIONS = [
-  { value: "all", label: "All" },
+  { value: "all", label: "View all" },
   { value: "message", label: "Messages" },
-  { value: "note", label: "Notes" },
-  { value: "task_status_change", label: "Task status changes" },
   { value: "blog_comment", label: "Comments" },
-  { value: "email_sent", label: "Outbound email" },
-  { value: "form_submission", label: "Form submissions" },
-  { value: "contact_added", label: "Contact added" },
-  { value: "mag_assignment", label: "MAG assignment" },
-  { value: "marketing_list", label: "Marketing list" },
+  { value: "note", label: "Notifications" },
   { value: "order", label: "Transactions" },
 ] as const;
 
@@ -2302,6 +2349,8 @@ export interface DashboardActivityItem {
   id?: string;
   /** Set when type = 'mag_assignment'. */
   magName?: string;
+  /** Set when type = 'message' + mag announcement — MAG id for thread link. */
+  magId?: string;
   /** Set when type = 'marketing_list'. */
   listName?: string;
   /** Set when type = 'order': order id (link to admin order detail). */
@@ -2508,9 +2557,15 @@ export async function getDashboardActivity(limit = 50): Promise<DashboardActivit
  * Activity stream for a single contact (member dashboard). Same event types as getDashboardActivity but filtered to one contact.
  * Includes notes for tasks the contact is on (task_followers): task thread replies appear in the stream.
  */
-export async function getMemberActivity(contactId: string, limit = 80): Promise<DashboardActivityItem[]> {
+export async function getMemberActivity(
+  contactId: string,
+  limit = 80,
+  opts?: { timelineFetchLimit?: number; ordersFetchLimit?: number }
+): Promise<DashboardActivityItem[]> {
+  const timelineCap = Math.min(Math.max(opts?.timelineFetchLimit ?? 200, 1), 500);
+  const ordersCap = Math.min(Math.max(opts?.ordersFetchLimit ?? 30, 1), 120);
   const [timelineRows, formSubmissions, mags, marketingLists, contact, ordersData] = await Promise.all([
-    listContactNotificationsTimeline(contactId, { limit: 200 }),
+    listContactNotificationsTimeline(contactId, { limit: timelineCap }),
     getFormSubmissionsByContactId(contactId),
     getContactMags(contactId),
     getContactMarketingLists(contactId),
@@ -2523,7 +2578,7 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
         .select("id, customer_email, contact_id, status, created_at")
         .eq("contact_id", contactId)
         .order("created_at", { ascending: false })
-        .limit(30);
+        .limit(ordersCap);
       return (data ?? []) as { id: string; customer_email: string; contact_id: string | null; status: string; created_at: string }[];
     })(),
   ]);
@@ -2536,6 +2591,10 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
   const noteById = new Map<string, CrmNote & { note_type?: string | null }>();
   for (const r of timelineRows) {
     if (r.visibility === "admin_only") continue;
+    const tMeta = parseTimelineMetadataJson(r.metadata);
+    if (typeof tMeta.thread_message_id === "string" && tMeta.thread_message_id.trim()) {
+      continue;
+    }
     const n = timelineRowToCrmNote(r) as CrmNote & { note_type?: string | null };
     noteById.set(n.id, n);
   }
@@ -2569,7 +2628,17 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
     if (n.note_type === "blog_comment") {
       continue;
     }
-    if (n.note_type === "message") {
+    if (n.note_type === "tenant_announcement") {
+      items.push({
+        type: "message",
+        id: n.id,
+        at: n.created_at,
+        contactId: contactId,
+        contactName,
+        body: n.body,
+        noteType: "tenant_announcement",
+      });
+    } else if (n.note_type === "message") {
       items.push({
         type: "message",
         id: n.id,
@@ -2590,6 +2659,26 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
         taskId: n.task_id ?? null,
       });
     }
+  }
+
+  const magIdList = [...new Set(mags.map((m) => m.mag_id).filter(Boolean))];
+  const magNameByMagId = Object.fromEntries(mags.map((m) => [m.mag_id, m.mag_name]));
+  const magAnnouncements = await listRecentStaffMagGroupMessagesForMagIds(magIdList, 220);
+  const seenMagMsg = new Set<string>();
+  for (const ann of magAnnouncements) {
+    if (seenMagMsg.has(ann.id)) continue;
+    seenMagMsg.add(ann.id);
+    items.push({
+      type: "message",
+      id: ann.id,
+      at: ann.created_at,
+      contactId,
+      contactName,
+      body: ann.body,
+      noteType: "mag_announcement",
+      magName: magNameByMagId[ann.mag_id] ?? "MAG",
+      magId: ann.mag_id,
+    });
   }
 
   for (const s of formSubmissions) {
@@ -2647,5 +2736,17 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
   }
 
   items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  return items.slice(0, limit);
+
+  const isMagAnnouncement = (i: DashboardActivityItem) =>
+    i.type === "message" &&
+    (i.noteType === "mag_announcement" || i.noteType === "tenant_announcement");
+  const maxAnn = Math.min(45, Math.max(12, Math.floor(limit / 4)));
+  const announcements = items.filter(isMagAnnouncement).slice(0, maxAnn);
+  const annIds = new Set(announcements.map((i) => i.id));
+  const nonAnn = items.filter((i) => !annIds.has(i.id));
+  const takeNon = Math.max(0, limit - announcements.length);
+  const merged = [...nonAnn.slice(0, takeNon), ...announcements].sort(
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+  );
+  return merged.slice(0, limit);
 }

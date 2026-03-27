@@ -24,6 +24,7 @@ import { ContactCardOrgLine } from "./ContactCardOrgLine";
 import { ContactRecordLayout } from "./ContactRecordLayout";
 import { ContactMergeButton } from "./ContactMergeButton";
 import { ContactComposeEmailButton } from "./ContactComposeEmailButton";
+import type { MessageCenterStreamFilter } from "@/lib/message-center/admin-stream";
 
 type EventParticipantLinkRow = {
   event_id: string | null;
@@ -155,10 +156,55 @@ async function getRelatedProjectsForContact(contactId: string): Promise<RelatedP
 
 export default async function ContactDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
+  const rawMessageCenterFilter = Array.isArray(sp.mc_filter) ? sp.mc_filter[0] : sp.mc_filter;
+  const rawSupportThreadId = Array.isArray(sp.thread_id) ? sp.thread_id[0] : sp.thread_id;
+  const allowedMessageCenterFilters: Set<MessageCenterStreamFilter> = new Set([
+    "all",
+    "conversations",
+    "comments",
+    "notes",
+    "requires_moderation",
+    "notifications",
+    "notification_timeline",
+    "blog_comment",
+    "form_submission",
+    "form_submitted",
+    "contact_added",
+    "mag_assignment",
+    "marketing_list",
+    "order",
+    "support",
+    "task_ticket",
+    "mag_group",
+    "direct",
+    "group",
+  ]);
+  let initialMessageCenterFilter: MessageCenterStreamFilter =
+    rawMessageCenterFilter && allowedMessageCenterFilters.has(rawMessageCenterFilter as MessageCenterStreamFilter)
+      ? (rawMessageCenterFilter as MessageCenterStreamFilter)
+      : "all";
+  /** Drill-in with thread only: default to Messages (`conversations`). Legacy `support` → same UI label. */
+  if (
+    !rawMessageCenterFilter &&
+    typeof rawSupportThreadId === "string" &&
+    rawSupportThreadId.trim().length > 0
+  ) {
+    initialMessageCenterFilter = "conversations";
+  }
+  if (initialMessageCenterFilter === "support") {
+    initialMessageCenterFilter = "conversations";
+  }
+  const initialSupportThreadId =
+    typeof rawSupportThreadId === "string" && rawSupportThreadId.trim().length > 0
+      ? rawSupportThreadId.trim()
+      : null;
   const currentUser = await getCurrentUser();
   const [
     contact,
@@ -196,7 +242,7 @@ export default async function ContactDetailPage({
       }))
     ),
     getRelatedProjectsForContact(id),
-    getAdminMessageCenterStream(55, "all", {
+    getAdminMessageCenterStream(120, "all", {
       contactId: id,
       forUserId: currentUser?.id ?? null,
     }),
@@ -346,6 +392,9 @@ export default async function ContactDetailPage({
         relatedTasks={relatedTasks}
         relatedProjects={relatedProjects}
         messageCenterItems={messageCenterItems}
+        initialMessageCenterFilter={initialMessageCenterFilter}
+        initialSupportThreadId={initialSupportThreadId}
+        contactDisplayName={displayName}
       />
     </div>
   );

@@ -126,6 +126,22 @@ export function legacySlugToPhpAuthSlug(legacySlug: string): string {
   return LEGACY_SLUG_TO_PHP_AUTH[s] ?? toPhpAuthRoleSlug(legacySlug);
 }
 
+/**
+ * Human-readable team role for operator UI (Admin, Editor, Creator, …).
+ * Accepts `tenant_user_assignments.role_slug` (legacy or PHP-Auth). GPUM → "Member"; empty → "Team".
+ */
+export function getAdminRoleDisplayLabel(roleSlug: string | null | undefined): string {
+  const raw = (roleSlug ?? "").trim();
+  if (!raw) return "Team";
+  const slug = legacySlugToPhpAuthSlug(raw);
+  if (slug === PHP_AUTH_ROLE_SLUG.GPUM) return "Member";
+  const label = PHP_AUTH_ADMIN_ROLE_LABELS[slug as keyof typeof PHP_AUTH_ADMIN_ROLE_LABELS];
+  if (label) return label;
+  const shortened = slug.replace(/^website-cms-/i, "").replace(/-/g, " ").trim();
+  if (!shortened) return "Team";
+  return shortened.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /** Reverse: PHP-Auth slug → legacy slug for DB queries during transition (admin_roles, role_features still use legacy). Remove when DB is migrated to PHP-Auth slugs. */
 export function phpAuthSlugToLegacySlug(phpAuthSlug: string): string {
   const s = (phpAuthSlug ?? "").trim();

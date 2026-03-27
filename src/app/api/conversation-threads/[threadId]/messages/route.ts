@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { insertThreadMessage, listThreadMessages } from "@/lib/supabase/conversation-threads";
-import { assertCanPostThreadMessage } from "@/lib/message-center/mag-thread-policy";
+import { enrichThreadMessageAuthors } from "@/lib/message-center/thread-message-author-enrichment";
+import {
+  assertCanPostThreadMessage,
+  assertMemberCanReadThread,
+} from "@/lib/message-center/mag-thread-policy";
 
 /**
  * GET /api/conversation-threads/[threadId]/messages?limit=200
@@ -16,12 +20,21 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { threadId } = await params;
+    const readGate = await assertMemberCanReadThread(threadId, user.id);
+    if (!readGate.ok) {
+      return NextResponse.json({ error: readGate.message }, { status: readGate.status });
+    }
     const { searchParams } = new URL(request.url);
     const limitRaw = searchParams.get("limit");
     const limit = limitRaw ? parseInt(limitRaw, 10) : undefined;
     const data = await listThreadMessages(threadId, {
       limit: Number.isFinite(limit) ? limit : undefined,
     });
+    const enrichAuthors = searchParams.get("enrichAuthors") === "1";
+    if (enrichAuthors && data.length > 0) {
+      const { authors, contactNames, memberContactNames } = await enrichThreadMessageAuthors(data);
+      return NextResponse.json({ data, authors, contactNames, memberContactNames });
+    }
     return NextResponse.json({ data });
   } catch (error) {
     console.error("GET thread messages:", error);

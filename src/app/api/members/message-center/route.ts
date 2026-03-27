@@ -1,17 +1,25 @@
 /**
  * GET /api/members/message-center
- * GPUM scaffold: member-safe Messages & Notifications feed contract.
- * Returns a cursor-ready payload shape (`items`, `nextCursor`, `hasMore`) while
- * currently sourcing rows from `getMemberActivity`.
+ * GPUM merged stream: `items` (legacy activity) + `streamItems` (normalized union + conversation heads).
  */
 
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getMemberByUserId } from "@/lib/supabase/members";
-import { getMemberActivity, type DashboardActivityItem } from "@/lib/supabase/crm";
+import type { DashboardActivityItem } from "@/lib/supabase/crm";
+import { getMemberMessageCenterMergedStream } from "@/lib/message-center/gpum-member-stream";
+import {
+  filterMemberStreamItems,
+  type MemberMessageCenterFilter,
+} from "@/lib/message-center/gpum-message-center";
+import {
+  messageCenterItemInDateRange,
+  normalizeMessageCenterDateRange,
+} from "@/lib/message-center/date-range";
 
-function matchesFilter(item: DashboardActivityItem, filter: string): boolean {
+function matchesLegacyActivityFilter(item: DashboardActivityItem, filter: string): boolean {
   if (!filter || filter === "all") return true;
+  if (filter === "conversations" || filter === "notifications") return true;
   if (filter === "notification_timeline") return item.type === "notification_timeline";
   if (filter === "message") return item.type === "message";
   if (filter === "note") return item.type === "note";
@@ -23,6 +31,13 @@ function matchesFilter(item: DashboardActivityItem, filter: string): boolean {
   return true;
 }
 
+function toStreamFilter(raw: string): MemberMessageCenterFilter {
+  const f = raw.trim().toLowerCase();
+  if (f === "conversations") return "conversations";
+  if (f === "notifications") return "notifications";
+  return "all";
+}
+
 export async function GET(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -32,30 +47,53 @@ export async function GET(request: Request) {
 
     const member = await getMemberByUserId(user.id);
     if (!member) {
-      return NextResponse.json({ items: [], nextCursor: null, hasMore: false });
+      const empty = {
+        items: [],
+        streamItems: [],
+        nextCursor: null,
+        hasMore: false,
+        memberContactId: null as string | null,
+      };
+      return NextResponse.json(empty);
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") ?? "80", 10) || 80, 1), 120);
-    const filter = (searchParams.get("filter") ?? "all").trim();
+    const filterRaw = (searchParams.get("filter") ?? "all").trim();
     const dateFrom = searchParams.get("date_from")?.trim() || "";
     const dateTo = searchParams.get("date_to")?.trim() || "";
+    const dateRangeActive = !!(dateFrom || dateTo);
+    const requestedLimit = parseInt(searchParams.get("limit") ?? "80", 10) || 80;
+    const limit = Math.min(Math.max(requestedLimit, dateRangeActive ? 120 : 1), 200);
+    const dateBounds =
+      dateRangeActive && (dateFrom || dateTo)
+        ? normalizeMessageCenterDateRange(dateFrom || null, dateTo || null)
+        : null;
 
-    const activity = await getMemberActivity(member.contact_id, limit);
-    let items = activity.filter((i) => matchesFilter(i, filter));
-    if (dateFrom) {
-      const fromTs = new Date(dateFrom).getTime();
-      if (!Number.isNaN(fromTs)) items = items.filter((i) => new Date(i.at).getTime() >= fromTs);
+    const { activity, streamItems: merged } = await getMemberMessageCenterMergedStream(
+      member.contact_id,
+      user.id,
+      limit,
+      { dateRangeActive }
+    );
+
+    let items = activity.filter((i) => matchesLegacyActivityFilter(i, filterRaw));
+    if (dateBounds) {
+      items = items.filter((i) => messageCenterItemInDateRange(i.at, dateBounds));
     }
-    if (dateTo) {
-      const toTs = new Date(dateTo).getTime();
-      if (!Number.isNaN(toTs)) items = items.filter((i) => new Date(i.at).getTime() <= toTs);
+
+    let streamItems = merged;
+    if (dateBounds) {
+      streamItems = streamItems.filter((i) => messageCenterItemInDateRange(i.at, dateBounds));
     }
+
+    streamItems = filterMemberStreamItems(streamItems, toStreamFilter(filterRaw)).slice(0, limit);
 
     return NextResponse.json({
       items,
+      streamItems,
       nextCursor: null,
       hasMore: false,
+      memberContactId: member.contact_id,
     });
   } catch (error) {
     console.error("GET /api/members/message-center:", error);
@@ -65,4 +103,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

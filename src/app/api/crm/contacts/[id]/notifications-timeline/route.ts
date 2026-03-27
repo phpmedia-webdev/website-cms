@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
+import { createNote } from "@/lib/supabase/crm";
 import {
   insertContactNotificationsTimeline,
   isValidVisibility,
@@ -70,6 +71,46 @@ export async function POST(
       body.metadata && typeof body.metadata === "object" && body.metadata !== null
         ? (body.metadata as Record<string, unknown>)
         : undefined;
+    const kindLower = kind.trim().toLowerCase();
+    const bodyText = typeof body.body === "string" ? body.body.trim() : "";
+    const isClientVisibleMessage =
+      kindLower === "message" && (visibility === "client_visible" || visibility === "both");
+
+    if (isClientVisibleMessage) {
+      if (!bodyText) {
+        return NextResponse.json({ error: "body is required" }, { status: 400 });
+      }
+      const { note, error: noteErr } = await createNote(contactId, bodyText, user.id, "message");
+      if (noteErr || !note) {
+        return NextResponse.json(
+          { error: noteErr?.message ?? "Failed to post to support thread" },
+          { status: 400 }
+        );
+      }
+      const { row, error } = await insertContactNotificationsTimeline({
+        contact_id: contactId,
+        kind,
+        visibility,
+        title: title.trim() || "Message",
+        body: bodyText,
+        metadata: {
+          ...(metadata ?? {}),
+          note_type: "message",
+          thread_message_id: note.id,
+        },
+        author_user_id: user.id,
+        recipient_user_id:
+          typeof body.recipient_user_id === "string" ? body.recipient_user_id : undefined,
+        subject_type: typeof body.subject_type === "string" ? body.subject_type : undefined,
+        subject_id: typeof body.subject_id === "string" ? body.subject_id : undefined,
+        source_event: typeof body.source_event === "string" ? body.source_event : undefined,
+      });
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({ data: row });
+    }
+
     const { row, error } = await insertContactNotificationsTimeline({
       contact_id: contactId,
       kind,

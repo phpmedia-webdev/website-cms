@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { User, Tags, Settings, Mail, FileText, Users, FolderKanban, Receipt, CalendarDays, ListChecks } from "lucide-react";
@@ -10,7 +9,7 @@ import { ContactDetailClient } from "./ContactDetailClient";
 import { ContactTaxonomyBlock } from "./ContactTaxonomyBlock";
 import { DashboardActivityStream } from "@/components/dashboard/DashboardActivityStream";
 import type { MessageCenterStreamItem } from "@/lib/message-center/admin-stream";
-import { ContactNotificationsTimelineSection } from "@/components/crm/ContactNotificationsTimelineSection";
+import type { MessageCenterStreamFilter } from "@/lib/message-center/admin-stream";
 import type { CrmCustomField, ContactCustomFieldValue, ContactMag, ContactMarketingList, Form } from "@/lib/supabase/crm";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 import type { ContactDetailSection } from "./ContactDetailClient";
@@ -62,6 +61,12 @@ interface ContactRecordLayoutProps {
   relatedProjects: RelatedProjectRow[];
   /** Contact-scoped Message Center stream (server-built). */
   messageCenterItems: MessageCenterStreamItem[];
+  /** Optional initial filter for contact Message Center (e.g. support drill-in). */
+  initialMessageCenterFilter?: MessageCenterStreamFilter;
+  /** Optional support thread id to focus when drilling in from dashboard. */
+  initialSupportThreadId?: string | null;
+  /** Display name for Message Center expanded thread (Member · name · time). */
+  contactDisplayName: string;
 }
 
 export function ContactRecordLayout({
@@ -79,8 +84,10 @@ export function ContactRecordLayout({
   relatedTasks,
   relatedProjects,
   messageCenterItems,
+  initialMessageCenterFilter = "all",
+  initialSupportThreadId = null,
+  contactDisplayName,
 }: ContactRecordLayoutProps) {
-  const router = useRouter();
   const [section1, setSection1] = useState<Section1Tab>("detail");
   const [section2, setSection2] = useState<Section2Tab>("messageCenter");
 
@@ -191,12 +198,11 @@ export function ContactRecordLayout({
               <DashboardActivityStream
                 initialItems={messageCenterItems}
                 contactId={contactId}
+                initialFilter={initialMessageCenterFilter}
+                initialThreadId={initialSupportThreadId}
+                contactRecordTab
+                expandedThreadContactLabel={contactDisplayName}
                 compact
-              />
-              <ContactNotificationsTimelineSection
-                contactId={contactId}
-                composerOnly
-                onAfterSubmit={() => router.refresh()}
               />
             </div>
           )}

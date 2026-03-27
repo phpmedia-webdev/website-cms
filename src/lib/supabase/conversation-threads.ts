@@ -205,6 +205,123 @@ export async function addThreadParticipantIfNotExists(input: {
   console.error("addThreadParticipantIfNotExists:", error.message);
 }
 
+/**
+ * One canonical MAG group room per membership group (newest row if duplicates exist).
+ */
+export async function getOrCreateMagGroupThread(
+  magId: string
+): Promise<{ thread: ConversationThreadRow | null; error: Error | null }> {
+  const mid = magId.trim();
+  if (!mid) {
+    return { thread: null, error: new Error("mag_id required") };
+  }
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data: existing, error: selErr } = await supabase
+    .schema(schema)
+    .from("conversation_threads")
+    .select("*")
+    .eq("thread_type", "mag_group")
+    .eq("mag_id", mid)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (selErr) {
+    console.error("getOrCreateMagGroupThread select:", selErr.message);
+    return { thread: null, error: new Error(selErr.message) };
+  }
+  const first = (existing ?? [])[0] as ConversationThreadRow | undefined;
+  if (first) {
+    return { thread: first, error: null };
+  }
+  return createConversationThread({ thread_type: "mag_group", mag_id: mid });
+}
+
+export type MagGroupStaffMessagePreview = {
+  id: string;
+  thread_id: string;
+  mag_id: string;
+  body: string;
+  created_at: string;
+};
+
+/**
+ * Recent staff posts in MAG group threads (for member activity). `author_contact_id` null = staff.
+ */
+export async function listRecentStaffMagGroupMessagesForMagIds(
+  magIds: string[],
+  limitTotal: number
+): Promise<MagGroupStaffMessagePreview[]> {
+  const ids = [...new Set(magIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0 || limitTotal < 1) return [];
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data: threads, error: tErr } = await supabase
+    .schema(schema)
+    .from("conversation_threads")
+    .select("id, mag_id")
+    .eq("thread_type", "mag_group")
+    .in("mag_id", ids);
+  if (tErr) {
+    console.error("listRecentStaffMagGroupMessagesForMagIds threads:", tErr.message);
+    return [];
+  }
+  const threadRows = (threads ?? []) as { id: string; mag_id: string }[];
+  if (threadRows.length === 0) return [];
+  const magByThread = new Map(threadRows.map((t) => [t.id, t.mag_id]));
+  const threadIdList = threadRows.map((t) => t.id);
+  const { data: msgs, error: mErr } = await supabase
+    .schema(schema)
+    .from("thread_messages")
+    .select("id, thread_id, body, created_at, author_user_id, author_contact_id")
+    .in("thread_id", threadIdList)
+    .is("author_contact_id", null)
+    .not("author_user_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Math.max(limitTotal, 1), 400));
+  if (mErr) {
+    console.error("listRecentStaffMagGroupMessagesForMagIds messages:", mErr.message);
+    return [];
+  }
+  const out: MagGroupStaffMessagePreview[] = [];
+  for (const m of (msgs ?? []) as {
+    id: string;
+    thread_id: string;
+    body: string;
+    created_at: string;
+  }[]) {
+    const magId = magByThread.get(m.thread_id);
+    if (!magId) continue;
+    out.push({
+      id: m.id,
+      thread_id: m.thread_id,
+      mag_id: magId,
+      body: m.body ?? "",
+      created_at: m.created_at,
+    });
+  }
+  return out;
+}
+
+/** Canonical `mag_group` thread rows for the given MAG ids (newest first per query order). */
+export async function listMagGroupThreadsForMagIds(magIds: string[]): Promise<ConversationThreadRow[]> {
+  const ids = [...new Set(magIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data, error } = await supabase
+    .schema(schema)
+    .from("conversation_threads")
+    .select("*")
+    .eq("thread_type", "mag_group")
+    .in("mag_id", ids)
+    .order("updated_at", { ascending: false });
+  if (error) {
+    console.error("listMagGroupThreadsForMagIds:", error.message, error.code);
+    return [];
+  }
+  return (data ?? []) as ConversationThreadRow[];
+}
+
 export async function getConversationThreadById(
   threadId: string
 ): Promise<ConversationThreadRow | null> {
@@ -367,6 +484,43 @@ export async function fetchLatestThreadMessagesForThreads(
     })
   );
   return result;
+}
+
+/**
+ * Recent messages across MAG group threads for admin Message Center.
+ * Used to show one timeline row per post instead of a single “thread head” rollup
+ * whose preview always reflects only the latest message.
+ */
+export async function listRecentMagGroupThreadMessagesForStream(
+  threadIds: string[],
+  options?: {
+    limit?: number;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+  }
+): Promise<ThreadMessageRow[]> {
+  const ids = [...new Set(threadIds.filter(Boolean))];
+  if (ids.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const limit = Math.min(Math.max(options?.limit ?? 400, 1), 750);
+  let q = supabase
+    .schema(schema)
+    .from("thread_messages")
+    .select(
+      "id, thread_id, body, author_user_id, author_contact_id, metadata, parent_message_id, created_at, edited_at"
+    )
+    .in("thread_id", ids);
+  const from = options?.dateFrom?.trim();
+  const to = options?.dateTo?.trim();
+  if (from) q = q.gte("created_at", from);
+  if (to) q = q.lte("created_at", to);
+  const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
+  if (error) {
+    console.error("listRecentMagGroupThreadMessagesForStream:", error.message, error.code);
+    return [];
+  }
+  return (data ?? []) as ThreadMessageRow[];
 }
 
 export async function updateThreadParticipantLastRead(input: {

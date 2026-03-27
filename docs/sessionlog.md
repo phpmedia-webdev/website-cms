@@ -55,10 +55,77 @@ Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get
 
 **Message Center — GUI / UX next steps (build from here)**
 
-- [ ] **GPUM UX model (product):** **SMS-style chat** (single back-and-forth surface) vs **unified feed + thread row** — decide next session; may imply dedicated chat UI while keeping `conversation_threads` / `thread_messages` storage ([changelog](./changelog.md) **2026-03-26 23:53 CT**).
-- [ ] **GPUM — API then UI:** **Merged read** route(s): single stream, sort, **cursor** pagination, **never** return `admin_only` timeline rows. Then member **Messages / notifications** page: stream list + **thread drill-in** (support, MAG, etc.), filters consistent with admin model where applicable.
+**GPUM Message Center MVP** — Product rules and v1.1 scope: [plan-gpum-message-center-mvp.md](./reference/plan-gpum-message-center-mvp.md). **Phases 0–3** are **shipped at functional v1** (2026-03-26–27): `gpum-message-center.ts`, `gpum-member-stream.ts`, `gpum-mag-eligibility.ts`, `GET /api/members/message-center`, **`MemberActivityStream`** on **`/members/messages`**. **Next focus:** Phase **4–5** below + broader §3 bullets; mirror [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications).
 
-**Recently shipped (admin Message Center surface):** Unread row styling, bulk mark read / mark visible unread, **View all** + filter menu (`admin-filters.ts`), **`GET /api/admin/message-center`** + mark-read batch, **contact-scoped** stream on CRM contact + `DashboardActivityStream`, full page at **`/admin/dashboard/message-center`** (taller list via `layout="full"`) + sidebar link after Dashboard (same **`dashboard`** gate) + dashboard tab **Open full page** link; legacy **`/admin/message-center`** → **`308`** to the dashboard sub-route (`next.config.js`).
+**GPUM pages — function, not template polish:** Implement **working flows and APIs** with plain, accessible UI (shared components ok). **Avoid** heavy visual/design work in this repo — **each tenant fork is bespoke**; forks own layout and styling.
+
+#### GPUM Message Center MVP — execution checklist
+
+**Phase 0 — Types and API contract**
+
+- [x] **0.1** Normalized GPUM stream item type (discriminated union): `notification` | `announcement_feed` | `conversation_head` in `gpum-message-center.ts`.
+- [x] **0.2** `GET /api/members/message-center` returns `items[]`, `streamItems[]`, `nextCursor`, `hasMore` — **`nextCursor` / `hasMore` still stubbed** (real cursor pagination = follow-up).
+- [x] **0.3** **`getMemberActivity`** skips **`visibility === "admin_only"`** timeline rows; merged stream builds on that activity slice.
+
+**Phase 1 — Server: merged “All” stream**
+
+- [x] **1.1** `getMemberMessageCenterMergedStream`: notifications + announcement lines + **conversation_head** rollups (**support** + eligible **MAG** threads via `memberCanSeeMagGroupThread`).
+- [x] **1.2** Dedup policy: feed row + in-thread message for same announcement remains acceptable; document when tightening (Phase **5.1**).
+- [x] **1.3** **All / Conversations / Notifications** applied server-side (`filterMemberStreamItems` + route).
+
+**Phase 2 — MAG eligibility helper**
+
+- [x] **2.1** `memberCanSeeMagGroupThread` — membership + prefs + nickname gate (`gpum-mag-eligibility.ts`).
+- [x] **2.2** Helper used in **stream** builder; **POST** thread messages enforced by **`assertCanPostThreadMessage`** (aligned MAG / opt-in rules).
+
+**Phase 3 — Client: `/members/messages`**
+
+- [x] **3.1** Stream + filter + search + date presets (functional layout).
+- [x] **3.2** Rows with `threadId` open **inline** transcript (`GET /api/conversation-threads/.../messages`); other rows list-only / order deep link.
+- [x] **3.3** Transcript + **reply** composer; failures show read-only error state.
+- [ ] **3.4** **Partial — follow-up if product wants it:** **Message support** button + **conversation_head** rows cover support + eligible MAG threads; **no** dedicated **sheet picker** listing only Support + MAGs to start a **new** MAG thread outside existing heads.
+
+**Phase 4 — Unread and light UX (not visual polish)**
+
+- [ ] **4.1** Unread for member threads (`thread_participants` + member-safe mark-read if missing); surface **`unread`** on `conversation_head` in UI.
+- [ ] **4.2** Empty states (gates, no messages).
+- [ ] **4.3** `/members` dashboard: link or short preview + “See all” (no full duplicate implementation).
+
+**Phase 5 — Docs and QA**
+
+- [ ] **5.1** [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) — GPUM stream vs drill-down, MAG gates, filters (sync with implemented API).
+- [ ] **5.2** [planlog.md](./planlog.md) Phase 18C — keep checkboxes aligned (GPUM read API + UI v1 done; cursor + cutover + edge cases remain).
+- [ ] **5.3** Manual QA: support, MAG on/off, opt-in off, missing nickname, **All** shows announcements without opening MAG, filters.
+
+#### Next up (§3 — messaging / notifications)
+
+**Priority next session:** **§1 — GPUM Phase 4** (thread unread + member mark-read), then empty states and `/members` dashboard discovery.
+
+**1. GPUM Phase 4 — unread, empty states, dashboard discovery**
+
+Admins already get unread styling and mark-read on **thread participants**; members do not yet get a first-class **“you have unread messages”** signal on conversation heads or a **member-safe** way to clear unread when they open a thread. Phase 4 closes that gap: compute or read **`last_read_at`** (or equivalent) for the **member’s** participation row, expose **unread** on `conversation_head` items in `GET /api/members/message-center`, and add **PATCH** (or POST) mark-read when the member views a thread—mirroring the admin pattern but **RLS- and API-safe** for GPUM. **Empty states** mean copy and UI when there are no threads, MAG conversations are gated (opt-in off, no nickname), or filters return nothing—so members are not staring at a blank card without explanation. **`/members` dashboard** should surface at least a **short preview** (e.g. last line + link) and **See all → `/members/messages`** so messaging is discoverable without bookmarking the messages route.
+
+**2. GPUM Phase 5 — docs, QA, cursor pagination**
+
+The **wiring doc** ([messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)) should describe the **implemented** GPUM stream shape (`streamItems` kinds), how **filters** map to server behavior, **MAG eligibility** (`memberCanSeeMagGroupThread` vs **`assertCanPostThreadMessage`**), and where **announcement_feed** vs **conversation_head** differ—so the next fork and the next developer do not reverse-engineer from code. **Manual QA** should run a small matrix: support thread happy path; MAG with **allow_conversations** on/off; member **global + per-MAG** opt-in off; **missing nickname** (thread hidden from stream); **All** still shows notifications without forcing MAG entry; **Conversations** vs **Notifications** filters. **Cursor pagination**: today **`nextCursor` / `hasMore`** are stubs; once real volumes appear, implement stable ordering + cursor in **`getMemberMessageCenterMergedStream`** and the GET handler so the UI can load older pages without fetching hundreds of rows up front.
+
+**3. Optional Phase 3.4 — “new conversation” picker (sheet)**
+
+Today, **Support** is started via **Message support** (and existing support threads appear as heads); **MAG** group threads appear when the tenant already has a **mag_group** thread for that MAG. There is **no** dedicated UI that says “start or open a conversation” in a **single sheet** listing only **Support** + **eligible MAGs** (no DMs). If product wants clearer **intent** (“I want to talk to this MAG community”), add a modal/sheet that lists those destinations and either opens an existing head or creates/bootstraps the thread per existing server rules—still **no member-to-member DM** for MVP.
+
+**4. Broader messaging MVP (below this checklist)**
+
+These items are **not** GPUM Message Center polish; they are **platform** work that the PRD treats as part of notifications/messaging maturity: **timeline triggers** (what events insert timeline rows—forms, orders, assignments, MAG changes—so behavior is predictable). **Event reminders** (cron + email/in-app/PWA per [planlog Phase 20](./planlog.md#phase-20-calendar--reminders--personal-ics-feeds)). **Blog / product comments** (thread storage, moderation, optional **admin Comments** hub). **Tasks hidden from clients** (`client_visible` / `internal_only`) so internal work and threads do not leak to GPUM lists. **`crm_notes` cutover** for forks: document that new kinds live on **timeline + threads**, keep legacy table only as long as needed, and avoid new feature work that depends on **`crm_notes`** for those kinds.
+
+**5. Admin product direction — chat vs feed**
+
+**Unified activity + thread row** (current admin dashboard model) optimizes **scanning** everything at once; **SMS-style chat** optimizes **one continuous support (or MAG) transcript** without hunting. This is a **product** decision ([changelog](./changelog.md) **2026-03-26 23:53 CT**): it affects layout, density, and whether staff default to **CRM contact + expanded thread** vs a **single inbox**. Engineering follow-ons depend on that choice—e.g. **expandable support row** or a **right-hand chat panel** so admins can read the full thread **without** relying on search or leaving the dashboard. Until decided, keep improving the **current** model (contact scope, labels, composer defaults) without a large redesign.
+
+---
+
+- [ ] **GPUM UX model (product):** **SMS-style chat** vs **unified feed + thread row** — optional follow-on; transcript UI in Phase 3 can align either way ([changelog](./changelog.md) **2026-03-26 23:53 CT**).
+
+**Recently shipped (admin Message Center surface):** Unread row styling, bulk mark read / mark visible unread, **View all** + filter menu (`admin-filters.ts`), **`GET /api/admin/message-center`** + mark-read batch, **contact-scoped** stream on CRM **Message Center** tab (`DashboardActivityStream` in `ContactRecordLayout`) + **`/admin/dashboard/message-center?contact_id=`** deep link, full page + sidebar + dashboard tab **Open full page**; legacy **`/admin/message-center`** → **`308`**. **Contact + expanded thread UX:** header **Add note** on non-Messages filters vs **Add message or note** on Messages; composer opens **internal note** vs **message** by context; bottom **Message** CTA + message-only dialog in inline conversation mode; transcript **`enrichAuthors`**, scroll/ordering fixes, staff vs member labeling in thread rows.
 - [ ] **Support — GPUM surfaces:** Clear **entry points** to support / ticket threads from member area (not only API).
 - [ ] **Docs / spec:** Keep [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) + [prd-technical §18C](./prd-technical.md#phase-18c-directory-and-messaging) aligned as UI/API land.
 
@@ -145,6 +212,7 @@ All **future** work: [planlog.md](./planlog.md) — Phase **20**, **21** follow-
 |--------|--------|
 | Directory & messaging spec | [prd-technical § Phase 18C](./prd-technical.md#phase-18c-directory-and-messaging) |
 | Messages vs notifications wiring | [reference/messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) |
+| GPUM Message Center MVP (steps) | [reference/plan-gpum-message-center-mvp.md](./reference/plan-gpum-message-center-mvp.md) + **§3 checklist** above |
 | Tasks Customizer / slugs | Migration **187**; [changelog](./changelog.md) |
 | Resources schema | Migration **183**; [planlog Phase 21](./planlog.md#phase-21-asset--resource-management) |
 | Event exclusive-resource conflicts | [reference/event-resource-conflicts.md](./reference/event-resource-conflicts.md) |

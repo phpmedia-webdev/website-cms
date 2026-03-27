@@ -5,7 +5,11 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase/server-service";
 import { getClientSchema } from "@/lib/supabase/schema";
-import { getConversationThreadById } from "@/lib/supabase/conversation-threads";
+import {
+  getConversationThreadById,
+  listSupportThreadsForContact,
+} from "@/lib/supabase/conversation-threads";
+import { memberEnrolledInMag } from "@/lib/message-center/gpum-mag-eligibility";
 import { getMemberByUserId } from "@/lib/supabase/members";
 import {
   getRoleForCurrentUser,
@@ -150,4 +154,48 @@ export async function assertCanPostThreadMessage(
   }
 
   return { ok: true };
+}
+
+/**
+ * GPUM (and staff) may read thread messages when this passes. POST still uses {@link assertCanPostThreadMessage}.
+ */
+export async function assertMemberCanReadThread(
+  threadId: string,
+  authUserId: string
+): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+  const role = await getRoleForCurrentUser();
+  if (role !== null && isAdminRole(role) && !isMemberRole(role)) {
+    return { ok: true };
+  }
+
+  const member = await getMemberByUserId(authUserId);
+  if (!member) {
+    return { ok: false, status: 403, message: "Not allowed" };
+  }
+
+  const thread = await getConversationThreadById(threadId);
+  if (!thread) {
+    return { ok: false, status: 404, message: "Thread not found" };
+  }
+
+  if (thread.thread_type === "support") {
+    const sid = thread.subject_id?.trim() ?? "";
+    if (sid && sid === member.contact_id) {
+      return { ok: true };
+    }
+    const supportThreads = await listSupportThreadsForContact(member.contact_id);
+    if (supportThreads.some((t) => t.id === threadId)) {
+      return { ok: true };
+    }
+    return { ok: false, status: 403, message: "Cannot access this conversation" };
+  }
+
+  if (thread.thread_type === "mag_group" && thread.mag_id) {
+    if (await memberEnrolledInMag(member.contact_id, thread.mag_id)) {
+      return { ok: true };
+    }
+    return { ok: false, status: 403, message: "Cannot access this MAG conversation" };
+  }
+
+  return { ok: false, status: 403, message: "Cannot access this thread" };
 }

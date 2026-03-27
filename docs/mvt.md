@@ -261,7 +261,7 @@ When you drop a new version of a module, replace the listed code paths and run t
   ```
 - **Data / schema:**
   - **Tables (client schema):** crm_contacts, crm_contact_custom_fields, crm_custom_fields, crm_notes, crm_contact_mags, crm_marketing_lists, crm_contact_marketing_lists, forms, form_fields, form_submissions; taxonomy_relationships for content_type crm_contact. crm_notes supports note_type = 'message' with recipient_contact_id (null = support), parent_note_id (threading).
-  - **Phase 18C:** Tables **190–191**; **192** (one blog thread per content); libs **`contact-notifications-timeline.ts`**, **`conversation-threads.ts`**, **`blog-comment-messages.ts`**; routes **notifications-timeline** + **conversation-threads** + **`/api/blog/comments`** (see prd-technical §18C, [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)). Merged GPUM stream + UI still planned.
+  - **Phase 18C:** Tables **190–191**; **192** (one blog thread per content); libs **`contact-notifications-timeline.ts`**, **`conversation-threads.ts`**, **`blog-comment-messages.ts`**; routes **notifications-timeline** + **conversation-threads** + **`/api/blog/comments`** (see prd-technical §18C, [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)). **GPUM:** merged stream + **`/members/messages`** (`MemberActivityStream`) v1 shipped; **open:** member thread unread/mark-read, cursor pagination, wiring doc pass.
   - **Migrations (key):** 102 (crm_contacts.deleted_at, get_contacts_dynamic/get_contact_by_id_dynamic); 139 (crm_notes recipient_contact_id, parent_note_id; get_contact_notes_dynamic return cols). **190–192** notifications timeline + threads + blog thread unique. Plus archive migrations for CRM/forms schema.
   - **RPCs (public):** get_contacts_dynamic(schema_name), get_contact_by_id_dynamic(schema_name, contact_id); get_crm_custom_fields_dynamic (or equivalent).
 - **Prerequisites:** Auth; Settings (CRM contact statuses, note types); Taxonomy; optional Membership (MAGs for contact assignment).
@@ -442,17 +442,18 @@ When you drop a new version of a module, replace the listed code paths and run t
 
 ### Admin Message Center (dashboard)
 
-- **Version:** 0.2 (admin tab + full-page stream; GPUM dedupe + `threadSearchText` search)
+- **Version:** 0.3 (admin tab + full-page + CRM contact stream; GPUM `/members/messages` v1 + merged API dedupe; transcript **`enrichAuthors`** + **`memberContactNames`**)
 - **Folder structure:**
   ```
-  src/lib/message-center/            # admin-stream, admin-filters, mag-thread-policy, thread-participants, date-range
-  src/app/api/admin/message-center/  # GET unified stream, GET unread, POST mark-read batch
+  src/lib/message-center/            # admin-stream, admin-filters, mag-thread-policy, thread-participants, date-range, gpum-*, admin-broadcast, thread-message-author-enrichment
+  src/app/api/admin/message-center/  # GET unified stream, GET unread, mark-read batch, notes, broadcast
   src/app/admin/dashboard/message-center/  # full-page Message Center (layout=full)
-  src/app/api/conversation-threads/   # threads + [threadId]/messages + [threadId]/read
+  src/app/api/conversation-threads/   # threads + [threadId]/messages (+ enrichAuthors) + [threadId]/read
   src/components/dashboard/          # DashboardActivityStream, DashboardTabsClient
-  src/app/api/members/message-center/  # member merged activity (GPUM)
+  src/app/api/members/message-center/  # GPUM merged stream (streamItems + legacy items)
+  src/app/(public)/members/          # MemberActivityStream on /members/messages
   ```
-- **Data / schema:** Migration **214** — `mags.allow_conversations`, GPUM opt-in tables; **191** threads/participants; **190** timeline. Admin stream skips timeline **`message`** rows when a **support** thread for the same contact is present (avoids duplicate GPUM lines vs thread head).
+- **Data / schema:** Migration **214** — `mags.allow_conversations`, GPUM opt-in tables; **191** threads/participants; **190** timeline. Admin and **GPUM** streams skip duplicate **`message`** timeline/activity rows when a **support** thread head exists for the same contact.
 - **Prerequisites:** Service-role CRM access patterns; auth on admin/member API routes.
 
 ---
