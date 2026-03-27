@@ -10,7 +10,7 @@ export function pathToFeatureSlug(pathname: string | null): string | null {
   if (!pathname || !pathname.startsWith("/admin")) return null;
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) return null;
   if (pathname === "/admin" || pathname === "/admin/") return null;
-  // Dashboard and upgrade page are always allowed (safe landing when redirecting from a blocked route).
+  // Dashboard (including Message Center at /admin/dashboard/message-center) and upgrade are always allowed.
   if (pathname === "/admin/dashboard" || pathname.startsWith("/admin/dashboard/")) return null;
   if (pathname === "/admin/upgrade" || pathname.startsWith("/admin/upgrade/")) return null;
 

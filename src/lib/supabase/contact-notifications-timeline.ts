@@ -78,22 +78,30 @@ export async function listContactNotificationsTimeline(
   return (data ?? []) as ContactNotificationsTimelineRow[];
 }
 
+export type ContactNotificationsTimelineDateRange = {
+  dateFrom?: string;
+  dateTo?: string;
+};
+
 /**
  * Recent timeline rows across all contacts (admin dashboard). Only rows with `contact_id` set.
  */
 export async function listRecentContactNotificationsTimelineGlobal(
-  limit: number
+  limit: number,
+  dateRange?: ContactNotificationsTimelineDateRange | null
 ): Promise<ContactNotificationsTimelineRow[]> {
   const supabase = createServerSupabaseClient();
   const schema = getClientSchema();
-  const cap = Math.min(Math.max(limit, 1), 150);
-  const { data, error } = await supabase
+  const hasRange = !!(dateRange?.dateFrom?.trim() || dateRange?.dateTo?.trim());
+  const cap = Math.min(Math.max(limit, 1), 500);
+  let q = supabase
     .schema(schema)
     .from("contact_notifications_timeline")
     .select("*")
-    .not("contact_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(cap);
+    .not("contact_id", "is", null);
+  if (dateRange?.dateFrom) q = q.gte("created_at", dateRange.dateFrom);
+  if (dateRange?.dateTo) q = q.lte("created_at", dateRange.dateTo);
+  const { data, error } = await q.order("created_at", { ascending: false }).limit(cap);
   if (error) {
     console.error("listRecentContactNotificationsTimelineGlobal:", error.message, error.code);
     return [];

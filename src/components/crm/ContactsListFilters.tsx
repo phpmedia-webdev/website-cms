@@ -52,7 +52,7 @@ export function ContactsListFilters({
   tags,
 }: ContactsListFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 justify-between">
+    <div className="inline-flex flex-wrap items-center gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <select className={selectClass} value={selectedStatus} onChange={(e) => onSelectedStatusChange(e.target.value)}>
           <option value="">All Statuses</option>

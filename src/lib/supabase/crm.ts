@@ -18,6 +18,7 @@ import {
 import {
   createConversationThread,
   insertThreadMessage,
+  listSupportThreadsForContact,
   listThreadMessages,
   type ThreadMessageRow,
 } from "./conversation-threads";
@@ -738,6 +739,36 @@ export async function getNotesByConversationUid(conversationUid: string): Promis
   return data.map((m) => threadMessageToCrmNote(m, conversationUid, taskId));
 }
 
+/** Synthetic UID for mapping support thread messages to CrmNote (thread row does not store this). */
+const CONTACT_SUPPORT_CONVERSATION_UID_PREFIX = "support:contact:";
+
+function contactSupportConversationUid(contactId: string): string {
+  return `${CONTACT_SUPPORT_CONVERSATION_UID_PREFIX}${contactId}`;
+}
+
+/**
+ * Messages between a contact and support live in `thread_messages` on a support thread
+ * (`subject_type: contact_support`). `getNotesByConversationUid` only loads task threads,
+ * so member activity must merge these separately.
+ */
+async function getNotesForContactSupportThread(contactId: string): Promise<CrmNote[]> {
+  const threads = await listSupportThreadsForContact(contactId);
+  const ids = threads.map((t) => t.id).filter((id) => !!id);
+  if (ids.length === 0) return [];
+
+  const convUid = contactSupportConversationUid(contactId);
+  const allRows = await Promise.all(ids.map((id) => listThreadMessages(id, { limit: 300 })));
+  const deduped = new Map<string, ThreadMessageRow>();
+  for (const rows of allRows) {
+    for (const row of rows) {
+      if (!deduped.has(row.id)) deduped.set(row.id, row);
+    }
+  }
+  return [...deduped.values()]
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((m) => threadMessageToCrmNote(m, convUid, null));
+}
+
 function parseTaskIdFromConversationUid(conversationUid: string): string | null {
   if (!conversationUid.startsWith(TASK_CONVERSATION_UID_PREFIX)) return null;
   const taskId = conversationUid.slice(TASK_CONVERSATION_UID_PREFIX.length).trim();
@@ -837,7 +868,7 @@ async function ensureThreadForNote(params: {
     return { threadId: null, conversationUid };
   }
 
-  const { data: existing, error } = await supabase
+  const { data: existingRows, error } = await supabase
     .schema(CRM_SCHEMA)
     .from("conversation_threads")
     .select("id")
@@ -845,8 +876,7 @@ async function ensureThreadForNote(params: {
     .eq("subject_type", subjectType)
     .eq("subject_id", subjectId)
     .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(5);
   if (error) {
     console.error("ensureThreadForNote lookup error:", {
       message: error.message,
@@ -854,8 +884,10 @@ async function ensureThreadForNote(params: {
     });
     return { threadId: null, conversationUid };
   }
-  if (existing?.id) {
-    return { threadId: existing.id, conversationUid };
+  const existingId =
+    ((existingRows ?? []) as { id: string }[]).find((r) => typeof r.id === "string" && r.id)?.id ?? null;
+  if (existingId) {
+    return { threadId: existingId, conversationUid };
   }
   const { thread, error: createErr } = await createConversationThread({
     thread_type: threadType,
@@ -2513,6 +2545,12 @@ export async function getMemberActivity(contactId: string, limit = 80): Promise<
       if (!noteById.has(n.id)) {
         noteById.set(n.id, n as CrmNote & { note_type?: string | null });
       }
+    }
+  }
+  const supportThreadNotes = await getNotesForContactSupportThread(contactId);
+  for (const n of supportThreadNotes) {
+    if (!noteById.has(n.id)) {
+      noteById.set(n.id, n as CrmNote & { note_type?: string | null });
     }
   }
   const noteRows = [...noteById.values()].sort(

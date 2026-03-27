@@ -3,8 +3,18 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ContactStatusSelectItems } from "@/components/crm/ContactStatusSelectItems";
 import { TaxonomyAssignmentForContent } from "@/components/taxonomy/TaxonomyAssignmentForContent";
-import type { CrmContactStatusOption } from "@/lib/supabase/settings";
+import {
+  findCrmContactStatusOption,
+  type CrmContactStatusOption,
+} from "@/lib/supabase/settings";
 
 interface ContactTaxonomyBlockProps {
   contactId: string;
@@ -25,10 +35,14 @@ export function ContactTaxonomyBlock({
   hideStatus = false,
 }: ContactTaxonomyBlockProps) {
   const router = useRouter();
-  const [selectedStatus, setSelectedStatus] = useState(initialStatus);
+  const canonicalInitial =
+    findCrmContactStatusOption(contactStatuses, initialStatus)?.slug ?? initialStatus;
+  const [selectedStatus, setSelectedStatus] = useState(canonicalInitial);
   useEffect(() => {
-    setSelectedStatus(initialStatus);
-  }, [initialStatus]);
+    setSelectedStatus(
+      findCrmContactStatusOption(contactStatuses, initialStatus)?.slug ?? initialStatus
+    );
+  }, [initialStatus, contactStatuses]);
 
   const saveStatusBeforeTaxonomy = async () => {
     if (hideStatus) return;
@@ -47,18 +61,20 @@ export function ContactTaxonomyBlock({
     <div className="space-y-4">
       {!hideStatus && (
         <div className="space-y-1.5">
-          <Label className="text-sm font-medium">Status</Label>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            {contactStatuses.map((s) => (
-              <option key={s.slug} value={s.slug}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+          <Label htmlFor="contact-taxonomy-status" className="text-sm font-medium">
+            Status
+          </Label>
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger
+              id="contact-taxonomy-status"
+              className="h-8 w-full border-input bg-background"
+            >
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <ContactStatusSelectItems contactStatuses={contactStatuses} />
+            </SelectContent>
+          </Select>
         </div>
       )}
       <TaxonomyAssignmentForContent

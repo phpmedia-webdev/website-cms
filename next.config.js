@@ -1,5 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/admin/message-center",
+        destination: "/admin/dashboard/message-center",
+        permanent: true,
+      },
+    ];
+  },
   serverExternalPackages: ['pdfkit'],
   images: {
     remotePatterns: [

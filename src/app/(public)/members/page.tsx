@@ -31,6 +31,11 @@ export default function MembersDashboardPage() {
             </Link>
           </li>
           <li>
+            <Link href="/members/messages" className="text-primary hover:underline">
+              Messages and notifications
+            </Link>
+          </li>
+          <li>
             <Link href="/members/profile" className="text-primary hover:underline">
               My profile
             </Link>

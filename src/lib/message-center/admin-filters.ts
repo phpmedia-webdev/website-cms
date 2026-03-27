@@ -5,9 +5,9 @@ export const MESSAGE_CENTER_ADMIN_FILTER_OPTIONS: {
   value: MessageCenterStreamFilter;
   label: string;
 }[] = [
-  { value: "all", label: "All" },
-  { value: "conversations", label: "Conversations" },
-  { value: "notifications", label: "Notifications" },
+  { value: "all", label: "View all" },
+  { value: "conversations", label: "Messages (threads only)" },
+  { value: "notifications", label: "Notifications only" },
   { value: "notification_timeline", label: "Contact timeline" },
   { value: "blog_comment", label: "Blog comments" },
   { value: "form_submission", label: "Form submissions" },

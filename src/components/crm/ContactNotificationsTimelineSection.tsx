@@ -11,6 +11,10 @@ const SECTION_TITLE = "Messages and Notifications";
 
 interface ContactNotificationsTimelineSectionProps {
   contactId: string;
+  /** Only show the add-entry control (use under unified Message Center stream). */
+  composerOnly?: boolean;
+  /** Fired after a successful save when `composerOnly`. */
+  onAfterSubmit?: () => void;
 }
 
 type ComposerEntryType = "message" | "private";
@@ -63,6 +67,8 @@ function rowMatchesVisibilityFilter(row: ContactNotificationsTimelineRow, filter
  */
 export function ContactNotificationsTimelineSection({
   contactId,
+  composerOnly = false,
+  onAfterSubmit,
 }: ContactNotificationsTimelineSectionProps) {
   const [rows, setRows] = useState<ContactNotificationsTimelineRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,8 +103,12 @@ export function ContactNotificationsTimelineSection({
   }, [contactId]);
 
   useEffect(() => {
+    if (composerOnly) {
+      setLoading(false);
+      return;
+    }
     load();
-  }, [load]);
+  }, [load, composerOnly]);
 
   const filteredRows = useMemo(() => {
     let list = rows.filter((row) => rowMatchesKindFilter(row, kindFilter));
@@ -154,11 +164,12 @@ export function ContactNotificationsTimelineSection({
         setLoadError(typeof json.error === "string" ? json.error : "Save failed");
         return;
       }
-      if (json.data) {
+      if (!composerOnly && json.data) {
         setRows((prev) => [json.data as ContactNotificationsTimelineRow, ...prev]);
       }
       closeAddEntry();
       setLoadError(null);
+      if (composerOnly) onAfterSubmit?.();
     } finally {
       setSaving(false);
     }
@@ -174,6 +185,74 @@ export function ContactNotificationsTimelineSection({
     // TODO(Phase 18C): navigate to detail or open drawer, e.g. `?entry=${row.id}` or /timeline/[id]
     void row;
   };
+
+  if (composerOnly) {
+    return (
+      <>
+        <div className="rounded-lg border bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 border-b">
+            <span className="text-sm font-semibold">Add to contact timeline</span>
+            <Button type="button" size="sm" className="h-7 text-xs shrink-0" onClick={openAddEntry}>
+              Add message or note
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground px-4 py-2 border-b">
+            Client-visible messages and internal staff notes also appear in the stream above after refresh.
+          </p>
+        </div>
+        {addEntryOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div
+              className="bg-background rounded-lg shadow-lg w-full max-w-md mx-4 p-6 space-y-4"
+              role="dialog"
+              aria-labelledby="ntl-add-entry-title"
+            >
+              <h2 id="ntl-add-entry-title" className="text-lg font-semibold">
+                Add entry
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Choose whether the client can see this entry, then enter the text.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="ntl-entry-type-co">Entry type</Label>
+                <select
+                  id="ntl-entry-type-co"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  value={entryType}
+                  onChange={(e) => setEntryType(e.target.value as ComposerEntryType)}
+                >
+                  <option value="message">Message to client (visible to client)</option>
+                  <option value="private">Internal note (staff only)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ntl-composer-body-co">Content</Label>
+                <textarea
+                  id="ntl-composer-body-co"
+                  className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={composerBody}
+                  onChange={(e) => setComposerBody(e.target.value)}
+                  placeholder={
+                    entryType === "message"
+                      ? "Message the client can see…"
+                      : "Note for staff only…"
+                  }
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={closeAddEntry} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button onClick={submitEntry} disabled={saving || !composerBody.trim()}>
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <>

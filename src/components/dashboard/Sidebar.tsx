@@ -44,6 +44,8 @@ import {
   settingsSubNav,
   supportSubNav,
   superadminSubNav,
+  dashboardSubNav,
+  SIDEBAR_DASHBOARD_OPEN,
 } from "./sidebar-config";
 
 const UPGRADE_PATH = "/admin/upgrade";
@@ -115,6 +117,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const isProjects = pathname === "/admin/projects" || pathname?.startsWith("/admin/projects/");
   const isActivities = isEvents || isProjects;
   const isSuper = pathname === "/admin/super" || pathname?.startsWith("/admin/super/");
+  const isDashboardNav =
+    pathname === "/admin/dashboard" || !!pathname?.startsWith("/admin/dashboard/");
 
   const showDashboard =
     !hiddenSet.has("dashboard") &&
@@ -208,7 +212,17 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   const [contentOpen, setContentOpen] = useState(false);
   const [ecomOpen, setEcomOpen] = useState(false);
   const [superOpen, setSuperOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
   const [newContactsCount, setNewContactsCount] = useState(0);
+
+  const foldDashboardNav = () => {
+    setDashboardOpen(false);
+    try {
+      localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
+    } catch {
+      /* ignore */
+    }
+  };
 
   const fetchNewContactsCount = async () => {
     try {
@@ -248,9 +262,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
   // Pathname-driven sidebar: Dashboard collapses all; only one section open at a time
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const isDashboard = pathname === "/admin/dashboard";
     try {
-      if (isDashboard) {
+      if (isDashboardNav) {
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
@@ -259,6 +272,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         setSettingsOpen(false);
         setSupportOpen(false);
         setSuperOpen(false);
+        setDashboardOpen(true);
         localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
         localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
         localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
@@ -268,9 +282,12 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
         localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "true");
         return;
       }
       if (isCrm && !isMarketing) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(true);
         setMarketingOpen(false);
         setActivitiesOpen(false);
@@ -291,6 +308,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       if (isMarketing) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(false);
         setMarketingOpen(true);
         setActivitiesOpen(false);
@@ -311,6 +330,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       if (isActivities) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(true);
@@ -331,6 +352,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       if (isContent) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
@@ -351,6 +374,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       if (isEcommerce) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
@@ -371,6 +396,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       if (isSettings) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
@@ -393,6 +420,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       if (isSupport) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
@@ -413,6 +442,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       if (isSuper) {
+        setDashboardOpen(false);
+        localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
         setCrmOpen(false);
         setMarketingOpen(false);
         setActivitiesOpen(false);
@@ -433,6 +464,8 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
         return;
       }
       // Other routes: collapse all
+      setDashboardOpen(false);
+      localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, "false");
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
@@ -460,8 +493,10 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       if (isSettings) setSettingsOpen(true);
       if (isSupport) setSupportOpen(true);
       if (isSuper) setSuperOpen(true);
+      if (isDashboardNav) setDashboardOpen(true);
+      else setDashboardOpen(false);
     }
-  }, [pathname, isCrm, isMarketing, isActivities, isContent, isEcommerce, isSettings, isSupport, isSuper]);
+  }, [pathname, isCrm, isMarketing, isActivities, isContent, isEcommerce, isSettings, isSupport, isSuper, isDashboardNav]);
 
   const toggleCrm = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -469,6 +504,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !crmOpen;
     setCrmOpen(next);
     if (next) {
+      foldDashboardNav();
       setMarketingOpen(false);
       setActivitiesOpen(false);
         setContentOpen(false);
@@ -495,6 +531,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !marketingOpen;
     setMarketingOpen(next);
     if (next) {
+      foldDashboardNav();
       setCrmOpen(false);
       setActivitiesOpen(false);
       setContentOpen(false);
@@ -524,6 +561,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !activitiesOpen;
     setActivitiesOpen(next);
     if (next) {
+      foldDashboardNav();
       setCrmOpen(false);
       setMarketingOpen(false);
       setContentOpen(false);
@@ -553,6 +591,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !contentOpen;
     setContentOpen(next);
     if (next) {
+      foldDashboardNav();
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
@@ -579,6 +618,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !ecomOpen;
     setEcomOpen(next);
     if (next) {
+      foldDashboardNav();
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
@@ -610,6 +650,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !superOpen;
     setSuperOpen(next);
     if (next) {
+      foldDashboardNav();
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
@@ -641,6 +682,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !settingsOpen;
     setSettingsOpen(next);
     if (next) {
+      foldDashboardNav();
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
@@ -672,6 +714,7 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     const next = !supportOpen;
     setSupportOpen(next);
     if (next) {
+      foldDashboardNav();
       setCrmOpen(false);
       setMarketingOpen(false);
       setActivitiesOpen(false);
@@ -695,6 +738,40 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
     try {
       localStorage.setItem(SIDEBAR_SUPPORT_OPEN, next ? "true" : "false");
     } catch { /* ignore */ }
+  };
+
+  const toggleDashboard = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !dashboardOpen;
+    setDashboardOpen(next);
+    if (next) {
+      setCrmOpen(false);
+      setMarketingOpen(false);
+      setActivitiesOpen(false);
+      setContentOpen(false);
+      setEcomOpen(false);
+      setSettingsOpen(false);
+      setSupportOpen(false);
+      setSuperOpen(false);
+      try {
+        localStorage.setItem(SIDEBAR_CRM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_MARKETING_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ACTIVITIES_OPEN, "false");
+        localStorage.setItem(SIDEBAR_CONTENT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_ECOM_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SETTINGS_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPPORT_OPEN, "false");
+        localStorage.setItem(SIDEBAR_SUPER_OPEN, "false");
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      localStorage.setItem(SIDEBAR_DASHBOARD_OPEN, next ? "true" : "false");
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleLogout = async () => {
@@ -746,37 +823,141 @@ export function Sidebar({ isSuperadmin = false, effectiveFeatureSlugs = "all", r
       </div>
       <nav className="flex-1 flex flex-col min-h-0 p-4">
         <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
-        {/* Dashboard: Phase F — hide when not in role; ghost (→ upgrade) when in role but not effective */}
-        {hasRoleAccess("dashboard") &&
-          (hasEffectiveAccess("dashboard") ? (
-            <Link
-              href="/admin/dashboard"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                pathname === "/admin/dashboard"
-                  ? "border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px]"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        {/* Dashboard twirldown: Overview + Message Center (Phase F — tenant display + role, same pattern as CRM) */}
+        <div className="pt-1">
+          {showDashboard && (
+            <>
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium",
+                  isDashboardNav && "border-l-2 border-slate-500 bg-slate-200/40 pl-[10px]"
+                )}
+              >
+                {hasEffectiveAccess("dashboard") ? (
+                  <Link
+                    href="/admin/dashboard"
+                    className={cn(
+                      "flex flex-1 items-center gap-3 transition-colors rounded-md py-1 -my-1 px-2 -mx-2 min-w-0",
+                      isDashboardNav
+                        ? "text-slate-800 font-medium"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                    Dashboard
+                  </Link>
+                ) : isDisplayOnlyGhost ? (
+                  <Link
+                    href="/admin/dashboard"
+                    className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70"
+                    title="Gated for this site (you have access as superadmin)"
+                  >
+                    <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                    Dashboard
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => router.push(UPGRADE_PATH)}
+                    className="flex flex-1 items-center gap-3 rounded-md py-1 -my-1 px-2 -mx-2 min-w-0 text-left text-muted-foreground opacity-50 hover:opacity-70"
+                    title="Not included in your plan. Request support."
+                  >
+                    <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                    Dashboard
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={toggleDashboard}
+                  className={cn(
+                    "p-1 rounded transition-colors shrink-0",
+                    isDashboardNav ? "text-slate-800 hover:bg-slate-200/60" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                  aria-expanded={dashboardOpen}
+                  aria-label={dashboardOpen ? "Collapse Dashboard menu" : "Expand Dashboard menu"}
+                >
+                  {dashboardOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
+              </div>
+              {dashboardOpen && (
+                <div className="ml-4 mt-1 space-y-0.5 border-l border-border pl-2">
+                  {dashboardSubNav
+                    .filter((sub) => {
+                      const subSlug = sub.featureSlug ?? "dashboard";
+                      return !hiddenSet.has(subSlug) && hasRoleAccess(subSlug);
+                    })
+                    .map((sub) => {
+                      const subSlug = sub.featureSlug ?? "dashboard";
+                      const hasSubEffective = hasRealEffectiveAccess(subSlug);
+                      const hasSubInDisplay = hasEffectiveAccess(subSlug);
+                      const isSubActive =
+                        sub.href === "/admin/dashboard"
+                          ? pathname === "/admin/dashboard"
+                          : pathname === sub.href || (pathname?.startsWith(sub.href + "/") ?? false);
+                      const SubIcon = sub.icon;
+                      return hasSubEffective ? (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                            isSubActive
+                              ? "font-medium border-l-2 border-slate-500 bg-slate-200/40 text-slate-800 pl-[10px] -ml-[2px]"
+                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          )}
+                        >
+                          <SubIcon className="h-4 w-4" />
+                          {sub.name}
+                        </Link>
+                      ) : hasSubInDisplay ? (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-40 hover:opacity-60 w-full text-left"
+                          title="Gated for this site (you have access as superadmin)"
+                        >
+                          <SubIcon className="h-4 w-4" />
+                          {sub.name}
+                        </Link>
+                      ) : (
+                        <button
+                          key={sub.href}
+                          type="button"
+                          onClick={() => router.push(UPGRADE_PATH)}
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+                          title="Not included in your plan. Request support."
+                        >
+                          <SubIcon className="h-4 w-4" />
+                          {sub.name}
+                        </button>
+                      );
+                    })}
+                </div>
               )}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              Dashboard
-            </Link>
-          ) : isDisplayOnlyGhost ? (
-            <Link href="/admin/dashboard" className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left" title="Gated for this site (you have access as superadmin)">
-              <LayoutDashboard className="h-5 w-5" />
-              Dashboard
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => router.push(UPGRADE_PATH)}
-              className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
-              title="Not included in your plan. Request support."
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              Dashboard
-            </button>
-          ))}
+            </>
+          )}
+          {!showDashboard && hasRoleAccess("dashboard") &&
+            (isDisplayOnlyGhost ? (
+              <Link
+                href="/admin/dashboard"
+                className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+                title="Gated for this site (you have access as superadmin)"
+              >
+                <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                Dashboard
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => router.push(UPGRADE_PATH)}
+                className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-50 hover:opacity-70 w-full text-left"
+                title="Not included in your plan. Request support."
+              >
+                <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                Dashboard
+              </button>
+            ))}
+        </div>
         {/* OmniChat: gated by omnichat slug — link when effective, ghost when in role but not effective; page access guarded by route */}
         {(hasRoleAccess("crm") || hasRoleAccess("omnichat")) &&
           (hasEffectiveAccess("omnichat") ? (

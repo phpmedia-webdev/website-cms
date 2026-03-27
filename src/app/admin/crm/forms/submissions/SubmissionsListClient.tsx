@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -25,6 +25,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import type { FormSubmission } from "@/lib/supabase/crm";
+import { cn } from "@/lib/utils";
 
 type ExportColumn = { key: string; label: string };
 
@@ -52,6 +53,8 @@ interface SubmissionsListClientProps {
   preset: string;
   dateFrom: string;
   dateTo: string;
+  /** From Message Center deep link — scroll and emphasize matching row. */
+  highlightSubmissionId?: string | null;
 }
 
 function buildSearchParams(updates: Record<string, string | number | undefined>): string {
@@ -76,8 +79,10 @@ export function SubmissionsListClient({
   preset,
   dateFrom,
   dateTo,
+  highlightSubmissionId = null,
 }: SubmissionsListClientProps) {
   const router = useRouter();
+  const didScrollHighlight = useRef(false);
 
   const [customFrom, setCustomFrom] = useState(dateFrom || "");
   const [customTo, setCustomTo] = useState(dateTo || "");
@@ -96,6 +101,16 @@ export function SubmissionsListClient({
       setCustomTo(dateTo || "");
     }
   }, [preset, dateFrom, dateTo]);
+
+  useLayoutEffect(() => {
+    const id = highlightSubmissionId?.trim();
+    if (!id || didScrollHighlight.current) return;
+    const el = document.getElementById(`submission-row-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      didScrollHighlight.current = true;
+    }
+  }, [highlightSubmissionId, submissions]);
 
   const fetchExportFields = useCallback(async (formIdToFetch: string) => {
     if (!formIdToFetch) {
@@ -406,7 +421,14 @@ export function SubmissionsListClient({
               </thead>
               <tbody>
                 {submissions.map((s) => (
-                  <tr key={s.id} className="border-b last:border-0">
+                  <tr
+                    key={s.id}
+                    id={`submission-row-${s.id}`}
+                    className={cn(
+                      "border-b last:border-0 transition-colors",
+                      highlightSubmissionId === s.id && "bg-primary/5 ring-2 ring-inset ring-primary/25"
+                    )}
+                  >
                     <td className="py-3 pr-4">
                       <Link
                         href={`/admin/crm/forms/${s.formId}/submissions`}

@@ -2,11 +2,22 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CRM_STATUS_SLUG_NEW, type CrmContactStatusOption } from "@/lib/supabase/settings";
+import {
+  CRM_STATUS_SLUG_NEW,
+  findCrmContactStatusOption,
+  type CrmContactStatusOption,
+} from "@/lib/supabase/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ContactStatusSelectItems } from "@/components/crm/ContactStatusSelectItems";
 import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
 import { ImageIcon } from "lucide-react";
 
@@ -17,7 +28,7 @@ export function NewContactForm({
 }) {
   const router = useRouter();
   const defaultStatus =
-    contactStatuses.find((s) => s.slug === CRM_STATUS_SLUG_NEW)?.slug ??
+    findCrmContactStatusOption(contactStatuses, CRM_STATUS_SLUG_NEW)?.slug ??
     contactStatuses[0]?.slug ??
     CRM_STATUS_SLUG_NEW;
   const [loading, setLoading] = useState(false);
@@ -157,16 +168,20 @@ export function NewContactForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
-            <select
-              id="status"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            <Select
               value={form.status}
-              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+              onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
             >
-              {contactStatuses.map((s) => (
-                <option key={s.slug} value={s.slug}>{s.label}</option>
-              ))}
-            </select>
+              <SelectTrigger
+                id="status"
+                className="h-9 w-full border-input bg-transparent shadow-sm focus:ring-1 focus:ring-ring"
+              >
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <ContactStatusSelectItems contactStatuses={contactStatuses} />
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex gap-2">
             <Button type="submit" disabled={loading}>

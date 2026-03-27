@@ -40,6 +40,7 @@ function parseDateRange(
 interface Props {
   searchParams: Promise<{
     formId?: string;
+    submissionId?: string;
     preset?: string;
     dateFrom?: string;
     dateTo?: string;
@@ -51,6 +52,7 @@ interface Props {
 export default async function AllFormSubmissionsPage({ searchParams }: Props) {
   const params = await searchParams;
   const formId = params.formId?.trim() || undefined;
+  const highlightSubmissionId = params.submissionId?.trim() || null;
   const preset = params.preset?.trim() || "30d";
   const dateFromParam = params.dateFrom?.trim() || null;
   const dateToParam = params.dateTo?.trim() || null;
@@ -103,6 +105,7 @@ export default async function AllFormSubmissionsPage({ searchParams }: Props) {
             preset={preset}
             dateFrom={dateFromParam ?? ""}
             dateTo={dateToParam ?? ""}
+            highlightSubmissionId={highlightSubmissionId}
           />
         </CardContent>
       </Card>

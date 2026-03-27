@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isSuperadminFromRole, isAdminRole } from "@/lib/auth/resolve-role";
 import {
   getAdminMessageCenterStream,
+  type GetAdminMessageCenterStreamOptions,
   type MessageCenterStreamFilter,
 } from "@/lib/message-center/admin-stream";
 
@@ -46,8 +47,19 @@ export async function GET(request: Request) {
       ? rawFilter
       : "all") as MessageCenterStreamFilter;
     const limitRaw = searchParams.get("limit");
-    const limit = Math.min(Math.max(parseInt(limitRaw ?? "50", 10) || 50, 1), 120);
-    const items = await getAdminMessageCenterStream(limit, filter);
+    const dateFrom = searchParams.get("date_from")?.trim() || null;
+    const dateTo = searchParams.get("date_to")?.trim() || null;
+    const hasDate = !!(dateFrom || dateTo);
+    const maxItems = hasDate ? 250 : 120;
+    const limit = Math.min(Math.max(parseInt(limitRaw ?? "50", 10) || 50, 1), maxItems);
+    const contactId = searchParams.get("contact_id")?.trim() || null;
+    const streamOpts: GetAdminMessageCenterStreamOptions = {
+      contactId,
+      forUserId: user.id,
+      dateFrom,
+      dateTo,
+    };
+    const items = await getAdminMessageCenterStream(limit, filter, streamOpts);
     return NextResponse.json({ items });
   } catch (e) {
     console.error("GET /api/admin/message-center:", e);

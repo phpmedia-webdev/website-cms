@@ -6,7 +6,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getMemberByUserId } from "@/lib/supabase/members";
-import { getProfileByUserId } from "@/lib/supabase/profiles";
 import { createNote } from "@/lib/supabase/crm";
 
 export async function POST(request: Request) {
@@ -19,19 +18,6 @@ export async function POST(request: Request) {
     const member = await getMemberByUserId(user.id);
     if (!member) {
       return NextResponse.json({ error: "Members only" }, { status: 403 });
-    }
-    const profile = await getProfileByUserId(user.id);
-    if (!profile?.handle?.trim()) {
-      return NextResponse.json(
-        { error: "Handle/Nickname is required to send messages." },
-        { status: 400 }
-      );
-    }
-    if (!profile.communicate_in_messages) {
-      return NextResponse.json(
-        { error: "Messaging is disabled for this profile." },
-        { status: 403 }
-      );
     }
 
     const body = await request.json();

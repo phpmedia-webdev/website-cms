@@ -45,6 +45,7 @@ export const SIDEBAR_SUPER_OPEN = "sidebar-super-open";
 export const SIDEBAR_ECOM_OPEN = "sidebar-ecom-open";
 export const SIDEBAR_PROJECTS_OPEN = "sidebar-projects-open";
 export const SIDEBAR_ACTIVITIES_OPEN = "sidebar-activities-open";
+export const SIDEBAR_DASHBOARD_OPEN = "sidebar-dashboard-open";
 
 export interface SubNavItem {
   name: string;
@@ -60,6 +61,12 @@ export const contentSubNav: SubNavItem[] = [
   { name: "Text Blocks", href: "/admin/content", icon: FileText, featureSlug: "content" },
   { name: "Media", href: "/admin/media", icon: Image, featureSlug: "library" },
   { name: "Galleries", href: "/admin/galleries", icon: Folder, featureSlug: "galleries" },
+];
+
+/** Dashboard home + Message Center (same `dashboard` feature gate). */
+export const dashboardSubNav: SubNavItem[] = [
+  { name: "Overview", href: "/admin/dashboard", icon: LayoutDashboard, featureSlug: "dashboard" },
+  { name: "Message Center", href: "/admin/dashboard/message-center", icon: Inbox, featureSlug: "dashboard" },
 ];
 
 export const crmSubNav: SubNavItem[] = [

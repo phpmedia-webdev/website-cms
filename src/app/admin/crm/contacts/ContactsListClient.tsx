@@ -9,7 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Users, ChevronLeft, ChevronRight, Upload, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import type { CrmContact, ContactMag, ContactMarketingList, Mag, MarketingList } from "@/lib/supabase/crm";
 import type { TaxonomyTerm, SectionTaxonomyConfig } from "@/types/taxonomy";
-import type { CrmContactStatusOption } from "@/lib/supabase/settings";
+import { ContactStatusQuickButton } from "@/components/crm/ContactStatusQuickButton";
+import { findCrmContactStatusOption, type CrmContactStatusOption } from "@/lib/supabase/settings";
 import { getTermsForContentSection } from "@/lib/supabase/taxonomy";
 import { ExportContactsDialog } from "@/components/crm/ExportContactsDialog";
 import { AddToListDialog } from "@/components/crm/AddToListDialog";
@@ -127,6 +128,11 @@ export function ContactsListClient({
     }
   };
 
+  const clearSelectionAndRefresh = () => {
+    setSelectedIds(new Set());
+    refreshListAndBadge();
+  };
+
   const baseContacts = showTrashed ? trashedContacts : contacts;
 
   useEffect(() => {
@@ -169,7 +175,11 @@ export function ContactsListClient({
       });
     }
     if (selectedStatus) {
-      list = list.filter((c) => c.status === selectedStatus);
+      list = list.filter((c) => {
+        const slug =
+          findCrmContactStatusOption(contactStatuses, c.status)?.slug ?? c.status ?? "";
+        return slug === selectedStatus;
+      });
     }
     if (selectedMagId) {
       list = list.filter((c) => c.mags.some((m) => m.mag_id === selectedMagId));
@@ -208,7 +218,18 @@ export function ContactsListClient({
       }
       return mult * (cmp || (a.id ?? "").localeCompare(b.id ?? ""));
     });
-  }, [enrichedContacts, searchQuery, selectedStatus, selectedMagId, selectedListId, selectedCategoryId, selectedTagId, sortBy, sortDir]);
+  }, [
+    enrichedContacts,
+    searchQuery,
+    selectedStatus,
+    selectedMagId,
+    selectedListId,
+    selectedCategoryId,
+    selectedTagId,
+    sortBy,
+    sortDir,
+    contactStatuses,
+  ]);
 
   const hasFilters = Boolean(selectedStatus || selectedMagId || selectedListId || selectedCategoryId || selectedTagId || searchQuery);
 
@@ -307,49 +328,50 @@ export function ContactsListClient({
         </div>
       </div>
 
-      <ContactsListFilters
-        selectedStatus={selectedStatus}
-        onSelectedStatusChange={setSelectedStatus}
-        selectedMagId={selectedMagId}
-        onSelectedMagIdChange={setSelectedMagId}
-        selectedListId={selectedListId}
-        onSelectedListIdChange={setSelectedListId}
-        selectedCategoryId={selectedCategoryId}
-        onSelectedCategoryIdChange={setSelectedCategoryId}
-        selectedTagId={selectedTagId}
-        onSelectedTagIdChange={setSelectedTagId}
-        resetFilters={resetFilters}
-        hasFilters={hasFilters}
-        contactStatuses={contactStatuses}
-        mags={mags}
-        marketingLists={marketingLists}
-        categories={categories}
-        tags={tags}
-      />
-
-      <ContactsListBulkBar
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        showTrashed={showTrashed}
-        onShowTrashedChange={setShowTrashed}
-        hasTrashedContacts={hasTrashedContacts}
-        trashedCount={trashedContacts.length}
-        hasSelection={hasSelection}
-        selectedCount={selectedIds.size}
-        bulkMenuOpen={bulkMenuOpen}
-        onBulkMenuOpenChange={setBulkMenuOpen}
-        bulkMenuRef={bulkMenuRef}
-        onExport={() => setExportDialogOpen(true)}
-        onAddToList={() => setAddToListDialogOpen(true)}
-        onRemoveFromList={() => setRemoveFromListDialogOpen(true)}
-        onSetCrmFields={() => setCrmFieldsDialogOpen(true)}
-        onTaxonomy={() => setTaxonomyDialogOpen(true)}
-        onMerge={selectedIds.size === 2 ? () => setMergeBulkDialogOpen(true) : undefined}
-        onTrash={() => setTrashConfirmOpen(true)}
-        onRestore={handleRestore}
-        restoreLoading={restoreLoading}
-        onEmptyTrash={() => setEmptyTrashDialogOpen(true)}
-      />
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <ContactsListBulkBar
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          showTrashed={showTrashed}
+          onShowTrashedChange={setShowTrashed}
+          hasTrashedContacts={hasTrashedContacts}
+          trashedCount={trashedContacts.length}
+          hasSelection={hasSelection}
+          selectedCount={selectedIds.size}
+          bulkMenuOpen={bulkMenuOpen}
+          onBulkMenuOpenChange={setBulkMenuOpen}
+          bulkMenuRef={bulkMenuRef}
+          onExport={() => setExportDialogOpen(true)}
+          onAddToList={() => setAddToListDialogOpen(true)}
+          onRemoveFromList={() => setRemoveFromListDialogOpen(true)}
+          onSetCrmFields={() => setCrmFieldsDialogOpen(true)}
+          onTaxonomy={() => setTaxonomyDialogOpen(true)}
+          onMerge={selectedIds.size === 2 ? () => setMergeBulkDialogOpen(true) : undefined}
+          onTrash={() => setTrashConfirmOpen(true)}
+          onRestore={handleRestore}
+          restoreLoading={restoreLoading}
+          onEmptyTrash={() => setEmptyTrashDialogOpen(true)}
+        />
+        <ContactsListFilters
+          selectedStatus={selectedStatus}
+          onSelectedStatusChange={setSelectedStatus}
+          selectedMagId={selectedMagId}
+          onSelectedMagIdChange={setSelectedMagId}
+          selectedListId={selectedListId}
+          onSelectedListIdChange={setSelectedListId}
+          selectedCategoryId={selectedCategoryId}
+          onSelectedCategoryIdChange={setSelectedCategoryId}
+          selectedTagId={selectedTagId}
+          onSelectedTagIdChange={setSelectedTagId}
+          resetFilters={resetFilters}
+          hasFilters={hasFilters}
+          contactStatuses={contactStatuses}
+          mags={mags}
+          marketingLists={marketingLists}
+          categories={categories}
+          tags={tags}
+        />
+      </div>
 
       {restoreError && (
         <p className="text-sm text-destructive" role="alert">
@@ -485,26 +507,12 @@ export function ContactsListClient({
                       <td className="py-2 px-3 text-muted-foreground">{c.first_name ?? "—"}</td>
                       <td className="py-2 px-3 text-muted-foreground">{c.full_name ?? "—"}</td>
                       <td className="py-2 px-3 text-muted-foreground">{c.phone ?? "—"}</td>
-                      <td className="py-2 px-3">
-                        {(() => {
-                          const config = contactStatuses.find((s) => s.slug === c.status);
-                          const label = config?.label ?? c.status;
-                          if (config?.color) {
-                            return (
-                              <span
-                                className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium text-white"
-                                style={{ backgroundColor: config.color }}
-                              >
-                                {label}
-                              </span>
-                            );
-                          }
-                          return (
-                            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-muted">
-                              {label}
-                            </span>
-                          );
-                        })()}
+                      <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                        <ContactStatusQuickButton
+                          contactId={c.id}
+                          status={c.status}
+                          contactStatuses={contactStatuses}
+                        />
                       </td>
                       <td className="py-2 px-3 text-muted-foreground">
                         {c.updated_at ? new Date(c.updated_at).toLocaleDateString() : "—"}
@@ -572,21 +580,21 @@ export function ContactsListClient({
         onOpenChange={setAddToListDialogOpen}
         selectedIds={selectedIds}
         marketingLists={marketingLists}
-        onSuccess={refreshListAndBadge}
+        onSuccess={clearSelectionAndRefresh}
       />
       <RemoveFromListDialog
         open={removeFromListDialogOpen}
         onOpenChange={setRemoveFromListDialogOpen}
         selectedIds={selectedIds}
         marketingLists={marketingLists}
-        onSuccess={refreshListAndBadge}
+        onSuccess={clearSelectionAndRefresh}
       />
       <SetCrmFieldsDialog
         open={crmFieldsDialogOpen}
         onOpenChange={setCrmFieldsDialogOpen}
         selectedIds={selectedIds}
         contactStatuses={contactStatuses}
-        onSuccess={refreshListAndBadge}
+        onSuccess={clearSelectionAndRefresh}
       />
       <TaxonomyBulkDialog
         open={taxonomyDialogOpen}
@@ -594,7 +602,7 @@ export function ContactsListClient({
         selectedIds={selectedIds}
         categories={categories}
         tags={tags}
-        onSuccess={refreshListAndBadge}
+        onSuccess={clearSelectionAndRefresh}
       />
       <ConfirmTrashDialog
         open={trashConfirmOpen}

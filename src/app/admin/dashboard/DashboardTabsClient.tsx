@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Activity, Bot } from "lucide-react";
 import { DashboardActivityStream } from "@/components/dashboard/DashboardActivityStream";
@@ -37,7 +38,15 @@ export function DashboardTabsClient({
           RAG
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="messages" className="mt-4">
+      <TabsContent value="messages" className="mt-4 space-y-2">
+        <div className="flex justify-end">
+          <Link
+            href="/admin/dashboard/message-center"
+            className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+          >
+            Open full page
+          </Link>
+        </div>
         <DashboardActivityStream initialItems={messageCenterItems} />
       </TabsContent>
       <TabsContent value="rag" className="mt-4 space-y-4">

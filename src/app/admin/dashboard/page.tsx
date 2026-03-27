@@ -105,7 +105,9 @@ export default async function DashboardPage() {
       getMediaStats().catch(() => ({ totalCount: 0, totalSizeBytes: 0 })),
       getEventsCount(schema),
       getEventsCountByType(schema),
-      getAdminMessageCenterStream(60, "all"),
+      getAdminMessageCenterStream(120, "all", {
+        forUserId: currentUser?.id ?? null,
+      }),
       getOrderMetrics(schema).catch(() => defaultOrderMetrics),
       currentUser?.id
         ? countUnreadThreadsForUser(currentUser.id).catch(() => 0)
@@ -147,31 +149,35 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <p className="text-muted-foreground">
-              Your CMS Administration Panel
-              {(mvtVersion.appVersion ?? mvtVersion.lastUpdated) && (
-                <>
-                  {" · "}
-                  {[mvtVersion.appVersion && `App ${mvtVersion.appVersion}`, mvtVersion.lastUpdated && `Updated ${mvtVersion.lastUpdated}`]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </>
-              )}
+      <header className="space-y-3">
+        {/* Title + welcome: one row; quick links stay out of this column so they can hug the full content width */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <h1 className="text-3xl font-bold shrink-0">Dashboard</h1>
+          <div className="text-right sm:shrink-0 sm:pl-4">
+            <p className="font-medium">Welcome {username}</p>
+            <p className="text-sm text-muted-foreground">
+              {formatDashboardDate(new Date())}
             </p>
+          </div>
+        </div>
+        {/* Full-width row: subtext left, action buttons flush right (same visual line as the gray subtext) */}
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-x-4">
+          <p className="text-muted-foreground min-w-0 sm:flex-1">
+            Your CMS Administration Panel
+            {(mvtVersion.appVersion ?? mvtVersion.lastUpdated) && (
+              <>
+                {" · "}
+                {[mvtVersion.appVersion && `App ${mvtVersion.appVersion}`, mvtVersion.lastUpdated && `Updated ${mvtVersion.lastUpdated}`]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </>
+            )}
+          </p>
+          <div className="shrink-0 self-end sm:self-center">
             <DashboardQuickLinks />
           </div>
         </div>
-        <div className="text-right shrink-0">
-          <p className="font-medium">Welcome {username}</p>
-          <p className="text-sm text-muted-foreground">
-            {formatDashboardDate(new Date())}
-          </p>
-        </div>
-      </div>
+      </header>
 
       {/* Metric cards: 2 rows of 3 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

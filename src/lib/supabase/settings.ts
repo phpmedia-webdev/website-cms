@@ -441,6 +441,16 @@ export interface CrmContactStatusOption {
 /** Fixed slug for "New" status; required for sidebar badge (work-to-do count). Cannot be deleted. */
 export const CRM_STATUS_SLUG_NEW = "new";
 
+/** Match contact.status to Customizer CRM status row (case-insensitive slug). */
+export function findCrmContactStatusOption(
+  statuses: CrmContactStatusOption[],
+  slug: string | null | undefined
+): CrmContactStatusOption | undefined {
+  if (slug == null || !String(slug).trim()) return undefined;
+  const key = String(slug).trim().toLowerCase();
+  return statuses.find((s) => s.slug.toLowerCase() === key);
+}
+
 /** Customizer table scope for contact statuses. */
 const CUSTOMIZER_SCOPE_CONTACT_STATUS = "contact_status";
 

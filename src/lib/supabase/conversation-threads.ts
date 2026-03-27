@@ -223,19 +223,107 @@ export async function getConversationThreadById(
   return (data as ConversationThreadRow) ?? null;
 }
 
-/** Recent thread heads for admin Message Center (all types). */
-export async function listRecentConversationThreadsForAdmin(
-  limit: number
-): Promise<ConversationThreadRow[]> {
+/**
+ * Support threads for one CRM contact (GPUM inbox). Ensures contact card Message Center
+ * is not empty when this thread is outside the global “recent threads” cap.
+ *
+ * Includes threads found via `subject_id`, plus recovery: support threads where the contact
+ * authored `thread_messages` but `subject_id` was wrong/null (legacy / race data).
+ */
+export async function listSupportThreadsForContact(contactId: string): Promise<ConversationThreadRow[]> {
+  const cid = contactId.trim();
+  if (!cid) return [];
   const supabase = createServerSupabaseClient();
   const schema = getClientSchema();
-  const cap = Math.min(Math.max(limit, 1), 150);
+  const byId = new Map<string, ConversationThreadRow>();
+
+  const { data: directRows, error: directErr } = await supabase
+    .schema(schema)
+    .from("conversation_threads")
+    .select("*")
+    .eq("thread_type", "support")
+    .eq("subject_type", "contact_support")
+    .eq("subject_id", cid)
+    .order("updated_at", { ascending: false });
+  if (directErr) {
+    console.error("listSupportThreadsForContact direct:", directErr.message, directErr.code);
+  }
+  for (const row of (directRows ?? []) as ConversationThreadRow[]) {
+    byId.set(row.id, row);
+  }
+
+  const { data: msgRows, error: msgErr } = await supabase
+    .schema(schema)
+    .from("thread_messages")
+    .select("thread_id")
+    .eq("author_contact_id", cid)
+    .limit(400);
+  if (msgErr) {
+    console.error("listSupportThreadsForContact messages:", msgErr.message, msgErr.code);
+  }
+  const fromMessages = [
+    ...new Set(
+      ((msgRows ?? []) as { thread_id: string | null }[])
+        .map((r) => r.thread_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ].filter((tid) => !byId.has(tid));
+
+  if (fromMessages.length > 0) {
+    const { data: orphanThreads, error: orphanErr } = await supabase
+      .schema(schema)
+      .from("conversation_threads")
+      .select("*")
+      .in("id", fromMessages)
+      .eq("thread_type", "support");
+    if (orphanErr) {
+      console.error("listSupportThreadsForContact orphan:", orphanErr.message, orphanErr.code);
+    } else {
+      for (const row of (orphanThreads ?? []) as ConversationThreadRow[]) {
+        byId.set(row.id, row);
+      }
+    }
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+}
+
+/** Task-ticket threads for given task ids (contact-scoped admin stream). */
+export async function listTaskTicketThreadsForTaskIds(taskIds: string[]): Promise<ConversationThreadRow[]> {
+  const ids = [...new Set(taskIds.filter((id) => typeof id === "string" && id.trim()))];
+  if (ids.length === 0) return [];
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
   const { data, error } = await supabase
     .schema(schema)
     .from("conversation_threads")
     .select("*")
-    .order("updated_at", { ascending: false })
-    .limit(cap);
+    .eq("thread_type", "task_ticket")
+    .eq("subject_type", "task")
+    .in("subject_id", ids)
+    .order("updated_at", { ascending: false });
+  if (error) {
+    console.error("listTaskTicketThreadsForTaskIds:", error.message, error.code);
+    return [];
+  }
+  return (data ?? []) as ConversationThreadRow[];
+}
+
+/** Recent thread heads for admin Message Center (all types). */
+export async function listRecentConversationThreadsForAdmin(
+  limit: number,
+  dateRange?: { dateFrom?: string; dateTo?: string } | null
+): Promise<ConversationThreadRow[]> {
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const hasRange = !!(dateRange?.dateFrom?.trim() || dateRange?.dateTo?.trim());
+  const cap = Math.min(Math.max(limit, 1), hasRange ? 500 : 500);
+  let q = supabase.schema(schema).from("conversation_threads").select("*");
+  if (dateRange?.dateFrom) q = q.gte("updated_at", dateRange.dateFrom);
+  if (dateRange?.dateTo) q = q.lte("updated_at", dateRange.dateTo);
+  const { data, error } = await q.order("updated_at", { ascending: false }).limit(cap);
   if (error) {
     console.error("listRecentConversationThreadsForAdmin:", error.message, error.code);
     return [];
@@ -318,6 +406,49 @@ export async function updateThreadParticipantLastRead(input: {
     return { ok: false, error: new Error(error.message) };
   }
   return { ok: true, error: null };
+}
+
+/** Per-thread unread for Message Center (latest message vs participant `last_read_at`). */
+export async function getThreadUnreadMapForUser(
+  userId: string,
+  threadIds: string[]
+): Promise<Map<string, boolean>> {
+  const out = new Map<string, boolean>();
+  const unique = [...new Set(threadIds.filter(Boolean))];
+  if (!userId.trim() || unique.length === 0) return out;
+
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data: parts, error: pErr } = await supabase
+    .schema(schema)
+    .from("thread_participants")
+    .select("thread_id, last_read_at")
+    .eq("user_id", userId)
+    .in("thread_id", unique);
+  if (pErr) {
+    console.error("getThreadUnreadMapForUser participants:", pErr.message);
+    return out;
+  }
+  const byThread = new Map<string, string | null>();
+  for (const p of (parts ?? []) as { thread_id: string; last_read_at: string | null }[]) {
+    byThread.set(p.thread_id, p.last_read_at);
+  }
+  const lastByThread = await fetchLatestThreadMessagesForThreads(unique);
+  for (const tid of unique) {
+    const last = lastByThread.get(tid);
+    if (!last?.created_at) {
+      out.set(tid, false);
+      continue;
+    }
+    if (!byThread.has(tid)) {
+      out.set(tid, false);
+      continue;
+    }
+    const readAtRaw = byThread.get(tid);
+    const readAt = readAtRaw ? new Date(readAtRaw).getTime() : 0;
+    out.set(tid, new Date(last.created_at).getTime() > readAt);
+  }
+  return out;
 }
 
 /** Threads where the user has unread messages (participant row vs latest message time). */

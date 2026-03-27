@@ -4,7 +4,11 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmContact } from "@/lib/supabase/crm";
 import type { ContactMethodRow, ContactMethodType } from "@/lib/supabase/contact-methods";
-import { CRM_STATUS_SLUG_NEW, type CrmContactStatusOption } from "@/lib/supabase/settings";
+import {
+  CRM_STATUS_SLUG_NEW,
+  findCrmContactStatusOption,
+  type CrmContactStatusOption,
+} from "@/lib/supabase/settings";
 import { Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ContactStatusSelectItems } from "@/components/crm/ContactStatusSelectItems";
 import { AvatarMediaPicker } from "@/components/profile/AvatarMediaPicker";
 import { ImageIcon } from "lucide-react";
 
@@ -19,9 +30,19 @@ const DND_OPTIONS = ["none", "email", "phone", "all"] as const;
 
 function getDefaultContactStatusSlug(contactStatuses: CrmContactStatusOption[]): string {
   return (
-    contactStatuses.find((s) => s.slug === CRM_STATUS_SLUG_NEW)?.slug ??
+    findCrmContactStatusOption(contactStatuses, CRM_STATUS_SLUG_NEW)?.slug ??
     contactStatuses[0]?.slug ??
     CRM_STATUS_SLUG_NEW
+  );
+}
+
+/** Map stored `contact.status` to Customizer slug so Radix Select value matches an option. */
+function statusSlugForForm(
+  raw: string | null | undefined,
+  contactStatuses: CrmContactStatusOption[]
+): string {
+  return (
+    findCrmContactStatusOption(contactStatuses, raw)?.slug ?? getDefaultContactStatusSlug(contactStatuses)
   );
 }
 
@@ -61,7 +82,7 @@ export function ContactEditForm({
     shipping_postal_code: contact.shipping_postal_code ?? "",
     shipping_country: contact.shipping_country ?? "",
     message: contact.message ?? "",
-    status: contact.status ?? getDefaultContactStatusSlug(contactStatuses),
+    status: statusSlugForForm(contact.status, contactStatuses),
     dnd_status: contact.dnd_status ?? "none",
   });
 
@@ -90,7 +111,7 @@ export function ContactEditForm({
       shipping_postal_code: contact.shipping_postal_code ?? "",
       shipping_country: contact.shipping_country ?? "",
       message: contact.message ?? "",
-      status: contact.status ?? getDefaultContactStatusSlug(contactStatuses),
+      status: statusSlugForForm(contact.status, contactStatuses),
       dnd_status: contact.dnd_status ?? "none",
     });
   }, [contact, contactStatuses]);
@@ -618,16 +639,20 @@ export function ContactEditForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <select
-                id="status"
-                className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              <Select
                 value={form.status}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
               >
-                {contactStatuses.map((s) => (
-                  <option key={s.slug} value={s.slug}>{s.label}</option>
-                ))}
-              </select>
+                <SelectTrigger
+                  id="status"
+                  className="h-9 w-full border-input bg-muted shadow-sm focus:ring-1 focus:ring-ring"
+                >
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <ContactStatusSelectItems contactStatuses={contactStatuses} />
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="dnd_status">Do not contact</Label>

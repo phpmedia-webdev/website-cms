@@ -14,6 +14,8 @@ import { getCrmContactStatuses } from "@/lib/supabase/settings";
 import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { listTasks } from "@/lib/supabase/projects";
+import { getAdminMessageCenterStream } from "@/lib/message-center/admin-stream";
+import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Mail, Phone, Building2, MapPin, User } from "lucide-react";
@@ -53,7 +55,7 @@ type RelatedTaskRow = {
 type RelatedProjectRow = {
   id: string;
   title: string;
-  project_number: number | null;
+  project_number: string | null;
   project_status_slug: string | null;
   role_slug: string | null;
 };
@@ -125,16 +127,28 @@ async function getRelatedProjectsForContact(contactId: string): Promise<RelatedP
   const { data: projects, error: projectsErr } = await supabase
     .schema(schema)
     .from("projects")
-    .select("id, title, project_number, project_status_slug")
+    .select("id, name, project_number, project_status_slug")
     .in("id", projectIds)
     .order("updated_at", { ascending: false });
   if (projectsErr) {
-    console.error("getRelatedProjectsForContact projects:", projectsErr);
+    console.error(
+      "getRelatedProjectsForContact projects:",
+      projectsErr.message || JSON.stringify(projectsErr),
+    );
     return [];
   }
 
-  return ((projects ?? []) as Omit<RelatedProjectRow, "role_slug">[]).map((p) => ({
-    ...p,
+  type ProjectRow = {
+    id: string;
+    name: string | null;
+    project_number: string | null;
+    project_status_slug: string | null;
+  };
+  return ((projects ?? []) as ProjectRow[]).map((p) => ({
+    id: p.id,
+    title: p.name?.trim() ? p.name : "Untitled project",
+    project_number: p.project_number,
+    project_status_slug: p.project_status_slug,
     role_slug: roleByProject.get(p.id) ?? null,
   }));
 }
@@ -145,30 +159,48 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [contact, customFieldDefinitions, contactCustomFieldValues, forms, mags, contactMarketingLists, allMarketingLists, contactStatuses, contactOrgs, relatedEvents, relatedTasks, relatedProjects] =
-    await Promise.all([
-      getContactById(id),
-      getCrmCustomFields(),
-      getContactCustomFields(id),
-      getForms(),
-      getContactMags(id),
-      getContactMarketingLists(id),
-      getMarketingLists(),
-      getCrmContactStatuses(),
-      getContactOrganizations(id),
-      getRelatedEventsForContact(id),
-      listTasks({ assignee_contact_ids: [id] }).then((rows) =>
-        rows.map((r) => ({
-          id: r.id,
-          title: r.title,
-          due_date: r.due_date ?? null,
-          task_status_slug: r.task_status_slug,
-          project_id: r.project_id ?? null,
-          task_number: r.task_number ?? null,
-        }))
-      ),
-      getRelatedProjectsForContact(id),
-    ]);
+  const currentUser = await getCurrentUser();
+  const [
+    contact,
+    customFieldDefinitions,
+    contactCustomFieldValues,
+    forms,
+    mags,
+    contactMarketingLists,
+    allMarketingLists,
+    contactStatuses,
+    contactOrgs,
+    relatedEvents,
+    relatedTasks,
+    relatedProjects,
+    messageCenterItems,
+  ] = await Promise.all([
+    getContactById(id),
+    getCrmCustomFields(),
+    getContactCustomFields(id),
+    getForms(),
+    getContactMags(id),
+    getContactMarketingLists(id),
+    getMarketingLists(),
+    getCrmContactStatuses(),
+    getContactOrganizations(id),
+    getRelatedEventsForContact(id),
+    listTasks({ assignee_contact_ids: [id] }).then((rows) =>
+      rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        due_date: r.due_date ?? null,
+        task_status_slug: r.task_status_slug,
+        project_id: r.project_id ?? null,
+        task_number: r.task_number ?? null,
+      }))
+    ),
+    getRelatedProjectsForContact(id),
+    getAdminMessageCenterStream(55, "all", {
+      contactId: id,
+      forUserId: currentUser?.id ?? null,
+    }),
+  ]);
 
   if (!contact) {
     notFound();
@@ -212,12 +244,12 @@ export default async function ContactDetailPage({
                 <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                   <ContactCardStatusBadge contactId={id} status={contact.status} contactStatuses={contactStatuses} />
                   <ContactMergeButton contactId={id} displayName={displayName} />
+                  <ContactComposeEmailButton contactId={id} contactEmail={contact.email} displayName={displayName} />
                   <Link href={`/admin/crm/contacts/${id}/edit`}>
                     <Button variant="outline" size="sm" className="h-8">
                       Edit
                     </Button>
                   </Link>
-                  <ContactComposeEmailButton contactId={id} contactEmail={contact.email} displayName={displayName} />
                 </div>
               </div>
               <div className="grid gap-6 md:grid-cols-2 mb-4">
@@ -313,6 +345,7 @@ export default async function ContactDetailPage({
         relatedEvents={relatedEvents}
         relatedTasks={relatedTasks}
         relatedProjects={relatedProjects}
+        messageCenterItems={messageCenterItems}
       />
     </div>
   );

@@ -9,8 +9,9 @@
 ## Product naming and UX
 
 - Surface label: **Message Center** everywhere (replaces mixed “Messages and Notifications” in admin/GPUM).
-- **Hybrid default:** one chronological stream + toggles **Conversations only** / **Notifications only**.
+- **Hybrid default:** one chronological stream; **View all** is the default surface. **Filters** (not a binary messages/notifications toggle) narrow the same stream — e.g. **Messages (threads only)** vs **Notifications only** vs per-kind options. Ship as one list + dropdown (admin dashboard + CRM contact mini MC).
 - Admin dashboard list: **thread heads** (one row per `conversation_threads` + last message preview), not every `thread_messages` row.
+- **CRM contact record:** A **mini Message Center** on **contact detail** (`/admin/crm/contacts/[id]`), using the **same stream row shape** as the dashboard, **filtered to that contact** — drill-down from CRM without opening the global dashboard tab. See [sessionlog §3](../sessionlog.md) (GUI next steps).
 
 ## Data model and Customizer
 
@@ -51,6 +52,7 @@
 2. **RLS / API:** thread message insert policies or route checks: **admin-only** when `allow_conversations` false; **MAG announcement** path for top-level admin roles.
 3. **Unified admin API:** DTO + union of timeline + thread heads; category mapping; `form_submitted` alias.
 4. **Dashboard:** Message Center thread-head list + filters.
+4b. **CRM contact:** Mini Message Center on contact detail — API filter by `contact_id` + shared list component with dashboard stream.
 5. **Unread:** per-user read state for threads/timeline; badges; bulk mark-read.
 6. **GPUM:** Message Center UI + profile toggles + MAG announcement read view vs community (if on).
 
@@ -59,6 +61,7 @@
 - Threads: `src/lib/supabase/conversation-threads.ts`, `src/app/api/conversation-threads/**`
 - Timeline: `src/lib/supabase/contact-notifications-timeline.ts`
 - Admin Message Center: `src/lib/message-center/`, `src/app/api/admin/message-center/`, `src/components/dashboard/DashboardActivityStream.tsx`, `src/app/admin/dashboard/page.tsx`
+- CRM contact embed: `src/app/admin/crm/contacts/[id]/ContactRecordLayout.tsx`, `src/components/crm/ContactNotificationsTimelineSection.tsx` (evolve into or beside mini MC)
 - Wiring checklist: [messages-and-notifications-wiring.md](./messages-and-notifications-wiring.md)
 
 ```mermaid

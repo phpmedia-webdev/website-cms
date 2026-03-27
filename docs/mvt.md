@@ -436,23 +436,24 @@ When you drop a new version of a module, replace the listed code paths and run t
   src/app/admin/dashboard/      # Dashboard page — Message Center tab + RAG metric widget + multi-URL info box; `DashboardQuickLinks`
   src/lib/rag.ts                 # Assembly (fetch content, Tiptap→text, segment by token limit), token/size helpers
   ```
+- **Data / schema (optional future flag):** Content table may gain `use_for_agent_training` boolean DEFAULT false; segments computed at request time unless spec changes.
+- **Packing (design):** Whole articles in one URL where possible; **FAQ content type** must not be split across URLs (one atomic segment per FAQ doc).
+- **Prerequisites:** Content module; RAG may need schema-aware content fetch (e.g. admin list filtered by flag).
 
 ### Admin Message Center (dashboard)
 
-- **Version:** 0.1 (admin dashboard tab; GPUM stream TBD)
+- **Version:** 0.2 (admin tab + full-page stream; GPUM dedupe + `threadSearchText` search)
 - **Folder structure:**
   ```
-  src/lib/message-center/            # admin-stream, admin-filters, mag-thread-policy, thread-participants
-  src/app/api/admin/message-center/  # GET unified stream, GET unread
+  src/lib/message-center/            # admin-stream, admin-filters, mag-thread-policy, thread-participants, date-range
+  src/app/api/admin/message-center/  # GET unified stream, GET unread, POST mark-read batch
+  src/app/admin/dashboard/message-center/  # full-page Message Center (layout=full)
   src/app/api/conversation-threads/   # threads + [threadId]/messages + [threadId]/read
   src/components/dashboard/          # DashboardActivityStream, DashboardTabsClient
+  src/app/api/members/message-center/  # member merged activity (GPUM)
   ```
-- **Data / schema:** Migration **214** — `mags.allow_conversations`, GPUM opt-in tables; **191** threads/participants; **190** timeline.
-- **Data / schema:**
-  - **Content table (client schema):** Add column `use_for_agent_training` boolean DEFAULT false. No separate RAG “page” tables; segments are computed at request time.
-  - **Migrations:** New migration in client schema: `ALTER TABLE content ADD COLUMN use_for_agent_training boolean DEFAULT false;` (and any RPC updates if content is read via RPC).
-- **Packing (design):** When implementing article-based packing: keep whole articles in one URL; **FAQ content type must never be split between URLs** (each FAQ doc is one atomic segment).
-- **Prerequisites:** Content module (content table, content types, Tiptap body). Uses existing content read paths; RAG endpoint may need schema-aware content fetch (same as admin content list filtered by flag).
+- **Data / schema:** Migration **214** — `mags.allow_conversations`, GPUM opt-in tables; **191** threads/participants; **190** timeline. Admin stream skips timeline **`message`** rows when a **support** thread for the same contact is present (avoids duplicate GPUM lines vs thread head).
+- **Prerequisites:** Service-role CRM access patterns; auth on admin/member API routes.
 
 ---
 

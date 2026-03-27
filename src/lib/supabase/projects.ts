@@ -789,24 +789,31 @@ export async function deleteTaskFollower(
   return { ok: true };
 }
 
-/** Get task IDs where this contact is a follower (creator, responsible, or follower). For member activity stream. */
+/** Get task IDs where this contact is linked: task_followers and/or tasks.contact_id. */
 export async function getTaskIdsForContact(
   contactId: string,
   schema?: string
 ): Promise<string[]> {
   const supabase = createServerSupabaseClient();
   const schemaName = schema ?? PROJECTS_SCHEMA;
-  const { data, error } = await supabase
-    .schema(schemaName)
-    .from("task_followers")
-    .select("task_id")
-    .eq("contact_id", contactId);
-  if (error) {
-    console.error("getTaskIdsForContact error:", error);
-    return [];
+  const [followersRes, primaryRes] = await Promise.all([
+    supabase.schema(schemaName).from("task_followers").select("task_id").eq("contact_id", contactId),
+    supabase.schema(schemaName).from("tasks").select("id").eq("contact_id", contactId),
+  ]);
+  if (followersRes.error) {
+    console.error("getTaskIdsForContact task_followers:", followersRes.error);
   }
-  const rows = (data ?? []) as { task_id: string }[];
-  return [...new Set(rows.map((r) => r.task_id))];
+  if (primaryRes.error) {
+    console.error("getTaskIdsForContact tasks.contact_id:", primaryRes.error);
+  }
+  const ids = new Set<string>();
+  for (const r of (followersRes.data ?? []) as { task_id: string }[]) {
+    if (r.task_id) ids.add(r.task_id);
+  }
+  for (const r of (primaryRes.data ?? []) as { id: string }[]) {
+    if (r.id) ids.add(r.id);
+  }
+  return [...ids];
 }
 
 /** Get one contact_id for a task from task_followers (for task thread note ownership). Returns null if none. */

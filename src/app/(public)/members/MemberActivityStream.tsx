@@ -44,16 +44,20 @@ export function MemberActivityStream() {
   const fetchActivity = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/members/activity");
+      const params = new URLSearchParams({
+        filter: typeFilter,
+        limit: "80",
+      });
+      const res = await fetch(`/api/members/message-center?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
-      setActivity(data.activity ?? []);
+      setActivity(data.items ?? data.activity ?? []);
     } catch {
       setActivity([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [typeFilter]);
 
   useEffect(() => {
     fetchActivity();
@@ -111,7 +115,7 @@ export function MemberActivityStream() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Activity</CardTitle>
+        <CardTitle className="text-sm font-medium">Messages and notifications</CardTitle>
         <p className="text-xs text-muted-foreground">
           Your orders, messages with support, form submissions, and more. Use &quot;Add new message&quot; to contact support.
         </p>

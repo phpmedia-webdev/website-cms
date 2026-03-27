@@ -218,7 +218,10 @@ function normalizeThreadJoin(
 /**
  * Recent blog comments for admin dashboard activity (newest first).
  */
-export async function fetchRecentBlogCommentRowsForDashboard(limit: number): Promise<
+export async function fetchRecentBlogCommentRowsForDashboard(
+  limit: number,
+  dateRange?: { dateFrom?: string; dateTo?: string } | null
+): Promise<
   {
     id: string;
     body: string;
@@ -230,9 +233,10 @@ export async function fetchRecentBlogCommentRowsForDashboard(limit: number): Pro
 > {
   const supabase = createServerSupabaseClient();
   const schema = getClientSchema();
-  const take = Math.min(Math.max(limit, 1), 100);
+  const hasRange = !!(dateRange?.dateFrom?.trim() || dateRange?.dateTo?.trim());
+  const take = Math.min(Math.max(limit, 1), hasRange ? 300 : 100);
 
-  const { data, error } = await supabase
+  let q = supabase
     .schema(schema)
     .from("thread_messages")
     .select(
@@ -250,9 +254,10 @@ export async function fetchRecentBlogCommentRowsForDashboard(limit: number): Pro
     `
     )
     .eq("conversation_threads.thread_type", "blog_comment")
-    .eq("conversation_threads.subject_type", BLOG_COMMENT_SUBJECT_TYPE)
-    .order("created_at", { ascending: false })
-    .limit(take);
+    .eq("conversation_threads.subject_type", BLOG_COMMENT_SUBJECT_TYPE);
+  if (dateRange?.dateFrom) q = q.gte("created_at", dateRange.dateFrom);
+  if (dateRange?.dateTo) q = q.lte("created_at", dateRange.dateTo);
+  const { data, error } = await q.order("created_at", { ascending: false }).limit(take);
 
   if (error) {
     console.error("fetchRecentBlogCommentRowsForDashboard:", error.message, error.code);

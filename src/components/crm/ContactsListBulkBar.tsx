@@ -63,7 +63,7 @@ export function ContactsListBulkBar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 justify-between">
+    <div className="inline-flex flex-wrap items-center gap-2">
       <div className="relative max-w-md">
         <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
         <Input

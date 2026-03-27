@@ -2,16 +2,30 @@
  * Admin Message Center: unified stream (conversation thread heads + contact_notifications_timeline).
  */
 
-import { listRecentContactNotificationsTimelineGlobal } from "@/lib/supabase/contact-notifications-timeline";
+import {
+  listRecentContactNotificationsTimelineGlobal,
+  listContactNotificationsTimeline,
+} from "@/lib/supabase/contact-notifications-timeline";
 import type { ContactNotificationsTimelineRow } from "@/lib/supabase/contact-notifications-timeline";
 import {
   listRecentConversationThreadsForAdmin,
+  listSupportThreadsForContact,
+  listTaskTicketThreadsForTaskIds,
+  listThreadMessages,
   fetchLatestThreadMessagesForThreads,
+  getThreadUnreadMapForUser,
   type ConversationThreadType,
 } from "@/lib/supabase/conversation-threads";
+import { getTaskIdsForContact } from "@/lib/supabase/projects";
 import { getCommentAuthorDisplayName } from "@/lib/blog-comments/author-name";
 import { createServerSupabaseClient } from "@/lib/supabase/server-service";
 import { getClientSchema } from "@/lib/supabase/schema";
+import {
+  normalizeMessageCenterDateRange,
+  messageCenterFetchCap,
+  messageCenterItemInDateRange,
+  type MessageCenterDateRangeIso,
+} from "@/lib/message-center/date-range";
 
 const CRM_SCHEMA = process.env.NEXT_PUBLIC_CLIENT_SCHEMA || "website_cms_template_dev";
 
@@ -57,6 +71,8 @@ export type MessageCenterStreamItem =
       contactId: string;
       contactName: string;
       authorLabel: string | null;
+      /** Present when `forUserId` was passed to stream builder — thread has newer messages than `last_read_at`. */
+      unread?: boolean;
     }
   | {
       source: "timeline";
@@ -72,6 +88,9 @@ export type MessageCenterStreamItem =
       contentId?: string | null;
       status?: string | null;
       formName?: string;
+      /** When timeline kind is form submission — for deep link to Form Submissions. */
+      formId?: string | null;
+      submissionId?: string | null;
       magName?: string;
       listName?: string;
       orderId?: string;
@@ -98,6 +117,19 @@ function threadTypeMatchesFilter(
 ): boolean {
   if (filter === "conversations") return true;
   return threadType === filter;
+}
+
+/** Contact-scoped Message Center: row involves this CRM contact (v1 — direct `contact_id` / task / support subject). */
+export function messageCenterItemInvolvesContact(item: MessageCenterStreamItem, contactId: string): boolean {
+  const cid = contactId.trim();
+  if (!cid) return true;
+  if (item.source === "thread") {
+    return item.contactId === cid;
+  }
+  if (item.source === "timeline") {
+    return item.contactId === cid;
+  }
+  return false;
 }
 
 function passesFilter(item: MessageCenterStreamItem, filter: MessageCenterStreamFilter): boolean {
@@ -139,22 +171,106 @@ function passesFilter(item: MessageCenterStreamItem, filter: MessageCenterStream
 }
 
 /**
+ * Admin Message Center search: match older GPUM lines, not only `preview` (latest).
+ * Runs for global dashboard + full MC + contact-scoped. Batched to limit concurrent DB reads.
+ */
+async function enrichSupportThreadSearchText(
+  items: MessageCenterStreamItem[]
+): Promise<MessageCenterStreamItem[]> {
+  const supportThreadIds = items
+    .filter((item) => item.source === "thread" && item.threadType === "support")
+    .map((item) => item.threadId);
+  const uniqueIds = [...new Set(supportThreadIds)];
+  const BATCH = 15;
+  const blobByThreadId = new Map<string, string>();
+  for (let i = 0; i < uniqueIds.length; i += BATCH) {
+    const chunk = uniqueIds.slice(i, i + BATCH);
+    await Promise.all(
+      chunk.map(async (threadId) => {
+        const msgs = await listThreadMessages(threadId, { limit: 100 });
+        const blob = msgs
+          .map((m) => (m.body ?? "").trim())
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 12000);
+        blobByThreadId.set(threadId, blob);
+      })
+    );
+  }
+  return items.map((item) => {
+    if (item.source !== "thread" || item.threadType !== "support") return item;
+    const blob = blobByThreadId.get(item.threadId);
+    if (blob == null) return item;
+    return { ...item, threadSearchText: blob };
+  });
+}
+
+export type GetAdminMessageCenterStreamOptions = {
+  /** When set, only rows involving this CRM contact (after merge). */
+  contactId?: string | null;
+  /** When set, thread rows include `unread` for this auth user. */
+  forUserId?: string | null;
+  /** Inclusive window (`YYYY-MM-DD` or ISO). Both ends optional (open range). */
+  dateFrom?: string | null;
+  dateTo?: string | null;
+};
+
+/**
  * Build unified admin Message Center list (thread heads + timeline), sorted newest first.
  */
 export async function getAdminMessageCenterStream(
   limit: number,
-  filter: MessageCenterStreamFilter = "all"
+  filter: MessageCenterStreamFilter = "all",
+  options?: GetAdminMessageCenterStreamOptions
 ): Promise<MessageCenterStreamItem[]> {
-  const perKind = Math.max(20, Math.ceil(limit * 0.6));
-  const threadCap = Math.max(20, Math.ceil(limit * 0.55));
+  const contactScope = !!options?.contactId?.trim();
+  const scopeMult = contactScope ? 4 : 1;
+  const rangeIso: MessageCenterDateRangeIso | null = normalizeMessageCenterDateRange(
+    options?.dateFrom,
+    options?.dateTo
+  );
 
-  const [threads, timelineRows, blogRows] = await Promise.all([
-    listRecentConversationThreadsForAdmin(threadCap),
-    listRecentContactNotificationsTimelineGlobal(perKind),
+  const perKind = messageCenterFetchCap(Math.max(20, Math.ceil(limit * 0.6 * scopeMult)), rangeIso);
+  const threadCap = messageCenterFetchCap(Math.max(20, Math.ceil(limit * 0.55 * scopeMult)), rangeIso);
+  const blogLimit = messageCenterFetchCap(Math.ceil(limit / 2), rangeIso);
+
+  const scopedContactId = options?.contactId?.trim() ?? "";
+
+  const [globalThreads, timelineRowsGlobal, blogRows, supportThreads, taskIdsForContact, timelineForContact] =
+    await Promise.all([
+    listRecentConversationThreadsForAdmin(threadCap, rangeIso),
+    listRecentContactNotificationsTimelineGlobal(perKind, rangeIso),
     import("@/lib/supabase/blog-comment-messages").then((m) =>
-      m.fetchRecentBlogCommentRowsForDashboard(Math.ceil(limit / 2))
+      m.fetchRecentBlogCommentRowsForDashboard(blogLimit, rangeIso)
     ),
+    scopedContactId ? listSupportThreadsForContact(scopedContactId) : Promise.resolve([]),
+    scopedContactId ? getTaskIdsForContact(scopedContactId) : Promise.resolve([]),
+    scopedContactId
+      ? listContactNotificationsTimeline(scopedContactId, { limit: 200 })
+      : Promise.resolve([]),
   ]);
+
+  let timelineRows: ContactNotificationsTimelineRow[] = timelineRowsGlobal;
+  if (scopedContactId && timelineForContact.length > 0) {
+    const byId = new Map<string, ContactNotificationsTimelineRow>();
+    for (const r of timelineRowsGlobal) byId.set(r.id, r);
+    for (const r of timelineForContact) byId.set(r.id, r);
+    timelineRows = [...byId.values()];
+  }
+
+  const taskTicketThreads =
+    scopedContactId && taskIdsForContact.length > 0
+      ? await listTaskTicketThreadsForTaskIds(taskIdsForContact)
+      : [];
+
+  const threadsById = new Map<string, (typeof globalThreads)[number]>();
+  for (const t of globalThreads) threadsById.set(t.id, t);
+  for (const t of supportThreads) threadsById.set(t.id, t);
+  for (const t of taskTicketThreads) threadsById.set(t.id, t);
+  const threads = [...threadsById.values()];
+
+  /** Threads explicitly tied to this contact (direct subject, orphans, author lookup). */
+  const supportThreadIdsForScope = new Set(supportThreads.map((x) => x.id));
 
   const threadIds = threads.map((t) => t.id);
   const lastByThread = await fetchLatestThreadMessagesForThreads(threadIds);
@@ -189,25 +305,38 @@ export async function getAdminMessageCenterStream(
     .filter((t) => t.thread_type === "task_ticket" && t.subject_type === "task" && t.subject_id)
     .map((t) => t.subject_id as string);
 
-  /** task_id -> one contact_id on that task (for display / link) */
+  /** task_id -> primary CRM contact (row `contact_id`, else first follower contact) */
   const taskContactId = new Map<string, string>();
-  await Promise.all(
-    taskSubjectIds.map(async (taskId) => {
-      const supabase = createServerSupabaseClient();
-      const { data } = await supabase
-        .schema(CRM_SCHEMA)
-        .from("task_followers")
-        .select("contact_id")
-        .eq("task_id", taskId)
-        .not("contact_id", "is", null)
-        .limit(1)
-        .maybeSingle();
-      const cid = data && typeof (data as { contact_id?: string }).contact_id === "string"
-        ? (data as { contact_id: string }).contact_id
-        : null;
-      if (cid) taskContactId.set(taskId, cid);
-    })
-  );
+  if (taskSubjectIds.length > 0) {
+    const supabase = createServerSupabaseClient();
+    const { data: taskRows } = await supabase
+      .schema(CRM_SCHEMA)
+      .from("tasks")
+      .select("id, contact_id")
+      .in("id", taskSubjectIds);
+    for (const row of (taskRows ?? []) as { id: string; contact_id: string | null }[]) {
+      if (typeof row.contact_id === "string" && row.contact_id.trim()) {
+        taskContactId.set(row.id, row.contact_id.trim());
+      }
+    }
+    const missingFollower = taskSubjectIds.filter((tid) => !taskContactId.has(tid));
+    await Promise.all(
+      missingFollower.map(async (taskId) => {
+        const { data } = await supabase
+          .schema(CRM_SCHEMA)
+          .from("task_followers")
+          .select("contact_id")
+          .eq("task_id", taskId)
+          .not("contact_id", "is", null)
+          .limit(1)
+          .maybeSingle();
+        const cid = data && typeof (data as { contact_id?: string }).contact_id === "string"
+          ? (data as { contact_id: string }).contact_id
+          : null;
+        if (cid) taskContactId.set(taskId, cid);
+      })
+    );
+  }
 
   for (const cid of taskContactId.values()) {
     contactIds.add(cid);
@@ -242,14 +371,31 @@ export async function getAdminMessageCenterStream(
 
   for (const t of threads) {
     const last = lastByThread.get(t.id);
+    const threadAt = last?.created_at ?? t.updated_at;
+    if (rangeIso && !messageCenterItemInDateRange(threadAt, rangeIso)) continue;
+
     const preview = last?.body?.trim() || "(no messages yet)";
     let contactId = "";
     let taskId: string | null = null;
     if (t.thread_type === "task_ticket" && t.subject_type === "task" && t.subject_id) {
       taskId = t.subject_id;
       contactId = taskContactId.get(t.subject_id) ?? "";
-    } else if (t.thread_type === "support" && t.subject_type === "contact_support" && t.subject_id) {
-      contactId = t.subject_id;
+    } else if (t.thread_type === "support" && t.subject_type === "contact_support") {
+      const sid = t.subject_id?.trim() ?? "";
+      const lastAuthorCid = last?.author_contact_id?.trim() ?? "";
+      if (scopedContactId) {
+        if (
+          supportThreadIdsForScope.has(t.id) ||
+          sid === scopedContactId ||
+          lastAuthorCid === scopedContactId
+        ) {
+          contactId = scopedContactId;
+        } else {
+          contactId = sid;
+        }
+      } else {
+        contactId = sid || lastAuthorCid || "";
+      }
     } else {
       contactId = "";
     }
@@ -264,7 +410,7 @@ export async function getAdminMessageCenterStream(
     const threadItem: MessageCenterStreamItem = {
       source: "thread",
       id: `thread-${t.id}`,
-      at: last?.created_at ?? t.updated_at,
+      at: threadAt,
       threadType: t.thread_type,
       threadId: t.id,
       magId: t.mag_id,
@@ -277,6 +423,15 @@ export async function getAdminMessageCenterStream(
       authorLabel,
     };
     if (passesFilter(threadItem, filter)) items.push(threadItem);
+  }
+
+  /** Contacts with a support thread row in this stream — skip duplicate `message` timeline rows (same GPUM as `thread_messages`). */
+  const contactIdsWithSupportThreadInStream = new Set<string>();
+  for (const it of items) {
+    if (it.source === "thread" && it.threadType === "support") {
+      const c = it.contactId?.trim();
+      if (c) contactIdsWithSupportThreadInStream.add(c);
+    }
   }
 
   for (const row of blogRows) {
@@ -320,33 +475,42 @@ export async function getAdminMessageCenterStream(
 
   if (loadSyntheticCrm) {
     const supabase = createServerSupabaseClient();
-    const [mData, lData, cData, oData] = await Promise.all([
-      supabase
-        .schema(CRM_SCHEMA)
-        .from("crm_contact_mags")
-        .select("contact_id, mag_id, assigned_at")
-        .order("assigned_at", { ascending: false })
-        .limit(25),
-      supabase
-        .schema(CRM_SCHEMA)
-        .from("crm_contact_marketing_lists")
-        .select("contact_id, list_id, added_at")
-        .order("added_at", { ascending: false })
-        .limit(25),
-      supabase
-        .schema(CRM_SCHEMA)
-        .from("crm_contacts")
-        .select("id, created_at")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(20),
-      supabase
-        .schema(CRM_SCHEMA)
-        .from("orders")
-        .select("id, customer_email, contact_id, status, created_at")
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
+    const synLimit = rangeIso ? 200 : 25;
+
+    let mQ = supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_mags")
+      .select("contact_id, mag_id, assigned_at");
+    if (rangeIso?.dateFrom) mQ = mQ.gte("assigned_at", rangeIso.dateFrom);
+    if (rangeIso?.dateTo) mQ = mQ.lte("assigned_at", rangeIso.dateTo);
+    const mPromise = mQ.order("assigned_at", { ascending: false }).limit(synLimit);
+
+    let lQ = supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contact_marketing_lists")
+      .select("contact_id, list_id, added_at");
+    if (rangeIso?.dateFrom) lQ = lQ.gte("added_at", rangeIso.dateFrom);
+    if (rangeIso?.dateTo) lQ = lQ.lte("added_at", rangeIso.dateTo);
+    const lPromise = lQ.order("added_at", { ascending: false }).limit(synLimit);
+
+    let cQ = supabase
+      .schema(CRM_SCHEMA)
+      .from("crm_contacts")
+      .select("id, created_at")
+      .is("deleted_at", null);
+    if (rangeIso?.dateFrom) cQ = cQ.gte("created_at", rangeIso.dateFrom);
+    if (rangeIso?.dateTo) cQ = cQ.lte("created_at", rangeIso.dateTo);
+    const cPromise = cQ.order("created_at", { ascending: false }).limit(synLimit);
+
+    let oQ = supabase
+      .schema(CRM_SCHEMA)
+      .from("orders")
+      .select("id, customer_email, contact_id, status, created_at");
+    if (rangeIso?.dateFrom) oQ = oQ.gte("created_at", rangeIso.dateFrom);
+    if (rangeIso?.dateTo) oQ = oQ.lte("created_at", rangeIso.dateTo);
+    const oPromise = oQ.order("created_at", { ascending: false }).limit(synLimit);
+
+    const [mData, lData, cData, oData] = await Promise.all([mPromise, lPromise, cPromise, oPromise]);
     magAssignments.push(...((mData.data as typeof magAssignments | null) ?? []));
     listAdditions.push(...((lData.data as typeof listAdditions | null) ?? []));
     contactAdds.push(...((cData.data as typeof contactAdds | null) ?? []));
@@ -402,8 +566,28 @@ export async function getAdminMessageCenterStream(
 
   for (const t of timelineRows) {
     const cid = t.contact_id ?? "";
+    const kindLower = (t.kind ?? "").trim().toLowerCase();
+    if (
+      kindLower === "message" &&
+      cid.trim() &&
+      contactIdsWithSupportThreadInStream.has(cid.trim())
+    ) {
+      continue;
+    }
     const line = (t.body?.trim() || t.title?.trim() || t.kind) ?? "Notification";
     const displayKind = normalizeTimelineKindForMessageCenter(t.kind);
+    const meta =
+      t.metadata && typeof t.metadata === "object" && !Array.isArray(t.metadata)
+        ? (t.metadata as Record<string, unknown>)
+        : {};
+    const formIdMeta = typeof meta.form_id === "string" ? meta.form_id : null;
+    const formNameMeta = typeof meta.form_name === "string" ? meta.form_name : undefined;
+    const submissionMeta = typeof meta.submission_id === "string" ? meta.submission_id : null;
+    const isFormTimeline =
+      t.subject_type === "form_submission" || displayKind === "form_submitted";
+    const submissionId =
+      submissionMeta ?? (isFormTimeline && t.subject_id?.trim() ? t.subject_id.trim() : null);
+    const formId = formIdMeta;
     const item: MessageCenterStreamItem = {
       source: "timeline",
       id: t.id,
@@ -414,6 +598,9 @@ export async function getAdminMessageCenterStream(
       contactId: cid,
       contactName: cid ? (contactNames[cid] ?? "Contact") : "Contact",
       body: line,
+      formName: formNameMeta,
+      formId: formId ?? undefined,
+      submissionId: submissionId ?? undefined,
     };
     if (!passesFilter(item, filter)) continue;
     items.push(item);
@@ -491,5 +678,37 @@ export async function getAdminMessageCenterStream(
   }
 
   items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  return items.slice(0, limit);
+
+  let out = items;
+  const scopedContact = options?.contactId?.trim();
+  if (scopedContact) {
+    out = items.filter((i) => messageCenterItemInvolvesContact(i, scopedContact));
+    /**
+     * Contact card / scoped MC: keep every conversation thread row, then fill remaining budget
+     * with other activity. A flat `slice(limit)` was dropping support threads when the contact
+     * had many list/MAG/order/timeline rows above the cap (e.g. limit=55).
+     */
+    const threadsOnly = out.filter((i) => i.source === "thread");
+    const nonThreads = out.filter((i) => i.source !== "thread");
+    const budget = Math.max(limit, 120);
+    const roomForRest = Math.max(0, budget - threadsOnly.length);
+    out = [...threadsOnly, ...nonThreads.slice(0, roomForRest)];
+  } else {
+    out = out.slice(0, limit);
+  }
+
+  out = await enrichSupportThreadSearchText(out);
+
+  const forUser = options?.forUserId?.trim();
+  if (forUser) {
+    const threadIds = out.filter((i) => i.source === "thread").map((i) => i.threadId);
+    const unreadMap = await getThreadUnreadMapForUser(forUser, threadIds);
+    out = out.map((i) => {
+      if (i.source !== "thread") return i;
+      const unread = unreadMap.get(i.threadId) ?? false;
+      return { ...i, unread };
+    });
+  }
+
+  return out;
 }

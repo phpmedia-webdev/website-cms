@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { User, Tags, Settings, Mail, FileText, Users, FolderKanban, Receipt, CalendarDays, ListChecks } from "lucide-react";
 import { ContactDetailClient } from "./ContactDetailClient";
 import { ContactTaxonomyBlock } from "./ContactTaxonomyBlock";
+import { DashboardActivityStream } from "@/components/dashboard/DashboardActivityStream";
+import type { MessageCenterStreamItem } from "@/lib/message-center/admin-stream";
+import { ContactNotificationsTimelineSection } from "@/components/crm/ContactNotificationsTimelineSection";
 import type { CrmCustomField, ContactCustomFieldValue, ContactMag, ContactMarketingList, Form } from "@/lib/supabase/crm";
 import type { CrmContactStatusOption } from "@/lib/supabase/settings";
 import type { ContactDetailSection } from "./ContactDetailClient";
@@ -35,7 +39,7 @@ interface RelatedTaskRow {
 interface RelatedProjectRow {
   id: string;
   title: string;
-  project_number: number | null;
+  project_number: string | null;
   project_status_slug: string | null;
   role_slug: string | null;
 }
@@ -56,6 +60,8 @@ interface ContactRecordLayoutProps {
   relatedEvents: RelatedEventRow[];
   relatedTasks: RelatedTaskRow[];
   relatedProjects: RelatedProjectRow[];
+  /** Contact-scoped Message Center stream (server-built). */
+  messageCenterItems: MessageCenterStreamItem[];
 }
 
 export function ContactRecordLayout({
@@ -72,7 +78,9 @@ export function ContactRecordLayout({
   relatedEvents,
   relatedTasks,
   relatedProjects,
+  messageCenterItems,
 }: ContactRecordLayoutProps) {
+  const router = useRouter();
   const [section1, setSection1] = useState<Section1Tab>("detail");
   const [section2, setSection2] = useState<Section2Tab>("messageCenter");
 
@@ -171,11 +179,26 @@ export function ContactRecordLayout({
         </TabsList>
         <div className="mt-4">
           {section2 === "messageCenter" && (
-            <Card className="rounded-lg border bg-card min-h-[300px]">
-              <CardContent className="p-4">
-                <ContactDetailClient {...detailClientProps} activeSection="notes" />
-              </CardContent>
-            </Card>
+            <div className="space-y-4 min-h-[300px]">
+              <div className="flex justify-end">
+                <Link
+                  href={`/admin/dashboard/message-center?contact_id=${encodeURIComponent(contactId)}`}
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  Open full Message Center for this contact
+                </Link>
+              </div>
+              <DashboardActivityStream
+                initialItems={messageCenterItems}
+                contactId={contactId}
+                compact
+              />
+              <ContactNotificationsTimelineSection
+                contactId={contactId}
+                composerOnly
+                onAfterSubmit={() => router.refresh()}
+              />
+            </div>
           )}
           {section2 === "events" && (
             <Card className="rounded-lg border bg-card min-h-[300px]">

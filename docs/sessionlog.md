@@ -12,14 +12,7 @@
 
 **Database changes are not applied when you pull code.** Copy files from `supabase/migrations/` into **Supabase Dashboard → SQL Editor** and **Run** (numeric filename order).
 
-**Applied on primary Supabase (2026-03-25):** **`207_tasks_contact_id.sql`** then **`208_tasks_project_id_nullable.sql`** — `tasks.contact_id`, nullable **`project_id`**, updated **`get_tasks_dynamic`** / **`get_task_by_id_dynamic`**. New forks or envs that are behind still run **207** then **208** in that order.
-**Applied on primary Supabase (2026-03-26):** **`209_tasks_project_fk_set_null.sql`** and **`210_tasks_creator_follower_backfill.sql`** — safe project delete unlink behavior (`ON DELETE SET NULL`) and creator-follower backfill/report.
-**Applied on primary Supabase (2026-03-26, evening):** **`214_message_center_mags_customizer.sql`** — `mags.allow_conversations`, GPUM MAG opt-in columns/tables, Customizer `message_center_*` seeds, `get_mags_dynamic` / `get_mag_by_id_dynamic` return `allow_conversations`. Other envs: run **214** in SQL Editor when behind.
-
-- **`200_projects_project_number.sql`** — `projects.project_number` PROJ-YYYY-NNNNN + project list/detail RPCs.
-- **`198_get_tasks_dynamic_preset_filters.sql`** — All Tasks presets (`exclude_status_slugs`, `due_before`).
-- **`197_get_tasks_dynamic_exclude_archived_projects.sql`** — exclude tasks whose **project** is archived (confirm applied everywhere).
-
+**Applied on primary Supabase (through 2026-03-26):** Migration queue is current through **`214`**, including **`197`** / **`198`** (All Tasks RPC presets + archived-project exclusion), **`200`** (project numbers), **`207`**–**`214`** (tasks **`contact_id`**, nullable **`project_id`**, standalone task FK/backfill, reminders + calendar visibility, Message Center / MAG **`214`**). **New forks or stale envs:** copy **`supabase/migrations/`** in **numeric filename order** and run any files not yet applied on that database.
 
 ---
 
@@ -27,13 +20,12 @@
 
 Use order **0 → 5** where dependencies apply (e.g. task threads depend on Phase 18C).
 
-### 0. Standalone tasks conversion plan (DO FIRST)
+### 0. Standalone tasks conversion
 
-Section 0 implementation is complete. See [changelog.md](./changelog.md) entry **2026-03-26 09:49 CT** for details; full manual QA matrix is deferred.
+**Status:** Implementation complete. Manual QA matrix deferred. See [changelog.md](./changelog.md) **2026-03-26 09:49 CT** and [planlog Phase 19](./planlog.md#phase-19-project-management-module) (standalone support tasks, **`POST /api/tasks`**, etc.).
 
 ### 1. Tasks & Projects (remaining)
 
-- [ ] **Assignee picker scope split (project-linked vs loose):** when `tasks.project_id` is set, scope assignee picker to that project's members for faster selection; when `tasks.project_id` is null (loose task), show full tenant directory. Keep behavior consistent across task detail/edit and follower APIs.
 - [ ] **GPUM (if in MVP):** Member-area **Projects**, **Tasks**, **Support tickets** per [planlog Phase 19](./planlog.md#phase-19-project-management-module) — or **defer** and document in planlog.
 - [ ] **GPUM calendar — task due-date layer parity:** when member area calendar/dashboard work starts, add a GPUM-safe task due-date overlay (month/week/day/agenda) with hover details and click-through to allowed task detail routes only. Respect GPUM visibility rules (`contact_id` linkage, assignee/follower access, and future `client_visible` / `internal_only` policy) so internal-only tasks never leak.
 - [ ] **Phase 19 items you still want before fork:** e.g. standalone support-task refinements, **`project_id` on invoices**, punch-style time UI — keep as [planlog](./planlog.md) checkboxes and work them here when in scope.
@@ -59,22 +51,27 @@ No extra sessionlog lines — **Phase 21** in planlog. Optional: [picker MVP-if-
 
 Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get **support-style messaging**. Timeline + threads; cut over from **`crm_notes`** where spec says so.
 
-- [ ] **Messaging system 2 more features:** Add unread/new indicators and bulk mark-as-read actions for message/notification workflows.
-- [ ] **Wiring source of truth:** [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)
-- [ ] **Spec alignment:** [prd-technical §18C](./prd-technical.md#phase-18c-directory-and-messaging)
-- [x] **MVP gate:** No new **`crm_notes`** writes for migrated kinds; writes → timeline / threads
-- [ ] **Merged read API:** Single stream (timeline ∪ threads), sort, cursor, **GPUM** never sees `admin_only` rows
-- [ ] **Triggers:** Timeline for MVP-critical events (forms, orders, assign, MAG, … — define minimal set)
-- [ ] **Event reminders — cron & multi-channel:** [planlog Phase 20](./planlog.md#phase-20-calendar--reminders--personal-ics-feeds) (email, push, in-app, SMS when connected)
+**Shipped (synced 2026-03-26):** Admin **Message Center** on **Dashboard** — `DashboardTabsClient` **Message Center** tab + `DashboardActivityStream` (thread-head rows ∪ timeline items, type filters, title search, deep links). **APIs:** `GET /api/admin/message-center`, unread count for tab, `PATCH` thread read. **MAG:** `allow_conversations` (CRM MAG detail), GPUM **messaging preferences** (member profile), post policy + support/task thread participant seeding. **DB:** migration **214** + Customizer `message_center_*` seeds. **Policy:** no new **`crm_notes`** for migrated kinds; task discussion on **`conversation_threads`**. Full detail: [changelog](./changelog.md) **2026-03-26 16:44 CT**, [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications), [plan-message-center-roadmap.md](./reference/plan-message-center-roadmap.md).
+
+**Message Center — GUI / UX next steps (build from here)**
+
+- [ ] **GPUM UX model (product):** **SMS-style chat** (single back-and-forth surface) vs **unified feed + thread row** — decide next session; may imply dedicated chat UI while keeping `conversation_threads` / `thread_messages` storage ([changelog](./changelog.md) **2026-03-26 23:53 CT**).
+- [ ] **GPUM — API then UI:** **Merged read** route(s): single stream, sort, **cursor** pagination, **never** return `admin_only` timeline rows. Then member **Messages / notifications** page: stream list + **thread drill-in** (support, MAG, etc.), filters consistent with admin model where applicable.
+
+**Recently shipped (admin Message Center surface):** Unread row styling, bulk mark read / mark visible unread, **View all** + filter menu (`admin-filters.ts`), **`GET /api/admin/message-center`** + mark-read batch, **contact-scoped** stream on CRM contact + `DashboardActivityStream`, full page at **`/admin/dashboard/message-center`** (taller list via `layout="full"`) + sidebar link after Dashboard (same **`dashboard`** gate) + dashboard tab **Open full page** link; legacy **`/admin/message-center`** → **`308`** to the dashboard sub-route (`next.config.js`).
+- [ ] **Support — GPUM surfaces:** Clear **entry points** to support / ticket threads from member area (not only API).
+- [ ] **Docs / spec:** Keep [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) + [prd-technical §18C](./prd-technical.md#phase-18c-directory-and-messaging) aligned as UI/API land.
+
+**Still open (broader messaging MVP, non-GUI or later)**
+
+- [ ] **Timeline triggers:** Minimal set (forms, orders, assign, MAG, …) — define and implement.
+- [ ] **Event reminders — cron & multi-channel:** [planlog Phase 20](./planlog.md#phase-20-calendar--reminders--personal-ics-feeds)
 - [ ] **Blog comments:** Verify threads + moderation paths ([wiring doc](./reference/messages-and-notifications-wiring.md))
 - [ ] **Product comments** + **approval workflow** (posts + products)
 - [ ] **Admin — Comments management** (e.g. `/admin/content/comments`)
-- [x] **Task comments:** **`conversation_threads`** / `thread_messages` (not new **`crm_notes`** volume for greenfield)
-- [ ] **Tasks — hide from client (design + implement):** Edge case where a team member keeps a task **private** from the linked contact / GPUM — e.g. boolean **`client_visible`** / **`internal_only`** on `tasks`, default visible; **`contact_id`** remains “who we communicate with,” not “who may see the task.” Thread GPUM APIs, notifications, and any member task lists must respect the flag once added.
-- [ ] **Support conversation:** GPUM ↔ tenant admin; UI entry points
-- [ ] **UI:** Messages / notifications surface (admin + GPUM); contact timeline merge as needed
-- [ ] **Cutover + backfill** from **`crm_notes`**; runtime app usage removed in current code paths, keep DB table temporarily for compatibility and optional backfill audit; document in [prd-technical](./prd-technical.md)
-- [ ] **Fork migration note (important):** For new tenant/fork migrations, treat **`crm_notes`** as **legacy**. Keep it only for temporary compatibility/backfill windows; after timeline/thread backfill is complete in a fork, remove `crm_notes` from that fork’s required runtime migration path.
+- [ ] **Tasks — hide from client (design + implement):** **`client_visible`** / **`internal_only`** on `tasks`; threads + GPUM lists respect flag.
+- [ ] **Cutover + backfill** from **`crm_notes`**; runtime paths already off **`crm_notes`** for migrated kinds; keep DB table temporarily; document in [prd-technical](./prd-technical.md)
+- [ ] **Fork migration note:** Treat **`crm_notes`** as **legacy** for new forks; remove from required runtime path after backfill.
 
 **Plan detail:** [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications).
 
