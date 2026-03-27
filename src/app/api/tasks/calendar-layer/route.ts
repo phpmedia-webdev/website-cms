@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { getRoleForCurrentUser, isAdminRole, isSuperadminFromRole } from "@/lib/auth/resolve-role";
+import { createServerSupabaseClient } from "@/lib/supabase/client";
 import { getClientSchema } from "@/lib/supabase/schema";
 import { listTasks } from "@/lib/supabase/projects";
 

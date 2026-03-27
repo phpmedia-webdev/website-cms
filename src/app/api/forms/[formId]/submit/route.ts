@@ -242,7 +242,7 @@ async function handler(
         const v = bodyForSubmission[key];
         if (v == null || v === "") continue;
         const nextVal = String(v).trim();
-        const prevVal = String((existingContact as Record<string, unknown>)[key] ?? "").trim();
+        const prevVal = String((existingContact as unknown as Record<string, unknown>)[key] ?? "").trim();
         if (nextVal !== prevVal) {
           updatePayload[key] = nextVal;
           changedLines.push(`${CORE_LABELS[key]}: ${prevVal || "—"} -> ${nextVal || "—"}`);

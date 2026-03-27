@@ -29,7 +29,7 @@ interface RelatedTaskRow {
   due_date: string | null;
   task_status_slug: string;
   project_id: string | null;
-  task_number: number | null;
+  task_number: string | null;
 }
 
 interface RelatedProjectRow {

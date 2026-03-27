@@ -23,6 +23,10 @@ import { ContactRecordLayout } from "./ContactRecordLayout";
 import { ContactMergeButton } from "./ContactMergeButton";
 import { ContactComposeEmailButton } from "./ContactComposeEmailButton";
 
+type EventParticipantLinkRow = {
+  event_id: string | null;
+};
+
 type RelatedEventRow = {
   id: string;
   title: string;
@@ -32,13 +36,18 @@ type RelatedEventRow = {
   event_type: string | null;
 };
 
+type ProjectMemberLinkRow = {
+  project_id: string | null;
+  role_slug: string | null;
+};
+
 type RelatedTaskRow = {
   id: string;
   title: string;
   due_date: string | null;
   task_status_slug: string;
   project_id: string | null;
-  task_number: number | null;
+  task_number: string | null;
 };
 
 type RelatedProjectRow = {
@@ -67,7 +76,12 @@ async function getRelatedEventsForContact(contactId: string): Promise<RelatedEve
     .from("event_participants")
     .select("event_id")
     .eq("participant_id", participant.id);
-  const eventIds = [...new Set((links ?? []).map((r) => r.event_id).filter(Boolean))];
+  const linkRows = (links ?? []) as EventParticipantLinkRow[];
+  const eventIds = [
+    ...new Set(
+      linkRows.map((r) => r.event_id).filter((id): id is string => id != null && id !== ""),
+    ),
+  ];
   if (eventIds.length === 0) return [];
 
   const { data: events, error } = await supabase
@@ -95,9 +109,18 @@ async function getRelatedProjectsForContact(contactId: string): Promise<RelatedP
     console.error("getRelatedProjectsForContact members:", membersErr);
     return [];
   }
-  const projectIds = [...new Set((members ?? []).map((r) => r.project_id).filter(Boolean))];
+  const memberRows = (members ?? []) as ProjectMemberLinkRow[];
+  const projectIds = [
+    ...new Set(
+      memberRows.map((r) => r.project_id).filter((id): id is string => id != null && id !== ""),
+    ),
+  ];
   if (projectIds.length === 0) return [];
-  const roleByProject = new Map((members ?? []).map((m) => [m.project_id, m.role_slug ?? null]));
+  const roleByProject = new Map<string, string | null>(
+    memberRows
+      .filter((m): m is ProjectMemberLinkRow & { project_id: string } => m.project_id != null && m.project_id !== "")
+      .map((m) => [m.project_id, m.role_slug ?? null]),
+  );
 
   const { data: projects, error: projectsErr } = await supabase
     .schema(schema)

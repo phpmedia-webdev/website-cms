@@ -393,15 +393,15 @@ export function EventsPageClient({
 
   const taskOverlayEvents = useMemo<RBCEvent[]>(() => {
     if (!showTasksLayer) return [];
-    return taskDueItems
-      .map((t) => {
-        const dueIso = isoDateFromUnknown(t.due_date);
-        if (!dueIso) return null;
-        const start = new Date(`${dueIso}T00:00:00`);
-        const end = new Date(`${dueIso}T00:00:00`);
-        end.setDate(end.getDate() + 1);
-        const detailHref = taskDetailPath(t.id, t.project_id, "tasks");
-        return {
+    return taskDueItems.flatMap((t): RBCEvent[] => {
+      const dueIso = isoDateFromUnknown(t.due_date);
+      if (!dueIso) return [];
+      const start = new Date(`${dueIso}T00:00:00`);
+      const end = new Date(`${dueIso}T00:00:00`);
+      end.setDate(end.getDate() + 1);
+      const detailHref = taskDetailPath(t.id, t.project_id, "tasks");
+      return [
+        {
           id: `task-due:${t.id}:${dueIso}`,
           start,
           end,
@@ -419,9 +419,9 @@ export function EventsPageClient({
             kind: "task" as const,
             href: detailHref,
           },
-        } satisfies RBCEvent;
-      })
-      .filter((e): e is RBCEvent => e != null);
+        },
+      ];
+    });
   }, [taskDueItems, showTasksLayer]);
 
   const handleCalendarSelectEvent = useCallback(
