@@ -2,6 +2,8 @@
 
 **Purpose:** Living checklist for what belongs in **`thread_messages` / `conversation_threads`** (“messages”) vs **`contact_notifications_timeline`** (“notifications”), and whether each idea is implemented end-to-end (write path + correct read/UX + GPUM/admin rules where applicable).
 
+**Product plan (archived copy):** [plan-message-center-roadmap.md](./plan-message-center-roadmap.md) — Message Center UX, MAG rules, GPUM opt-in, implementation sequence.
+
 **Specs:** Table shapes and enums — [prd-technical § Phase 18C](../prd-technical.md#phase-18c-directory-and-messaging).  
 **How to use:** Add rows under **Ideas / backlog** as you think of them; check boxes when wired; note the `kind` / `thread_type` / API path in changelog or PR when helpful.
 

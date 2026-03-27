@@ -1,0 +1,34 @@
+---
+description: Archive completed Cursor Plan mode plans into docs/reference with plan- prefix
+alwaysApply: true
+---
+
+# Completed plans → docs/reference
+
+When a **Cursor Plan mode** plan is **completed** or **fully executed** (implementation shipped, or user explicitly archives the plan), keep a **durable copy in this repo**:
+
+## Where and how to name
+
+- **Folder:** [`docs/reference/`](docs/reference/)
+- **Filename:** `plan-<kebab-slug>.md`
+  - **Required prefix:** `plan-` (lowercase).
+  - **`<kebab-slug>`:** Short identifier from the plan title or topic — lowercase, words separated by **hyphens**, ASCII only (e.g. `message-center-roadmap`, `notifications-phase-2`).
+  - **Examples:** `plan-message-center-roadmap.md`, `plan-calendar-reminders.md`
+- **Do not** archive plan copies in `docs/reference/` without the `plan-` prefix (keeps plan documents obvious in listings and searches).
+
+## File contents
+
+1. **Strip** Cursor plan YAML frontmatter (`--- name: ... todos: ...`) from the in-repo copy unless the team explicitly wants it preserved.
+2. **Start with** a short note that it is an archived plan (source: Cursor Plan mode) and the canonical path `docs/reference/plan-<slug>.md`.
+3. **Point to implementation status:** [docs/planlog.md](docs/planlog.md), [docs/changelog.md](docs/changelog.md), [docs/mvt.md](docs/mvt.md), and any relevant wiring doc under `docs/reference/` (e.g. [messages-and-notifications-wiring.md](docs/reference/messages-and-notifications-wiring.md)).
+4. Preserve the plan body (headings, tables, mermaid) as useful reference; fix relative links so they work from `docs/reference/`.
+
+## Cross-links
+
+- Add or update a **“See also” / “Product plan”** line in related living docs (wiring docs, session handoff notes) pointing to the new `plan-*.md` file.
+- **Do not** delete or rewrite the original under the user’s `.cursor/plans/` tree unless the user asks.
+
+## When to do this
+
+- **Preferred:** At **session wrap-up** when the plan’s work is done (batch with changelog / sessionlog updates per [.cursor/rules/sessions.mdc](.cursor/rules/sessions.mdc)), or when the user says the plan is archived.
+- If a plan is **abandoned** or **superseded**, either skip archiving or add one line at the top of the archived file stating **superseded by** (link to newer plan or changelog).
