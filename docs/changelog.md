@@ -11,6 +11,12 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For **open**
 
 ## [Unreleased]
 
+### 2026-03-28 14:36 CT — Accounting module: firm plan in sessionlog (documentation only)
+
+- **Context for Next Session:** **Accounting** handoff lives in **[sessionlog.md](./sessionlog.md)** — **§ Accounting (planned module — SSOT → export → QuickBooks)** (principles, document types, PWA field capture, mileage point-to-point, CSV-then-QBO phases, open checklist). **No application code or migrations** in this change. **Implementation** continues under [planlog Phase 22](./planlog.md#phase-22-accounting-module) and future `prd-technical` when schema is locked.
+- **Changed:**
+  - **Docs:** **[sessionlog.md](./sessionlog.md)** — merged and expanded accounting plan (SSOT vs Stripe vs QuickBooks, invoices vs sales receipts, tax/payout notes, feature-gated PWA **Expense out** / **Payment in** / **Mileage**, reference table row).
+
 ### 2026-03-27 16:52 CT — GPUM Message Center v1 UI/stream, admin thread UX, transcript enrichment
 
 - **Context for Next Session:** **Top priority:** GPUM **Phase 4** — thread **unread** on `conversation_head` rows + **member-safe mark-read** when opening a thread (mirror admin `thread_participants` / `PATCH` read pattern under RLS). Then empty states, `/members` dashboard preview + **See all**, and optional cursor pagination on `GET /api/members/message-center`. **DB:** No new migrations this session. **Deploy:** Local **`pnpm run build`** completed successfully (2026-03-27). If Vercel still does not deploy after this push, inspect **Vercel → Project → Deployments** for the failed build log (branch, env vars, install errors); this repo has no pre-push build hook blocking push.
