@@ -178,25 +178,64 @@ These items are **not** GPUM Message Center polish; they are **platform** work t
 
 ---
 
-## Accounting (planned module — lightweight financials)
+## Accounting (planned module — SSOT → export → QuickBooks)
 
-**Goal:** Track **money in** + **money out** and project-level margin (lightweight financials, not full accounting).
+**Goal:** **Website-cms is SSOT** for money in/out, open invoices, payments, expenses, and mileage. **Stripe** handles merchant processing and card PII; **sync Stripe into the app** (not the other way for ledger truth). **QuickBooks:** **CSV export first**, then **one-way API sync** (per-transaction or batch) as a later goal. Scope is **accountant-ready** data (P&amp;L, detail, tax lines)—**not** full registers, bank reconcile, or double-entry in v1.
 
-**Design notes (keep concise):**
-- Use one canonical income model to avoid double counting (`payments` strategy must be explicit).
-- Map Stripe order/invoice payment events to that model consistently.
-- Keep expenses project-linkable (`project_id` nullable) and category-driven.
-- Add project labor-rate support for margin rollups.
-- Preserve tenant-safe access/RLS and simple admin navigation.
+**Principles**
+- **One canonical income model** — explicit rule for `orders` / subscription cycles / manual payments so nothing is double-counted; document in `prd-technical` when locked.
+- **Your document numbers** — `order_number` / `invoice_number` from existing generators; assign at defined lifecycle points; webhook handlers **idempotent** (key to Stripe `invoice.id`, `checkout.session.id`, `payment_intent.id`, etc.).
+- **Invoices = A/R** (planned / balance / partials). **Sales receipts = post-cash** (customer paid first; record after payment). **Stripe Billing** uses internal `Invoice` objects per cycle—that does not force QBO doc type; map per policy below.
+- **Sales tax:** Stripe Tax (or chosen engine) authoritative for **Stripe-collected** amounts; for QBO consider **tax as separate line** + non-taxable product lines so QBO’s tax engine isn’t a second calculator. CPA to confirm.
+- **Stripe payouts:** Match **orders/payments** to **payout** via balance transactions for **deposit ↔ QBO** reconciliation (clearing account pattern optional).
+- **Projects:** `project_id` optional on expenses/mileage (internal); **not required**. **Labor rate / margin** rollups: keep planlog item (`projects.labor_rate_per_hour` or equivalent) aligned with accounting when built.
+- **Tenant RLS**, feature gating, admin APIs only unless noted.
+
+### Document types (webapp + export)
+
+| Concept | Use |
+|---------|-----|
+| **Invoice** | Open balance; multiple payments; partials—**must exist** before tracking partial application. |
+| **Sales receipt** | Immediate sale after payment (default when **Payment in** has **no** open invoice selected). |
+| **Order** | Store catalog / checkout (existing); tie to Stripe; feed same SSOT. |
+| **Subscription** | Stripe subscription + paid cycles; map each **paid** period to app row(s) + export line(s) (invoice+satisfaction or receipt—**lock with CPA**). |
+
+**Payment in (field / PWA):** Pick **open invoice** → record **payment** (partial allowed). **No invoice** → create **quick sales receipt**. If operator marks **partial** without an invoice to attach → **block** with guidance to create/select invoice first.
+
+### Field capture (PWA → web app)
+
+- **Access:** **Feature registry + role**; **v1: admins only** (expand roles later).
+- **Expense out:** Amount, date, category, payee, memo; **receipt photo** optional (Storage); **project** optional.
+- **Payment in:** Amount, date, method (cash, Venmo, Zelle, check, other), memo; invoice pick list **or** auto sales receipt (see above).
+- **Mileage (3a):** **Point-to-point** (personal vehicles—**no odometer chain**). Fields: date, **from** address, **to** address, **miles (user-entered)**, business purpose; **amount = miles × rate** (tenant-config rate, e.g. IRS mileage updated annually). Optional later: map API **suggested** miles, user always confirms/edits.
+
+### QuickBooks sync phases
+
+1. **CSV export** — Invoices, payments, sales receipts, expenses, mileage lines; stable **category/customer codes**; columns include `cms_*_id`, Stripe ids, `synced_at` / batch id; **do not** re-export same row without idempotency rules.
+2. **API sync** — OAuth app; create Customer / Invoice / Payment / SalesReceipt / Expense; store `qbo_*_id`; same external ids for dedupe.
 
 ### Open checklist (Accounting)
 
-- [ ] Lock **SSOT strategy** (physical `payments` for all vs `payments` for manual + union of `orders`).
-- [ ] Migration(s): `payments`, `expenses`, `projects.labor_rate_per_hour` (names TBD); RLS; **Manual SQL** callout in chat + sessionlog.
-- [ ] Server lib + API routes (admin).
-- [ ] UI: Accounting nav + pages; project detail may embed summary widget.
-- [ ] Feature slug + sidebar accordion (pattern: `sidebar-config.ts`, `Sidebar.tsx`).
-- [ ] **Next:** phased **step plan** (tasks file or planlog subsection) after review.
+**Strategy & schema**
+- [ ] Lock **SSOT strategy** (orders + subscription paid events + field payments; single write path per Stripe object id).
+- [ ] Migration(s): accounting tables (names TBD)—e.g. **invoices** (A/R), **invoice_payments**, **sales_receipts**, **expenses**, **mileage_trips**, links to `orders` / `projects`; **Manual SQL** — run new files from `supabase/migrations/` in Supabase SQL Editor; call out in chat + sessionlog when added.
+- [ ] **Tax / line mapping** doc snippet for QBO CSV (separate tax line, `NON`-style taxable flags per CPA).
+
+**Stripe ↔ app**
+- [ ] Webhook + idempotent upsert: checkout, `invoice.paid`, subscriptions, fees/refunds as needed for net = bank story.
+- [ ] Payout / balance-transaction linkage for reconciliation views (optional v1.1).
+
+**App & PWA**
+- [ ] Server lib + API routes (tenant-scoped); field endpoints for PWA.
+- [ ] Admin UI: Accounting section; lists + detail; **CSV export** buttons per period/entity.
+- [ ] PWA: **Expense out** / **Payment in** / **Mileage** (feature-gated); minimal forms.
+- [ ] Feature slug + sidebar (`sidebar-config.ts`, `Sidebar.tsx`); project detail **optional** summary widget later.
+
+**Later**
+- [ ] QBO API sync (replace or supplement CSV); Intuit MCP useful for dev only, not production sync.
+- [ ] Optional: `projects.labor_rate_per_hour` (or existing plan) for margin; CSV import for bank/card expenses (planlog Phase 22).
+
+**Plan detail:** [planlog Phase 22](./planlog.md#phase-22-accounting-module); extend `prd.md` / `prd-technical.md` when schema is fixed.
 
 ---
 
@@ -219,4 +258,4 @@ All **future** work: [planlog.md](./planlog.md) — Phase **20**, **21** follow-
 | Resource time attribution | [reference/resource-time-attribution.md](./reference/resource-time-attribution.md) |
 | Public vs admin module map | [mvt.md](./mvt.md) |
 | Tenant fork setup | [tenant-site-setup-checklist.md](./tenant-site-setup-checklist.md) |
-| **Accounting** (planned: payments, expenses, labor rate, nav) | This file — **§ Accounting (planned module)** |
+| **Accounting** (SSOT, Stripe ingest, CSV→QBO, PWA field capture) | This file — **§ Accounting (planned module)** |
