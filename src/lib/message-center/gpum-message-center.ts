@@ -49,6 +49,8 @@ export type MemberStreamAnnouncementFeedItem = {
   /** MAG id when known (Phase 1). */
   magId?: string;
   threadId?: string;
+  /** True when tenant turned off member posting for this MAG (announcements-only room). */
+  announcementsOnly?: boolean;
 };
 
 export type MemberStreamConversationHeadItem = {
@@ -61,6 +63,8 @@ export type MemberStreamConversationHeadItem = {
   threadType: "support" | "mag_group";
   magId?: string | null;
   unread?: boolean;
+  /** Latest thread message author (when known) — friendlier list lines for GPUM. */
+  lastMessageFrom?: "member" | "staff" | "none";
 };
 
 function stableFallbackId(prefix: string, item: DashboardActivityItem): string {
@@ -153,9 +157,41 @@ export function buildMemberStreamItemsFromActivity(
 
 export type MemberMessageCenterFilter = "all" | "conversations" | "notifications";
 
+export function getMemberStreamItemPrimaryLine(item: MemberMessageCenterStreamItem): string {
+  if (item.kind === "conversation_head") {
+    if (item.threadType === "support") {
+      const label =
+        item.lastMessageFrom === "member"
+          ? "Message · You"
+          : item.lastMessageFrom === "staff"
+            ? "Message · Team"
+            : "Message";
+      return `${label}: ${item.preview}`;
+    }
+    if (item.threadType === "mag_group") {
+      const label =
+        item.lastMessageFrom === "member"
+          ? "COMMENT:GROUP · You"
+          : item.lastMessageFrom === "staff"
+            ? "COMMENT:GROUP · Team"
+            : "COMMENT:GROUP";
+      return `${label}: ${item.preview}`;
+    }
+    const base = item.title.trim() || "Group";
+    const label =
+      item.lastMessageFrom === "member"
+        ? `${base} · You`
+        : item.lastMessageFrom === "staff"
+          ? `${base} · Team`
+          : base;
+    return `${label}: ${item.preview}`;
+  }
+  return `${item.title}: ${item.preview}`;
+}
+
 /** GPUM message center primary filter control (server `filter` query). */
 export const MEMBER_MESSAGE_CENTER_FILTER_OPTIONS = [
-  { value: "all", label: "All" },
+  { value: "all", label: "All activity" },
   { value: "conversations", label: "Conversations" },
   { value: "notifications", label: "Notifications" },
 ] as const;
@@ -177,4 +213,22 @@ export function filterMemberStreamItems(
   }
   /* Notifications: everything that is not a conversation drill target */
   return items.filter((i) => !isConversationLikeNotification(i));
+}
+
+/** Negative if `a` is newer than `b` (should appear first in descending lists). */
+export function compareMemberStreamItemsNewestFirst(
+  a: Pick<MemberMessageCenterStreamItem, "at" | "id">,
+  b: Pick<MemberMessageCenterStreamItem, "at" | "id">
+): number {
+  const ta = new Date(a.at).getTime();
+  const tb = new Date(b.at).getTime();
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+  if (ta !== tb) return tb - ta;
+  return b.id.localeCompare(a.id);
+}
+
+export function sortMemberStreamItemsNewestFirst(
+  items: MemberMessageCenterStreamItem[]
+): MemberMessageCenterStreamItem[] {
+  return [...items].sort(compareMemberStreamItemsNewestFirst);
 }

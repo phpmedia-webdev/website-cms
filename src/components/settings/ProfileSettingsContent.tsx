@@ -15,6 +15,7 @@ import {
   normalizePassword,
   PASSWORD_MIN_LENGTH,
 } from "@/lib/auth/password-policy";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
 
 interface ProfileData {
   email: string;
@@ -268,7 +269,7 @@ export function ProfileSettingsContent({
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-sm font-medium text-muted-foreground">
-                {(displayName?.trim()?.[0] || email?.trim()?.[0] || "U").toUpperCase()}
+                {initialsFromFirstLast(firstName, lastName, email)}
               </div>
             )}
           </div>

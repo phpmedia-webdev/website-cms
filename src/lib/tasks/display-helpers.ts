@@ -11,7 +11,12 @@ const AVATAR_BG = [
   "bg-cyan-500",
 ] as const;
 
-/** Two-letter initials from a display name or email. */
+/**
+ * Two-letter initials from a **display string** (name line, email, or phrase).
+ * Prefer for non-avatar text chips only. **User avatars** should use
+ * `initialsFromFirstLast` (`@/lib/ui/avatar-initials`) from structured first/last (+ email),
+ * not marketing display names.
+ */
 export function initialsFromLabel(label: string): string {
   const t = label.trim();
   if (!t) return "?";

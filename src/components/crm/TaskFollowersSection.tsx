@@ -23,9 +23,10 @@ import {
   toDirectoryParticipantCompositeId,
 } from "@/components/pickers";
 import { AssigneeListItem } from "@/components/crm/TaskAssigneesReadOnlyCard";
-import type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
+import type { TaskFollowerWithLabel, TaskLinkedContactSummary } from "@/lib/tasks/task-follower-types";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
 
-export type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
+export type { TaskFollowerWithLabel, TaskLinkedContactSummary } from "@/lib/tasks/task-follower-types";
 
 interface TaskFollowersSectionProps {
   taskId: string;
@@ -35,7 +36,7 @@ interface TaskFollowersSectionProps {
   /** Detail view: list only, no add/remove. */
   readOnly?: boolean;
   /** CRM contact linked on the task row (`tasks.contact_id`); contacts only, not organizations. */
-  initialLinkedContact: { id: string; label: string } | null;
+  initialLinkedContact: TaskLinkedContactSummary | null;
 }
 
 function followerCompositeId(f: TaskFollowerWithLabel): string | null {
@@ -63,9 +64,7 @@ export function TaskFollowersSection({
 }: TaskFollowersSectionProps) {
   const router = useRouter();
   const [followers, setFollowers] = useState<TaskFollowerWithLabel[]>(initialFollowers);
-  const [linkedContact, setLinkedContact] = useState<{ id: string; label: string } | null>(
-    initialLinkedContact
-  );
+  const [linkedContact, setLinkedContact] = useState<TaskLinkedContactSummary | null>(initialLinkedContact);
   const [modalOpen, setModalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [directoryRows, setDirectoryRows] = useState<DirectoryPickerRow[]>([]);
@@ -247,13 +246,26 @@ export function TaskFollowersSection({
         setError(typeof data?.error === "string" ? data.error : "Failed to update contact");
         return false;
       }
-      setLinkedContact(
-        contactId && labelHint
-          ? { id: contactId, label: labelHint }
-          : contactId
-            ? { id: contactId, label: "Contact" }
-            : null
-      );
+      if (!contactId) {
+        setLinkedContact(null);
+      } else {
+        const baseLabel = labelHint?.trim() || "Contact";
+        let avatar_initials: string | undefined;
+        try {
+          const crRes = await fetch(`/api/crm/contacts/${contactId}`);
+          const cr = crRes.ok ? ((await crRes.json().catch(() => null)) as null | {
+            first_name?: string | null;
+            last_name?: string | null;
+            email?: string | null;
+          }) : null;
+          if (cr) {
+            avatar_initials = initialsFromFirstLast(cr.first_name, cr.last_name, cr.email);
+          }
+        } catch {
+          /* keep undefined; AssigneeListItem falls back to label-based initials */
+        }
+        setLinkedContact({ id: contactId, label: baseLabel, avatar_initials });
+      }
       router.refresh();
       return true;
     } catch (e) {
@@ -373,6 +385,7 @@ export function TaskFollowersSection({
                 user_id: null,
                 contact_id: linkedContact.id,
                 label: linkedContact.label,
+                avatar_initials: linkedContact.avatar_initials,
               }}
               showRole={false}
               trailing={

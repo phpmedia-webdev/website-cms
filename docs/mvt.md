@@ -442,7 +442,7 @@ When you drop a new version of a module, replace the listed code paths and run t
 
 ### Admin Message Center (dashboard)
 
-- **Version:** 0.3 (admin tab + full-page + CRM contact stream; GPUM `/members/messages` v1 + merged API dedupe; transcript **`enrichAuthors`** + **`memberContactNames`**)
+- **Version:** 0.4 (**2026-03-28** — **COMMENT:GROUP** / **`mag_group`**: list violet chip, transcript slate-left/blue-right like support; GPUM stream heads + **`getOrCreateMagGroupThread`**; **`GET` thread messages** strips **`admin_broadcast`** for non-staff; MAG **Comments** tab + posting policy alignment)
 - **Folder structure:**
   ```
   src/lib/message-center/            # admin-stream, admin-filters, mag-thread-policy, thread-participants, date-range, gpum-*, admin-broadcast, thread-message-author-enrichment

@@ -150,7 +150,9 @@ export function MemberProfileForm() {
       <CardHeader>
         <CardTitle>Profile</CardTitle>
         <CardDescription>
-          Update your display name and avatar. These appear in the header and member areas.
+          Display name and avatar come from your login account and appear in the header and member areas.{" "}
+          <strong>Handle / nickname</strong> is stored in your site profile for messages and comments; it is not the same
+          field as “full name” on the organization&apos;s CRM contact card for this email (though they can match).
         </CardDescription>
       </CardHeader>
       <CardContent>

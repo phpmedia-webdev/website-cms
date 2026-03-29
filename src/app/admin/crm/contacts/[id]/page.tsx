@@ -325,6 +325,11 @@ export default async function ContactDetailPage({
                       <span className="truncate">{contact.phone || "—"}</span>
                     </div>
                   </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug mt-3 max-w-lg">
+                    If this contact signs in as a member, their <strong>display name</strong> and{" "}
+                    <strong>handle</strong> are edited on the member <strong>Profile</strong> page (auth + site profile),
+                    not on this card. See <code className="text-[10px]">docs/reference/member-profile-vs-crm-contact.md</code>.
+                  </p>
                 </div>
                 <div>
                   <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Billing address</h2>

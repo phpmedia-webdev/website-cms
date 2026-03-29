@@ -132,12 +132,15 @@ export function NewContactForm({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="full_name">Full name (optional)</Label>
+            <Label htmlFor="full_name">Display name (optional)</Label>
             <Input
               id="full_name"
               value={form.full_name}
               onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
             />
+            <p className="text-xs text-muted-foreground">
+              Single public line if different from first + last. Avatars use first and last name fields.
+            </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

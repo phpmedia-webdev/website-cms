@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   Bell,
   CircleDollarSign,
   type LucideIcon,
+  Megaphone,
   MessageSquarePlus,
   MessageSquareText,
   MessagesSquare,
@@ -24,7 +25,10 @@ import {
 } from "lucide-react";
 import type { MemberMessageCenterStreamItem } from "@/lib/message-center/gpum-message-center";
 import type { ThreadMessageAuthorMeta } from "@/lib/message-center/thread-message-author-enrichment";
-import { MEMBER_MESSAGE_CENTER_FILTER_OPTIONS } from "@/lib/message-center/gpum-message-center";
+import {
+  MEMBER_MESSAGE_CENTER_FILTER_OPTIONS,
+  getMemberStreamItemPrimaryLine,
+} from "@/lib/message-center/gpum-message-center";
 import { cn } from "@/lib/utils";
 import { normalizeMessageCenterDateRange } from "@/lib/message-center/date-range";
 
@@ -93,6 +97,12 @@ function streamRowVisual(item: MemberMessageCenterStreamItem): {
   iconWrapClass: string;
 } {
   if (item.kind === "conversation_head") {
+    if (item.threadType === "mag_group") {
+      return {
+        icon: MessagesSquare,
+        iconWrapClass: "bg-violet-500/15 border border-violet-500/30 text-violet-700 dark:text-violet-300",
+      };
+    }
     return {
       icon: MessagesSquare,
       iconWrapClass: "bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-300",
@@ -100,7 +110,7 @@ function streamRowVisual(item: MemberMessageCenterStreamItem): {
   }
   if (item.kind === "announcement_feed") {
     return {
-      icon: MessagesSquare,
+      icon: Megaphone,
       iconWrapClass: "bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300",
     };
   }
@@ -131,17 +141,40 @@ function streamRowVisual(item: MemberMessageCenterStreamItem): {
   };
 }
 
-function streamPrimaryLine(item: MemberMessageCenterStreamItem): string {
-  if (item.kind === "conversation_head") {
-    return `${item.threadType === "support" ? "Support" : item.title}: ${item.preview}`;
-  }
-  return `${item.title}: ${item.preview}`;
+function announcementsOnlyHint(item: MemberMessageCenterStreamItem) {
+  if (item.kind !== "announcement_feed" || !item.announcementsOnly) return null;
+  return (
+    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+      Announcements only — this group is not open for member posts. You can still read updates here.
+    </p>
+  );
+}
+
+function StreamEmptyPlaceholder({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="rounded-lg border border-dashed border-border/80 bg-muted/25 px-4 py-6 text-center space-y-2"
+      role="status"
+    >
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <div className="text-xs text-muted-foreground space-y-1.5 max-w-md mx-auto leading-relaxed">{children}</div>
+    </div>
+  );
 }
 
 export function MemberActivityStream() {
   const [streamItems, setStreamItems] = useState<MemberMessageCenterStreamItem[]>([]);
   const [memberContactId, setMemberContactId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [streamFilter, setStreamFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [messageOpen, setMessageOpen] = useState(false);
@@ -191,6 +224,8 @@ export function MemberActivityStream() {
   }, [customDateFrom, customDateTo]);
 
   const hasAnythingToReset = useMemo(() => {
+    if (selectedThreadId) return true;
+    if (messageOpen) return true;
     if (search.trim()) return true;
     if (streamFilter !== "all") return true;
     if (datePreset !== "initial") return true;
@@ -198,9 +233,34 @@ export function MemberActivityStream() {
     if (customDateFrom.trim() || customDateTo.trim()) return true;
     if (customDateDialogOpen) return true;
     return false;
-  }, [search, streamFilter, datePreset, customRangeApplied, customDateFrom, customDateTo, customDateDialogOpen]);
+  }, [
+    selectedThreadId,
+    messageOpen,
+    search,
+    streamFilter,
+    datePreset,
+    customRangeApplied,
+    customDateFrom,
+    customDateTo,
+    customDateDialogOpen,
+  ]);
+
+  /** When a thread is open, resolve its stream head (for `mag_group` transcript styling). */
+  const selectedMagHead = useMemo(() => {
+    const tid = selectedThreadId?.trim();
+    if (!tid) return null;
+    return (
+      streamItems.find(
+        (i): i is Extract<MemberMessageCenterStreamItem, { kind: "conversation_head" }> =>
+          i.kind === "conversation_head" && i.threadId === tid
+      ) ?? null
+    );
+  }, [selectedThreadId, streamItems]);
 
   const resetControls = useCallback(() => {
+    setSelectedThreadId(null);
+    setMessageOpen(false);
+    setMessageBody("");
     setSearch("");
     setStreamFilter("all");
     setDatePreset("initial");
@@ -210,8 +270,18 @@ export function MemberActivityStream() {
     setCustomDateDialogOpen(false);
   }, []);
 
+  /** Full stream (mixed notifications + conversations); closes thread and compose. */
+  const exitToFullStream = useCallback(() => {
+    setSelectedThreadId(null);
+    setStreamFilter("all");
+    setMessageOpen(false);
+    setMessageBody("");
+  }, []);
+
   const fetchStream = useCallback(async () => {
     setLoading(true);
+    setNextCursor(null);
+    setHasMore(false);
     try {
       const useRange = hasActiveDateRange && dateQueryKey !== "invalid";
       const [df, dt] = useRange ? dateQueryKey.split("|") : ["", ""];
@@ -228,15 +298,53 @@ export function MemberActivityStream() {
       const data = (await res.json()) as {
         streamItems?: MemberMessageCenterStreamItem[];
         memberContactId?: string | null;
+        nextCursor?: string | null;
+        hasMore?: boolean;
       };
       setStreamItems(Array.isArray(data.streamItems) ? data.streamItems : []);
       setMemberContactId(typeof data.memberContactId === "string" ? data.memberContactId : null);
+      setNextCursor(typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null);
+      setHasMore(data.hasMore === true);
     } catch {
       setStreamItems([]);
+      setNextCursor(null);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
   }, [streamFilter, hasActiveDateRange, dateQueryKey]);
+
+  const loadMore = useCallback(async () => {
+    const c = nextCursor?.trim();
+    if (!c || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const useRange = hasActiveDateRange && dateQueryKey !== "invalid";
+      const [df, dt] = useRange ? dateQueryKey.split("|") : ["", ""];
+      const params = new URLSearchParams({
+        filter: streamFilter,
+        limit: useRange ? "200" : "80",
+        cursor: c,
+      });
+      if (useRange && df) params.set("date_from", df);
+      if (useRange && dt) params.set("date_to", dt);
+      const res = await fetch(`/api/members/message-center?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        streamItems?: MemberMessageCenterStreamItem[];
+        nextCursor?: string | null;
+        hasMore?: boolean;
+      };
+      const more = Array.isArray(data.streamItems) ? data.streamItems : [];
+      setStreamItems((prev) => [...prev, ...more]);
+      setNextCursor(typeof data.nextCursor === "string" && data.nextCursor ? data.nextCursor : null);
+      setHasMore(data.hasMore === true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, hasMore, loadingMore, streamFilter, hasActiveDateRange, dateQueryKey]);
 
   useEffect(() => {
     fetchStream();
@@ -287,6 +395,25 @@ export function MemberActivityStream() {
     };
   }, [selectedThreadId]);
 
+  /** Mark thread read for GPUM after transcript loads (Phase 4.1 — mirrors admin `PATCH .../read`). */
+  useEffect(() => {
+    const tid = selectedThreadId?.trim();
+    if (!tid || loadingThread || threadError) return;
+    void fetch(`/api/conversation-threads/${encodeURIComponent(tid)}/read`, { method: "PATCH" }).then(
+      (r) => {
+        if (r.ok) {
+          setStreamItems((prev) =>
+            prev.map((item) =>
+              item.kind === "conversation_head" && item.threadId === tid
+                ? { ...item, unread: false }
+                : item
+            )
+          );
+        }
+      }
+    );
+  }, [selectedThreadId, loadingThread, threadError]);
+
   useEffect(() => {
     if (loadingThread || threadError) return;
     const el = transcriptScrollRef.current;
@@ -302,7 +429,7 @@ export function MemberActivityStream() {
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((i) => {
-        const line = streamPrimaryLine(i).toLowerCase();
+        const line = getMemberStreamItemPrimaryLine(i).toLowerCase();
         if (line.includes(q)) return true;
         if (i.kind === "notification" && i.formName?.toLowerCase().includes(q)) return true;
         return false;
@@ -310,6 +437,11 @@ export function MemberActivityStream() {
     }
     return list;
   }, [streamItems, search]);
+
+  const searchOnlyEmpty =
+    !loading && streamItems.length > 0 && filtered.length === 0 && search.trim().length > 0;
+  const serverEmpty = !loading && streamItems.length === 0;
+  const missingMemberProfile = serverEmpty && memberContactId === null;
 
   const handleSendMessage = async () => {
     const text = messageBody.trim();
@@ -377,6 +509,7 @@ export function MemberActivityStream() {
   };
 
   const openThread = (threadId: string) => {
+    setStreamFilter("conversations");
     setSelectedThreadId(threadId);
     setReplyBody("");
     setThreadError(null);
@@ -457,10 +590,26 @@ export function MemberActivityStream() {
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
           </Button>
-          <Button size="sm" variant="default" className="h-8" onClick={() => setMessageOpen(true)}>
-            <MessageSquarePlus className="h-3.5 w-3.5 mr-1" />
-            Message support
-          </Button>
+          {selectedThreadId ? (
+            <Button size="sm" variant="default" className="h-8 shrink-0" onClick={exitToFullStream}>
+              View all
+            </Button>
+          ) : streamFilter === "conversations" ? (
+            <Button size="sm" variant="default" className="h-8 shrink-0" onClick={() => setMessageOpen(true)}>
+              <MessageSquarePlus className="h-3.5 w-3.5 mr-1" />
+              Message the team
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-8 shrink-0"
+              onClick={() => setStreamFilter("conversations")}
+            >
+              <MessagesSquare className="h-3.5 w-3.5 mr-1" />
+              Join a conversation
+            </Button>
+          )}
         </div>
 
         <Dialog open={customDateDialogOpen} onOpenChange={setCustomDateDialogOpen}>
@@ -529,7 +678,7 @@ export function MemberActivityStream() {
         {messageOpen && (
           <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
             <textarea
-              placeholder="Type your message to support..."
+              placeholder="Type your message to the team…"
               value={messageBody}
               onChange={(e) => setMessageBody(e.target.value)}
               className="w-full min-h-[80px] rounded-md border bg-background px-3 py-2 text-sm"
@@ -557,8 +706,14 @@ export function MemberActivityStream() {
           <div className="space-y-2 border-t border-border/60 pt-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-medium text-muted-foreground">Conversation</p>
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedThreadId(null)}>
-                Close
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setSelectedThreadId(null)}
+              >
+                Back to list
               </Button>
             </div>
             {loadingThread ? (
@@ -571,19 +726,31 @@ export function MemberActivityStream() {
                 className="max-h-56 overflow-y-auto space-y-1 text-sm"
               >
                 {threadMessages.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No messages yet.</p>
+                  <div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-3 text-center text-xs text-muted-foreground space-y-1">
+                    <p className="font-medium text-foreground">No messages yet</p>
+                    <p>
+                      {memberContactId
+                        ? "Send a reply below to start the conversation."
+                        : "When your account is linked, you can reply here."}
+                    </p>
+                  </div>
                 ) : (
                   threadMessages.map((m) => {
                     const isMember = !!m.author_contact_id?.trim();
                     const isStaff = !isMember && !!m.author_user_id?.trim();
-                    /** GPUM view: team/support on the left (muted); member sends on the right (blue). */
+                    const isMagGroupThread = selectedMagHead?.threadType === "mag_group";
+                    /** GPUM: support threads — team left, member right (blue). MAG group — member right with violet accent. */
                     const iconWrapClass = isMember
-                      ? "bg-blue-500/15 border border-blue-500/30"
+                      ? isMagGroupThread
+                        ? "bg-violet-500/15 border border-violet-500/30"
+                        : "bg-blue-500/15 border border-blue-500/30"
                       : isStaff
                         ? "bg-slate-500/15 border border-slate-500/30"
                         : "bg-zinc-500/10 border border-zinc-500/25";
                     const iconClass = isMember
-                      ? "text-blue-700 dark:text-blue-300"
+                      ? isMagGroupThread
+                        ? "text-violet-700 dark:text-violet-300"
+                        : "text-blue-700 dark:text-blue-300"
                       : isStaff
                         ? "text-slate-700 dark:text-slate-300"
                         : "text-zinc-600 dark:text-zinc-400";
@@ -640,13 +807,61 @@ export function MemberActivityStream() {
         <div className="max-h-[320px] overflow-y-auto space-y-1">
           {loading ? (
             <p className="text-xs text-muted-foreground py-4 text-center">Loading…</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4 text-center">Nothing matches this filter.</p>
+          ) : searchOnlyEmpty ? (
+            <StreamEmptyPlaceholder title="No search results">
+              <p>Nothing matches &quot;{search.trim()}&quot;. Try other keywords or clear the search box.</p>
+            </StreamEmptyPlaceholder>
+          ) : missingMemberProfile ? (
+            <StreamEmptyPlaceholder title="Member profile not linked">
+              <p>
+                This area needs a linked membership record. If you just signed in, try refreshing. Otherwise contact
+                support for help.
+              </p>
+            </StreamEmptyPlaceholder>
+          ) : serverEmpty ? (
+            hasActiveDateRange ? (
+              <StreamEmptyPlaceholder title="Nothing in this time range">
+                <p>
+                  There are no messages or notifications between the dates you selected. Switch to{" "}
+                  <strong>Recent (default)</strong> or widen the range to see more.
+                </p>
+              </StreamEmptyPlaceholder>
+            ) : streamFilter === "conversations" ? (
+              <StreamEmptyPlaceholder title="No conversations to show">
+                <p>
+                  Team and group threads appear here when they exist. Use{" "}
+                  <strong>Message the team</strong> above to start one.
+                </p>
+                <p>
+                  MAG conversations may be hidden if community messaging is off on your{" "}
+                  <Link href="/members/profile" className="underline underline-offset-2 hover:text-foreground">
+                    profile
+                  </Link>
+                  , if you have not opted in for a specific group, or if a display name is required.
+                </p>
+              </StreamEmptyPlaceholder>
+            ) : streamFilter === "notifications" ? (
+              <StreamEmptyPlaceholder title="No notifications here">
+                <p>
+                  Orders, forms, memberships, comments, and other alerts will show under{" "}
+                  <strong>Notifications</strong> when there is activity. Try <strong>All activity</strong> to see
+                  everything.
+                </p>
+              </StreamEmptyPlaceholder>
+            ) : (
+              <StreamEmptyPlaceholder title="You are caught up">
+                <p>There are no messages, announcements, or notifications in your stream yet.</p>
+                <p>
+                  Use <strong>Join a conversation</strong> to pick a thread, or <strong>Message the team</strong> after
+                  you open the conversations list. Activity from forms, orders, and memberships will also appear here.
+                </p>
+              </StreamEmptyPlaceholder>
+            )
           ) : (
             filtered.map((item) => {
               const visual = streamRowVisual(item);
               const Icon = visual.icon;
-              const line = streamPrimaryLine(item);
+              const line = getMemberStreamItemPrimaryLine(item);
               const threadId =
                 item.kind === "conversation_head"
                   ? item.threadId
@@ -661,6 +876,8 @@ export function MemberActivityStream() {
               const onActivate = () => {
                 if (threadId) openThread(threadId);
               };
+              const isUnreadConversation =
+                item.kind === "conversation_head" && Boolean(item.unread);
 
               return (
                 <div
@@ -677,20 +894,33 @@ export function MemberActivityStream() {
                     <Link href={orderHref} className="flex-1 min-w-0">
                       <p className="truncate">{line}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{new Date(item.at).toLocaleString()}</p>
+                      {announcementsOnlyHint(item)}
                     </Link>
                   ) : threadId ? (
                     <button
                       type="button"
                       onClick={onActivate}
-                      className="flex-1 min-w-0 text-left text-sm hover:underline underline-offset-2"
+                      className={cn(
+                        "flex-1 min-w-0 text-left text-sm hover:underline underline-offset-2",
+                        isUnreadConversation && "font-semibold"
+                      )}
+                      aria-label={isUnreadConversation ? `${line} (unread)` : undefined}
                     >
                       <p className="truncate">{line}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{new Date(item.at).toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                        {isUnreadConversation ? (
+                          <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+                        ) : null}
+                        <span>{new Date(item.at).toLocaleString()}</span>
+                        {isUnreadConversation ? <span className="text-primary font-medium">Unread</span> : null}
+                      </p>
+                      {announcementsOnlyHint(item)}
                     </button>
                   ) : (
                     <div className="flex-1 min-w-0">
                       <p className="truncate">{line}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{new Date(item.at).toLocaleString()}</p>
+                      {announcementsOnlyHint(item)}
                     </div>
                   )}
                 </div>
@@ -698,6 +928,13 @@ export function MemberActivityStream() {
             })
           )}
         </div>
+        {!loading && hasMore && nextCursor && !missingMemberProfile && streamItems.length > 0 ? (
+          <div className="pt-3 flex justify-center border-t border-border/60 mt-2">
+            <Button type="button" variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? "Loading…" : "Load more"}
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

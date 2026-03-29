@@ -12,6 +12,7 @@ import {
   filterMemberStreamItems,
   type MemberMessageCenterFilter,
 } from "@/lib/message-center/gpum-message-center";
+import { paginateMemberStreamItems } from "@/lib/message-center/gpum-message-center-pagination";
 import {
   messageCenterItemInDateRange,
   normalizeMessageCenterDateRange,
@@ -64,6 +65,7 @@ export async function GET(request: Request) {
     const dateRangeActive = !!(dateFrom || dateTo);
     const requestedLimit = parseInt(searchParams.get("limit") ?? "80", 10) || 80;
     const limit = Math.min(Math.max(requestedLimit, dateRangeActive ? 120 : 1), 200);
+    const cursorParam = (searchParams.get("cursor") ?? "").trim() || null;
     const dateBounds =
       dateRangeActive && (dateFrom || dateTo)
         ? normalizeMessageCenterDateRange(dateFrom || null, dateTo || null)
@@ -73,7 +75,7 @@ export async function GET(request: Request) {
       member.contact_id,
       user.id,
       limit,
-      { dateRangeActive }
+      { dateRangeActive, streamMergeMax: 480 }
     );
 
     let items = activity.filter((i) => matchesLegacyActivityFilter(i, filterRaw));
@@ -86,13 +88,14 @@ export async function GET(request: Request) {
       streamItems = streamItems.filter((i) => messageCenterItemInDateRange(i.at, dateBounds));
     }
 
-    streamItems = filterMemberStreamItems(streamItems, toStreamFilter(filterRaw)).slice(0, limit);
+    streamItems = filterMemberStreamItems(streamItems, toStreamFilter(filterRaw));
+    const page = paginateMemberStreamItems(streamItems, limit, cursorParam);
 
     return NextResponse.json({
-      items,
-      streamItems,
-      nextCursor: null,
-      hasMore: false,
+      items: cursorParam ? [] : items,
+      streamItems: page.streamItems,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
       memberContactId: member.contact_id,
     });
   } catch (error) {

@@ -359,12 +359,15 @@ export function ContactEditForm({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="full_name">Full name</Label>
+            <Label htmlFor="full_name">Display name</Label>
             <Input
               id="full_name"
               value={form.full_name}
               onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
             />
+            <p className="text-xs text-muted-foreground">
+              Public-style single line (forms often map here). Avatar initials elsewhere use First name and Last name only.
+            </p>
           </div>
           <div className="space-y-3 rounded-md border p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">

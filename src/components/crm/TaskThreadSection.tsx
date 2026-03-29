@@ -15,6 +15,8 @@ interface TaskThreadSectionProps {
   initialNotes: CrmNote[];
   /** Resolved display labels for note author_id (handle/display_name). */
   authorLabels: Record<string, string>;
+  /** Avatar initials per author user id (structured name; not display label). */
+  authorAvatarInitials: Record<string, string>;
 }
 
 function formatDate(s: string): string {
@@ -35,6 +37,7 @@ export function TaskThreadSection({
   taskId,
   initialNotes,
   authorLabels,
+  authorAvatarInitials,
 }: TaskThreadSectionProps) {
   const [notes, setNotes] = useState<CrmNote[]>(initialNotes);
   const [body, setBody] = useState("");
@@ -87,6 +90,10 @@ export function TaskThreadSection({
             {sorted.map((note) => {
               const authorName = note.author_id ? authorLabels[note.author_id] ?? "User" : "User";
               const seed = note.author_id ?? note.id;
+              const authorKey = note.author_id?.trim();
+              const circleInitials =
+                (authorKey && authorAvatarInitials[authorKey]?.trim()) ||
+                initialsFromLabel(authorName);
               return (
                 <li key={note.id} className="flex gap-2">
                   <div
@@ -96,7 +103,7 @@ export function TaskThreadSection({
                     )}
                     aria-hidden
                   >
-                    {initialsFromLabel(authorName)}
+                    {circleInitials}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">

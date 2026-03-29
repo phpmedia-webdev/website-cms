@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -85,6 +85,11 @@ interface DashboardActivityStreamProps {
   compact?: boolean;
   /** Taller scroll area for `/admin/dashboard/message-center`. */
   layout?: "card" | "full";
+  /**
+   * Contact Message Center tab only: sync `mc_filter` + `thread_id` to the URL so `router.refresh()`
+   * does not reset the filter to server default and collapse the open thread.
+   */
+  urlReplace?: (mutate: (q: URLSearchParams) => void) => void;
 }
 
 interface ThreadMessageRow {
@@ -125,7 +130,7 @@ function threadTypeLabel(item: MessageCenterStreamItem & { source: "thread" }): 
   if (item.threadType === "blog_comment") return "COMMENT:BLOG";
   if (item.threadType === "product_comment") return "COMMENT:PRODUCT";
   if (item.threadType === "mag_group" && item.broadcast) return ANNOUNCEMENT_LABEL;
-  if (item.threadType === "mag_group") return "MESSAGE";
+  if (item.threadType === "mag_group") return "COMMENT:GROUP";
   if (item.threadType === "group") return "MESSAGE";
   return String(item.threadType).replace(/_/g, " ");
 }
@@ -207,7 +212,9 @@ function resolveHref(item: MessageCenterStreamItem): string {
       return `/admin/crm/contacts/${item.contactId}?${q.toString()}`;
     }
     if (item.threadType === "mag_group" && item.magId) {
-      return `/admin/crm/memberships/${item.magId}`;
+      const q = new URLSearchParams();
+      q.set("tab", "comments");
+      return `/admin/crm/memberships/${item.magId}?${q.toString()}`;
     }
     if (item.contactId) return `/admin/crm/contacts/${item.contactId}`;
     return "#";
@@ -276,6 +283,18 @@ function rowVisual(item: MessageCenterStreamItem): RowVisual {
     (item.timelineKind === "staff_note" || item.timelineKind === "note");
 
   if (isMessageThread) {
+    const isMagGroupConversation =
+      item.source === "thread" &&
+      item.threadType === "mag_group" &&
+      !messageCenterItemIsAnnouncement(item);
+    if (isMagGroupConversation) {
+      return {
+        Icon: MessagesSquare,
+        iconWrapClass: "bg-violet-500/15 border border-violet-500/30",
+        iconClass: "text-violet-700 dark:text-violet-300",
+        badgeClass: "bg-violet-500/15 text-violet-800 dark:text-violet-200",
+      };
+    }
     return {
       Icon: MessagesSquare,
       iconWrapClass: "bg-blue-500/15 border border-blue-500/30",
@@ -315,7 +334,7 @@ function rowVisual(item: MessageCenterStreamItem): RowVisual {
   };
 }
 
-export function DashboardActivityStream({
+function DashboardActivityStreamCore({
   initialItems,
   contactId = null,
   initialFilter = "all",
@@ -324,6 +343,7 @@ export function DashboardActivityStream({
   expandedThreadContactLabel = null,
   compact = false,
   layout = "card",
+  urlReplace,
 }: DashboardActivityStreamProps) {
   const router = useRouter();
   const [typeFilter, setTypeFilter] = useState<MessageCenterStreamFilter>(initialFilter);
@@ -692,7 +712,11 @@ export function DashboardActivityStream({
     setCustomDateTo("");
     setCustomRangeApplied(null);
     setCustomDateDialogOpen(false);
-  }, []);
+    urlReplace?.((q) => {
+      q.delete("mc_filter");
+      q.delete("thread_id");
+    });
+  }, [urlReplace]);
 
   const isContactInlineConversation = !!(resolvedActiveThreadId && contactId?.trim());
   const useRichTranscriptMeta = !!contactId?.trim();
@@ -759,7 +783,16 @@ export function DashboardActivityStream({
           </div>
           <select
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as MessageCenterStreamFilter)}
+            onChange={(e) => {
+              const v = e.target.value as MessageCenterStreamFilter;
+              setTypeFilter(v);
+              urlReplace?.((q) => {
+                q.set("mc_filter", v);
+                if (!MESSAGE_CENTER_INLINE_THREAD_FILTERS.has(v)) {
+                  q.delete("thread_id");
+                }
+              });
+            }}
             className={cn(
               "h-8 rounded-md border border-input bg-background px-2 py-1 text-xs",
               layout === "full" ? "min-w-[11rem] max-w-[min(100%,24rem)]" : "max-w-[200px] shrink-0"
@@ -911,6 +944,16 @@ export function DashboardActivityStream({
                     {announcementBodyText(viewingAnnouncement)}
                   </p>
                 </div>
+                <p className="text-xs text-muted-foreground leading-snug">
+                  Read-only preview (no reply here). To send another broadcast, use{" "}
+                  <Link
+                    href="/admin/dashboard/message-center"
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    Dashboard → Message Center → Broadcast announcements
+                  </Link>
+                  .
+                </p>
               </div>
             ) : null}
             <DialogFooter className="gap-2 sm:gap-2 sm:justify-end flex-col sm:flex-row">
@@ -918,7 +961,11 @@ export function DashboardActivityStream({
               viewingAnnouncement.threadType === "mag_group" &&
               viewingAnnouncement.magId ? (
                 <Button type="button" variant="outline" size="sm" className="sm:mr-auto w-full sm:w-auto" asChild>
-                  <Link href={`/admin/crm/memberships/${viewingAnnouncement.magId}`}>Open MAG</Link>
+                  <Link
+                    href={`/admin/crm/memberships/${viewingAnnouncement.magId}?tab=comments`}
+                  >
+                    Open MAG (comments)
+                  </Link>
                 </Button>
               ) : null}
               <Button type="button" variant="secondary" onClick={() => setViewingAnnouncement(null)}>
@@ -1126,6 +1173,7 @@ export function DashboardActivityStream({
                   } else {
                     subLine = `MESSAGE · ${who} · ${dt}`;
                   }
+                  /** COMMENT:GROUP list row stays violet; transcript matches other threads — member left muted slate, staff right blue. */
                   const iconWrapClass = isMember
                     ? "bg-slate-500/15 border border-slate-500/30"
                     : isStaff
@@ -1230,7 +1278,13 @@ export function DashboardActivityStream({
                       className="flex-1 min-w-0 text-sm transition-colors text-left"
                       onClick={() => {
                         setTypeFilter("conversations");
-                        if (item.source === "thread") setActiveThreadId(item.threadId);
+                        if (item.source === "thread") {
+                          setActiveThreadId(item.threadId);
+                          urlReplace?.((q) => {
+                            q.set("mc_filter", "conversations");
+                            q.set("thread_id", item.threadId);
+                          });
+                        }
                       }}
                     >
                       {rowText}
@@ -1322,4 +1376,44 @@ export function DashboardActivityStream({
       </CardContent>
     </Card>
   );
+}
+
+function MessageCenterStreamFallback({ layout }: Pick<DashboardActivityStreamProps, "layout">) {
+  return (
+    <Card className={cn("w-full", layout === "full" && "max-w-none")}>
+      <CardContent className="py-8">
+        <p className="text-xs text-muted-foreground text-center">Loading Message Center…</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DashboardActivityStreamWithContactUrl(props: DashboardActivityStreamProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const urlReplace = useCallback(
+    (mutate: (q: URLSearchParams) => void) => {
+      const q = new URLSearchParams(searchParams.toString());
+      mutate(q);
+      const s = q.toString();
+      router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+  return <DashboardActivityStreamCore {...props} urlReplace={urlReplace} />;
+}
+
+/** Admin Message Center stream; contact tab uses URL sync (wrapped in Suspense) so refresh keeps thread open. */
+export function DashboardActivityStream(props: DashboardActivityStreamProps) {
+  if (props.contactRecordTab && props.contactId?.trim()) {
+    return (
+      <Suspense
+        fallback={<MessageCenterStreamFallback layout={props.layout} />}
+      >
+        <DashboardActivityStreamWithContactUrl {...props} />
+      </Suspense>
+    );
+  }
+  return <DashboardActivityStreamCore {...props} urlReplace={undefined} />;
 }

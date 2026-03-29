@@ -17,6 +17,8 @@ export interface ProjectListClientInfo {
   label: string;
   href: string | null;
   avatarUrl: string | null;
+  /** Contact: first+last initials; organization: derived from org name. */
+  avatar_initials: string;
 }
 
 export interface ProjectListRow {
@@ -39,12 +41,8 @@ function formatDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
 }
 
-function AvatarFallback({ label }: { label: string }) {
-  const parts = label.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
-  }
-  return label.slice(0, 2).toUpperCase() || "?";
+function ClientAvatarFallback({ initials }: { initials: string }) {
+  return initials.trim() || "?";
 }
 
 interface ProjectListTableProps {
@@ -132,7 +130,7 @@ export function ProjectListTable({ projects }: ProjectListTableProps) {
                             />
                           ) : (
                             <span className="flex h-6 w-6 items-center justify-center rounded-full border bg-muted text-[10px] font-medium text-muted-foreground">
-                              <AvatarFallback label={project.client.label} />
+                              <ClientAvatarFallback initials={project.client.avatar_initials} />
                             </span>
                           )}
                           <span className="truncate">{project.client.label}</span>
@@ -147,7 +145,7 @@ export function ProjectListTable({ projects }: ProjectListTableProps) {
                               />
                             ) : (
                               <span className="flex h-6 w-6 items-center justify-center rounded-full border bg-muted text-[10px] font-medium text-muted-foreground">
-                                <AvatarFallback label={project.client.label} />
+                                <ClientAvatarFallback initials={project.client.avatar_initials} />
                               </span>
                             )}
                             <span className="truncate">{project.client.label}</span>

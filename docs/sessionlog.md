@@ -55,7 +55,9 @@ Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get
 
 **Message Center — GUI / UX next steps (build from here)**
 
-**GPUM Message Center MVP** — Product rules and v1.1 scope: [plan-gpum-message-center-mvp.md](./reference/plan-gpum-message-center-mvp.md). **Phases 0–3** are **shipped at functional v1** (2026-03-26–27): `gpum-message-center.ts`, `gpum-member-stream.ts`, `gpum-mag-eligibility.ts`, `GET /api/members/message-center`, **`MemberActivityStream`** on **`/members/messages`**. **Next focus:** Phase **4–5** below + broader §3 bullets; mirror [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications).
+**GPUM Message Center MVP** — Product rules and v1.1 scope: [plan-gpum-message-center-mvp.md](./reference/plan-gpum-message-center-mvp.md). **Phases 0–3** are **shipped at functional v1** (2026-03-26–27): `gpum-message-center.ts`, `gpum-member-stream.ts`, `gpum-mag-eligibility.ts`, `GET /api/members/message-center`, **`MemberActivityStream`** on **`/members/messages`**. **MVP code — expedited status:** GPUM Phases **0–5** are **implemented** in code except **5.3** (manual QA matrix — you run it). **Phase 3.4** (sheet picker) **not needed:** **Join a conversation** → **Conversations** filter + stream rows + **Message the team** + **View all** replace a dedicated Support+MAG sheet ([plan-gpum-message-center-mvp.md](./reference/plan-gpum-message-center-mvp.md) **3.4** marked done). **Do next to “finish” messaging for fork prep:** (1) Run [qa-gpum-message-center-phase-53.md](./qa-gpum-message-center-phase-53.md) and check off **5.3** below + planlog when green. (2) Defer rabbit holes: announcement read metrics, admin chat vs feed redesign, bulk timeline triggers — track in planlog, not sessionlog blockers.
+
+**Next focus (after QA):** [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications) cutover/docs or Phase 19/20 per priority — **COMMENT:GROUP** / MAG membership UI when prioritized ([planlog](./planlog.md) Phase 18C).
 
 **GPUM pages — function, not template polish:** Implement **working flows and APIs** with plain, accessible UI (shared components ok). **Avoid** heavy visual/design work in this repo — **each tenant fork is bespoke**; forks own layout and styling.
 
@@ -69,49 +71,49 @@ Goal: **Tenant admins** get reliable **notifications / activity**; **GPUMs** get
 
 **Phase 1 — Server: merged “All” stream**
 
-- [x] **1.1** `getMemberMessageCenterMergedStream`: notifications + announcement lines + **conversation_head** rollups (**support** + eligible **MAG** threads via `memberCanSeeMagGroupThread`).
+- [x] **1.1** `getMemberMessageCenterMergedStream`: notifications + announcement lines + **conversation_head** rollups (**support** + **MAG** threads via **`memberCanSeeMagGroupCommentHead`** — enrolled + **`allow_conversations`**, **`getOrCreateMagGroupThread`** when no row yet).
 - [x] **1.2** Dedup policy: feed row + in-thread message for same announcement remains acceptable; document when tightening (Phase **5.1**).
 - [x] **1.3** **All / Conversations / Notifications** applied server-side (`filterMemberStreamItems` + route).
 
 **Phase 2 — MAG eligibility helper**
 
-- [x] **2.1** `memberCanSeeMagGroupThread` — membership + prefs + nickname gate (`gpum-mag-eligibility.ts`).
-- [x] **2.2** Helper used in **stream** builder; **POST** thread messages enforced by **`assertCanPostThreadMessage`** (aligned MAG / opt-in rules).
+- [x] **2.1** **`memberCanSeeMagGroupCommentHead`** — stream listing: enrolled in MAG + tenant **`allow_conversations`**; **`memberCanSeeMagGroupThread`** remains for stricter scenarios if referenced elsewhere (`gpum-mag-eligibility.ts`).
+- [x] **2.2** Stream uses **2.1**; **POST** **`mag_group`** uses **`assertCanPostThreadMessage`** — member path = **`members`** row + **`author_contact_id`** + enrollment (no separate profile opt-in; **2026-03-28**).
 
 **Phase 3 — Client: `/members/messages`**
 
 - [x] **3.1** Stream + filter + search + date presets (functional layout).
 - [x] **3.2** Rows with `threadId` open **inline** transcript (`GET /api/conversation-threads/.../messages`); other rows list-only / order deep link.
 - [x] **3.3** Transcript + **reply** composer; failures show read-only error state.
-- [ ] **3.4** **Partial — follow-up if product wants it:** **Message support** button + **conversation_head** rows cover support + eligible MAG threads; **no** dedicated **sheet picker** listing only Support + MAGs to start a **new** MAG thread outside existing heads.
+- [x] **3.4** **Done — no sheet:** Original plan called for a **sheet** listing Support + eligible MAGs. **Superseded** by **`MemberActivityStream`** flow: **Join a conversation** switches to **Conversations**; **conversation_head** rows + **Message the team** cover entry points; **View all** returns to mixed stream. A separate modal/sheet is **out of scope**.
 
 **Phase 4 — Unread and light UX (not visual polish)**
 
-- [ ] **4.1** Unread for member threads (`thread_participants` + member-safe mark-read if missing); surface **`unread`** on `conversation_head` in UI.
-- [ ] **4.2** Empty states (gates, no messages).
-- [ ] **4.3** `/members` dashboard: link or short preview + “See all” (no full duplicate implementation).
+- [x] **4.1** Unread for member threads (`thread_participants` + member-safe mark-read if missing); surface **`unread`** on `conversation_head` in UI.
+- [x] **4.2** Empty states (gates, no messages).
+- [x] **4.3** `/members` dashboard: link or short preview + “See all” (no full duplicate implementation).
 
 **Phase 5 — Docs and QA**
 
-- [ ] **5.1** [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) — GPUM stream vs drill-down, MAG gates, filters (sync with implemented API).
-- [ ] **5.2** [planlog.md](./planlog.md) Phase 18C — keep checkboxes aligned (GPUM read API + UI v1 done; cursor + cutover + edge cases remain).
-- [ ] **5.3** Manual QA: support, MAG on/off, opt-in off, missing nickname, **All** shows announcements without opening MAG, filters.
+- [x] **5.1** [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) — GPUM API subsection: `streamItems` kinds, query params, **`cursor` / `nextCursor`**, MAG read vs post, **`announcement_feed`** vs **`conversation_head`**.
+- [x] **5.2** [planlog.md](./planlog.md) Phase 18C — GPUM pagination + wiring doc checkboxes updated.
+- [ ] **5.3** Manual QA: run [qa-gpum-message-center-phase-53.md](./qa-gpum-message-center-phase-53.md) (support, MAG **Member conversations in MAG room**, profile opt-in, handle gate, filters, **Load more**); check off when done.
 
 #### Next up (§3 — messaging / notifications)
 
-**Priority next session:** **§1 — GPUM Phase 4** (thread unread + member mark-read), then empty states and `/members` dashboard discovery.
+**Priority next session:** **GPUM Phase 5.3** — run the QA matrix once; then remove or check off that line. **3.4** sheet picker **closed** (stream UX above).
 
 **1. GPUM Phase 4 — unread, empty states, dashboard discovery**
 
-Admins already get unread styling and mark-read on **thread participants**; members do not yet get a first-class **“you have unread messages”** signal on conversation heads or a **member-safe** way to clear unread when they open a thread. Phase 4 closes that gap: compute or read **`last_read_at`** (or equivalent) for the **member’s** participation row, expose **unread** on `conversation_head` items in `GET /api/members/message-center`, and add **PATCH** (or POST) mark-read when the member views a thread—mirroring the admin pattern but **RLS- and API-safe** for GPUM. **Empty states** mean copy and UI when there are no threads, MAG conversations are gated (opt-in off, no nickname), or filters return nothing—so members are not staring at a blank card without explanation. **`/members` dashboard** should surface at least a **short preview** (e.g. last line + link) and **See all → `/members/messages`** so messaging is discoverable without bookmarking the messages route.
+**4.1–4.3 (shipped):** Member **`unread`** + mark-read, **`MemberActivityStream`** empty states, and **`MemberMessagesPreview`** on **`/members`** (up to 5 rows + **See all**); full stream remains on **`/members/messages`** only.
 
-**2. GPUM Phase 5 — docs, QA, cursor pagination**
+**2. GPUM Phase 5 — docs, QA (remaining: manual pass)**
 
-The **wiring doc** ([messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md)) should describe the **implemented** GPUM stream shape (`streamItems` kinds), how **filters** map to server behavior, **MAG eligibility** (`memberCanSeeMagGroupThread` vs **`assertCanPostThreadMessage`**), and where **announcement_feed** vs **conversation_head** differ—so the next fork and the next developer do not reverse-engineer from code. **Manual QA** should run a small matrix: support thread happy path; MAG with **allow_conversations** on/off; member **global + per-MAG** opt-in off; **missing nickname** (thread hidden from stream); **All** still shows notifications without forcing MAG entry; **Conversations** vs **Notifications** filters. **Cursor pagination**: today **`nextCursor` / `hasMore`** are stubs; once real volumes appear, implement stable ordering + cursor in **`getMemberMessageCenterMergedStream`** and the GET handler so the UI can load older pages without fetching hundreds of rows up front.
+The **wiring doc** now includes **§ GPUM merged stream API (implemented)** (kinds, query params, keyset **`cursor` / `nextCursor` / `hasMore`**, MAG read vs post, merge window). **Code:** stable newest-first sort, **`paginateMemberStreamItems`**, **`MemberActivityStream` Load more** (same filter/dates/limit as initial fetch). **Still do:** run the **manual QA matrix** in that doc (support, MAG gates, nickname, filters, **Load more**).
 
-**3. Optional Phase 3.4 — “new conversation” picker (sheet)**
+**3. Phase 3.4 — closed (no sheet)**
 
-Today, **Support** is started via **Message support** (and existing support threads appear as heads); **MAG** group threads appear when the tenant already has a **mag_group** thread for that MAG. There is **no** dedicated UI that says “start or open a conversation” in a **single sheet** listing only **Support** + **eligible MAGs** (no DMs). If product wants clearer **intent** (“I want to talk to this MAG community”), add a modal/sheet that lists those destinations and either opens an existing head or creates/bootstraps the thread per existing server rules—still **no member-to-member DM** for MVP.
+**Product decision:** A dedicated **sheet picker** is **not** required. **Join a conversation**, **Conversations** filter, **Message the team**, and **View all** on **`MemberActivityStream`** provide the intended entry and return paths.
 
 **4. Broader messaging MVP (below this checklist)**
 
@@ -139,6 +141,25 @@ These items are **not** GPUM Message Center polish; they are **platform** work t
 - [ ] **Tasks — hide from client (design + implement):** **`client_visible`** / **`internal_only`** on `tasks`; threads + GPUM lists respect flag.
 - [ ] **Cutover + backfill** from **`crm_notes`**; runtime paths already off **`crm_notes`** for migrated kinds; keep DB table temporarily; document in [prd-technical](./prd-technical.md)
 - [ ] **Fork migration note:** Treat **`crm_notes`** as **legacy** for new forks; remove from required runtime path after backfill.
+
+#### Personal capture inbox webhook (planned)
+
+**Not coded until prioritized.** External apps (e.g. **voice capture → transcription**) send a **`POST`** with a **JSON** body into the CMS. Each **tenant team user** can have a **dedicated webhook** so payloads land in a **personal inbox**: rows are visible **only to that recipient**, not to other tenant users—like a private capture queue, not a shared thread or contact timeline.
+
+**Rollout:** **Tenant admins first** (each may enable an endpoint + secret). **Tenant admin** decides whether **non-admin roles** (editor, viewer, etc.) may **enable their own** webhook—default **off** until the tenant opts in.
+
+**Recipient workflow:** Open the item from **Message Center** (same mental model as the rest of the messages area); **decide what to do** (e.g. create **task**, add **staff note** / timeline row, link to **contact**—exact actions TBD when building); then mark **processed**, **archived**, **complete** (or a small **status** set) so the inbox stays triage-friendly.
+
+**Implementation steps (for when this moves up the backlog):**
+
+1. **Schema:** Tenant table for **inbox rows** (`recipient_user_id`, preview/body, `raw_payload` jsonb, `status`, timestamps). Separate **token → recipient** mapping (opaque URL segment, **hashed** secret at rest; rotate/revoke). RLS / service-role rules aligned with “only recipient reads.”
+2. **`POST` route:** Public webhook handler (compare **Anychat** / **Stripe** patterns under `src/app/api/webhooks/`); validate payload size/shape; **rate limit**; insert only for resolved user. Scoped to **staff** surface unless product later extends to GPUM.
+3. **Settings UI:** Per eligible user—**enable**, **copy URL**, **regenerate secret**; respect **admin-only** vs **role toggle** for non-admins.
+4. **Message Center:** Merge **capture rows** into the admin stream (new `source` or filter, e.g. **Capture** / **Inbox**) with **`forUserId === recipient`** enforced on every row.
+5. **Inbox UI:** Row + detail; actions to **task** / **note** / etc.; **status** transitions.
+6. **Ship checklist:** Migration file + **Manual SQL** note, **MVT**, wiring blurb in [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md).
+
+**Plan checkbox:** [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications) — **Personal capture inbox (webhook)**.
 
 **Plan detail:** [planlog Phase 18C](./planlog.md#phase-18c-directory-unified-picker--messages--notifications).
 
@@ -180,56 +201,114 @@ These items are **not** GPUM Message Center polish; they are **platform** work t
 
 ## Accounting (planned module — SSOT → export → QuickBooks)
 
-**Goal:** **Website-cms is SSOT** for money in/out, open invoices, payments, expenses, and mileage. **Stripe** handles merchant processing and card PII; **sync Stripe into the app** (not the other way for ledger truth). **QuickBooks:** **CSV export first**, then **one-way API sync** (per-transaction or batch) as a later goal. Scope is **accountant-ready** data (P&amp;L, detail, tax lines)—**not** full registers, bank reconcile, or double-entry in v1.
+**Goal:** **Website-cms is SSOT** for money in/out, open invoices, payments, expenses, mileage, and **credits/refunds**. **Stripe** handles merchant processing and card PII; **sync Stripe into the app** (not the other way for ledger truth). **QuickBooks:** **CSV export first**, then **one-way API sync** (per-transaction or batch) as a later goal. Scope is **accountant-ready** data (P&amp;L, detail, tax lines)—**not** full bank reconcile or double-entry in v1.
 
 **Principles**
 - **One canonical income model** — explicit rule for `orders` / subscription cycles / manual payments so nothing is double-counted; document in `prd-technical` when locked.
-- **Your document numbers** — `order_number` / `invoice_number` from existing generators; assign at defined lifecycle points; webhook handlers **idempotent** (key to Stripe `invoice.id`, `checkout.session.id`, `payment_intent.id`, etc.).
-- **Invoices = A/R** (planned / balance / partials). **Sales receipts = post-cash** (customer paid first; record after payment). **Stripe Billing** uses internal `Invoice` objects per cycle—that does not force QBO doc type; map per policy below.
-- **Sales tax:** Stripe Tax (or chosen engine) authoritative for **Stripe-collected** amounts; for QBO consider **tax as separate line** + non-taxable product lines so QBO’s tax engine isn’t a second calculator. CPA to confirm.
+- **Your document numbers** — `order_number` / `invoice_number` / receipt numbers from existing generators; assign at defined lifecycle points; webhook handlers **idempotent** (key to Stripe `invoice.id`, `checkout.session.id`, `payment_intent.id`, `refund.id`, etc.).
+- **Invoices = A/R** (planned / future or staged revenue; **open balance**; **multiple payments** allowed). **Sales receipts = closed money-in** (nothing left to collect in the books sense): store checkout paid in full, payment links, subscription **period** treated as satisfied when fully paid, **field / offline payment in** with **no** open invoice—aligns with **WooCommerce-style** “order tracks product; QuickBooks gets a **sales receipt** when cash is in hand.” **Stripe Billing** still uses Stripe **Invoice** objects; the app maps Stripe events to **invoice** vs **sales receipt** by whether **open A/R** remains—Stripe vocabulary ≠ app export document type.
+- **Credits / refunds** — **Credit memo** (or QBO-equivalent negative document) is **explicit** for refunds and revenue reversals; not implied by “payment in” alone. Links to original **invoice** or **sales receipt**, optional **Stripe `refund.id`**; **Accounting** owns the book document; **Sales / Orders** may show refund **status** for ops only.
+- **Invoice ↔ Stripe (tax collection path):** When the app **issues** an A/R invoice that should use **Stripe Tax**, **create a corresponding Stripe Invoice** (or equivalent Stripe object) so tax is calculated there; keep it **open** until paid. Expose a **Stripe-hosted payment URL / payment link** on the customer-facing invoice document so pay-online is one click. **Idempotent** creation (retries must not duplicate Stripe invoices).
+- **Mixed payments:** Customers may pay **via Stripe** (link/card) **and/or outside Stripe** (cash, Venmo, Zelle, check, etc.). The app must record **multiple partial payments** against the same open invoice and keep **ledger balance** authoritative; document how **Stripe invoice status** stays aligned when payments are recorded only in-app (e.g. manual payment rows, Stripe mark-paid, or credit/adjustment policy)—**lock with CPA/ops** before build.
+- **Sales tax:** Stripe Tax (or chosen engine) authoritative for **Stripe-collected** amounts on those invoices. **Ingest** tax breakdown from Stripe (webhooks/API) into the app for reporting. Maintain a **sales tax register** in the app (by period / jurisdiction as needed) to support **monthly filing and remittance reporting**; CSV/QBO export must carry **tax lines explicitly** when QuickBooks tax calculation is bypassed so the CPA does not re-key. CPA to confirm mapping.
 - **Stripe payouts:** Match **orders/payments** to **payout** via balance transactions for **deposit ↔ QBO** reconciliation (clearing account pattern optional).
-- **Projects:** `project_id` optional on expenses/mileage (internal); **not required**. **Labor rate / margin** rollups: keep planlog item (`projects.labor_rate_per_hour` or equivalent) aligned with accounting when built.
+- **Projects:** `project_id` optional on expenses (including mileage); **not required**. **Labor rate / margin** rollups: keep planlog item (`projects.labor_rate_per_hour` or equivalent) aligned with accounting when built.
 - **Tenant RLS**, feature gating, admin APIs only unless noted.
+
+### Stripe ↔ app document alignment (process)
+
+| App document | Meaning | Typical Stripe linkage | Notes |
+|----------------|---------|------------------------|--------|
+| **Sales receipt** | **Closed**; full money-in now; no open A/R. | Paid **Checkout Session** + **PaymentIntent**; or paid-in-full episode; optional manual row (no Stripe). | Store sales, payment links, field cash when **not** applying to an invoice. |
+| **Invoice** | **Open A/R**; future/planned collection; **partials** OK. | **Stripe Invoice** (draft/open) + hosted pay / payment link; webhooks keep tax and balance in sync. | Stripe still calls it “Invoice”; app tracks **ledger balance** and applications. |
+| **Credit memo** (credits/refunds) | Reverses or reduces amount owed / revenue vs prior doc. | **`refund.id`** and related charge/payment objects when applicable. | **Generate** from **Credits and Refunds**; export to QBO per CPA mapping (Credit Memo vs Refund Receipt). |
+
+**Orders** — **Commerce** record for fulfillment (cart → paid → shipped). **Accounting** document attaches when money is recognized: **receipt** when paid-in-full with no receivable left; **invoice** when there is staged A/R or installment logic.
 
 ### Document types (webapp + export)
 
 | Concept | Use |
 |---------|-----|
-| **Invoice** | Open balance; multiple payments; partials—**must exist** before tracking partial application. |
-| **Sales receipt** | Immediate sale after payment (default when **Payment in** has **no** open invoice selected). |
-| **Order** | Store catalog / checkout (existing); tie to Stripe; feed same SSOT. |
-| **Subscription** | Stripe subscription + paid cycles; map each **paid** period to app row(s) + export line(s) (invoice+satisfaction or receipt—**lock with CPA**). |
+| **Invoice** | Open balance; multiple payments; partials—**must exist** before tracking partial application. For Stripe Tax path, linked **Stripe Invoice** + **payment link**; see mixed-payments principle above. |
+| **Sales receipt** | **Closed** immediate money-in: storefront / payment link / subscription period closed as receipt (per CPA), **field payment in** without invoice. |
+| **Credit memo** | Refunds and adjustments; ties to originating **invoice** or **sales receipt**; supports partial refunds; **Credits and Refunds** admin page. |
+| **Order** | Store catalog / checkout (existing); tie to Stripe; feed same SSOT; generates or links **receipt** or **invoice** per rules above. |
+| **Subscription** | Stripe subscription + paid cycles; map each **paid** period to app row(s) + export line(s) (**sales receipt** vs **invoice** per CPA for that billing shape). |
 
-**Payment in (field / PWA):** Pick **open invoice** → record **payment** (partial allowed). **No invoice** → create **quick sales receipt**. If operator marks **partial** without an invoice to attach → **block** with guidance to create/select invoice first.
+**Payment in (field / PWA):** Pick **open invoice** → record **payment** (partial allowed). **No invoice** → create **quick sales receipt**. If operator marks **partial** without an invoice to attach → **block** with guidance to create/select invoice first. **Payment method** values should come from a **tenant pick list** (see below), not only free text.
+
+### Admin navigation — **Ecommerce** (locked)
+
+Top-level sidebar label stays **Ecommerce** (most flows are electronic). One expandable section with **two non-clickable group labels** (same interaction level as today—no third-level nav): **Sales** | **Accounting**.
+
+**Sales** (money-in / storefront; routes remain under `/admin/ecommerce/` unless a new path is introduced for receipts only—implementers may add `/admin/ecommerce/sales-receipts` or equivalent):
+
+| Label | Route (target) |
+|-------|----------------|
+| Products | `/admin/ecommerce/products` |
+| Orders | `/admin/ecommerce/orders` |
+| Invoices | `/admin/ecommerce/invoices` |
+| Sales receipts | `/admin/ecommerce/sales-receipts` *(new when built)* |
+| Subscriptions | `/admin/ecommerce/subscriptions` |
+
+### Ecommerce — product customer-facing status (Customizer)
+
+**Today:** The **`product`** table does **not** pull a status from the Customizer. Merchandising uses **`stock_quantity`** (integer, nullable) and **`available_for_purchase`** (boolean) in `ProductDetailsForm` / `product` row — there is **no** slug-backed **Available / Backordered / In Production / Out of stock** dimension yet.
+
+**Planned (wire with Products + GPUM notifications):**
+
+- [ ] Add a **Customizer** scope (e.g. `product_fulfillment_status` or `product_customer_status`) seeded with **core** slugs (non-deletable, labels/order/colors editable like other Customizer staples): **`available`**, **`backordered`**, **`in_production`**, **`out_of_stock`** — map to display strings **Available**, **Backordered**, **In Production**, **Out of Stock** (or tenant-defined labels).
+- [ ] **Migration + `product` column** (e.g. `product_status_slug` or aligned name) referencing that scope; admin **product** edit UI: **select from Customizer** (no ad hoc free text for those four).
+- [ ] **Storefront + member/order surfaces** show the resolved label; when status changes, optional **GPUM / purchaser notification** (see [messages-and-notifications-wiring.md](./reference/messages-and-notifications-wiring.md) § GPUM → Ecommerce & orders — *Ordered product / fulfillment status*).
+
+**Note:** The codebase may already expose **`/admin/ecommerce/transactions`** (shop/Stripe-oriented activity). That is **not** the same as **Accounting → Transactions** (merged **ledger** register: payments in + expenses). If both appear in nav, use **distinct labels** (e.g. **Store transactions** vs **Ledger** or **Accounting transactions**).
+
+**Accounting** (books, tax, exports, reference data):
+
+| Label | Route |
+|-------|--------|
+| Overview | `/admin/accounting` |
+| Expenses | `/admin/accounting/expenses` |
+| Transactions | `/admin/accounting/transactions` *(merged register: payments in, expenses, filters)* |
+| Sales tax | `/admin/accounting/sales-tax` |
+| Credits and Refunds | `/admin/accounting/credits-and-refunds` *(credit memos / refunds; document generation)* |
+| Reports | `/admin/accounting/reports` |
+| Setup | `/admin/accounting/setup` *(chart of accounts, expense types, payment types, mileage rate, accounting prefs)* |
+
+**Feature gating:** Existing ecommerce slugs (`ecommerce`, `products`, `orders`, `invoices`, `subscriptions`, etc.) + **`accounting`** for Accounting group items; show **Ecommerce** section when **any** child feature is enabled (mirror CRM/Ecommerce composite visibility pattern in `Sidebar.tsx` / `sidebar-config.ts`).
+
+**Implementation steps (nav):** Add `accountingSubNav` (and optional `salesSubNav` reorder) in `sidebar-config.ts`; `SIDEBAR_ACCOUNTING_OPEN` + `isAccounting` paths; register **`accounting`** in feature registry / tenant gates; implement **group headings** “Sales” / “Accounting” inside the existing Ecommerce accordion (or split arrays rendered with labels).
 
 ### Field capture (PWA → web app)
 
 - **Access:** **Feature registry + role**; **v1: admins only** (expand roles later).
-- **Expense out:** Amount, date, category, payee, memo; **receipt photo** optional (Storage); **project** optional.
-- **Payment in:** Amount, date, method (cash, Venmo, Zelle, check, other), memo; invoice pick list **or** auto sales receipt (see above).
-- **Mileage (3a):** **Point-to-point** (personal vehicles—**no odometer chain**). Fields: date, **from** address, **to** address, **miles (user-entered)**, business purpose; **amount = miles × rate** (tenant-config rate, e.g. IRS mileage updated annually). Optional later: map API **suggested** miles, user always confirms/edits.
+- **Expenses (single conceptual model):** Treat **mileage as a type of expense** (not a parallel top-level module). On entry, operator indicates **mileage** vs **standard expense**. **Standard:** amount, date, payee, memo; **category / type** from a **predefined expense-type pick list** (tenant-configurable table or Customizer scope); **receipt photo** optional (Storage); **`project_id` optional** (recommended for job costing).
+- **Mileage (within expenses):** **Point-to-point** (personal vehicles—**no odometer chain**). Fields: date, **from** address, **to** address, **miles (user-entered)**, business purpose; **amount = miles × rate** (tenant-config rate, e.g. IRS mileage updated annually). Optional later: map API **suggested** miles, user always confirms/edits.
+- **Pick lists (data):** Tenant-scoped tables (or Customizer) for **expense types** and **payment types** / methods used on **Payment in** and exports—stable codes for QBO CSV and reporting.
+- **Payment in:** Amount, date, method from **payment-type pick list**, memo; invoice pick list **or** auto sales receipt (see above).
 
 ### QuickBooks sync phases
 
-1. **CSV export** — Invoices, payments, sales receipts, expenses, mileage lines; stable **category/customer codes**; columns include `cms_*_id`, Stripe ids, `synced_at` / batch id; **do not** re-export same row without idempotency rules.
-2. **API sync** — OAuth app; create Customer / Invoice / Payment / SalesReceipt / Expense; store `qbo_*_id`; same external ids for dedupe.
+1. **CSV export** — Invoices, invoice payments, **sales receipts**, **credit memos / refunds**, expenses (including mileage lines), **sales tax lines**; stable **category/customer codes**; columns include `cms_*_id`, Stripe ids, `synced_at` / batch id; **do not** re-export same row without idempotency rules.
+2. **API sync** — OAuth app; create Customer / Invoice / Payment / SalesReceipt / **CreditMemo** (or QBO-equivalent) / Expense; store `qbo_*_id`; same external ids for dedupe.
 
 ### Open checklist (Accounting)
 
 **Strategy & schema**
-- [ ] Lock **SSOT strategy** (orders + subscription paid events + field payments; single write path per Stripe object id).
-- [ ] Migration(s): accounting tables (names TBD)—e.g. **invoices** (A/R), **invoice_payments**, **sales_receipts**, **expenses**, **mileage_trips**, links to `orders` / `projects`; **Manual SQL** — run new files from `supabase/migrations/` in Supabase SQL Editor; call out in chat + sessionlog when added.
-- [ ] **Tax / line mapping** doc snippet for QBO CSV (separate tax line, `NON`-style taxable flags per CPA).
+- [ ] Lock **SSOT strategy** (orders + subscription paid events + field payments; single write path per Stripe object id; **mixed Stripe + external payments** + Stripe invoice alignment rules; **receipt vs invoice** classification rules; **refund → credit memo** linkage).
+- [ ] Migration(s): accounting tables (names TBD)—e.g. **invoices** (A/R, `stripe_invoice_id` or equivalent), **invoice_payments** (source = stripe | manual, partials), **sales_tax_lines** or normalized tax snapshots (from Stripe + manual if ever needed), **sales_receipts**, **credit_memos** (or **credits_refunds**; link to source invoice/receipt, `stripe_refund_id`, partial amounts, reason), **expenses** (rows or subtype for **mileage** fields), **expense_types** / **payment_types** pick lists, links to `orders` / `projects`; **Manual SQL** — run new files from `supabase/migrations/` in Supabase SQL Editor; call out in chat + sessionlog when added.
+- [ ] **Sales tax register** — period/jurisdiction views fed by **ingested Stripe Tax** data; export columns for filing; **tax / line mapping** doc for QBO CSV (separate tax line, `NON`-style taxable flags per CPA).
 
 **Stripe ↔ app**
-- [ ] Webhook + idempotent upsert: checkout, `invoice.paid`, subscriptions, fees/refunds as needed for net = bank story.
+- [ ] **Create Stripe Invoice** (or aligned API flow) when app invoice is finalized for tax collection; store link/URL for customer payment; idempotent upsert by Stripe invoice id.
+- [ ] Webhook + idempotent upsert: checkout, Stripe **invoice** events (paid, updated, voided as needed), **tax amounts / line items**, subscriptions, **refunds** (`refund.*` / charge reversal as needed), fees as needed for net = bank story.
 - [ ] Payout / balance-transaction linkage for reconciliation views (optional v1.1).
 
 **App & PWA**
 - [ ] Server lib + API routes (tenant-scoped); field endpoints for PWA.
-- [ ] Admin UI: Accounting section; lists + detail; **CSV export** buttons per period/entity.
-- [ ] PWA: **Expense out** / **Payment in** / **Mileage** (feature-gated); minimal forms.
-- [ ] Feature slug + sidebar (`sidebar-config.ts`, `Sidebar.tsx`); project detail **optional** summary widget later.
+- [ ] Admin **Ecommerce** sidebar: **Sales** + **Accounting** groups per **Admin navigation (locked)** above; pages **Sales receipts** (`/admin/ecommerce/sales-receipts`), **Credits and Refunds** (`/admin/accounting/credits-and-refunds`), and full **`/admin/accounting/*`** tree; merged register on **Transactions**; **CSV export** from **Reports** (and per-entity as needed).
+- [ ] PWA: **unified expense entry** (standard + mileage) / **Payment in** (feature-gated); minimal forms aligned with receipt/invoice rules.
+- [ ] Feature slug **`accounting`** + composite **Ecommerce** visibility; project detail **optional** summary widget later.
 
 **Later**
 - [ ] QBO API sync (replace or supplement CSV); Intuit MCP useful for dev only, not production sync.

@@ -22,7 +22,6 @@ import {
   avatarBgClass,
   formatMinutesAsHrsMin,
   formatShortMonthDay,
-  initialsFromLabel,
 } from "@/lib/tasks/display-helpers";
 import { cn } from "@/lib/utils";
 import {
@@ -38,6 +37,10 @@ interface TaskTimeLogsSectionProps {
   userLabels: Record<string, string>;
   /** Display name for contact_id */
   contactLabels: Record<string, string>;
+  /** Avatar initials for user_id (structured name / email, not display label). */
+  userInitialsById: Record<string, string>;
+  /** Avatar initials for contact_id (CRM first + last). */
+  contactInitialsById: Record<string, string>;
   /** Current task status slug (Customizer); drives "Mark complete". */
   taskStatusSlug: string | null | undefined;
   /** After status PUT succeeds (e.g. sync Schedule Status select on task edit). */
@@ -62,6 +65,22 @@ function whoKey(log: TaskTimeLog): string {
   return log.user_id ?? log.contact_id ?? log.id;
 }
 
+function whoAvatarInitials(
+  log: TaskTimeLog,
+  userInitialsById: Record<string, string>,
+  contactInitialsById: Record<string, string>
+): string {
+  if (log.user_id) {
+    const k = log.user_id.trim();
+    return userInitialsById[k]?.trim() || "?";
+  }
+  if (log.contact_id) {
+    const k = log.contact_id.trim();
+    return contactInitialsById[k]?.trim() || "?";
+  }
+  return "?";
+}
+
 /** Positive minutes used for progress bar; null/0 = no estimate set. */
 function effectivePlannedMinutes(raw: number | null | undefined): number | null {
   if (raw == null || !Number.isFinite(raw) || raw <= 0) return null;
@@ -73,6 +92,8 @@ export function TaskTimeLogsSection({
   initialLogs,
   userLabels,
   contactLabels,
+  userInitialsById,
+  contactInitialsById,
   taskStatusSlug,
   onTaskStatusSlugChange,
   plannedMinutes,
@@ -446,7 +467,7 @@ export function TaskTimeLogsSection({
                     )}
                     aria-hidden
                   >
-                    {initialsFromLabel(label)}
+                    {whoAvatarInitials(log, userInitialsById, contactInitialsById)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium leading-snug">{log.note?.trim() || "Time logged"}</p>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ApplyCodeBlock } from "./ApplyCodeBlock";
-import { MemberActivityStream } from "./MemberActivityStream";
+import { MemberMessagesPreview } from "./MemberMessagesPreview";
 
 /**
  * Member dashboard — landing for logged-in members.
@@ -47,7 +47,7 @@ export default function MembersDashboardPage() {
           </li>
         </ul>
       </div>
-      <MemberActivityStream />
+      <MemberMessagesPreview />
       <ApplyCodeBlock />
     </main>
   );

@@ -230,7 +230,7 @@ function TaskAssigneeAvatars({ assignees }: { assignees: TaskAssigneeItem[] }) {
             {a.avatarUrl ? (
               <img src={a.avatarUrl} alt={a.label} className="h-full w-full object-cover" />
             ) : (
-              initialsFromLabel(a.label)
+              (a.avatar_initials?.trim() || initialsFromLabel(a.label))
             )}
           </span>
         ))}

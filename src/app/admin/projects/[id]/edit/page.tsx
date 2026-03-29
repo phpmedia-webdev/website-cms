@@ -10,7 +10,12 @@ import { getContactById } from "@/lib/supabase/crm";
 import { getOrganizationById } from "@/lib/supabase/organizations";
 import { getMediaById } from "@/lib/supabase/media";
 import { projectCoverImageUrlFromMedia } from "@/lib/projects/project-cover-image-url";
-import { getProjectMemberDisplayLabelMap } from "@/lib/projects/resolve-project-member-labels";
+import {
+  getProjectMemberDisplayLabelMap,
+  getProjectMemberAvatarInitialsMap,
+} from "@/lib/projects/resolve-project-member-labels";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
+import { initialsFromLabel } from "@/lib/tasks/display-helpers";
 import { ProjectEditClient } from "./ProjectEditClient";
 
 export default async function ProjectEditPage({
@@ -41,21 +46,32 @@ export default async function ProjectEditPage({
   }
 
   let clientDisplayName: string | null = null;
+  let clientAvatarInitials: string | null = null;
   if (project.contact_id) {
     const contact = await getContactById(project.contact_id);
-    clientDisplayName = contact?.full_name ?? contact?.email ?? project.contact_id;
+    if (contact) {
+      clientDisplayName = contact.full_name ?? contact.email ?? project.contact_id;
+      clientAvatarInitials = initialsFromFirstLast(contact.first_name, contact.last_name, contact.email);
+    }
   } else if (project.client_organization_id) {
     const org = await getOrganizationById(project.client_organization_id);
-    clientDisplayName = org?.name ?? project.client_organization_id;
+    if (org) {
+      clientDisplayName = org.name ?? project.client_organization_id;
+      clientAvatarInitials = initialsFromLabel(org.name);
+    }
   }
 
-  const memberLabelById = await getProjectMemberDisplayLabelMap(projectMembers);
+  const [memberLabelById, memberAvatarInitialsById] = await Promise.all([
+    getProjectMemberDisplayLabelMap(projectMembers),
+    getProjectMemberAvatarInitialsMap(projectMembers),
+  ]);
   const membersWithLabels = projectMembers.map((m) => {
     const roleTerm = projectRoleTerms.find((t) => t.slug === m.role_slug);
     return {
       ...m,
       label: memberLabelById.get(m.id) ?? "—",
       role_label: roleTerm?.name ?? null,
+      avatar_initials: memberAvatarInitialsById.get(m.id) ?? "?",
     };
   });
 
@@ -66,6 +82,7 @@ export default async function ProjectEditPage({
       typeTerms={typeTerms}
       projectRoleTerms={projectRoleTerms}
       clientDisplayName={clientDisplayName}
+      clientAvatarInitials={clientAvatarInitials}
       initialProjectMembers={membersWithLabels}
       initialCoverImageUrl={initialCoverImageUrl}
     />

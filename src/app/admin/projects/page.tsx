@@ -9,7 +9,12 @@ import {
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getOrganizationsByIds } from "@/lib/supabase/organizations";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
-import { getProjectMemberDisplayLabelMap } from "@/lib/projects/resolve-project-member-labels";
+import {
+  getProjectMemberDisplayLabelMap,
+  getProjectMemberAvatarInitialsMap,
+} from "@/lib/projects/resolve-project-member-labels";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
+import { initialsFromLabel } from "@/lib/tasks/display-helpers";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { ProjectsListClient } from "./ProjectsListClient";
 import type { ProjectListRow } from "@/components/projects/ProjectListTable";
@@ -66,7 +71,10 @@ export default async function AdminProjectsPage() {
   const contactMap = new Map<string, (typeof contacts)[number]>(contacts.map((contact) => [contact.id, contact]));
   const organizationMap = new Map(organizations.map((org) => [org.id, org]));
   const profileMap = new Map(profiles.map((profile) => [profile.user_id, profile]));
-  const projectMemberLabelByMemberId = await getProjectMemberDisplayLabelMap(projectMembers);
+  const [projectMemberLabelByMemberId, projectMemberAvatarInitialsByMemberId] = await Promise.all([
+    getProjectMemberDisplayLabelMap(projectMembers),
+    getProjectMemberAvatarInitialsMap(projectMembers),
+  ]);
   const statusMap = statusDisplayBySlug;
   const typeMap = new Map(typeTerms.map((term) => [term.slug, term]));
   const tasksByProject = new Map<string, Awaited<ReturnType<typeof listTasksByProjectIds>>>();
@@ -96,12 +104,14 @@ export default async function AdminProjectsPage() {
           label: contact.full_name ?? contact.email ?? contact.id,
           href: `/admin/crm/contacts/${contact.id}`,
           avatarUrl: contact.avatar_url ?? null,
+          avatar_initials: initialsFromFirstLast(contact.first_name, contact.last_name, contact.email),
         }
       : organization
         ? {
             label: organization.name,
             href: `/admin/crm/organizations/${organization.id}`,
             avatarUrl: organization.avatar_url ?? null,
+            avatar_initials: initialsFromLabel(organization.name),
           }
         : null;
 
@@ -114,6 +124,7 @@ export default async function AdminProjectsPage() {
           id: member.id,
           label,
           avatarUrl: contactMember?.avatar_url ?? null,
+          avatar_initials: projectMemberAvatarInitialsByMemberId.get(member.id) ?? "?",
         };
       }
       if (member.user_id) {
@@ -122,12 +133,14 @@ export default async function AdminProjectsPage() {
           id: member.id,
           label,
           avatarUrl: profile?.avatar_url ?? null,
+          avatar_initials: projectMemberAvatarInitialsByMemberId.get(member.id) ?? "?",
         };
       }
       return {
         id: member.id,
         label,
         avatarUrl: null,
+        avatar_initials: projectMemberAvatarInitialsByMemberId.get(member.id) ?? "?",
       };
     });
 

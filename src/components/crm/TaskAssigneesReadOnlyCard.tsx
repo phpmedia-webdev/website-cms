@@ -4,7 +4,7 @@ import { Users } from "lucide-react";
 import { TaskBentoPanelTitle } from "@/components/tasks/TaskBentoPanelTitle";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { initialsFromLabel } from "@/lib/tasks/display-helpers";
-import type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
+import type { TaskFollowerWithLabel, TaskLinkedContactSummary } from "@/lib/tasks/task-follower-types";
 import { cn } from "@/lib/utils";
 
 const MAX_VISIBLE_MEMBERS = 3;
@@ -28,7 +28,8 @@ export function AssigneeListItem({
   showRole?: boolean;
 }) {
   const displayLabel = follower.label?.trim() ? follower.label.trim() : "Member";
-  const initials = initialsFromLabel(displayLabel) || "?";
+  const initials =
+    follower.avatar_initials?.trim() || initialsFromLabel(displayLabel) || "?";
   const avatarSeed =
     (typeof follower.id === "string" && follower.id.trim()) || displayLabel;
   return (
@@ -65,7 +66,7 @@ export function TaskAssigneesDetailCard({
 }: {
   followers: TaskFollowerWithLabel[];
   /** Primary CRM contact for the task (e.g. ticket requester). */
-  linkedContact: { id: string; label: string } | null;
+  linkedContact: TaskLinkedContactSummary | null;
 }) {
   const visibleFollowers = followers.slice(0, MAX_VISIBLE_MEMBERS);
   const hiddenFollowers = followers.slice(MAX_VISIBLE_MEMBERS);
@@ -97,6 +98,7 @@ export function TaskAssigneesDetailCard({
                 user_id: null,
                 contact_id: linkedContact.id,
                 label: linkedContact.label,
+                avatar_initials: linkedContact.avatar_initials,
               }}
               showRole={false}
               trailing={

@@ -149,6 +149,8 @@ interface ProjectDetailClientProps {
   projectTimeLogMinutes: number;
   /** Resolved client label when project has contact_id or client_organization_id. */
   clientDisplayName: string | null;
+  /** Avatar initials for client tile (contact: first+last; org: from name). */
+  clientAvatarInitials: string | null;
   projectStatusTerms: StatusOrTypeTerm[];
   projectTypeTerms: StatusOrTypeTerm[];
   taskStatusTerms: StatusOrTypeTerm[];
@@ -156,7 +158,11 @@ interface ProjectDetailClientProps {
   /** Per-task logged minutes (from `task_time_logs`); keys = task id. */
   initialTaskTimeLogTotals: Record<string, number>;
   initialProjectEvents: Event[];
-  initialProjectMembers: (ProjectMember & { label: string; role_label: string | null })[];
+  initialProjectMembers: (ProjectMember & {
+    label: string;
+    role_label: string | null;
+    avatar_initials: string;
+  })[];
   projectRoleTerms: StatusOrTypeTerm[];
 }
 
@@ -209,6 +215,7 @@ export function ProjectDetailClient({
   projectPlannedTimeMinutes,
   projectTimeLogMinutes,
   clientDisplayName,
+  clientAvatarInitials,
   projectStatusTerms,
   projectTypeTerms,
   taskStatusTerms,
@@ -256,14 +263,6 @@ export function ProjectDetailClient({
   useEffect(() => {
     setTaskTimeLogTotals(initialTaskTimeLogTotals);
   }, [initialTaskTimeLogTotals]);
-
-  function initials(label: string): string {
-    const parts = label.trim().split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
-    }
-    return label.slice(0, 2).toUpperCase() || "?";
-  }
 
   const toggleArchive = async () => {
     setBusy(true);
@@ -586,7 +585,7 @@ export function ProjectDetailClient({
                           className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary"
                           title={clientDisplayName}
                         >
-                          {initials(clientDisplayName)}
+                          {clientAvatarInitials ?? "?"}
                         </span>
                         <p
                           className="w-full min-w-0 max-w-full truncate text-center text-[10px] font-semibold leading-tight text-foreground sm:text-left"
@@ -630,7 +629,7 @@ export function ProjectDetailClient({
                             className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary"
                             title={m.label}
                           >
-                            {initials(m.label)}
+                            {m.avatar_initials}
                           </span>
                           <span
                             className="w-full min-w-0 truncate text-center text-[10px] font-semibold leading-tight text-foreground"

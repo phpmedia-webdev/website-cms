@@ -7,6 +7,8 @@ import type { ProjectMember } from "@/lib/supabase/projects";
 import { getContactsByIds } from "@/lib/supabase/crm";
 import { getProfilesByUserIds } from "@/lib/supabase/profiles";
 import { getTenantUserById, getTenantUsersByAuthUserIds } from "@/lib/supabase/tenant-users";
+import { batchUserAvatarInitials } from "@/lib/people/batch-avatar-initials";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
 
 function uniq(ids: Array<string | null | undefined>): string[] {
   return [...new Set(ids.filter((id): id is string => Boolean(id?.trim())))];
@@ -78,6 +80,44 @@ export async function getProjectMemberDisplayLabelMap(
         tu?.display_name?.trim() || tu?.email?.trim() || "Team member"
       );
     }
+  }
+
+  return result;
+}
+
+/**
+ * Avatar initials per `project_members.id` (CRM first+last / profile custom fields + email).
+ */
+export async function getProjectMemberAvatarInitialsMap(
+  members: ProjectMember[]
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (members.length === 0) return result;
+
+  const contactIds = uniq(members.map((m) => m.contact_id));
+  const userIds = uniq(members.map((m) => m.user_id));
+
+  const [contacts, userInitialsByAuthId] = await Promise.all([
+    contactIds.length > 0 ? getContactsByIds(contactIds) : Promise.resolve([]),
+    userIds.length > 0 ? batchUserAvatarInitials(userIds) : Promise.resolve(new Map<string, string>()),
+  ]);
+
+  const contactById = new Map(contacts.map((c) => [c.id, c]));
+
+  for (const m of members) {
+    if (m.contact_id) {
+      const c = contactById.get(m.contact_id);
+      result.set(
+        m.id,
+        c ? initialsFromFirstLast(c.first_name, c.last_name, c.email) : "?"
+      );
+      continue;
+    }
+    if (m.user_id) {
+      result.set(m.id, userInitialsByAuthId.get(m.user_id) ?? "?");
+      continue;
+    }
+    result.set(m.id, "?");
   }
 
   return result;

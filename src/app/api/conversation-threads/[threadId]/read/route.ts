@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
 import { updateThreadParticipantLastRead } from "@/lib/supabase/conversation-threads";
+import { assertMemberCanReadThread } from "@/lib/message-center/mag-thread-policy";
 
 export async function PATCH(
   _request: Request,
@@ -16,6 +17,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { threadId } = await params;
+    const gate = await assertMemberCanReadThread(threadId, user.id);
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status });
+    }
     const { ok, error } = await updateThreadParticipantLastRead({
       thread_id: threadId,
       user_id: user.id,

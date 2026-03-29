@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/supabase-auth";
-import { insertThreadMessage, listThreadMessages } from "@/lib/supabase/conversation-threads";
+import { getRoleForCurrentUser, isAdminRole } from "@/lib/auth/resolve-role";
+import { isMemberRole } from "@/lib/php-auth/role-mapping";
+import {
+  getConversationThreadById,
+  insertThreadMessage,
+  listThreadMessages,
+} from "@/lib/supabase/conversation-threads";
 import { enrichThreadMessageAuthors } from "@/lib/message-center/thread-message-author-enrichment";
 import {
   assertCanPostThreadMessage,
   assertMemberCanReadThread,
 } from "@/lib/message-center/mag-thread-policy";
+import { threadMessageIsAdminBroadcast } from "@/lib/message-center/thread-message-metadata";
 
 /**
  * GET /api/conversation-threads/[threadId]/messages?limit=200
@@ -27,9 +34,19 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const limitRaw = searchParams.get("limit");
     const limit = limitRaw ? parseInt(limitRaw, 10) : undefined;
-    const data = await listThreadMessages(threadId, {
+    let data = await listThreadMessages(threadId, {
       limit: Number.isFinite(limit) ? limit : undefined,
     });
+    /** GPUM / members: broadcast posts are notifications, not part of the COMMENT:GROUP transcript. */
+    const thread = await getConversationThreadById(threadId);
+    if (thread?.thread_type === "mag_group") {
+      const role = await getRoleForCurrentUser();
+      const isStaffReader =
+        role !== null && isAdminRole(role) && !isMemberRole(role);
+      if (!isStaffReader) {
+        data = data.filter((m) => !threadMessageIsAdminBroadcast(m.metadata));
+      }
+    }
     const enrichAuthors = searchParams.get("enrichAuthors") === "1";
     if (enrichAuthors && data.length > 0) {
       const { authors, contactNames, memberContactNames } = await enrichThreadMessageAuthors(data);

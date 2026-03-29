@@ -7,7 +7,20 @@ import { getContactMags } from "@/lib/supabase/crm";
 import { getProfileByUserId } from "@/lib/supabase/profiles";
 import { getMemberMagMessagingPrefsForUser } from "@/lib/supabase/member-mag-messaging";
 
-/** MAG appears in conversation list / can post only when all are true (MVP rule). */
+/**
+ * COMMENT:GROUP row in GPUM stream: enrolled in MAG and tenant allows comments for that MAG.
+ * (Posting uses {@link assertCanPostThreadMessage}: enrolled in MAG + allow_conversations + member/contact match.)
+ */
+export async function memberCanSeeMagGroupCommentHead(
+  contactId: string,
+  magId: string,
+  allowMemberCommentsForMag: boolean
+): Promise<boolean> {
+  if (!allowMemberCommentsForMag) return false;
+  return memberEnrolledInMag(contactId, magId);
+}
+
+/** Strict gate: stream drill / post — prefs + nickname (see plan). */
 export async function memberCanSeeMagGroupThread(
   contactId: string,
   authUserId: string,

@@ -56,6 +56,10 @@
 5. **Unread:** per-user read state for threads/timeline; badges; bulk mark-read.
 6. **GPUM:** Message Center UI + profile toggles + MAG announcement read view vs community (if on).
 
+## Future: Personal capture inbox (webhook)
+
+**Status:** Spec and **build steps** live in [sessionlog §3](../sessionlog.md#personal-capture-inbox-webhook-planned) (Message Center open-items area). **Checkbox:** [planlog Phase 18C](../planlog.md#phase-18c-directory-unified-picker--messages--notifications). Implement when prioritized (after GPUM Phase 4–5 unless product reorders).
+
 ## Key files (implementation pointers)
 
 - Threads: `src/lib/supabase/conversation-threads.ts`, `src/app/api/conversation-threads/**`

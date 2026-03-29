@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,15 +26,44 @@ import { Switch } from "@/components/ui/switch";
 import { UserPlus, Loader2, Trash2, Search } from "lucide-react";
 import type { Mag } from "@/lib/supabase/crm";
 import type { ContactInMag } from "@/lib/supabase/crm";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MagGroupCommentsPanel } from "./MagGroupCommentsPanel";
 
 interface MAGDetailClientProps {
   mag: Mag;
   allMags: Mag[];
   initialContacts: ContactInMag[];
+  /** From `?tab=comments` when opening COMMENT:GROUP from Message Center. */
+  initialTab?: "context" | "comments";
 }
 
-export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClientProps) {
+export function MAGDetailClient({
+  mag,
+  allMags,
+  initialContacts,
+  initialTab = "context",
+}: MAGDetailClientProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"context" | "comments">(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  const onTabChange = useCallback(
+    (v: string) => {
+      const next = v === "comments" ? "comments" : "context";
+      setActiveTab(next);
+      const p = new URLSearchParams(searchParams?.toString() ?? "");
+      if (next === "comments") p.set("tab", "comments");
+      else p.delete("tab");
+      const qs = p.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(mag.name);
   const [uid, setUid] = useState(mag.uid);
@@ -200,7 +229,17 @@ export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClie
   };
 
   return (
-    <div className="space-y-4">
+    <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-4">
+      <TabsList className="inline-flex h-9 w-fit rounded-md bg-muted p-1 text-muted-foreground">
+        <TabsTrigger value="context" className="px-3 text-sm">
+          Context
+        </TabsTrigger>
+        <TabsTrigger value="comments" className="px-3 text-sm">
+          Comments
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="context" className="mt-0 space-y-4">
       <Card>
         <CardHeader className="p-2 sm:p-3 pb-0">
           <CardTitle className="text-base">Membership details</CardTitle>
@@ -239,9 +278,12 @@ export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClie
             </div>
             <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-2 py-2">
               <div className="space-y-0.5 min-w-0">
-                <Label htmlFor="allow-conv" className="text-xs">Member conversations in MAG room</Label>
+                <Label htmlFor="allow-conv" className="text-xs">
+                  Allow comments for this membership access group
+                </Label>
                 <p className="text-[10px] text-muted-foreground leading-tight">
-                  When off, members cannot post in the MAG group thread; superadmin and tenant admin can still post announcements.
+                  When off, members cannot post in the COMMENT:GROUP thread; superadmin and tenant admin can still post
+                  announcements.
                 </p>
               </div>
               <Switch
@@ -459,6 +501,11 @@ export function MAGDetailClient({ mag, allMags, initialContacts }: MAGDetailClie
           )}
         </CardContent>
       </Card>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="comments" className="mt-0">
+        <MagGroupCommentsPanel magId={mag.id} magName={mag.name} />
+      </TabsContent>
+    </Tabs>
   );
 }

@@ -562,6 +562,80 @@ export async function updateThreadParticipantLastRead(input: {
   return { ok: true, error: null };
 }
 
+/**
+ * True if the latest thread message looks authored by the signed-in GPUM (same contact or same auth user).
+ * Used when there is no `thread_participants` row yet for that member.
+ */
+export function gpumLatestMessageIsFromMember(
+  last: ThreadLastMessagePreview,
+  contactId: string,
+  authUserId: string
+): boolean {
+  const c = contactId.trim();
+  const u = authUserId.trim();
+  if (!c || !u) return false;
+  if (last.author_contact_id?.trim() === c) return true;
+  if (last.author_user_id?.trim() === u) return true;
+  return false;
+}
+
+/**
+ * GPUM Message Center: unread per conversation thread.
+ * - With a `thread_participants` row for the auth user: same as admin (latest message vs `last_read_at`).
+ * - Without a row (typical until first mark-read): unread when the latest message is not from the member
+ *   (e.g. staff reply or announcement), so their own-only threads are not stuck “unread.”
+ */
+export async function getMemberThreadUnreadMapForUser(
+  authUserId: string,
+  contactId: string,
+  threadIds: string[],
+  lastByThread: Map<string, ThreadLastMessagePreview>
+): Promise<Map<string, boolean>> {
+  const out = new Map<string, boolean>();
+  const unique = [...new Set(threadIds.filter(Boolean))];
+  const uid = authUserId.trim();
+  const cid = contactId.trim();
+  if (!uid || !cid || unique.length === 0) {
+    for (const t of unique) out.set(t, false);
+    return out;
+  }
+
+  const supabase = createServerSupabaseClient();
+  const schema = getClientSchema();
+  const { data: parts, error: pErr } = await supabase
+    .schema(schema)
+    .from("thread_participants")
+    .select("thread_id, last_read_at")
+    .eq("user_id", uid)
+    .in("thread_id", unique);
+  if (pErr) {
+    console.error("getMemberThreadUnreadMapForUser participants:", pErr.message);
+    for (const t of unique) out.set(t, false);
+    return out;
+  }
+  const readAtByThread = new Map<string, string | null>();
+  for (const p of (parts ?? []) as { thread_id: string; last_read_at: string | null }[]) {
+    readAtByThread.set(p.thread_id, p.last_read_at);
+  }
+
+  for (const tid of unique) {
+    const last = lastByThread.get(tid);
+    if (!last?.created_at) {
+      out.set(tid, false);
+      continue;
+    }
+    const lastMs = new Date(last.created_at).getTime();
+    if (readAtByThread.has(tid)) {
+      const raw = readAtByThread.get(tid);
+      const readMs = raw ? new Date(raw).getTime() : 0;
+      out.set(tid, lastMs > readMs);
+      continue;
+    }
+    out.set(tid, !gpumLatestMessageIsFromMember(last, cid, uid));
+  }
+  return out;
+}
+
 /** Per-thread unread for Message Center (latest message vs participant `last_read_at`). */
 export async function getThreadUnreadMapForUser(
   userId: string,

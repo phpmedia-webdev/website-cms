@@ -18,11 +18,15 @@ import { getTenantUsersByAuthUserIds } from "@/lib/supabase/tenant-users";
 import { getClientSchema } from "@/lib/supabase/schema";
 import type { Profile } from "@/types/profiles";
 import type { TenantUser } from "@/types/tenant-users";
+import { batchUserAvatarInitials } from "@/lib/people/batch-avatar-initials";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
 
 export interface TaskAssigneeListItem {
   id: string;
   label: string;
   avatarUrl: string | null;
+  /** Structured-name initials; not derived from `label`. */
+  avatar_initials: string;
 }
 
 export interface AdminTasksListBundle {
@@ -121,10 +125,11 @@ export async function getAdminTasksListBundle(
 
   const userIds = uniqueStrings(followers.map((f) => f.user_id));
   const contactIds = uniqueStrings(followers.map((f) => f.contact_id));
-  const [profiles, contacts, userLabelById] = await Promise.all([
+  const [profiles, contacts, userLabelById, userInitialsById] = await Promise.all([
     getProfilesByUserIds(userIds),
     contactIds.length > 0 ? getContactsByIds(contactIds) : Promise.resolve([]),
     resolveAssigneeLabelsForUserIds(userIds),
+    userIds.length > 0 ? batchUserAvatarInitials(userIds) : Promise.resolve(new Map<string, string>()),
   ]);
   const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
   const contactMap = new Map(contacts.map((c) => [c.id, c]));
@@ -138,15 +143,20 @@ export async function getAdminTasksListBundle(
       id: f.id,
       label: "—",
       avatarUrl: null,
+      avatar_initials: "?",
     };
     if (f.user_id) {
       const p = profileMap.get(f.user_id);
       item.label = userLabelById.get(f.user_id) ?? "User";
       item.avatarUrl = p?.avatar_url ?? null;
+      item.avatar_initials = userInitialsById.get(f.user_id) ?? "?";
     } else if (f.contact_id) {
       const c = contactMap.get(f.contact_id);
       item.label = c ? c.full_name || c.email || "Contact" : "Contact";
       item.avatarUrl = c?.avatar_url ?? null;
+      item.avatar_initials = c
+        ? initialsFromFirstLast(c.first_name, c.last_name, c.email)
+        : "?";
     }
     list.push(item);
     taskAssigneesMap[f.task_id] = list;

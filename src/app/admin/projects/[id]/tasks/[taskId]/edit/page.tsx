@@ -22,6 +22,8 @@ import {
   formatCrmContactDisplayName,
 } from "@/lib/supabase/crm";
 import { getDisplayLabelForUser, getRealNameLabelForUser } from "@/lib/blog-comments/author-name";
+import { resolveTaskPageAvatarMaps } from "@/lib/tasks/task-page-avatar-maps";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
 import { TaskEditClient } from "./TaskEditClient";
 import { parseTaskDetailFrom, taskEditPath } from "@/lib/tasks/task-detail-nav";
 
@@ -81,6 +83,8 @@ export default async function TaskEditPage({
 
   const timeLogUserIds = [...new Set(timeLogs.map((l) => l.user_id).filter(Boolean))] as string[];
   const timeLogContactIds = [...new Set(timeLogs.map((l) => l.contact_id).filter(Boolean))] as string[];
+  const authorIds = [...new Set(notes.map((n) => n.author_id).filter(Boolean))] as string[];
+
   const timeLogUserLabels: Record<string, string> = {};
   const timeLogContactLabels: Record<string, string> = {};
   await Promise.all([
@@ -93,7 +97,6 @@ export default async function TaskEditPage({
     }),
   ]);
 
-  const authorIds = [...new Set(notes.map((n) => n.author_id).filter(Boolean))] as string[];
   const authorLabels: Record<string, string> = {};
   await Promise.all(
     authorIds.map(async (id) => {
@@ -101,10 +104,26 @@ export default async function TaskEditPage({
     })
   );
 
-  let taskLinkedContact: { id: string; label: string } | null = null;
+  const { timeLogUserInitials, timeLogContactInitials, authorAvatarInitials } =
+    await resolveTaskPageAvatarMaps({
+      timeLogUserIds,
+      timeLogContactIds,
+      noteAuthorUserIds: authorIds,
+    });
+
+  let taskLinkedContact: {
+    id: string;
+    label: string;
+    avatar_initials?: string;
+  } | null = null;
   if (task.contact_id) {
     const c = await getContactById(task.contact_id);
-    if (c) taskLinkedContact = { id: c.id, label: formatCrmContactDisplayName(c) };
+    if (c)
+      taskLinkedContact = {
+        id: c.id,
+        label: formatCrmContactDisplayName(c),
+        avatar_initials: initialsFromFirstLast(c.first_name, c.last_name, c.email),
+      };
   }
 
   return (
@@ -122,8 +141,11 @@ export default async function TaskEditPage({
       initialTimeLogs={timeLogs}
       timeLogUserLabels={timeLogUserLabels}
       timeLogContactLabels={timeLogContactLabels}
+      timeLogUserInitialsById={timeLogUserInitials}
+      timeLogContactInitialsById={timeLogContactInitials}
       initialNotes={notes}
       authorLabels={authorLabels}
+      authorAvatarInitials={authorAvatarInitials}
     />
   );
 }

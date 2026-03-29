@@ -35,6 +35,8 @@ import {
 } from "@/components/pickers/DirectoryParticipantPicker";
 import { MediaPickerModal } from "@/components/editor/MediaPickerModal";
 import { cn } from "@/lib/utils";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
+import { initialsFromLabel } from "@/lib/tasks/display-helpers";
 
 interface ProjectEditClientProps {
   project: Project;
@@ -42,7 +44,12 @@ interface ProjectEditClientProps {
   typeTerms: StatusOrTypeTerm[];
   projectRoleTerms: StatusOrTypeTerm[];
   clientDisplayName: string | null;
-  initialProjectMembers: (ProjectMember & { label: string; role_label: string | null })[];
+  clientAvatarInitials: string | null;
+  initialProjectMembers: (ProjectMember & {
+    label: string;
+    role_label: string | null;
+    avatar_initials: string;
+  })[];
   /** Resolved thumbnail/variant URL when `project.cover_image_id` is set. */
   initialCoverImageUrl: string | null;
 }
@@ -84,6 +91,7 @@ export function ProjectEditClient({
   typeTerms,
   projectRoleTerms,
   clientDisplayName,
+  clientAvatarInitials,
   initialProjectMembers,
   initialCoverImageUrl,
 }: ProjectEditClientProps) {
@@ -106,6 +114,7 @@ export function ProjectEditClient({
   const [error, setError] = useState<string | null>(null);
   const [projectMembers, setProjectMembers] = useState(initialProjectMembers);
   const [clientName, setClientName] = useState(clientDisplayName);
+  const [clientInitials, setClientInitials] = useState(clientAvatarInitials ?? "?");
   const [clientContactId, setClientContactId] = useState<string | null>(project.contact_id);
   const [clientOrgId, setClientOrgId] = useState<string | null>(project.client_organization_id);
 
@@ -122,9 +131,16 @@ export function ProjectEditClient({
   useEffect(() => {
     setProjectMembers(initialProjectMembers);
     setClientName(clientDisplayName);
+    setClientInitials(clientAvatarInitials ?? "?");
     setClientContactId(project.contact_id);
     setClientOrgId(project.client_organization_id);
-  }, [initialProjectMembers, clientDisplayName, project.contact_id, project.client_organization_id]);
+  }, [
+    initialProjectMembers,
+    clientDisplayName,
+    clientAvatarInitials,
+    project.contact_id,
+    project.client_organization_id,
+  ]);
 
   useEffect(() => {
     setCoverImageId(project.cover_image_id ?? null);
@@ -430,6 +446,20 @@ export function ProjectEditClient({
         setClientName(label);
         setClientContactId(setClientSelectedContactId);
         setClientOrgId(null);
+        try {
+          const crRes = await fetch(`/api/crm/contacts/${setClientSelectedContactId}`);
+          const cr = crRes.ok
+            ? ((await crRes.json().catch(() => null)) as null | {
+                first_name?: string | null;
+                last_name?: string | null;
+                email?: string | null;
+              })
+            : null;
+          if (cr) setClientInitials(initialsFromFirstLast(cr.first_name, cr.last_name, cr.email));
+          else setClientInitials(initialsFromLabel(label));
+        } catch {
+          setClientInitials(initialsFromLabel(label));
+        }
         const alreadyMember = projectMembers.some(
           (m) => m.contact_id === setClientSelectedContactId
         );
@@ -480,14 +510,6 @@ export function ProjectEditClient({
   const additionalMembers = projectMembers.filter(
     (m) => !(clientContactId != null && m.contact_id === clientContactId)
   );
-
-  function initials(label: string): string {
-    const parts = label.trim().split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase().slice(0, 2);
-    }
-    return label.slice(0, 2).toUpperCase() || "?";
-  }
 
   const removeMember = async (memberId: string) => {
     const res = await fetch(`/api/projects/${project.id}/members`, {
@@ -774,7 +796,7 @@ export function ProjectEditClient({
                       className="flex size-20 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xl font-semibold text-primary"
                       title={clientName}
                     >
-                      {initials(clientName)}
+                      {clientInitials}
                     </span>
                     <p className="w-full min-w-0 text-sm font-semibold leading-tight text-foreground truncate">
                       {clientName}
@@ -1046,7 +1068,7 @@ export function ProjectEditClient({
                           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-medium text-primary"
                           title={m.label}
                         >
-                          {initials(m.label)}
+                          {m.avatar_initials}
                         </span>
                         <span className="max-w-[180px] truncate">{m.label}</span>
                         {m.role_label ? (

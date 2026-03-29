@@ -1,11 +1,14 @@
 "use client";
 
+import { initialsFromLabel } from "@/lib/tasks/display-helpers";
 import { cn } from "@/lib/utils";
 
 export interface ProjectMemberAvatarItem {
   id: string;
   label: string;
   avatarUrl: string | null;
+  /** From CRM / profile structured names when provided by server. */
+  avatar_initials?: string;
 }
 
 interface ProjectMemberAvatarsProps {
@@ -50,7 +53,7 @@ export function ProjectMemberAvatars({
                 className="h-full w-full object-cover"
               />
             ) : (
-              initials(member.label)
+              member.avatar_initials?.trim() || initialsFromLabel(member.label)
             )}
           </span>
         ))}

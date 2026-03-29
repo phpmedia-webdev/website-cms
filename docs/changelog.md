@@ -11,6 +11,20 @@ For planned work and backlog items, see [planlog.md](./planlog.md). For **open**
 
 ## [Unreleased]
 
+### 2026-03-28 22:37 CT — COMMENT:GROUP (MAG), GPUM stream/post policy, admin transcript colors
+
+- **Context for Next Session:** **DB:** No new migrations. **Test:** GPUM **`/members/messages`** — **COMMENT:GROUP** head appears when contact is **in the MAG** and **Allow comments for this membership access group** is on; open thread — transcript shows **comments only** (no broadcast lines); **Send reply** works with linked **member** + **`author_contact_id`**. Admin **Message Center** — **COMMENT:GROUP** row (violet chip) opens MAG **Comments** tab; inline transcript = **member left slate**, **staff right blue** (same as support threads). **Still open:** [sessionlog §3](./sessionlog.md) **GPUM Phase 5.3** manual QA matrix; wiring doc / **qa-gpum** table updates for new listing + post rules if you want docs to match code verbatim.
+- **Completed:**
+  - **Product copy:** Stream + UI label **COMMENT:GROUP** (admin **`DashboardActivityStream`**, GPUM **`getMemberStreamItemPrimaryLine`**, **`MagGroupCommentsPanel`**); MAG detail switch label **Allow comments for this membership access group** (`MAGDetailClient`).
+  - **GPUM merged stream (`gpum-member-stream.ts`, `gpum-mag-eligibility.ts`):** **`memberCanSeeMagGroupCommentHead`** — enrolled in MAG + **`allow_conversations`**; **`getOrCreateMagGroupThread`** when no **`mag_group`** row yet so heads show without a prior broadcast.
+  - **GPUM UI (`MemberActivityStream`):** **`announcement_feed`** rows — rose **Megaphone** chip; **`mag_group` `conversation_head`** — violet chip; **`mag_group` transcript** — violet accent on member side; support threads unchanged.
+  - **Admin MAG Comments (`MagGroupCommentsPanel`):** Conversation layout — **member left**, **staff right**; **staff** icon **blue**; **`threadMessageIsAdminBroadcast`** filters broadcast rows from the panel list; empty states when thread has only broadcasts.
+  - **`GET /api/conversation-threads/[threadId]/messages`:** For **`mag_group`**, omit **`metadata.source === admin_broadcast`** for **non-staff** readers (fixes null / non-GPUM-slug role skipping the filter).
+  - **`assertCanPostThreadMessage` (`mag-thread-policy.ts`):** **`mag_group`** + **`allow_conversations`** — members post with **`members`** row + matching **`author_contact_id`** + **`memberEnrolledInMag`** (no **`mag_community_messaging_enabled`** / **`crm_contact_mag_community_opt_in`** gate); removed **`isMemberRole`-only** rejection for PHP-Auth null slug.
+  - **Admin Message Center transcript (`DashboardActivityStream`):** **COMMENT:GROUP** rolled-up view uses **slate (member, left)** and **blue (staff, right)** like other threads — removed violet/blue dual accent inside the transcript.
+  - **Supporting:** **`thread-message-metadata.ts`** (`threadMessageIsAdminBroadcast`); **`GET`/`POST` group-thread** route filters (prior); **`MAGDetailClient`** `?tab=comments` comment.
+  - **Docs:** **`planlog.md`** Phase 18C **COMMENT:GROUP** bullets checked; **`sessionlog.md`** GPUM 1.1 / 2.1–2.2 aligned; **`mvt.md`** Admin Message Center **0.4**.
+
 ### 2026-03-28 14:36 CT — Accounting module: firm plan in sessionlog (documentation only)
 
 - **Context for Next Session:** **Accounting** handoff lives in **[sessionlog.md](./sessionlog.md)** — **§ Accounting (planned module — SSOT → export → QuickBooks)** (principles, document types, PWA field capture, mileage point-to-point, CSV-then-QBO phases, open checklist). **No application code or migrations** in this change. **Implementation** continues under [planlog Phase 22](./planlog.md#phase-22-accounting-module) and future `prd-technical` when schema is locked.

@@ -38,7 +38,7 @@ import {
   taskDetailPath,
   type TaskDetailFrom,
 } from "@/lib/tasks/task-detail-nav";
-import type { TaskFollowerWithLabel } from "@/lib/tasks/task-follower-types";
+import type { TaskFollowerWithLabel, TaskLinkedContactSummary } from "@/lib/tasks/task-follower-types";
 import {
   replaceTaskResourceAssignments,
   type TaskResourceAssignmentDraft,
@@ -86,8 +86,11 @@ interface TaskEditClientProps {
   initialTimeLogs: TaskTimeLog[];
   timeLogUserLabels: Record<string, string>;
   timeLogContactLabels: Record<string, string>;
+  timeLogUserInitialsById: Record<string, string>;
+  timeLogContactInitialsById: Record<string, string>;
   initialNotes: CrmNote[];
   authorLabels: Record<string, string>;
+  authorAvatarInitials: Record<string, string>;
 }
 
 export function TaskEditClient({
@@ -104,8 +107,11 @@ export function TaskEditClient({
   initialTimeLogs,
   timeLogUserLabels,
   timeLogContactLabels,
+  timeLogUserInitialsById,
+  timeLogContactInitialsById,
   initialNotes,
   authorLabels,
+  authorAvatarInitials,
 }: TaskEditClientProps) {
   const router = useRouter();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -465,13 +471,20 @@ export function TaskEditClient({
         initialLogs={initialTimeLogs}
         userLabels={timeLogUserLabels}
         contactLabels={timeLogContactLabels}
+        userInitialsById={timeLogUserInitialsById}
+        contactInitialsById={timeLogContactInitialsById}
         taskStatusSlug={statusSlug}
         onTaskStatusSlugChange={setStatusSlug}
         plannedMinutes={task.planned_time}
         canEditPlanned
       />
 
-      <TaskThreadSection taskId={task.id} initialNotes={initialNotes} authorLabels={authorLabels} />
+      <TaskThreadSection
+        taskId={task.id}
+        initialNotes={initialNotes}
+        authorLabels={authorLabels}
+        authorAvatarInitials={authorAvatarInitials}
+      />
     </div>
   );
 }

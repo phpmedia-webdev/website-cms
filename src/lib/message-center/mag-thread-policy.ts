@@ -1,6 +1,7 @@
 /**
- * MAG group thread posting: broadcast when allow_conversations is false (superadmin + tenant admin only);
- * community when true (GPUM needs global + per-MAG opt-in).
+ * MAG group thread posting: when allow_conversations is false, only superadmin/tenant admin may post (broadcasts);
+ * when true, staff may post anytime; members may post if they have a member record, matching contact id, and
+ * are enrolled in the MAG (same bar as read access — no separate profile opt-in).
  */
 
 import { createServerSupabaseClient } from "@/lib/supabase/server-service";
@@ -33,7 +34,8 @@ export type MagPostDeniedReason =
   | "community_disabled_non_broadcaster"
   | "community_needs_contact_author"
   | "gpum_global_off"
-  | "gpum_mag_not_opted_in";
+  | "gpum_mag_not_opted_in"
+  | "gpum_not_enrolled_in_mag";
 
 export async function assertCanPostThreadMessage(
   ctx: MagPostMessageContext
@@ -88,18 +90,9 @@ export async function assertCanPostThreadMessage(
     return { ok: true };
   }
 
-  // Community allowed: staff (any admin-side role) may post without extra MAG opt-in checks.
+  // Community allowed: staff (any admin-side role) may post without enrollment checks.
   if (role && isAdminRole(role) && !isMemberRole(role)) {
     return { ok: true };
-  }
-
-  if (!role || !isMemberRole(role)) {
-    return {
-      ok: false,
-      status: 403,
-      reason: "community_disabled_non_broadcaster",
-      message: "MAG community messaging is for members (GPUM) or staff.",
-    };
   }
 
   const member = await getMemberByUserId(ctx.authorUserId);
@@ -115,41 +108,12 @@ export async function assertCanPostThreadMessage(
     };
   }
 
-  const { data: contactRow, error: cErr } = await supabase
-    .schema(schema)
-    .from("crm_contacts")
-    .select("id, mag_community_messaging_enabled")
-    .eq("id", member.contact_id)
-    .maybeSingle();
-
-  if (cErr || !contactRow) {
-    return { ok: false, status: 400, reason: "gpum_global_off", message: "Contact not found" };
-  }
-
-  const globalOn = Boolean(contactRow.mag_community_messaging_enabled);
-  if (!globalOn) {
+  if (!(await memberEnrolledInMag(member.contact_id, thread.mag_id))) {
     return {
       ok: false,
       status: 403,
-      reason: "gpum_global_off",
-      message: "Enable MAG community messaging on your profile to post in MAG rooms.",
-    };
-  }
-
-  const { data: optRow, error: oErr } = await supabase
-    .schema(schema)
-    .from("crm_contact_mag_community_opt_in")
-    .select("mag_id")
-    .eq("contact_id", member.contact_id)
-    .eq("mag_id", thread.mag_id)
-    .maybeSingle();
-
-  if (oErr || !optRow) {
-    return {
-      ok: false,
-      status: 403,
-      reason: "gpum_mag_not_opted_in",
-      message: "Opt in to community messaging for this MAG on your profile.",
+      reason: "gpum_not_enrolled_in_mag",
+      message: "You must be assigned to this membership group to post here.",
     };
   }
 

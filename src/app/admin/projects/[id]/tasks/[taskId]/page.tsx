@@ -23,6 +23,8 @@ import {
   formatCrmContactDisplayName,
 } from "@/lib/supabase/crm";
 import { getDisplayLabelForUser, getRealNameLabelForUser } from "@/lib/blog-comments/author-name";
+import { resolveTaskPageAvatarMaps } from "@/lib/tasks/task-page-avatar-maps";
+import { initialsFromFirstLast } from "@/lib/ui/avatar-initials";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -83,6 +85,8 @@ export default async function TaskDetailPage({
 
   const timeLogUserIds = [...new Set(timeLogs.map((l) => l.user_id).filter(Boolean))] as string[];
   const timeLogContactIds = [...new Set(timeLogs.map((l) => l.contact_id).filter(Boolean))] as string[];
+  const authorIds = [...new Set(notes.map((n) => n.author_id).filter(Boolean))] as string[];
+
   const timeLogUserLabels: Record<string, string> = {};
   const timeLogContactLabels: Record<string, string> = {};
   await Promise.all([
@@ -95,13 +99,19 @@ export default async function TaskDetailPage({
     }),
   ]);
 
-  const authorIds = [...new Set(notes.map((n) => n.author_id).filter(Boolean))] as string[];
   const authorLabels: Record<string, string> = {};
   await Promise.all(
     authorIds.map(async (id) => {
       authorLabels[id] = await getDisplayLabelForUser(id);
     })
   );
+
+  const { timeLogUserInitials, timeLogContactInitials, authorAvatarInitials } =
+    await resolveTaskPageAvatarMaps({
+      timeLogUserIds,
+      timeLogContactIds,
+      noteAuthorUserIds: authorIds,
+    });
 
   const followersWithLabels = await resolveTaskFollowersWithLabels(followers);
   const assigneesOnly = followersWithLabels.filter((f) => f.role !== "creator");
@@ -114,10 +124,19 @@ export default async function TaskDetailPage({
     ? `Created by ${creatorName} on ${createdOn}`
     : `Created on ${createdOn}`;
 
-  let taskLinkedContact: { id: string; label: string } | null = null;
+  let taskLinkedContact: {
+    id: string;
+    label: string;
+    avatar_initials?: string;
+  } | null = null;
   if (task.contact_id) {
     const c = await getContactById(task.contact_id);
-    if (c) taskLinkedContact = { id: c.id, label: formatCrmContactDisplayName(c) };
+    if (c)
+      taskLinkedContact = {
+        id: c.id,
+        label: formatCrmContactDisplayName(c),
+        avatar_initials: initialsFromFirstLast(c.first_name, c.last_name, c.email),
+      };
   }
 
   function formatDateIso(s: string | null): string {
@@ -288,11 +307,18 @@ export default async function TaskDetailPage({
         initialLogs={timeLogs}
         userLabels={timeLogUserLabels}
         contactLabels={timeLogContactLabels}
+        userInitialsById={timeLogUserInitials}
+        contactInitialsById={timeLogContactInitials}
         taskStatusSlug={task.task_status_slug}
         plannedMinutes={task.planned_time}
       />
 
-      <TaskThreadSection taskId={taskId} initialNotes={notes} authorLabels={authorLabels} />
+      <TaskThreadSection
+        taskId={taskId}
+        initialNotes={notes}
+        authorLabels={authorLabels}
+        authorAvatarInitials={authorAvatarInitials}
+      />
       </div>
     </div>
   );

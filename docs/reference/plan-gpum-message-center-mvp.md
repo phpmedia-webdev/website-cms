@@ -69,7 +69,7 @@ Complete in order; each phase should be shippable behind review.
   - If `threadId` + conversation type → **navigate or panel** to **MemberConversationView** (load `/api/conversation-threads/[id]/messages`).  
   - Else → existing **deep link** or **modal** for read-only context (match item type).
 - [ ] **3.3** **Conversation transcript:** bubble or simple timeline list + composer when **`assertCanPostThreadMessage`** allows; otherwise read-only + explain (“Messaging off for this MAG” / “Add nickname…”).
-- [ ] **3.4** **Simple conversation picker** (sheet or secondary list): **Support** + eligible **MAGs** only — no DM, no full directory.
+- [x] **3.4** **Simple conversation picker** (sheet) — **superseded / N/A:** **`MemberActivityStream`** uses **Join a conversation** (→ **Conversations** filter), **conversation_head** rows, **Message the team**, and **View all** instead of a modal sheet. Same product intent (pick support vs MAG threads, no DM); no separate picker to build.
 
 ### Phase 4 — Unread and light UX copy
 

@@ -77,6 +77,37 @@ export async function getProfileFieldValues(userId: string): Promise<ProfileFiel
   return (data as ProfileFieldValue[]) ?? [];
 }
 
+/**
+ * Batch-read profile custom fields (e.g. first_name, last_name for avatar initials).
+ * Map: user_id → { field_key: value } for requested keys only.
+ */
+export async function getProfileFieldValuesForUsers(
+  userIds: string[],
+  fieldKeys: string[]
+): Promise<Map<string, Record<string, string>>> {
+  const out = new Map<string, Record<string, string>>();
+  if (userIds.length === 0 || fieldKeys.length === 0) return out;
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("profile_field_values")
+    .select("user_id, field_key, value")
+    .in("user_id", userIds)
+    .in("field_key", fieldKeys);
+  if (error) {
+    console.error("getProfileFieldValuesForUsers:", error);
+    return out;
+  }
+  const keySet = new Set(fieldKeys);
+  for (const row of (data ?? []) as { user_id: string; field_key: string; value: string | null }[]) {
+    if (!keySet.has(row.field_key)) continue;
+    const uid = row.user_id;
+    const cur = out.get(uid) ?? {};
+    cur[row.field_key] = (row.value ?? "").trim();
+    out.set(uid, cur);
+  }
+  return out;
+}
+
 export async function setProfileFieldValue(row: ProfileFieldValueInsert): Promise<boolean> {
   const supabase = createServerSupabaseClient();
   const { error } = await supabase
